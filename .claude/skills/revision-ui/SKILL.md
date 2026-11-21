@@ -17,7 +17,18 @@ Objetivo: pantallas ambiciosas pero no sobrecargadas, bien distribuidas, sin fri
 6. **Lenguaje natural y conciso.** Frases cortas, como hablaría una persona: "Faltan 7 cajas para bajar a $29.900", no "Umbral del siguiente tramo: 7 unidades". Español neutro, sin emojis, sin guiones largos, montos en formato chileno ($17.200) y decimales con coma (4,7). Singular y plural correctos.
 7. **Contexto mínimo suficiente.** Cada número con su etiqueta corta. Sin párrafos explicativos en pantallas que se proyectan.
 8. **Vivo.** Respeta la regla de tiempo real de `CLAUDE.md`: los cambios llegan solos y se notan con una animación breve, sin tapar lo demás. Respeta `prefers-reduced-motion`.
-9. **Estados completos.** Cada vista tiene estado vacío con guía ("Todavía no hay pedidos: súmate a la compra conjunta"), cargando, error en palabras simples y datos de prueba marcados.
+9. **Iconografía que se reconoce al instante.** Ver la sección de abajo.
+10. **Aviso de modo demo.** Donde alguien se suma o actúa sin cuenta (`/unirse`, entrada de `/app`, `/sala`, junto a "Conectar mi SII"), una línea discreta en gris pequeño: en la demo cualquiera puede sumarse; en uso real cada negocio entra con su cuenta y su certificado digital. Nunca tapa acciones ni compite con lo principal.
+11. **Estados completos.** Cada vista tiene estado vacío con guía ("Todavía no hay pedidos: súmate a la compra conjunta"), cargando, error en palabras simples y datos de prueba marcados.
+
+## Iconografía
+
+- **SII:** todo lo que pasa en el SII (factura emitida, reclamo, nota de crédito, "Conectar mi SII", folios) lleva el logo del SII (`/logos/sii.svg`) y su azul (#0061A0). El usuario tiene que ver de un vistazo qué quedó registrado oficialmente. Se usa para indicar la conexión, nunca como si fuera una pantalla oficial del SII.
+- **Proveedores:** cada proveedor tiene su logo. Si el negocio no subió uno, se muestra un monograma (iniciales sobre un color estable derivado del nombre). El proveedor real de la demo puede traer su logo por configuración (`DEMO_PROVEEDOR_LOGO_URL`); nunca se commitea la marca de una empresa real.
+- **Comercios compradores:** avatar con monograma de color estable y, si se conoce, un ícono del rubro (almacén, panadería, restaurante, farmacia, etc.).
+- **Productos:** un ícono simple por producto de la canasta.
+- **Un solo set de íconos de línea**, mismo grosor y tamaño en toda la app, en SVG dentro del código. Sin emojis como íconos.
+- Los logos y avatares van en contenedores de tamaño fijo para que las filas queden alineadas.
 
 ## Tamaños obligatorios
 
@@ -75,3 +86,5 @@ En pantallas que se proyectan, `scrollVertical` tiene que decir `no`. Los elemen
 - [ ] Textos cortos, naturales, en español neutro, con montos y plurales correctos.
 - [ ] Estados vacío, cargando y error revisados.
 - [ ] Los cambios en vivo se notan sin tapar contenido.
+- [ ] Logo del SII en cada acción del SII; logos o monogramas en proveedores y comercios; íconos de un solo set.
+- [ ] Aviso discreto de modo demo donde corresponde.
