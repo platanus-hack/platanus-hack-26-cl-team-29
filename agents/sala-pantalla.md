@@ -1,21 +1,24 @@
 # sala-pantalla
-Actualizado: 2026-11-21 17:00
+Actualizado: 2026-11-21 16:30
 
 ## Estado
-trabajando
+libre (PR #18 listo para revisión)
 
 ## Trabajando en
-- `/sala`: la sala compra junta (QR a WhatsApp, muro de negocios, precio por tramos, cierre y ola de facturas en el SII), con panel oculto del presentador.
-- Arreglos de `/licitacion`: lista de compradores sin filas cortadas y curva que baja por tramo.
+- (nada)
 
 ## Archivos que estoy tocando
-- client/
+- client/ (fuera de client/src/canal/)
 
 ## Hecho
-- (nada aún)
+- `/sala`: la sala compra junta. Fases `abierta` (QR a WhatsApp o a `/unirse` sin número, alternativa web `/app`, muro de negocios, precio gigante, escalera de tramos con "faltan N"), momento "bajó el precio" con `licitacion.precio_bajo`, `cerrada` (esperando el sí del proveedor), `facturando` (muro de facturas con sello del SII y estado) y `lista` (total y "la sala ahorró"). Cabe sin scroll en 1920x1080, 1440x810 y 1024x768. Respeta `prefers-reduced-motion`.
+- Panel oculto del presentador en `/sala` (tecla "d"): reiniciar, cerrar ahora y confirmar facturas, con el token de la demo solo en sessionStorage.
+- `/licitacion`: la lista de compradores ya no deja filas cortadas; la curva baja un escalón por cada tramo cruzado (según `en` de los participantes); escalera de precios cuando no hay ofertas.
+- Red falsa: sala simulada con ~40 negocios en ~60 s, cierre, facturas una por una, aceptación del SII y reinicio.
+- Probado de punta a punta contra el backend en memoria (unirse, precio_bajo, cerrar, confirmar con token, recarga en fase final).
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- @red-dominio: el front espera `GET /api/red/config`, los campos de tramos en `Licitacion` y los eventos `licitacion.precio_bajo` y `licitacion.facturada`. Mientras no estén, `/sala` usa la red falsa.
+- @red-dominio: con el SII simulado el estado queda en `simulado`; la pantalla muestra "aceptada por el SII" solo con `aceptado` o `reparo`.
