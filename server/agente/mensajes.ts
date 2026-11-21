@@ -206,7 +206,8 @@ export function bienvenidaSala(l: LicitacionSala, pregunta: string, urlPublica: 
   const n = l.participantes.length;
   const quienes = n === 0 ? 'Puedes ser el primero.' : `Ya ${n === 1 ? 'va' : 'van'} ${negociosTexto(n)}.`;
   const web = urlPublica ? `\n\nTambién puedes sumarte en ${urlPublica.replace(/\/+$/, '')}/app` : '';
-  return `Hola. La sala compra en conjunto: mientras más negocios, más baja el precio. ${quienes}\n${listaNumerada(l)}\n\n${pregunta}${web}`;
+  // La pregunta va al final: si trae opciones ("1. Conectar certificado…"), salen como botones de WhatsApp.
+  return `Hola. La sala compra en conjunto: mientras más negocios, más baja el precio. ${quienes}\n${listaNumerada(l)}${web}\n\n${pregunta}`;
 }
 
 export const listaProductos = (l: LicitacionSala) => `Precios de hoy:\n${listaNumerada(l)}\n\nEscribe lo que quieres. ${ejemplo(l)}`;
@@ -220,6 +221,17 @@ export const rutConError = (mensaje: string) => `${mensaje}
 
 ¿Cuál es el RUT de tu negocio?`;
 export const facturaA = (razonSocial: string) => `Tu factura saldrá a nombre de ${razonSocial}.`;
+/** La pregunta del RUT cuando se puede conectar el certificado: tres salidas, una de ellas explícita para la demo. */
+export const pedirRutOCertificado = (nombre?: string) =>
+  `${nombre ? `${nombre}, para` : 'Para'} que tu factura salga a tu nombre en el SII, conecta tu certificado digital `
+  + '(te mando un link privado: la clave no pasa por WhatsApp) o escribe el RUT de tu negocio.\n\n'
+  + 'Para la demo puedes saltarlo: tu factura sale a un receptor de prueba en el ambiente de certificación del SII.\n'
+  + opciones('Conectar certificado', 'No (demo)');
+export const enlaceCertificado = (url: string) =>
+  `Conecta tu certificado aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
+  + 'Cuando termines, sigo tu registro por acá. También puedes escribir el RUT de tu negocio.';
+export const MODO_DEMO = 'Listo, modo demo: tu factura sale a un receptor de prueba en el ambiente de certificación del SII.';
+export const CERTIFICADO_CONECTADO = 'Certificado conectado ✓ Tu RUT sale de él: no tienes que escribirlo.';
 export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantas(p)} ${unidadDe(p, 2)} de ${cortoDe(p)} quieres?`;
 export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
   `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;

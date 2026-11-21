@@ -39,6 +39,8 @@ export interface OpcionesAgente {
   /** Tiempos y límites de la compra conjunta; por defecto los de la demo. */
   readonly sala?: Partial<TiemposSala>;
   readonly env?: NodeJS.ProcessEnv;
+  /** Certificado digital por link privado (server/certificados). Sin él, el RUT solo se escribe. */
+  readonly certificados?: { enlace(telefono: string): string };
 }
 
 export interface TiemposSala {
@@ -63,6 +65,8 @@ const TIEMPOS_SALA: TiemposSala = {
 export interface Agente {
   /** Para facturas emitidas fuera de WhatsApp (p. ej. desde la pantalla): pregunta al comprador si recibió todo. */
   avisarFactura(ordenId: string): Promise<void>;
+  /** La persona conectó su certificado: se sigue su registro como si hubiera escrito el RUT del titular. */
+  rutDeCertificado(telefono: string, rut: string): Promise<void>;
   desconectar(): void;
 }
 
@@ -130,6 +134,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       envios: crearEnvios(whatsapp, { concurrencia: tiempos.concurrencia, minimoDifusionMs: tiempos.minimoDifusionMs, log }),
       telefonoProveedor: env.DEMO_TELEFONO_PROVEEDOR || null,
       urlPublica: env.PUBLIC_URL || null,
+      ...(opciones.certificados ? { enlaceCertificado: (telefono: string) => opciones.certificados!.enlace(telefono) } : {}),
       pedirConfirmacion: (proveedor, licitacionId, mensaje) => encolar(proveedor, { tipo: 'facturar_licitacion', licitacionId, mensaje }),
     });
   }
@@ -317,6 +322,11 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   async function atender(telefono: string, texto: string, contexto: { reply(body: string): Promise<unknown> }) {
     // Las respuestas con opciones salen como botones; el resto, como respuesta normal.
     const ctx = { reply: (body: string) => (whatsapp.send && aInteractivo(body) ? enviar(telefono, body, 'reply') : contexto.reply(body)) };
+    // "conectar certificado" funciona en cualquier momento, registrado o no.
+    if (opciones.certificados && /\b(conectar (mi )?(sii|certificado)|certificado digital)\b/.test(normalizar(texto))) {
+      await ctx.reply(m.enlaceCertificado(opciones.certificados.enlace(telefono)));
+      return;
+    }
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
       await ctx.reply(sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
@@ -345,9 +355,15 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
 
   // Mensajes de un mismo teléfono, en orden y de a uno; teléfonos distintos, en paralelo.
   const filas = new Map<string, Promise<void>>();
+  function enFila(telefono: string, tarea: () => Promise<void>): Promise<void> {
+    const siguiente = (filas.get(telefono) ?? Promise.resolve()).then(tarea);
+    filas.set(telefono, siguiente);
+    void siguiente.then(() => { if (filas.get(telefono) === siguiente) filas.delete(telefono); });
+    return siguiente;
+  }
   const desconectar = whatsapp.onMessage((mensaje, ctx) => {
     const telefono = mensaje.from;
-    const siguiente = (filas.get(telefono) ?? Promise.resolve()).then(async () => {
+    return enFila(telefono, async () => {
       try {
         await ctx.markRead({ typing: true });
         // Un botón nuestro llega con su id ("1", "2"): se atiende como si hubiera escrito ese número.
@@ -358,14 +374,23 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
         await ctx.reply(m.ERROR_TEMPORAL);
       }
     });
-    filas.set(telefono, siguiente);
-    void siguiente.then(() => { if (filas.get(telefono) === siguiente) filas.delete(telefono); });
-    return siguiente;
   });
 
   return {
     async avisarFactura(ordenId) {
       await avisarFacturaDe(await ordenPorId(ordenId), await negociosPorId());
+    },
+    rutDeCertificado(telefono, rut) {
+      return enFila(telefono, async () => {
+        const ctx = { reply: (body: string) => enviar(telefono, body, 'reply') };
+        try {
+          await enviar(telefono, m.CERTIFICADO_CONECTADO, 'agente');
+          await atender(telefono, rut, ctx);
+        } catch (error) {
+          log.error(`[agente] falló seguir con el certificado de ${enmascarar(telefono)}:`, error instanceof Error ? error.message : error);
+          await ctx.reply(m.ERROR_TEMPORAL);
+        }
+      });
     },
     desconectar() {
       desconectar();

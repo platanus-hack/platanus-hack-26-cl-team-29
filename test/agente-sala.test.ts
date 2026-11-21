@@ -26,7 +26,7 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string>; conSend?: boolean } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string>; conSend?: boolean; certificados?: { enlace(telefono: string): string } } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
   const interactivos: OutboundMessage[] = [];
@@ -52,6 +52,7 @@ function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof L
   };
   const agente = conectarAgente(whatsapp, red, {
     interprete: opciones.interprete ?? interpreteDeReglas,
+    ...(opciones.certificados ? { certificados: opciones.certificados } : {}),
     log: { info: registrar, warn: registrar, error: registrar },
     env: {},
     sala: { ventanaCascadaMs: 20, minimoDifusionMs: 150, vigilarCierreMs: 0, ...tiempos },
@@ -450,4 +451,31 @@ test('la lista de productos de la bienvenida sale como lista desplegable de What
   const lista = interactivos.find(i => i.list)?.list;
   assert.ok(lista, 'salió una lista');
   assert.deepEqual(lista!.rows.map(r => r.title), ['Rollos', 'Etiquetas', 'Bolsas', 'Guantes']);
+});
+
+test('con certificado disponible, la pregunta del RUT ofrece conectarlo o seguir en demo, y el certificado da el RUT', async t => {
+  const certificados = { enlace: (telefono: string) => `https://bando.test/certificado/tok-${telefono}` };
+  const ruts = { '11111111-1': 'Comercial Prueba Limitada' };
+  const { agente, escribir, ultimo, carrito } = montar({}, {}, { ruts, certificados });
+  t.after(() => agente.desconectar());
+
+  // No (demo): se suma sin RUT y se dice que es por la demo.
+  const demo = '56911111801';
+  await escribir(demo, 'Almacén Demo, 2 cajas de rollos');
+  assert.match(ultimo(demo), /conecta tu certificado digital.*o escribe el RUT de tu negocio/s);
+  assert.match(ultimo(demo), /Para la demo puedes saltarlo/);
+  assert.match(ultimo(demo), /1\. Conectar certificado\n2\. No \(demo\)$/);
+  await escribir(demo, '2');
+  assert.match(ultimo(demo), /^Listo, modo demo: tu factura sale a un receptor de prueba/);
+  assert.deepEqual(await carrito('Almacén Demo'), [{ productoId: 'rollos', cantidad: 2 }]);
+
+  // Conectar certificado: llega el link; al subirlo, el registro sigue con el RUT del titular.
+  const real = '56911111802';
+  await escribir(real, 'Almacén Real, 3 cajas de rollos');
+  await escribir(real, '1');
+  assert.match(ultimo(real), /https:\/\/bando\.test\/certificado\/tok-56911111802/);
+  assert.equal(await carrito('Almacén Real'), undefined, 'todavía no se suma');
+  await agente.rutDeCertificado(real, '11111111-1');
+  assert.match(ultimo(real), /Tu factura saldrá a nombre de Comercial Prueba Limitada\./);
+  assert.deepEqual(await carrito('Almacén Real'), [{ productoId: 'rollos', cantidad: 3 }]);
 });
