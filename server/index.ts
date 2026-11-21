@@ -17,6 +17,7 @@ export const red = await iniciarRed(dbRed, process.env.SII_PFX_BASE64 ? await co
 red.escuchar(evento => io.emit('red:evento', evento));
 export const agente = conectarAgente(whatsapp, red);
 
+app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP de /api/red)
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
 app.use(express.json());
 app.get('/api/health', async (_req, res) => {

@@ -13,7 +13,10 @@ import type {
   Oferta, OrdenCompra, Participante, TipoDocumento, TipoEventoRed, TipoEventoReputacion,
 } from './tipos.ts';
 
-export type CodigoError = 'no_encontrado' | 'transicion_invalida' | 'datos_invalidos' | 'ocupado';
+export type CodigoError =
+  | 'no_encontrado' | 'transicion_invalida' | 'datos_invalidos' | 'ocupado'
+  // Canal web: sin sesión, sesión de otro negocio, o acción legal sin `confirmado: true`.
+  | 'no_autorizado' | 'prohibido' | 'confirmacion_requerida';
 
 export class ErrorRed extends Error {
   codigo: CodigoError;
@@ -102,6 +105,7 @@ export interface Red {
   /** Foto para pantallas y `GET /api/red/estado`: sin teléfonos. */
   estadoPublico(): EstadoPublico;
   negocioPorTelefono(telefono: string): Negocio | null;
+  negocioPorId(id: string): Negocio | null;
   /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
   actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string): Promise<Documento | null>;
   /** Borra órdenes, documentos y eventos y vuelve a sembrar la demo. No toca los folios del SII. Devuelve la foto pública. */
@@ -542,12 +546,18 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
     return n ? structuredClone(n) : null;
   }
 
+  function negocioPorId(id: string) {
+    const n = datos.negocios.find(x => x.id === id);
+    return n ? structuredClone(n) : null;
+  }
+
   function telefonoDeNegocio(negocioId: string) {
     return datos.negocios.find(n => n.id === negocioId)?.telefono || null;
   }
 
   return {
     telefonoDeNegocio,
+    negocioPorId,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
     unirseALicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
