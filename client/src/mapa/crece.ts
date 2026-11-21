@@ -133,9 +133,13 @@ const mezclar = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Cámara del modo recorrido en el instante `t` (ms). Determinista: el mismo `t` da siempre el mismo cuadro. */
 export function camara(t: number, foco: Punto = MUT): Camara {
-  const ts = tomas(foco);
+  return camaraEn(tomas(foco), t, GIRO_POR_SEGUNDO);
+}
+
+/** Interpola entre tomas en el instante `t`; después de la última gira `giro` grados por segundo. */
+export function camaraEn(ts: Array<Camara & { t: number }>, t: number, giro: number): Camara {
   const ultima = ts.at(-1)!;
-  if (t >= ultima.t) return { center: ultima.center, zoom: ultima.zoom, pitch: ultima.pitch, bearing: ultima.bearing + ((t - ultima.t) / 1000) * GIRO_POR_SEGUNDO };
+  if (t >= ultima.t) return { center: ultima.center, zoom: ultima.zoom, pitch: ultima.pitch, bearing: ultima.bearing + ((t - ultima.t) / 1000) * giro };
   const i = Math.max(0, ts.findIndex(x => x.t > t) - 1);
   const [a, b] = [ts[i], ts[i + 1]];
   const k = suave(Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))));

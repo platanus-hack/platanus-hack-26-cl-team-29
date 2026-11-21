@@ -3,6 +3,7 @@
 // proveedores y los arcos. Encima, pocas tarjetas efímeras (máximo tres) cuentan lo que pasa en cada punto, con el
 // mismo texto e ícono que el feed de /red. Pantalla de presentación: no está en el menú.
 // Los datos son los de /red y /mapa (useRed, useLocales): cada `red:evento` también se anima aquí.
+// /red-3d#video: secuencia guionada con marcas ilustrativas, solo para grabar el video del pitch.
 // /red-3d#recorrido: cámara automática y determinista para grabar. Sin hash: modo libre (arrastrar, girar, inclinar).
 
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +14,8 @@ import type { Layer } from '@deck.gl/core';
 import './red3d.css';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { Monograma } from '../components/Iconos.tsx';
-import { AMARILLO, AZUL_LOCAL, crearMapa, MAGENTA, VERDE } from '../mapa/base.ts';
+import { AMARILLO, AZUL_LOCAL, crearMapa, MAGENTA, ponerEdificios, VERDE } from '../mapa/base.ts';
+import { Red3DVideo } from './Red3DVideo.tsx';
 import {
   camara, capitulo, DURACION_HISTORIA, guion, historia, INICIO_LOCALES, relaciones, sumarTarjeta, VIDA_TARJETA,
   type NodoHistoria, type PasoGuion, type Tarjeta,
@@ -140,20 +142,6 @@ function capasDeck(escena: Escena, locales: LocalMapa[], animaciones: Animacion[
       updateTriggers: { getRadius: ahora, getLineColor: ahora },
     }),
   ];
-}
-
-/** Edificios en 3D (capa `building` de OpenMapTiles), gris oscuro: la toma inicial parte a nivel de calle entre ellos. */
-function ponerEdificios(m: MapaLibre) {
-  if (!m.getSource('openmaptiles') || m.getLayer('edificios-3d')) return;
-  m.addLayer({
-    id: 'edificios-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
-    paint: {
-      'fill-extrusion-color': '#2b2b2b',
-      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
-      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-      'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, 0.92],
-    },
-  });
 }
 
 interface Datos {
@@ -349,7 +337,12 @@ function FichaProveedor({ estado, id, alCerrar }: { estado: EstadoRed; id: strin
   );
 }
 
+/** #video: secuencia guionada para el video del pitch, sin la BD (ver Red3DVideo). */
 export function Red3D() {
+  return location.hash === '#video' ? <Red3DVideo /> : <Red3DRed />;
+}
+
+function Red3DRed() {
   const { estado, eventos, fuente } = useRed();
   const locales = useLocales();
   const [recorrido] = useState(() => location.hash === '#recorrido');

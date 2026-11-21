@@ -83,3 +83,24 @@
 @media (prefers-reduced-motion: reduce) {
   .r3d-evento { animation: none; }
 }
+
+/* ---------- /red-3d#video: marcas ilustrativas para el video del pitch ---------- */
+/* Etiqueta del proveedor: logo en una placa blanca de tamaño fijo (legible sobre el mapa oscuro) y su nota. */
+.r3d-marca {
+  position: absolute; left: 14px; top: 0; translate: 0 -50%; display: flex; align-items: center; gap: 8px;
+  padding: 3px 10px 3px 3px; white-space: nowrap; border-radius: 10px; background: rgb(10 10 10 / 0.8);
+  font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--color-text);
+}
+.r3d-marca .monograma { width: 32px; height: 32px; font-size: 13px; }
+.r3d-marca b { font-family: var(--font-mono); font-size: 16px; color: var(--color-primary); }
+.r3d-marca.izquierda { left: auto; right: 14px; }
+.r3d-logo { width: 84px; height: 32px; flex-shrink: 0; display: grid; place-items: center; background: #fff; border-radius: 7px; }
+.r3d-logo img { max-width: 72px; max-height: 24px; object-fit: contain; }
+.r3d-video .r3d-evento { font-size: 16px; }
+.r3d-video .r3d-evento .monograma { width: 1.9em; height: 1.9em; }
+.r3d-aviso {
+  position: absolute; right: var(--relleno); bottom: calc(var(--relleno) + 30px); margin: 0;
+  font-family: var(--font-mono); font-size: 13px; color: var(--color-tenue); pointer-events: none;
+}
+/* En el video no va el menú de vistas. */
+body:has(.r3d-video) .navegador { display: none; }
