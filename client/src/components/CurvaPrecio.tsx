@@ -48,7 +48,7 @@ function Trazo({ puntos, precioSolo, ancho, alto }: { puntos: PuntoCurva[]; prec
       ))}
       <circle cx={x(ultimo.compradores)} cy={y(ultimo.precio)} r={7} fill="var(--color-primary)" />
       <text x={MARGEN.izq} y={base}>{contar(puntos[0].compradores, 'negocio')}</text>
-      {medio.compradores !== ultimo.compradores && medio.compradores !== puntos[0].compradores && (
+      {x(medio.compradores) - x(puntos[0].compradores) > 90 && x(ultimo.compradores) - x(medio.compradores) > 70 && (
         <text x={x(medio.compradores)} y={base} textAnchor="middle">{medio.compradores}</text>
       )}
       <text className="ahora" x={ancho - MARGEN.der} y={base} textAnchor="end">{ultimo.compradores} ahora</text>

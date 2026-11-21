@@ -11,6 +11,12 @@ function detalleOferta(o: OfertaVista): string {
   return `nota ${nota(o.nota)} · entrega en ${contar(o.plazoDias, 'día')}`;
 }
 
+/** Por qué pierde una oferta más barata: peor nota o, si no, entrega más lenta. */
+function motivoRiesgo(o: OfertaVista, mejor?: OfertaVista): string {
+  if (!mejor || o.nota < mejor.nota) return `Más barato, pero nota ${nota(o.nota)}: pierde`;
+  return `Más barato, pero entrega en ${contar(o.plazoDias, 'día')}: pierde`;
+}
+
 function Grupo({ lic, r, cerrada }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean }) {
   const [lista, caben] = useFilasQueCaben<HTMLUListElement>(4, r.compradores);
   const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
@@ -64,7 +70,7 @@ function Ofertas({ r, cerrada }: { r: ResumenLicitacion; cerrada: boolean }) {
                 <span className="detalle">{detalleOferta(o)}</span>
               </div>
               <p className="aviso">
-                {o.gana ? (cerrada ? 'Ganó la licitación' : 'Va ganando') : o.riesgo ? `Más barato, pero nota ${nota(o.nota)}: pierde` : ' '}
+                {o.gana ? (cerrada ? 'Ganó la licitación' : 'Va ganando') : o.riesgo ? motivoRiesgo(o, r.mejor) : ' '}
               </p>
             </li>
           ))}
