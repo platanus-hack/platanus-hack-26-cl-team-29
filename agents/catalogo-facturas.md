@@ -8,7 +8,7 @@ libre (PR listo para revisión)
 - (nada)
 
 ## Archivos que estoy tocando
-- server/catalogo/ (nuevo), shared/catalogo.ts (nuevo), shared/precios.ts (tramosSugeridos, problemaDeTramos)
+- server/catalogo/ (nuevo), shared/catalogo.ts (nuevo), shared/precios.ts (tramosSugeridos, aCentena)
 - client/src/canal/MiCatalogo.tsx (nuevo), canal.css, api.ts, falso.ts, useCanal.ts (useDatoEnVivo), ConectarSii.tsx (usa el hook)
 - Mínimo en: server/red/dominio.ts (`NuevoProducto.tramos`), rutas.ts y rutas-web.ts (montaje), server/index.ts, shared/red.ts (evento), client/src/canal/Proveedor.tsx (una línea)
 

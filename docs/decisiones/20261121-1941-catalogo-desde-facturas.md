@@ -28,9 +28,9 @@ de productos; las líneas solo están en el XML de cada factura.
   neto por unidad (monto de la línea dividido por la cantidad, con su descuento) y fecha. **Nunca** el receptor: ni su
   RUT, ni su razón social, ni su dirección. El XML no se guarda; queda solo eso, en `catalogo_proveedores`.
 - **Tramos sugeridos** (`tramosSugeridos` en `shared/precios.ts`): la mediana del precio para cada cantidad vendida y,
-  de menor a mayor cantidad, un tramo nuevo cada vez que esa mediana baja al menos un 3 % del anterior (máximo cinco).
+  de menor a mayor cantidad, un tramo nuevo cada vez que esa mediana baja al menos un 3 % del anterior (máximo cinco), con precios a la centena.
   Si el historial no muestra bajas, se usan los automáticos. "Sumar a la compra" crea el producto en la compra abierta
-  con esos tramos (`crearProducto` acepta `tramos`, validados con `problemaDeTramos`).
+  con esos tramos (`crearProducto` acepta `tramos`, validados con `errorDeTramos`, la misma regla que usa el proveedor al fijar sus tramos).
 
 ## Consecuencias
 - El proveedor suma a la compra conjunta productos con precios reales y tramos que ya da, con un toque.
