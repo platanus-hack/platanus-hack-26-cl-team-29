@@ -27,7 +27,7 @@ Al jurado no le importa el modelo de negocio. Lo que no se ve funcionando en la 
 - Normal: rama propia (o worktree si hay varios agentes en la misma máquina) y PR hacia `main`, que se junta con `gh pr merge --squash --delete-branch`.
 - Directo a `main` solo si es urgente y tu humano lo pide.
 - Antes de empezar, revisa qué está en curso (`gh pr list`) para no pisar el trabajo de otro.
-- Render deploya desde un repo espejo personal, no desde este. Solo redeploya cuando el push sale de un clon que tiene configurado el espejo (`git remote -v` muestra dos URLs de push). Igual, no dejes `main` roto.
+- Render deploya desde un repo espejo personal que copia `main` de este repo solo, cada ~5 min (GitHub Action en el espejo). Se trabaja solo aquí; no configures el espejo. Todo lo que entra a `main` sale a producción en minutos: **nunca dejes `main` roto**.
 
 ## Este repo es público
 

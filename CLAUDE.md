@@ -44,7 +44,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 ## Git
 - **Commits en inglés**, en imperativo y cortos (`Add realtime cursor sync`, `Fix reconnect on socket drop`).
 - Commits chicos y atómicos. No commitear `.env`, `node_modules` ni `dist`.
-- `origin` empuja a dos repos: el de la org (para el jurado) y el espejo personal (desde el que deploya Render). Un `git push` actualiza ambos.
+- Se trabaja solo en el repo de la org. Render deploya desde un espejo que copia `main` solo cada ~5 min: lo que se mergea a `main` sale a producción.
 
 ## Coordinación entre agentes
 Varios agentes trabajan en paralelo. **Antes de empezar cualquier tarea, lee `agents/*.md`** y sigue el protocolo de `agents/README.md`: un archivo de estado por agente, actualizado al tomar, terminar o quedar bloqueado en una tarea.
