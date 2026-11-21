@@ -499,3 +499,7 @@
 .cn-credito-tarjeta p { margin: 2px 0 0; font-size: 13px; }
 .cn-credito-tarjeta .boton { padding: 10px 16px; font-size: 16px; }
 @media (max-width: 420px) { .cn-credito-tarjeta { grid-template-columns: 24px minmax(0, 1fr); } .cn-credito-tarjeta .boton { grid-column: 1 / -1; } }
+.cn-pedir-tarjeta { display: grid; gap: 10px; justify-items: start; padding: 20px; }
+.cn-pedir-tarjeta h3 { margin: 0; font-size: 22px; }
+.cn-pedir-tarjeta p { margin: 0; font-size: 14px; line-height: 1.5; }
+.cn-pedir-tarjeta .boton { width: 100%; }

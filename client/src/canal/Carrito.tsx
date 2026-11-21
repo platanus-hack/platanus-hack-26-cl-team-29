@@ -2,6 +2,7 @@
 // una fila por producto con su precio en vivo y un selector, cambios optimistas que se guardan solos
 // (PUT /yo/carrito con espera de 400 ms) y una barra fija abajo con el total y el ahorro.
 
+import { PedirTarjeta, useFaltaTarjeta } from './MiCredito.tsx';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
@@ -248,7 +249,7 @@ function Selector({ cantidad, p, onCambio }: { cantidad: number; p: ProductoCana
   );
 }
 
-export function CarritoCompra({ api, token, lic, negocioId, participacion, abierta, conPestanas = false }: {
+interface PropsCarrito {
   api: CanalApi;
   token: string;
   lic: LicitacionCanal;
@@ -258,7 +259,18 @@ export function CarritoCompra({ api, token, lic, negocioId, participacion, abier
   abierta: boolean;
   /** En /app la barra queda sobre las pestañas fijas. */
   conPestanas?: boolean;
-}) {
+}
+
+/** Crédito Bando: quien todavía no está en la compra y no tiene tarjeta, primero la inscribe. */
+export function CarritoCompra(props: PropsCarrito) {
+  const falta = useFaltaTarjeta(props.api, props.token);
+  const yaEsta = !!carritoEnLaFoto(props.lic, props.negocioId) || !!props.participacion?.items?.length;
+  const recien = new URLSearchParams(location.search).get('tarjeta') === 'ok';
+  if (props.abierta && !yaEsta && falta) return <PedirTarjeta token={props.token} />;
+  return <>{recien && falta === false && !yaEsta && <p className="cn-ok">Tarjeta inscrita. Elige tus productos.</p>}<CarritoConProductos {...props} /></>;
+}
+
+function CarritoConProductos({ api, token, lic, negocioId, participacion, abierta, conPestanas = false }: PropsCarrito) {
   const productos = useMemo(() => productosDe(lic), [lic]);
   const orden = useMemo(() => productos.map(p => p.id), [productos]);
   const servidor = carritoEnLaFoto(lic, negocioId) ?? desdeItems(participacion?.items ?? []);

@@ -110,6 +110,8 @@ async function llamar<T>(ruta: string, opciones: { token?: string; cuerpo?: unkn
   const datos = esJson(r) ? await r.json().catch(() => null) : null;
   if (!r.ok) {
     // El backend responde { error, mensaje } con el mensaje ya en español.
+    // El mensaje de "falta tarjeta" trae el enlace de WhatsApp; en la web se inscribe desde la compra o Crédito.
+    if (datos?.error === 'falta_tarjeta') throw new ErrorCanal('Para comprar, inscribe tu tarjeta una vez (en Transbank).');
     const mensaje = typeof datos?.mensaje === 'string' ? datos.mensaje : MENSAJE_HTTP[r.status] ?? `La red respondió con un error (${r.status}).`;
     throw new ErrorCanal(mensaje, r.status === 401);
   }

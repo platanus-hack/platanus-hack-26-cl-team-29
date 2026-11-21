@@ -25,6 +25,7 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
   ocupado: 409,
   sii_no_disponible: 503,
   sin_folios: 409,
+  falta_tarjeta: 402,
 };
 
 export interface OpcionesRutas {

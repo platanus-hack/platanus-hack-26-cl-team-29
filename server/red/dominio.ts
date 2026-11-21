@@ -32,7 +32,9 @@ export type CodigoError =
   // No se pudo consultar un RUT en el SII (corte o sesión caída): se puede intentar de nuevo.
   | 'sii_no_disponible'
   // No alcanzan los folios del SII para emitir (se intentó reponerlos): nada se envió.
-  | 'sin_folios';
+  | 'sin_folios'
+  // Crédito Bando: para entrar a una compra hay que tener la tarjeta inscrita (el mensaje trae el enlace para inscribirla).
+  | 'falta_tarjeta';
 
 export class ErrorRed extends Error {
   codigo: CodigoError;
@@ -269,6 +271,11 @@ export interface OpcionesRed {
   env?: NodeJS.ProcessEnv;
   /** Consulta de RUT en el SII, ya con cache y fila. Por defecto la falsa (datos simulados). Ver server/red/contribuyente.ts. */
   consultarContribuyente?: ConsultarContribuyente;
+  /**
+   * Se llama cuando un negocio entra a una compra conjunta (no al cambiar un carrito que ya tiene); si lanza, no entra.
+   * Crédito Bando (server/pagos/) exige ahí la tarjeta inscrita.
+   */
+  antesDeEntrar?: (n: Negocio) => void | Promise<void>;
 }
 
 export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
@@ -308,7 +315,7 @@ function migrarLicitacion(l: Licitacion) {
 
 export async function crearRed({
   repo, sii, reloj = () => new Date(), env = process.env,
-  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }),
+  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar,
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
   for (const l of datos.licitaciones) migrarLicitacion(l);
@@ -705,6 +712,7 @@ export async function crearRed({
     cambiar(items);
     const carrito = l.productos.filter(p => (items.get(p.id) ?? 0) > 0).map(p => ({ productoId: p.id, cantidad: items.get(p.id)! }));
     const cantidad = carrito.reduce((s, i) => s + i.cantidad, 0);
+    if (n && !actual && carrito.length) await antesDeEntrar?.(n);
 
     let participante: Participante | null;
     let accion: 'entra' | 'cambia' | 'sale';

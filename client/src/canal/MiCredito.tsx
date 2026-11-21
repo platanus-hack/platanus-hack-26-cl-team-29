@@ -29,6 +29,7 @@ interface ResumenCredito {
   tarjeta: { marca: string; ultimos4: string } | null;
   creditos: CreditoComprador[];
   ambiente: 'falsa' | 'integracion' | 'produccion';
+  exigeTarjeta: boolean;
 }
 
 const pedir = async <T,>(url: string, token: string, metodo = 'GET'): Promise<T> => {
@@ -39,7 +40,7 @@ const pedir = async <T,>(url: string, token: string, metodo = 'GET'): Promise<T>
 };
 
 /** Transbank espera un POST de formulario con el token: se arma y se envía (sale de la página). */
-function irATransbank({ token, url }: { token: string; url: string }) {
+export function irATransbank({ token, url }: { token: string; url: string }) {
   const form = Object.assign(document.createElement('form'), { method: 'POST', action: url });
   form.append(Object.assign(document.createElement('input'), { type: 'hidden', name: 'TBK_TOKEN', value: token }));
   document.body.append(form);
@@ -130,5 +131,46 @@ export function MiCredito({ api, token, foto, cambio }: { api: CanalApi; token: 
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * ¿Le falta la tarjeta para comprar? true = le falta (y se exige), false = la tiene o no se exige, null = cargando o red falsa.
+ * Se pide una vez: al volver de Transbank la página se recarga.
+ */
+export function useFaltaTarjeta(api: CanalApi, token: string): boolean | null {
+  const [falta, setFalta] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (api.modo !== 'real') return;
+    let activo = true;
+    pedir<ResumenCredito>('/api/pagos/yo', token)
+      .then(d => { if (activo) setFalta(d.exigeTarjeta && !d.tarjeta); })
+      .catch(() => { if (activo) setFalta(false); });
+    return () => { activo = false; };
+  }, [api.modo, token]);
+  return falta;
+}
+
+/** En vez del carrito, mientras no tenga tarjeta: como en Uber, se inscribe una vez antes de la primera compra. */
+export function PedirTarjeta({ token }: { token: string }) {
+  const [abriendo, setAbriendo] = useState(false);
+  const [error, setError] = useState('');
+  const inscribir = async () => {
+    setAbriendo(true);
+    try {
+      irATransbank(await pedir('/api/pagos/yo/tarjeta', token, 'POST'));
+    } catch (e) {
+      setError((e as Error).message);
+      setAbriendo(false);
+    }
+  };
+  return (
+    <div className="tarjeta cn-pedir-tarjeta">
+      <Icono nombre="tarjeta" tam={28} />
+      <h3>Inscribe tu tarjeta para comprar</h3>
+      <p className="mono tenue">Bando le paga al proveedor al tiro y tú pagas a 30 días, solo. Se inscribe una vez en Transbank; Bando nunca ve el número.</p>
+      <button type="button" className="boton" disabled={abriendo} onClick={inscribir}>{abriendo ? 'Abriendo Transbank...' : 'Inscribir tarjeta'}</button>
+      {error && <p className="error">{error}</p>}
+    </div>
   );
 }

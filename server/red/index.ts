@@ -12,6 +12,7 @@ import { crearAlmacenFoliosMemoria, crearAlmacenFoliosPostgres } from './folios.
 import type { AlmacenFolios } from './folios.ts';
 import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
 import type { ConsultarContribuyente } from './contribuyente.ts';
+import type { Negocio } from './tipos.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
 export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, RUT_DE_OTRO_TELEFONO, RUT_DESCONOCIDO, SII_NO_DISPONIBLE } from './dominio.ts';
@@ -25,7 +26,7 @@ export { crearRutasRed } from './rutas.ts';
 export { crearSesiones, crearSesionesPostgres, mismoSecreto } from './sesiones.ts';
 export type { Sesiones } from './sesiones.ts';
 export { sinTelefonos } from './publico.ts';
-export { enlacePdf, nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
+export { enlacePdf, nombreArchivoPdf, tokenPdf, tokenPdfValido } from './pdf-enlace.ts';
 export type { SinTelefono } from './publico.ts';
 export { crearRepositorioMemoria } from './repositorio.ts';
 export { crearSiiFalso, receptorDelComprador } from './sii.ts';
@@ -53,6 +54,8 @@ export interface OpcionesIniciarRed {
    * y fila de 1 consulta por segundo.
    */
   consultarContribuyente?: ConsultarContribuyente;
+  /** Ver `OpcionesRed.antesDeEntrar` (crédito Bando: tarjeta inscrita antes de comprar). */
+  antesDeEntrar?: (n: Negocio) => void | Promise<void>;
 }
 
 /**
@@ -75,7 +78,7 @@ export async function iniciarRed(
   await aplicarDatosDemo(repo);
   const falso = crearSiiFalso((await repo.cargar()).documentos);
   const consultarContribuyente = conCacheYFila(opciones.consultarContribuyente ?? crearConsultaContribuyenteFalsa());
-  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente });
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }
