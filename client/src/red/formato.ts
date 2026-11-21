@@ -36,7 +36,31 @@ export function unidadDe(producto: string): { singular: string; plural: string }
   return { singular: 'unidad', plural: 'unidades' };
 }
 
+/** "1 negocio", "3 negocios". Sin `plural`, agrega una "s". */
+export function contar(n: number, singular: string, plural = `${singular}s`): string {
+  return `${miles(n)} ${n === 1 ? singular : plural}`;
+}
+
 export function cantidadCon(n: number, producto: string): string {
   const u = unidadDe(producto);
-  return `${miles(n)} ${n === 1 ? u.singular : u.plural}`;
+  return contar(n, u.singular, u.plural);
+}
+
+const ESTADO_SII: Record<string, string> = {
+  aceptado: 'aceptado por el SII',
+  reparo: 'aceptado con reparos',
+  recibido: 'recibido por el SII',
+  rechazado: 'rechazado por el SII',
+  reclamado: 'reclamado en el SII',
+  simulado: 'simulado',
+  incierto: 'en revisión',
+  no_recibido: 'en revisión',
+  no_coincide: 'en revisión',
+  fallido: 'no se pudo enviar',
+};
+
+/** Estado del documento en el SII, en palabras. Vacío si no hay estado. */
+export function textoEstadoSii(estado: string | null | undefined): string {
+  if (!estado) return '';
+  return ESTADO_SII[estado] ?? estado.replace(/_/g, ' ');
 }

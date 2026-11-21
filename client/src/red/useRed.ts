@@ -60,6 +60,18 @@ export function useRed() {
       refresco = setTimeout(() => pedirEstado().then(e => activo && recibirEstado(e)).catch(() => {}), 150);
     };
 
+    // La demo se reinició: foto nueva completa, sin animar diferencias y con el feed vacío.
+    const reiniciar = (foto: unknown) => {
+      try {
+        previo.current = null;
+        setEventos([]);
+        setCambios([]);
+        recibirEstado(normalizarEstado(foto));
+      } catch {
+        refrescar();
+      }
+    };
+
     const pasarAReal = (inicial: EstadoRed) => {
       falsa.current?.detener();
       falsa.current = null;
@@ -69,6 +81,7 @@ export function useRed() {
       setFuente('real');
       socket = io();
       socket.on('red:evento', (e: EventoRed) => {
+        if (e.tipo === 'red.reiniciada') return reiniciar(e.datos);
         recibirEvento(e);
         refrescar(); // la foto manda; el evento alimenta el feed y dispara la animación
       });

@@ -102,7 +102,7 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
     e.ordenes = e.ordenes.map(o => (o.id === ordenId ? { ...o, estado } : o));
   };
   const emitir = (e: EstadoRed, tipo: 33 | 52 | 61, f: number) => {
-    const documento = { id: `d-${ordenId}-${tipo}`, ordenId, tipo, folio: f, trackId: null, estadoSii: 'simulado', monto: tipo === 61 ? 37_000 : 74_000, emitidoEn: new Date().toISOString() };
+    const documento = { id: `d-${ordenId}-${tipo}`, ordenId, tipo, folio: f, trackId: null, estadoSii: 'recibido', monto: tipo === 61 ? 37_000 : 74_000, emitidoEn: new Date().toISOString() };
     e.documentos = [...e.documentos, documento];
     return ['documento.emitido', { documento }] as [TipoEvento, Record<string, unknown>];
   };
@@ -122,6 +122,10 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
     },
     e => { estadoOrden(e, 'confirmada'); return [['orden.confirmada', { orden: orden(e) }]]; },
     e => { estadoOrden(e, 'facturada'); return [emitir(e, 33, folio), emitir(e, 52, folio + 1)]; },
+    e => {
+      e.documentos = e.documentos.map(d => (d.ordenId === ordenId && d.tipo === 33 ? { ...d, estadoSii: 'aceptado' } : d));
+      return [['documento.actualizado', { documento: e.documentos.find(d => d.ordenId === ordenId && d.tipo === 33) }]];
+    },
   ];
   if (!conReclamo) {
     return [...inicio,
