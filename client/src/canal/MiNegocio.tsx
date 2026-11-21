@@ -6,6 +6,7 @@ import { AvisoFuente } from '../components/Cabecera.tsx';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { totalOrden } from '../../../shared/precios.ts';
 import { contar, cuantos } from '../../../shared/texto.ts';
+import { puedeVender } from '../../../shared/red.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
@@ -143,7 +144,7 @@ function Pedir({ api, token, foto, config, alEnviar }: {
   const delaCompra = licitacionVigente(foto.licitaciones)?.proveedorId;
   const logoDe = (id: string) => (id === delaCompra ? config?.proveedorLogoUrl : undefined);
   const proveedores = foto.negocios
-    .filter(n => n.rol === 'proveedor')
+    .filter(puedeVender)
     .map(n => ({ negocio: n, nota: foto.notas.find(x => x.proveedorId === n.id)?.nota }))
     .sort((a, b) => (b.nota ?? 0) - (a.nota ?? 0));
   const [producto, setProducto] = useState(CATALOGO[0]);

@@ -1,24 +1,27 @@
 # javier-proveedores
-Actualizado: 2026-11-21 15:30
+Actualizado: 2026-11-21 15:55
 
 ## Estado
-trabajando
+libre (PR #72 listo para revisión de @luciano-sii, sin mergear)
 
 ## Trabajando en
-- Proveedores reales por WhatsApp: registro con certificado, crear productos, ofertar, ganador por producto, facturar con su propio SII. Ficticios detrás de `DEMO_FICTICIOS` (apagado por defecto). Implementa `docs/decisiones/20261121-1529-pedido-dividido-entre-proveedores.md` (puntos 1, 2, 3 y 5).
+- (nada)
 
 ## Archivos que estoy tocando
-- server/red/ (dominio, semilla, config-demo, competencia, folios, sii)
-- server/conexion-sii/ (una conexión por RUT de empresa)
-- server/agente/, server/ia/
-- shared/red.ts, shared/precios.ts
-- client/src/red/derivar.ts, client/src/vistas/Sala.tsx, client/src/canal/Proveedor.tsx
+- (ninguno; ver PR #72)
 
 ## Hecho
-- (en curso)
+- Proveedores reales por WhatsApp (PR #72): `DEMO_FICTICIOS`, rol doble, registro de proveedor con certificado, productos
+  y ofertas por WhatsApp, ganador por producto, una conexión al SII por empresa, borradores que sobreviven a un reinicio.
+  Ver docs/decisiones/20261121-1555-proveedores-reales-por-whatsapp.md.
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- @luciano-sii: revisar los cambios del SII por proveedor (conexión por RUT, `sii_folios` con `rut_emisor`).
+- @luciano-sii: revisar `server/conexion-sii/` (conexión por RUT de empresa), `server/red/folios.ts` (`rut_emisor` en la
+  llave de `sii_folios`, migración probada en Postgres 16) y `sii-conmutable.ts` (elige la conexión por emisor).
+- @jorge: `test/mapa-geo.test.ts` "dos pestañas con la red falsa…" falla también en `main` (desde #70).
+- @humano: en Render, definir `PUBLIC_URL`, `PDF_LLAVE`, `DEMO_TOKEN`, `SII_LLAVE_CIFRADO` y `DEMO_MINUTOS` (la compra
+  conjunta cierra a los 5 minutos por defecto) y dejar `DEMO_FICTICIOS` sin definir. Tras el deploy, reiniciar la demo
+  para sembrar la compra sin ficticios.

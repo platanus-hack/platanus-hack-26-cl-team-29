@@ -4,7 +4,7 @@ import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, N
 import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
-import { contar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
+import { contar, enumerar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
 import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
@@ -275,8 +275,8 @@ export function licitacionDeProducto(lic: Licitacion, productoId: string): Licit
     totalUnidades: p.totalUnidades,
     precioActual: p.precioActual,
     siguienteTramo: p.siguienteTramo,
-    // La ganadora del backend es la del primer producto; en los demás gana la oferta más barata.
-    ganadora: principal ? lic.ganadora : undefined,
+    // La ganadora de cada producto viene con el producto al cerrar; la de la licitación antigua es la del primero.
+    ganadora: p.ganadora ?? (principal ? lic.ganadora : undefined),
     participantes: lic.participantes.filter(x => cantidadDe(x, p.id) > 0),
   };
 }
@@ -631,6 +631,8 @@ function cantidadDeItem(lic: Licitacion, item: ItemOrden): string {
 export interface ResumenSala {
   fase: FaseSala;
   proveedor: string;
+  /** Quién ya dijo que sí y quién falta, cuando venden varios: "Insumos Beto ya facturó · falta el sí de Andina". */
+  quienFacturo: string;
   unidad: { singular: string; plural: string };
   tramos: EstadoTramos;
   precioSolo?: number;
@@ -662,14 +664,34 @@ export function ordenesDeLicitacion(lic: Licitacion, estado: EstadoRed): OrdenCo
   return estado.ordenes.filter(o => !!lic.proveedorId && o.proveedorId === lic.proveedorId && Date.parse(o.creadaEn) >= primera);
 }
 
-function eventoFacturada(eventos: EventoRed[], licitacionId: string) {
-  return eventos.find(e => e.tipo === 'licitacion.facturada' && e.datos.licitacionId === licitacionId);
+function eventoFacturada(eventos: EventoRed[], licitacionId: string, ordenes: readonly OrdenCompra[]) {
+  const varios = new Set(ordenes.map(o => o.proveedorId)).size > 1;
+  return eventos.find(e => e.tipo === 'licitacion.facturada' && e.datos.licitacionId === licitacionId && !(varios && e.datos.proveedorId));
+}
+
+/** "X dijo que sí · un solo envío al SII" o, con varios proveedores, quién facturó y de quién falta el sí. */
+function quienFacturo(estado: EstadoRed, ordenes: readonly OrdenCompra[], conFactura: ReadonlySet<string>): string {
+  const nombre = (id: string) => negocioPorId(estado, id)?.nombre ?? 'Un proveedor';
+  const ids = [...new Set(ordenes.map(o => o.proveedorId))];
+  const listos = ids.filter(id => ordenes.every(o => o.proveedorId !== id || conFactura.has(o.id))).map(nombre);
+  const faltan = ids.map(nombre).filter(n => !listos.includes(n));
+  if (ids.length <= 1) return `${listos[0] ?? faltan[0] ?? 'El proveedor'} dijo que sí · un solo envío al SII`;
+  if (faltan.length === 0) return `${enumerar(listos)} dijeron que sí · un envío al SII por proveedor`;
+  return `${listos.length ? `${enumerar(listos)} ya ${segun(listos.length, 'facturó', 'facturaron')} · ` : ''}falta el sí de ${enumerar(faltan)}`;
+}
+
+/** Quién vende en la compra: los proveedores con órdenes ("A y B") o, antes de cerrar, el ganador o el fijo. */
+function proveedoresDeLaSala(lic: Licitacion, estado: EstadoRed, ordenes: readonly OrdenCompra[]): string {
+  const conOrdenes = [...new Set(ordenes.map(o => o.proveedorId))].map(id => negocioPorId(estado, id)?.nombre ?? 'un proveedor');
+  if (conOrdenes.length) return enumerar(conOrdenes);
+  return negocioPorId(estado, lic.ganadora?.proveedorId ?? lic.proveedorId)?.nombre ?? lic.ganadora?.proveedorNombre ?? 'el proveedor';
 }
 
 export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoRed[], ahora: number): ResumenSala {
   const tramos = estadoTramos(lic);
   const ordenes = ordenesDeLicitacion(lic, estado);
   const porOrden = new Map(ordenes.map(o => [o.id, o]));
+  const porOrdenDeFactura = new Map(estado.documentos.map(d => [d.id, d.ordenId]));
   const facturas = estado.documentos
     .filter(d => d.tipo === 33 && porOrden.has(d.ordenId))
     .sort((a, b) => (b.folio ?? 0) - (a.folio ?? 0))
@@ -691,7 +713,8 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
         estadoSii: d.estadoSii,
       };
     });
-  const finalizada = eventoFacturada(eventos, lic.id);
+  // Con varios proveedores, cada uno factura lo suyo: su `licitacion.facturada` trae `proveedorId` y no cierra la sala.
+  const finalizada = eventoFacturada(eventos, lic.id, ordenes);
   const cerrada = lic.estado !== 'abierta' || Date.parse(lic.cierraEn) <= ahora;
   // Lista: llegó `licitacion.facturada` o (al recargar la pantalla) todas las órdenes ya tienen su factura.
   const todasFacturadas = ordenes.length > 0 && facturas.length >= ordenes.length;
@@ -703,7 +726,8 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
   const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, lic, p) })).reverse();
   return {
     fase,
-    proveedor: negocioPorId(estado, lic.ganadora?.proveedorId ?? lic.proveedorId)?.nombre ?? lic.ganadora?.proveedorNombre ?? 'el proveedor',
+    proveedor: proveedoresDeLaSala(lic, estado, ordenes),
+    quienFacturo: quienFacturo(estado, ordenes, new Set(facturas.map(f => porOrdenDeFactura.get(f.id)!))),
     unidad: unidadDeLicitacion(lic),
     tramos,
     precioSolo: lic.precioSolo,
@@ -793,7 +817,16 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     }
     case 'licitacion.facturada': {
       const docs = numero(e.datos.documentos) ?? lista(e.datos.documentos).length;
+      if (docs && texto(e.datos.proveedorId) && proveedor) return `${proveedor} emitió ${contar(docs, 'factura')} de la compra conjunta`;
       return docs ? `${docs === 1 ? 'Salió' : 'Salieron'} ${contar(docs, 'factura')} de la compra conjunta` : 'La compra conjunta quedó facturada';
+    }
+    case 'licitacion.producto': {
+      const nuevo = objeto(e.datos.producto);
+      return `${texto(e.datos.proveedorNombre) ?? 'Un proveedor'} sumó ${texto(nuevo.nombre) ?? 'un producto'} a la compra`;
+    }
+    case 'negocio.registrado': {
+      const n = objeto(e.datos.negocio);
+      return `${texto(n.nombre) ?? 'Un negocio'} ${n.vende ? 'ahora vende' : 'se sumó'} en la red`;
     }
     case 'sii.folios': {
       const tipo = numero(e.datos.tipo);

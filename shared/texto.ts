@@ -24,6 +24,11 @@ export function cuantos(plural: string): string {
   return /(as|des)$/i.test(plural) ? 'Cuántas' : 'Cuántos';
 }
 
+/** "A", "A y B", "A, B y C". */
+export function enumerar(lista: readonly string[]): string {
+  return lista.length <= 1 ? (lista[0] ?? '') : `${lista.slice(0, -1).join(', ')} y ${lista.at(-1)}`;
+}
+
 /** Primera letra en mayúscula. */
 export const mayuscula = (texto: string): string => texto.charAt(0).toUpperCase() + texto.slice(1);
 
