@@ -8,9 +8,15 @@ export interface Negocio {
   nombre: string;
   comuna: string;
   rol: Rol;
+  /** Rubro del comprador (`almacen`, `panaderia`, ...), para su ícono. */
+  rubro?: string;
+  /** Logo del proveedor de la sala, si está configurado. */
+  logoUrl?: string;
 }
 
 export interface ItemOrden {
+  /** Canasta: qué producto de la compra conjunta es. */
+  productoId?: string;
   producto: string;
   cantidad: number;
   precioUnitario: number;
@@ -52,8 +58,24 @@ export interface Participante {
   negocioId?: string;
   nombre?: string;
   comuna?: string;
+  rubro?: string;
+  /** Canasta: el carrito por producto. `cantidad` es la suma de todos los productos. */
+  items?: Array<{ productoId: string; cantidad: number }>;
   cantidad: number;
   en?: string;
+}
+
+/** Un producto de la canasta, con los derivados que calcula el backend. */
+export interface ProductoCompra {
+  id: string;
+  nombre: string;
+  unidad: string;
+  unidadPlural: string;
+  precioSolo: number;
+  tramos: Tramo[];
+  totalUnidades?: number;
+  precioActual?: number;
+  siguienteTramo?: SiguienteTramo | null;
 }
 
 export interface Oferta {
@@ -84,6 +106,13 @@ export interface SiguienteTramo extends Tramo {
 
 export interface Licitacion {
   id: string;
+  /**
+   * Canasta. Los campos de un solo producto (`producto`, `unidad`, `precioSolo`, `tramos`, `ofertas`,
+   * `precioActual`, `siguienteTramo`) son los de `productos[0]`; `totalUnidades` es el de toda la canasta.
+   */
+  productos?: ProductoCompra[];
+  /** Lo que ahorra el grupo contra `precioSolo` de cada producto (neto), de toda la canasta. */
+  ahorroTotal?: number;
   producto: string;
   comuna: string;
   cierraEn: string;
@@ -113,6 +142,8 @@ export interface ConfigRed {
   producto?: string;
   unidad?: string;
   unidadPlural?: string;
+  /** Logo del proveedor real de la demo (el de `licitacion.proveedorId`), si el backend lo configura. */
+  proveedorLogoUrl?: string;
 }
 
 export interface EstadoRed {

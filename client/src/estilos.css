@@ -126,13 +126,16 @@ body {
 
 .contadores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hueco); }
 .contador { padding: clamp(14px, 2.2vh, 28px); }
+.contador-fila { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.contador-fila .logo-sii { font-size: var(--t-etiqueta); }
 .contador .numero-grande { font-size: clamp(30px, 5.4vh, 64px); }
 .contador .etiqueta { margin-top: 1vh; font-size: clamp(10px, 1.3vh, 14px); letter-spacing: 0.05em; }
 
-.ranking { list-style: none; margin: 1.2vh 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 0.6vh; }
+/* Pocas filas: se reparten en el alto de la tarjeta en vez de dejar un hueco abajo. */
+.ranking { list-style: none; margin: 1.2vh 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: space-evenly; gap: 0.6vh; }
 .fila-ranking {
   display: grid;
-  grid-template-columns: 1.6em minmax(0, 1fr) auto;
+  grid-template-columns: 1.6em auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 0.9vh 14px;
@@ -197,10 +200,16 @@ body {
 }
 .feed li:first-child { animation: aparecer 0.4s ease-out, destello 2.5s ease-out; border-radius: 8px; }
 .feed li:last-child { border-bottom: 0; }
+.feed .texto { flex: 1; }
+/* Carril fijo para el ícono de cada evento: los textos arrancan todos en la misma columna. */
+.feed-icono { width: 2.4em; height: 2em; font-size: 0.8em; display: grid; place-items: center; flex-shrink: 0; align-self: center; }
+.feed-icono > .icono { width: 1.5em; height: 1.5em; color: var(--color-muted); }
+.feed li { align-items: center; }
 .feed time { font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); white-space: nowrap; }
 
 .mini-lic { display: block; color: inherit; text-decoration: none; }
-.mini-lic .numero-grande { color: var(--color-primary); margin-top: 1vh; font-size: clamp(36px, 6.4vh, 80px); }
+.mini-lic-precio { display: flex; align-items: baseline; gap: 0.5em; margin-top: 1vh; font-family: var(--font-mono); font-size: var(--t-cuerpo); white-space: nowrap; }
+.mini-lic .numero-grande { color: var(--color-primary); font-size: clamp(36px, 6.4vh, 80px); }
 .mini-lic p:last-child { margin: 1vh 0 0; font-family: var(--font-mono); font-size: var(--t-cuerpo); color: var(--color-muted); }
 
 /* ---------- Licitación en vivo ---------- */
@@ -220,11 +229,16 @@ body {
   list-style: none; padding: 1.4vh 0 0; margin: 1.4vh 0 0; border-top: 1px solid var(--color-border);
   display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 1.1vh; font-family: var(--font-mono);
 }
-.lista-grupo li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: var(--t-cuerpo); animation: aparecer 0.4s ease-out; }
+/* Nombre a todo el ancho; comuna y cantidad debajo, la cantidad en su carril a la derecha. */
+.lista-grupo li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 12px;
+  font-size: var(--t-cuerpo); animation: aparecer 0.4s ease-out;
+}
+.lista-grupo .monograma { grid-row: 1 / 3; align-self: center; }
+.lista-grupo .nombre { grid-column: 2 / -1; }
 .lista-grupo li:first-child { animation: aparecer 0.4s ease-out, destello 2.5s ease-out; border-radius: 4px; }
-.lista-grupo .quien { display: flex; flex-direction: column; min-width: 0; }
-.lista-grupo .comuna { font-size: var(--t-etiqueta); color: var(--color-tenue); margin-top: 2px; }
-.lista-grupo li > span:last-child { white-space: nowrap; flex-shrink: 0; }
+.lista-grupo .comuna { font-size: var(--t-etiqueta); color: var(--color-tenue); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lista-grupo .verde { white-space: nowrap; font-size: var(--t-etiqueta); font-weight: 700; }
 
 .sumate {
   margin-top: var(--hueco); background: var(--color-primary); color: var(--color-primary-foreground);
@@ -252,7 +266,8 @@ body {
 
 .ofertas { list-style: none; margin: 1.4vh 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 1.2vh; }
 .oferta { border: 1px solid var(--color-border); border-radius: 12px; padding: clamp(10px, 1.5vh, 18px) 14px; animation: aparecer 0.4s ease-out; }
-.oferta .nombre-oferta { font-size: clamp(17px, 2.5vh, 30px); font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oferta .nombre-oferta { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: clamp(17px, 2.5vh, 30px); font-weight: 700; line-height: 1.15; }
+.oferta .nombre-oferta .monograma { font-size: 0.6em; }
 .oferta .linea { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; row-gap: 2px; margin-top: 0.6vh; min-width: 0; }
 .oferta .precio { font-size: clamp(17px, 2.5vh, 30px); font-weight: 700; white-space: nowrap; }
 .oferta .detalle, .oferta .aviso { font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted); white-space: nowrap; }
@@ -279,8 +294,15 @@ body {
 .peldano.siguiente { border-color: var(--color-green); color: var(--color-text); border-style: dashed; }
 .avance { height: 12px; border-radius: 6px; background: var(--color-border); overflow: hidden; }
 .avance i { display: block; height: 100%; background: var(--color-green); border-radius: 6px; transition: width 0.6s ease-out; }
-.faltan { margin: 0; font-family: var(--font-mono); font-size: var(--t-cuerpo); color: var(--color-green); }
+.faltan { margin: 0; font-family: var(--font-mono); font-size: var(--t-cuerpo); color: var(--color-green); text-wrap: balance; }
 .escalera.vertical { margin-top: 1.4vh; }
+/* En la proyección la escalera llena su tarjeta: peldaños más altos en vez de un hueco abajo. */
+@media (min-width: 1024px) and (min-height: 600px) {
+  .escalera.vertical { flex: 1 1 0; }
+  .escalera.vertical .peldanos { flex: 1 1 0; min-height: 0; grid-auto-rows: minmax(0, 1fr); max-height: calc(var(--t-fila) * 4.2 * 5); }
+  .escalera.vertical .peldano { align-items: center; padding-block: 0; font-size: var(--t-fila); }
+  .escalera.vertical .peldano .precio { font-size: calc(var(--t-fila) * 1.25); }
+}
 
 /* ---------- Proyección: de 1024 px hacia arriba, todo cabe en una pantalla ---------- */
 @media (min-width: 1024px) and (min-height: 600px) {
@@ -309,6 +331,10 @@ body {
   .precio-solo .numero-grande { margin-top: 0.4vh; }
 }
 
+/* 4:3: filas del ranking más compactas para que el nombre quepa junto al monograma. */
+@media (min-width: 1024px) and (max-aspect-ratio: 3/2) {
+  .fila-ranking { gap: 8px; padding-inline: 8px; }
+}
 /* ---------- Pantallas chicas: una columna y scroll ---------- */
 @media (max-width: 1023px) {
   .red-cuerpo, .lic-cuerpo { grid-template-columns: minmax(0, 1fr); }
@@ -435,3 +461,21 @@ body {
     transition: none;
   }
 }
+
+/* ---------- Iconografía (components/Iconos.tsx) ---------- */
+/* Un solo set de íconos de línea: 1em, trazo 2, del color del texto. */
+.icono { width: 1em; height: 1em; flex-shrink: 0; vertical-align: -0.14em; }
+/* Logo del SII sobre una placa blanca para que su azul se lea también en fondo negro. */
+.logo-sii {
+  height: 1.15em; width: auto; flex-shrink: 0; vertical-align: -0.22em;
+  background: #fff; border-radius: 0.2em; padding: 0.12em 0.18em; box-sizing: content-box;
+}
+/* Avatar de tamaño fijo (2em del texto de su fila): logo, ícono del rubro o iniciales. */
+.monograma {
+  width: 2.5em; height: 2.5em; font-size: 0.8em; border-radius: 50%; flex-shrink: 0;
+  display: inline-grid; place-items: center; overflow: hidden;
+  color: #111; font-family: var(--font-mono); font-weight: 700; line-height: 1; letter-spacing: 0;
+}
+.monograma .icono { width: 1.35em; height: 1.35em; }
+.monograma.con-logo { background: #fff; }
+.monograma.con-logo img { width: 100%; height: 100%; object-fit: contain; padding: 12%; box-sizing: border-box; }

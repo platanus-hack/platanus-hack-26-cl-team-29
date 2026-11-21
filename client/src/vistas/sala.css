@@ -31,7 +31,7 @@
 .sala-abierta {
   flex: 1; min-height: 0;
   display: grid;
-  grid-template-columns: calc(var(--u) * 52) minmax(0, 1fr);
+  grid-template-columns: calc(var(--u) * 47) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   gap: calc(var(--u) * 2.2);
 }
@@ -42,7 +42,7 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 2);
   text-align: center; min-height: 0;
 }
-.sala-unirse h2 { margin: 0; font-size: calc(var(--u) * 4.8); line-height: 1.02; font-weight: 800; letter-spacing: var(--tracking-tight); }
+.sala-unirse h2 { margin: 0; text-wrap: balance; font-size: calc(var(--u) * 4.3); line-height: 1.02; font-weight: 800; letter-spacing: var(--tracking-tight); }
 .sala-unirse .subrayado { background: var(--color-primary-foreground); color: var(--color-primary); padding: 0 0.15em; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sala-qr {
   width: min(100%, calc(var(--u) * 40)); aspect-ratio: 1; height: auto; flex-shrink: 1; min-height: 0;
@@ -53,6 +53,8 @@
 .sala-numero strong { font-family: var(--font-mono); font-size: calc(var(--u) * 4.8); font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
 .sala-web { margin: 0; font-family: var(--font-mono); font-size: max(13px, calc(var(--u) * 2.2)); }
 .sala-web strong { white-space: nowrap; }
+/* Aviso discreto al pie de la tarjeta del QR: no compite con el llamado a sumarse. */
+.sala-demo { margin: 0; max-width: 34em; font-family: var(--font-mono); font-size: max(10px, calc(var(--u) * 1.25)); line-height: 1.35; opacity: 0.6; text-wrap: balance; }
 
 .sala-tablero {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: calc(var(--u) * 3.2); row-gap: calc(var(--u) * 1.6); align-items: center;
@@ -93,15 +95,18 @@
 .sala-muro {
   list-style: none; margin: 0; padding: 0; flex: 1 1 0; min-height: 0; overflow: hidden;
   display: grid; align-content: start; gap: calc(var(--u) * 1);
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 36), 1fr));
 }
 .muro-vacio { margin: 0; font-family: var(--font-mono); font-size: calc(var(--u) * 2.6); color: var(--color-tenue); }
 .ficha {
   background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
   padding: calc(var(--u) * 0.9) calc(var(--u) * 1.4); min-width: 0;
-  display: flex; flex-direction: column; gap: calc(var(--u) * 0.2);
+  display: flex; align-items: center; gap: calc(var(--u) * 1.2);
   animation: entrar 0.6s cubic-bezier(0.2, 1.4, 0.4, 1), brillar 2.4s ease-out;
 }
-.ficha .nombre { font-size: calc(var(--u) * 2.3); font-weight: 700; }
+.ficha .monograma { font-size: calc(var(--u) * 1.8); }
+.ficha-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * 0.2); }
+.ficha .nombre { font-size: calc(var(--u) * 2.2); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ficha-pie { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.7)); }
 .ficha-pie .comuna { color: var(--color-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ficha-pie .verde { white-space: nowrap; font-weight: 700; }
@@ -109,24 +114,37 @@
 .sala-abierta.con-competencia { grid-template-rows: auto auto minmax(0, 1fr); }
 .sala-abierta.con-competencia .sala-unirse { grid-row: 1 / 4; }
 .sala-competencia { display: flex; flex-direction: column; gap: calc(var(--u) * 0.8); min-width: 0; }
-.competencia-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 1); }
+.competencia-lista {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 1);
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 34), 1fr));
+}
+/* Nombre y precio en la primera línea, nota y "en la sala" debajo: mismos carriles en todas las tarjetas. */
 .oferta-sala {
   border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); min-width: 0;
-  padding: calc(var(--u) * 0.8) calc(var(--u) * 1.4); display: flex; align-items: baseline; gap: calc(var(--u) * 1);
+  padding: calc(var(--u) * 0.8) calc(var(--u) * 1.4);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: calc(var(--u) * 1.2); row-gap: calc(var(--u) * 0.2);
   animation: entrar 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
-.oferta-sala .nombre { flex: 1; font-size: calc(var(--u) * 1.9); font-weight: 700; }
+.oferta-sala .monograma { grid-row: 1 / 3; align-self: center; font-size: calc(var(--u) * 1.6); }
+.oferta-sala .nombre { font-size: calc(var(--u) * 1.9); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .oferta-sala strong { font-size: calc(var(--u) * 2.6); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.oferta-pie {
+  grid-column: 2 / -1; display: flex; align-items: center; gap: calc(var(--u) * 1); min-height: calc(var(--u) * 2.2);
+  font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.4)); color: var(--color-muted);
+}
 .en-escenario {
-  flex-shrink: 0; align-self: center; font-family: var(--font-mono); font-size: max(10px, calc(var(--u) * 1.2)); text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--color-magenta); border: 1px solid var(--color-magenta); border-radius: 6px; padding: 1px 6px;
+  font-size: max(10px, calc(var(--u) * 1.2)); text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-magenta); border: 1px solid var(--color-magenta); border-radius: 6px; padding: 0 6px;
 }
 .oferta-sala.gana { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
+.oferta-sala.gana .oferta-pie { color: var(--color-primary-foreground); }
 .oferta-sala.gana .en-escenario { color: var(--color-primary-foreground); border-color: var(--color-primary-foreground); }
 
 .sala-pasos { list-style: none; margin: 0; padding: 0; display: flex; gap: calc(var(--u) * 1.6); font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-tenue); white-space: nowrap; }
 .sala-pasos b { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; border: 1px solid currentColor; font-weight: 700; margin-right: 4px; }
 .sala-pasos .activo { color: var(--color-primary); }
+.sala-pasos .logo-sii { margin-left: 0.5em; }
+.sala-reloj .logo-sii { margin-right: 0.2em; }
 .sala-pasos .activo b { background: var(--color-primary); color: var(--color-primary-foreground); border-color: var(--color-primary); }
 .sin-sii { margin: calc(var(--u) * 1.2) 0 0; font-family: var(--font-mono); font-size: calc(var(--u) * 2.2); color: var(--color-primary); font-weight: 700; }
 
@@ -163,7 +181,7 @@
   gap: calc(var(--u) * 4);
 }
 .sala-cerrada > .etiqueta { font-size: calc(var(--u) * 2.4); }
-.sala-cerrada h2 { margin: 0; font-size: calc(var(--u) * 9); line-height: 1.02; font-weight: 800; letter-spacing: var(--tracking-tight); max-width: 14em; }
+.sala-cerrada h2 { margin: 0; font-size: calc(var(--u) * 9); line-height: 1.02; font-weight: 800; letter-spacing: var(--tracking-tight); max-width: 14em; text-wrap: balance; }
 .puntos i { font-style: normal; animation: latido 1.2s ease-in-out infinite; }
 .puntos i:nth-child(2) { animation-delay: 0.2s; }
 .puntos i:nth-child(3) { animation-delay: 0.4s; }
@@ -175,31 +193,38 @@
 .sala-facturas {
   flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--u) * 50); gap: calc(var(--u) * 2.4);
 }
-.sala-facturas-muro { display: flex; flex-direction: column; gap: calc(var(--u) * 1.2); min-height: 0; }
+.sala-facturas-muro { display: flex; flex-direction: column; gap: calc(var(--u) * 1.2); min-height: 0; min-width: 0; }
+.sala-facturas-muro > .etiqueta { margin: 0; text-wrap: balance; }
 .muro-facturas {
   list-style: none; margin: 0; padding: 0; flex: 1 1 0; min-height: 0; overflow: hidden;
   display: grid; align-content: start; gap: calc(var(--u) * 1.2);
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 34), 1fr));
 }
+/* Folio y nombre a la izquierda, el sello del SII en su propio carril a la derecha; monto y estado abajo. */
 .factura {
-  position: relative; background: #fff; color: #111; border-radius: 10px; min-width: 0;
+  background: #fff; color: #111; border-radius: 10px; min-width: 0;
   padding: calc(var(--u) * 1.2) calc(var(--u) * 1.6); border-top: calc(var(--u) * 0.6) solid var(--color-sii);
-  display: flex; flex-direction: column; gap: calc(var(--u) * 0.3);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: calc(var(--u) * 1); row-gap: calc(var(--u) * 0.3); align-items: center;
   animation: llegar 0.45s ease-out;
 }
-.factura-folio { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-sii); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-.factura .nombre { font-size: calc(var(--u) * 2.3); font-weight: 700; padding-right: calc(var(--u) * 6); }
+.factura-linea, .factura-estado { grid-column: 1 / -1; }
+.factura-folio { grid-column: 1; font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-sii); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.factura .nombre { grid-column: 1; font-size: calc(var(--u) * 2.1); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .factura-linea { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.7)); }
 .factura-estado { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: #666; animation: aparecer 0.4s ease-out; }
 .factura.aceptada .factura-estado { color: #067a00; font-weight: 700; }
 .sello {
-  position: absolute; top: calc(var(--u) * 1); right: calc(var(--u) * 1.2);
-  width: calc(var(--u) * 5.2); height: calc(var(--u) * 5.2); border-radius: 50%;
-  border: calc(var(--u) * 0.35) solid var(--color-sii); color: var(--color-sii);
-  display: grid; place-items: center; font-family: var(--font-mono); font-weight: 700; font-size: calc(var(--u) * 1.5);
+  grid-column: 2; grid-row: 1 / 3;
+  width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); border-radius: 50%;
+  border: calc(var(--u) * 0.35) dashed var(--color-sii); background: #fff;
+  display: grid; place-items: center; font-size: calc(var(--u) * 1.5); opacity: 0.55;
   transform: rotate(-14deg);
   animation: estampar 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.15s both;
 }
-.factura.aceptada .sello { background: var(--color-sii); color: #fff; }
+.sello .logo-sii { padding: 0; }
+/* Aceptada por el SII: el timbre queda firme. */
+.factura.aceptada .sello { border-style: solid; opacity: 1; }
+.factura-estado .icono { margin-right: 0.35em; }
 
 .sala-facturas-resumen {
   container-type: inline-size;
@@ -271,7 +296,7 @@
 }
 @keyframes estampar {
   0% { opacity: 0; transform: rotate(-30deg) scale(3); }
-  100% { opacity: 1; transform: rotate(-14deg) scale(1); }
+  100% { transform: rotate(-14deg) scale(1); }
 }
 
 /* ---------- Proyección: de 1024 px hacia arriba, una sola pantalla sin scroll ---------- */
@@ -291,8 +316,10 @@
   .sala-numero strong { font-size: calc(var(--u) * 4); }
   .sala-facturas { grid-template-columns: minmax(0, 1fr) calc(var(--u) * 40); }
   .sala-facturas.final { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
-  .sala-pasos li:not(.activo) .paso-texto { display: none; }
-  .sala-totales { grid-template-columns: repeat(2, auto); row-gap: calc(var(--u) * 3); }
+  /* Solo se lee el texto del paso en curso; los demás quedan como número. */
+  .sala-pasos li:not(.activo) .paso-texto, .sala-pasos li.activo:has(+ li.activo) .paso-texto { display: none; }
+  .sala-totales { gap: calc(var(--u) * 4); }
+  .sala-totales .numero-grande { font-size: calc(var(--u) * 6.5); }
 }
 
 /* Pantallas chicas: una columna y scroll. */

@@ -1,28 +1,34 @@
+import type { ReactNode } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
+import { Icono, LogoSii, Monograma, type NombreIcono } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
   cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
-import { cantidadCon, contar, dinero, haceCuanto, miles, nota, unidadDe } from '../red/formato.ts';
-import type { EstadoRed } from '../red/tipos.ts';
-import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
+import { contar, dinero, haceCuanto, miles, nota, pedidoDe, unidadDe } from '../red/formato.ts';
+import type { EstadoRed, EventoRed, TipoEvento } from '../red/tipos.ts';
+import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 
-export function Contador({ valor, texto, color }: { valor: number; texto: string; color?: string }) {
+export function Contador({ valor, texto, color, marca }: { valor: number; texto: string; color?: string; marca?: ReactNode }) {
   return (
     <div className="tarjeta contador">
-      <div className={`numero-grande ${color ?? ''}`}>{miles(valor)}</div>
+      <div className="contador-fila">
+        <div className={`numero-grande ${color ?? ''}`}>{miles(valor)}</div>
+        {marca}
+      </div>
       <p className="etiqueta">{texto}</p>
     </div>
   );
 }
 
-function Fila({ fila }: { fila: FilaRanking }) {
+function Fila({ fila, logoUrl }: { fila: FilaRanking; logoUrl?: string }) {
   const c = fila.cambio;
   const baja = c && fila.nota < c.anterior;
   return (
     <li className={`fila-ranking ${c ? (baja ? 'baja' : 'sube') : ''}`}>
       <span className="puesto">{fila.puesto}</span>
+      <Monograma nombre={fila.proveedor.nombre} logoUrl={logoUrl} />
       <span className="quien">
         <span className="nombre">{fila.proveedor.nombre}</span>
         {c && (
@@ -41,7 +47,10 @@ function Fila({ fila }: { fila: FilaRanking }) {
   );
 }
 
-export function Ranking({ estado, cambios, ahora }: { estado: EstadoRed; cambios: CambioNota[]; ahora: number }) {
+/** `logoUrl` es el logo del proveedor de la demo (`proveedorSala`); los demás llevan monograma. */
+export function Ranking({ estado, cambios, ahora, logoUrl, proveedorSala }: {
+  estado: EstadoRed; cambios: CambioNota[]; ahora: number; logoUrl?: string; proveedorSala?: string;
+}) {
   const filas = ranking(estado, cambios);
   const [lista, caben] = useFilasQueCaben<HTMLOListElement>(5, cambios.length);
   // Si un proveedor que cambió queda fuera de las filas que caben, se muestra igual en la última.
@@ -54,12 +63,39 @@ export function Ranking({ estado, cambios, ahora }: { estado: EstadoRed; cambios
         Mejores proveedores {cambios.length > 0 && <span className="magenta">· cambió {haceCuanto(new Date(cambios.at(-1)!.en).toISOString(), ahora)}</span>}
       </p>
       {filas.length ? (
-        <ol className="ranking ajustable" ref={lista}>{visibles.map(f => <Fila key={f.proveedor.id} fila={f} />)}</ol>
+        <ol className="ranking ajustable" ref={lista}>{visibles.map(f => <Fila key={f.proveedor.id} fila={f} logoUrl={f.proveedor.id === proveedorSala ? logoUrl : undefined} />)}</ol>
       ) : (
         <p className="vacio">Aún no hay proveedores con nota.</p>
       )}
     </section>
   );
+}
+
+const ICONO_EVENTO: Partial<Record<TipoEvento, NombreIcono>> = {
+  'orden.creada': 'pedido',
+  'orden.confirmada': 'check',
+  'recepcion.registrada': 'caja',
+  'nota.cambiada': 'nota',
+  'licitacion.precio_bajo': 'baja',
+  'licitacion.cerrada': 'cerrada',
+};
+const EVENTO_SII = new Set<TipoEvento>(['documento.emitido', 'documento.actualizado', 'reclamo.registrado', 'nota_credito.emitida', 'licitacion.facturada']);
+
+/** Lo del SII lleva su logo; quien se suma o oferta, su monograma; el resto, un ícono de línea. */
+function IconoEvento({ e, estado }: { e: EventoRed; estado: EstadoRed }) {
+  if (EVENTO_SII.has(e.tipo)) return <LogoSii />;
+  const quien = (v: unknown) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
+  if (e.tipo === 'licitacion.participante') {
+    const p = quien(e.datos.participante);
+    const nombre = typeof p.nombre === 'string' ? p.nombre : negocioPorId(estado, String(p.negocioId ?? ''))?.nombre;
+    if (nombre) return <Monograma nombre={nombre} rubro />;
+  }
+  if (e.tipo === 'licitacion.oferta') {
+    const o = quien(e.datos.oferta);
+    const nombre = typeof o.proveedorNombre === 'string' ? o.proveedorNombre : negocioPorId(estado, String(o.proveedorId ?? ''))?.nombre;
+    if (nombre) return <Monograma nombre={nombre} />;
+  }
+  return <Icono nombre={ICONO_EVENTO[e.tipo] ?? 'pedido'} />;
 }
 
 export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVisto[]; ahora: number }) {
@@ -71,6 +107,7 @@ export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: E
         <ul className="feed ajustable" ref={lista}>
           {eventos.slice(0, caben).map(e => (
             <li key={e.clave}>
+              <span className="feed-icono"><IconoEvento e={e} estado={estado} /></span>
               <span className="texto">{describirEvento(e, estado)}</span>
               <time dateTime={e.en}>{haceCuanto(e.en, ahora)}</time>
             </li>
@@ -88,20 +125,22 @@ export function MiniLicitacion({ estado }: { estado: EstadoRed }) {
   const lic = licitacionActual(estado);
   if (!lic) return null;
   const resumenLic = resumenLicitacion(lic, estado);
+  const unidad = unidadDeLicitacion(lic);
   return (
     <a className="tarjeta mini-lic" href="/licitacion">
-      <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
-      <div className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</div>
-      <p>
-        {contar(resumenLic.compradores, 'negocio')}, {contar(resumenLic.totalUnidades, unidadDeLicitacion(lic).singular, unidadDeLicitacion(lic).plural)}
-        {resumenLic.precioSolo !== undefined && <> · solo: <span className="tachado">{dinero(resumenLic.precioSolo)}</span></>}
-      </p>
+      <p className="etiqueta">Compra conjunta {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
+      <div className="mini-lic-precio">
+        <span className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</span>
+        {resumenLic.precioSolo !== undefined && <span className="tachado">{dinero(resumenLic.precioSolo)}</span>}
+      </div>
+      <p>{contar(resumenLic.compradores, 'negocio')} · {contar(resumenLic.totalUnidades, unidad.singular, unidad.plural)}</p>
     </a>
   );
 }
 
 export function RedEnVivo() {
   const { estado, eventos, cambios, fuente } = useRed();
+  const config = useConfigRed(fuente);
   const ahora = useAhora();
   if (!estado) return <Cargando />;
 
@@ -126,7 +165,7 @@ export function RedEnVivo() {
             {orden && item ? (
               <>
                 <h2 className="orden-titulo">
-                  {cantidadCon(item.cantidad, item.producto)} de {item.producto} a{' '}
+                  {pedidoDe(item.cantidad, item.producto)} a{' '}
                   <span className="amarillo">{dinero(item.precioUnitario)}</span> por {unidadDe(item.producto).singular}
                 </h2>
                 <p className="orden-partes">
@@ -135,7 +174,7 @@ export function RedEnVivo() {
                 <ol className="ciclo" aria-label="Ciclo de la orden">
                   {pasos.map((p, i) => (
                     <li key={p.titulo} className={`paso ${p.carril} ${p.estado}`}>
-                      <span className="num">{i + 1} · {p.carril === 'sii' ? 'SII' : p.carril}</span>
+                      <span className="num">{i + 1} · {p.carril === 'sii' ? <LogoSii /> : p.carril}</span>
                       <h3>{p.titulo}</h3>
                       <p>{p.detalle}</p>
                     </li>
@@ -154,9 +193,9 @@ export function RedEnVivo() {
           <div className="contadores">
             <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
             <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} />
+            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
           </div>
-          <Ranking estado={estado} cambios={cambios} ahora={ahora} />
+          <Ranking estado={estado} cambios={cambios} ahora={ahora} logoUrl={config.proveedorLogoUrl ?? negocioPorId(estado, licitacionActual(estado)?.proveedorId)?.logoUrl} proveedorSala={licitacionActual(estado)?.proveedorId} />
           <MiniLicitacion estado={estado} />
         </div>
       </div>

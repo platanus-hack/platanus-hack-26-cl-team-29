@@ -1,4 +1,5 @@
 /* ---------- /mapa: la red sobre un mapa real ---------- */
+/* La leyenda va arriba a la derecha: abajo tapaba las etiquetas de los proveedores del sur de la ciudad. */
 .mapa-caja {
   position: relative;
   min-height: 50vh;
@@ -10,8 +11,8 @@
 .mapa-lienzo { position: absolute; inset: 0; }
 
 .mapa-leyenda {
-  position: absolute; left: 12px; bottom: 12px; margin: 0; padding: 8px 12px; list-style: none;
-  display: flex; flex-wrap: wrap; gap: 6px 16px; max-width: calc(100% - 24px);
+  position: absolute; right: 12px; top: 12px; margin: 0; padding: 8px 12px; list-style: none;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; max-width: min(60%, calc(100% - 24px));
   background: rgb(0 0 0 / 0.85); border: 1px solid var(--color-border); border-radius: 10px;
   font-family: var(--font-mono); font-size: clamp(11px, 1.5vh, 14px); color: var(--color-muted);
 }
