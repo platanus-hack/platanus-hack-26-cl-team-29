@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { precioAjustado, precioDelProducto, precioPorVolumen, siguienteTramo, totalesDeCanasta, unidadesDe } from '../shared/precios.ts';
+import { neto, precioAjustado, precioDelProducto, precioPorVolumen, siguienteTramo, totalesDeCanasta, totalOrden, unidadesDe } from '../shared/precios.ts';
 
 // Desordenados a propósito: el cálculo no depende del orden en que lleguen.
 const tramos = [{ desde: 25, precioUnitario: 27_900 }, { desde: 1, precioUnitario: 32_000 }, { desde: 10, precioUnitario: 29_900 }];
@@ -37,4 +37,11 @@ test('unidades por producto y totales de la canasta', () => {
 test('el precio ajustado castiga la mala nota y el plazo largo', () => {
   assert.equal(precioAjustado({ precioUnitario: 17900, plazoDias: 2 }, 3.9), Math.round(17900 * 1.11 * 1.02));
   assert.equal(precioAjustado({ precioUnitario: 10000, plazoDias: 0 }, 5), 10000);
+});
+
+test('monto neto de unas líneas y de una orden', () => {
+  const items = [{ cantidad: 2, precioUnitario: 29_900 }, { cantidad: 3, precioUnitario: 6_900 }];
+  assert.equal(neto(items), 80_500);
+  assert.equal(totalOrden({ items }), 80_500);
+  assert.equal(neto([]), 0);
 });

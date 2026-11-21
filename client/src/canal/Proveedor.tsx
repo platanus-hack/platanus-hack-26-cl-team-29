@@ -5,6 +5,7 @@
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { dinero, nota } from '../../../shared/formato.ts';
+import { totalOrden } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
@@ -12,7 +13,7 @@ import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import {
-  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
+  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';

@@ -1,6 +1,7 @@
 // Lo que la IA puede consultar de la red. Solo lectura, acotado al negocio que pregunta y
 // sin teléfonos: todo sale de la foto pública (`estadoPublico`) y de la compra conjunta abierta.
 import { nombreEnFrase } from '../../shared/documentos.ts';
+import { totalOrden } from '../../shared/precios.ts';
 import type { Red } from '../red/index.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from '../red/index.ts';
 
@@ -29,7 +30,7 @@ export function crearConsultasRed(red: RedConsultable): Consultas {
           yoSoy: o.compradorId === negocioId ? 'comprador' : 'proveedor',
           contraparte: nombre(o.compradorId === negocioId ? o.proveedorId : o.compradorId),
           items: o.items.map(i => ({ producto: i.producto, cantidad: i.cantidad, precioUnitario: i.precioUnitario })),
-          total: o.items.reduce((suma, i) => suma + i.cantidad * i.precioUnitario, 0),
+          total: totalOrden(o),
           estado: o.estado,
           creadaEn: o.creadaEn,
           documentos: documentos

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { precioAjustado, precioPorVolumen, unidadesDe } from '../../shared/precios.ts';
+import { neto, precioAjustado, precioPorVolumen, unidadesDe } from '../../shared/precios.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 import { enlacePdf } from './pdf-enlace.ts';
@@ -222,7 +222,6 @@ export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
 export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
 export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
 
-const neto = (items: Item[]) => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
 /** Rubro conocido, sin tildes ni mayúsculas; uno desconocido es `otro` y vacío, undefined. */
 export function normalizarRubro(texto: unknown): Rubro | undefined {

@@ -8,6 +8,7 @@
 //                           si bajó por ofertas de proveedores que compiten, dice quién ofertó y quién respondió
 //   cierre --> pregunta al proveedor; solo con su sí se facturan todas en el SII
 //   cada factura emitida --> el comprador recibe su folio con cada línea
+import { totalOrden } from '../../shared/precios.ts';
 import type { Interprete } from './intencion.ts';
 import { normalizar } from './intencion.ts';
 import type { Catalogo, CambioCarrito, DatosCanasta } from './canasta.ts';
@@ -420,7 +421,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const lineas = ordenes.length
       ? [...porProducto.values()].map(i => lineaDe(i, l))
       : productos.filter(p => p.totalUnidades > 0).map(p => m.itemTexto(p, p.totalUnidades));
-    const total = ordenes.reduce((s, x) => s + m.totalOrden(x), 0) || productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0);
+    const total = ordenes.reduce((s, x) => s + totalOrden(x), 0) || productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0);
     const negocios = ordenes.length || l.participantes.length;
     o.log.info(`[sala] cerró ${l.id}: ${negocios} negocios, ${lineas.join(', ')}`);
     const proveedorId = l.proveedorId ?? ordenes[0]?.proveedorId;
@@ -467,7 +468,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     foliosAvisados.set(documento.id, { telefono, en: Date.now(), folio: documento.folio });
     const pdf = await enlacePdf(documento);
     await o.envios.enviar(telefono, m.folioAlComprador({
-      folio: documento.folio, lineas: orden.items.map(i => lineaDe(i, licitacion)), total: m.totalOrden(orden), ahorro, pdf,
+      folio: documento.folio, lineas: orden.items.map(i => lineaDe(i, licitacion)), total: totalOrden(orden), ahorro, pdf,
     }), `folio ${documento.folio}`);
     if (pdf) {
       await o.envios.enviarDocumento(telefono, {

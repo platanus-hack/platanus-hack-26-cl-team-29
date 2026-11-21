@@ -4,13 +4,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { dinero, nota } from '../../../shared/formato.ts';
+import { totalOrden } from '../../../shared/precios.ts';
 import { contar, cuantos } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import {
-  cicloDelPedido, estaAbierta, licitacionVigente, totalOrden, unidadPara, montoNotaCredito,
+  cicloDelPedido, estaAbierta, licitacionVigente, unidadPara, montoNotaCredito,
   type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';

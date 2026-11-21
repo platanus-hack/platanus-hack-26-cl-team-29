@@ -2,7 +2,7 @@
 // Sin React ni red, para poder probarla con node:test.
 
 import type { Documento } from '../red/tipos.ts';
-import { siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
+import { siguienteTramo, totalOrden, tramoAlcanzado } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
@@ -100,7 +100,6 @@ export function unidadPara(producto: string, config: ConfigRed | null): Unidad {
 
 // ---------- Pedidos ----------
 
-export const totalOrden = (orden: OrdenCanal) => orden.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 
 /** Monto de la nota de crédito: lo que faltó por su precio. Si ya se emitió, el monto del documento. */
 export function montoNotaCredito(orden: OrdenCanal, documentos: readonly Documento[]): number {

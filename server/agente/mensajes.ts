@@ -1,11 +1,10 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
 import { dinero, nota } from '../../shared/formato.ts';
+import { totalOrden } from '../../shared/precios.ts';
 import { contar, cuantos, mayuscula, pluralDe, segun } from '../../shared/texto.ts';
 import { cortoDe, productosDe } from './canasta.ts';
 
-export const totalOrden = (orden: OrdenCompra) =>
-  orden.items.reduce((suma, item) => suma + item.cantidad * item.precioUnitario, 0);
 
 /** "4 sacos de harina, 2 cajas de aceite" */
 export const detalle = (orden: OrdenCompra) =>

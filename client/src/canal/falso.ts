@@ -6,6 +6,7 @@ import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoD
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import { CANASTA_DEMO } from '../../../shared/canasta-demo.ts';
+import { totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
 import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
@@ -145,11 +146,10 @@ export function crearApiFalsa(): CanalApi {
     if (tipo !== 52) despues(5000, () => { documento.estadoSii = 'aceptado'; avisar('documento.actualizado', { documento }); });
     return documento;
   };
-  const total = (o: OrdenCanal) => o.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
   const facturar = (o: OrdenCanal, conGuia = true) => {
     o.estado = 'facturada';
-    emitir(o, 33, total(o));
-    if (conGuia) emitir(o, 52, total(o));
+    emitir(o, 33, totalOrden(o));
+    if (conGuia) emitir(o, 52, totalOrden(o));
   };
   const cambiarNota = (proveedorId: string, delta: number) => {
     const anterior = red.notas.get(proveedorId) ?? 4.4;

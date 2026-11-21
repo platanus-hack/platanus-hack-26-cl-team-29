@@ -54,6 +54,14 @@ export function precioDelProducto(
   return propia && unidades > 0 ? Math.min(tramo, propia.precioUnitario) : tramo;
 }
 
+type Linea = { cantidad: number; precioUnitario: number };
+
+/** Monto neto de unas líneas: cantidad por precio unitario. */
+export const neto = (items: readonly Linea[]): number => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
+
+/** Monto neto de una orden de compra. */
+export const totalOrden = (orden: { items: readonly Linea[] }): number => neto(orden.items);
+
 /** Totales de la canasta desde cada producto con sus derivados: unidades, lo que paga el grupo y lo que ahorra (neto). */
 export function totalesDeCanasta(productos: readonly { totalUnidades: number; precioActual: number; precioSolo: number }[]) {
   return {

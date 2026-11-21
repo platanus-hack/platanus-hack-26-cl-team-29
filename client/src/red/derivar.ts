@@ -3,7 +3,7 @@
 import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
 import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { ordenarTramos, precioAjustado, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
+import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { contar, mayuscula, pluralDe } from '../../../shared/texto.ts';
 import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
 
@@ -687,7 +687,7 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
         lineas: orden.items.length,
         // Con canasta, una factura puede traer varias líneas: se cuentan los productos.
         detalle: orden.items.length > 1 ? contar(orden.items.length, 'producto') : item ? cantidadDeItem(lic, item) : '',
-        monto: d.monto ?? orden.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0),
+        monto: d.monto ?? totalOrden(orden),
         estadoSii: d.estadoSii,
       };
     });

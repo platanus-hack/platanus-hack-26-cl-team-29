@@ -9,7 +9,7 @@
 
 import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, TipoEvento } from './tipos.ts';
 import { CANASTA_DEMO, PISO_ROLLOS_DEMO, pisoPorDefecto } from '../../../shared/canasta-demo.ts';
-import { precioDelProducto, siguienteTramo, totalesDeCanasta, unidadesDe } from '../../../shared/precios.ts';
+import { precioDelProducto, siguienteTramo, totalesDeCanasta, totalOrden, unidadesDe } from '../../../shared/precios.ts';
 
 export interface RedFalsa {
   detener(): void;
@@ -361,7 +361,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     ordenes.forEach((o, i) => despues(i * FACTURA_MS, () => publicar(e => {
       const documento: Documento = {
         id: `d-${o.id}`, ordenId: o.id, tipo: 33, folio: folio++, trackId: null, estadoSii: 'recibido',
-        monto: o.items.reduce((s, item) => s + item.cantidad * item.precioUnitario, 0), emitidoEn: ahoraIso(),
+        monto: totalOrden(o), emitidoEn: ahoraIso(),
       };
       documentos.push(documento);
       e.documentos = [...e.documentos, documento];
