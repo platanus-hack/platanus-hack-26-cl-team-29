@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  aparicion, camara, capitulo, distanciaKm, DURACION_HISTORIA, guion, historia, HITOS, MAX_TARJETAS, relaciones, sumarTarjeta, tarjetaDeEvento, VIDA_TARJETA,
+  aparicion, camara, capitulo, distanciaKm, DURACION_HISTORIA, guion, historia, HITOS, MAX_TARJETAS, relaciones, sumarTarjeta, VIDA_TARJETA,
   type Tarjeta,
 } from '../client/src/mapa/crece.ts';
 import { MUT } from '../client/src/mapa/geo.ts';
+import { describirEventoCorto } from '../client/src/red/derivar.ts';
 import type { EstadoRed } from '../client/src/red/tipos.ts';
 
 const estado = (): EstadoRed => ({
@@ -84,7 +85,9 @@ test('la cámara del recorrido es determinista, continua y sigue girando despué
   assert.ok(camara(DURACION_HISTORIA + 4000, foco).bearing > camara(DURACION_HISTORIA, foco).bearing);
 });
 
-const tarjeta = (inicio: number, lng: number, tipo: Tarjeta['tipo'] = 'pedido'): Tarjeta => ({ clave: `${inicio}`, tipo, titulo: 'x', punto: [lng, 0], inicio });
+const tarjeta = (inicio: number, lng: number, clase: Tarjeta['clase'] = 'pedido'): Tarjeta => ({
+  clave: `${inicio}`, clase, evento: { tipo: 'orden.creada', datos: {}, en: '' }, punto: [lng, 0], inicio,
+});
 
 test('las tarjetas no se acumulan: máximo tres, sin repetir nodo, y "se sumó" nunca desplaza a otra', () => {
   let v: Tarjeta[] = [];
@@ -96,25 +99,20 @@ test('las tarjetas no se acumulan: máximo tres, sin repetir nodo, y "se sumó" 
   assert.deepEqual(sumarTarjeta(v, tarjeta(400 + VIDA_TARJETA, 9)).map(t => t.punto[0]), [9], 'las vencidas salen');
 });
 
-test('cada evento lleva su tarjeta con montos chilenos y sin nombres de compradores', () => {
-  const e = estado();
-  const evento = (tipo: string, datos: Record<string, unknown>) => ({ tipo, datos, en: '' }) as Parameters<typeof tarjetaDeEvento>[0];
-  const pedido = tarjetaDeEvento(evento('orden.creada', { orden: { compradorId: 'c1', items: [{ cantidad: 4, precioUnitario: 21_000 }] } }), 'pedido', e);
-  assert.deepEqual(pedido, { tipo: 'pedido', titulo: 'Pedido', detalle: '$84.000' });
-  assert.equal(tarjetaDeEvento(evento('documento.emitido', { documento: { tipo: 33, monto: 119_600 } }), 'venta', e)?.detalle, '$119.600');
-  assert.deepEqual(tarjetaDeEvento(evento('nota.cambiada', { proveedorId: 'p1', anterior: 4.6, nota: 4.2 }), 'baja', e), { tipo: 'opinion', titulo: 'Nota 4,6 → 4,2', detalle: 'Proveedor Uno' });
-  assert.equal(tarjetaDeEvento(evento('licitacion.participante', { accion: 'cambia' }), 'nuevo', e), undefined, 'cambiar el carrito no es sumarse');
-});
-
-test('el guion de la secuencia es determinista, ordenado y nunca pide más de tres tarjetas a la vez', () => {
-  const e = { ...estado(), notas: [{ proveedorId: 'p1', nota: 4.6 }, { proveedorId: 'p2', nota: 4.2 }, { proveedorId: 'p3', nota: 4.4 }] };
+test('el guion de la secuencia son eventos de la red: ordenados, con su texto corto y nunca más de tres tarjetas a la vez', () => {
+  const e = { ...estado(), notas: [{ proveedorId: 'p1', nota: 4.6 }, { proveedorId: 'p2', nota: 4.6 }, { proveedorId: 'p3', nota: 4.6 }] };
   const h = historia(e, locales);
   const g = guion(h, e);
   assert.deepEqual(g, guion(h, e));
-  assert.equal(g[0].nodo, 0);
-  assert.equal(g[1].detalle, undefined, 'sin montos en la red, la tarjeta va sin monto (no se inventa)');
+  assert.deepEqual(g.slice(0, 3).map(p => describirEventoCorto(p.evento, e)), ['Se sumó a la red', 'Pedido', 'Venta facturada en el SII'], 'sin montos en la red, no se inventan');
+  assert.ok(g.some(p => describirEventoCorto(p.evento, e) === '¿Llegó bien? Nota 4,6 → 4,2'));
   assert.ok(g.every((p, i) => i === 0 || p.t >= g[i - 1].t) && g.at(-1)!.t < DURACION_HISTORIA);
   assert.ok(g.every(p => p.t >= h[p.nodo].aparece), 'una tarjeta nunca sale antes que su negocio');
   assert.ok(g.every(p => g.filter(q => q.t <= p.t && p.t - q.t < VIDA_TARJETA).length <= MAX_TARJETAS));
   assert.deepEqual(guion([], e), []);
+});
+
+test('la tarjeta del pedido lleva el monto con separador de miles', () => {
+  const pedido = { tipo: 'orden.creada' as const, datos: { orden: { compradorId: 'c1', items: [{ cantidad: 4, precioUnitario: 21_000 }] } }, en: '' };
+  assert.equal(describirEventoCorto(pedido, estado()), 'Pedido · $84.000');
 });
