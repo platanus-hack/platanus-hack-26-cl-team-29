@@ -6,7 +6,7 @@ import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoD
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import { CANASTA_DEMO } from '../../../shared/canasta-demo.ts';
-import { totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, ordenarTramos, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
 import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
@@ -214,6 +214,10 @@ export function crearApiFalsa(): CanalApi {
     if (participante.cantidad > 0) lic.participantes.push(participante);
     const despues = conDerivados(lic);
     avisar('licitacion.participante', { licitacionId: lic.id, licitacion: despues, participante, accion });
+    avisarBajas(lic, antes, despues);
+  };
+  /** Un `licitacion.precio_bajo` por cada producto que quedó más barato que en `antes`. */
+  const avisarBajas = (lic: LicitacionCanal, antes: ProductoCompra[], despues: LicitacionCanal) => {
     for (const p of despues.productos ?? []) {
       const previo = antes.find(x => x.id === p.id);
       if (previo?.precioActual && p.precioActual && p.precioActual < previo.precioActual) {
@@ -399,6 +403,24 @@ export function crearApiFalsa(): CanalApi {
       exigir(lic.estado === 'cerrada' && ordenesDe(lic).some(o => o.estado === 'enviada'), 'Esta compra conjunta no está lista para facturar.');
       ordenesDe(lic).forEach(o => facturar(o, false));
       avisar('licitacion.facturada' as TipoEventoRed, { licitacion: lic });
+    },
+
+    async fijarTramos(token, licitacionId, productoId, tramos) {
+      await espera(400);
+      const proveedor = quien(token);
+      const lic = abierta(licitacionId);
+      const antes = conDerivados(lic).productos ?? [];
+      const producto = lic.productos?.find(p => p.id === productoId);
+      exigir(!!producto && duenoDeTramos(producto, lic) === proveedor.id, 'Solo quien vende ese producto fija sus tramos.');
+      const actual = antes.find(p => p.id === productoId)!;
+      const unidades = actual.totalUnidades ?? 0;
+      const nuevos = ordenarTramos(tramos);
+      const error = errorDeTramos(nuevos, { unidades, precio: tramoEn(actual, unidades).precioUnitario });
+      exigir(!error, `${error}.`);
+      producto!.tramos = nuevos;
+      const despues = conDerivados(lic);
+      avisar('licitacion.producto', { licitacionId: lic.id, licitacion: despues, producto: despues.productos!.find(p => p.id === productoId), proveedorNombre: proveedor.nombre, cambio: 'tramos' });
+      avisarBajas(lic, antes, despues);
     },
 
     async confirmarOrden(token, ordenId) {

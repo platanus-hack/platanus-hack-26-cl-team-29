@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { neto, precioAjustado, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { pluralDe } from '../../shared/texto.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
@@ -21,7 +21,7 @@ import type { PuertoSii, ResultadoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
 import type {
   Coleccion, DatosRed, Documento, EstadoOrden, EstadoRed, EventoRed, Ganadora, Item, ItemCarrito, Licitacion, LicitacionVista, Negocio,
-  Oferta, OrdenCompra, Participante, ProductoCompra, ProductoCompraVista, Rubro, TipoDocumento, TipoEventoRed, TipoEventoReputacion,
+  Oferta, OrdenCompra, Participante, ProductoCompra, ProductoCompraVista, Rubro, TipoDocumento, Tramo, TipoEventoRed, TipoEventoReputacion,
 } from './tipos.ts';
 
 export type CodigoError =
@@ -194,6 +194,12 @@ export interface Red {
    * (`tramosAutomaticos`) y son su oferta por volumen; los demás proveedores pueden ofertar por él. Emite `licitacion.producto`.
    */
   crearProducto(licitacionId: string, producto: NuevoProducto): Promise<{ licitacion: LicitacionVista; producto: ProductoCompraVista }>;
+  /**
+   * El dueño de un producto (quien lo creó o el proveedor fijo de la compra) cambia sus tramos mientras la compra está
+   * abierta (`errorDeTramos`: el precio que ya alcanzó el grupo no sube). Emite `licitacion.producto` con
+   * `cambio: 'tramos'` y, si el precio vigente bajó, `licitacion.precio_bajo`.
+   */
+  fijarTramos(licitacionId: string, productoId: string, proveedorId: string, tramos: Tramo[]): Promise<{ licitacion: LicitacionVista; producto: ProductoCompraVista }>;
   /**
    * Cierra y crea las órdenes (`enviada`). Al público sin negocio le crea un negocio comprador.
    * - Con proveedor fijo (la demo con ficticios): una orden por participante a ese proveedor, al precio vigente de cada producto.
@@ -787,6 +793,12 @@ export async function crearRed({
     return l ? sinTelefonos(vistaLicitacion(l)) : null;
   }
 
+  /** `licitacion.precio_bajo` si el precio vigente del producto quedó bajo `antes`. */
+  function avisarSiBajo(l: Licitacion, productoId: string, antes: number, totalUnidades: number) {
+    const precioNuevo = precioVigente(l, productoId);
+    if (precioNuevo < antes) emitir('licitacion.precio_bajo', { licitacionId: l.id, productoId, precioAnterior: antes, precioNuevo, totalUnidades });
+  }
+
   // Oferta por un producto de la canasta (por defecto el primero). Reemplaza la anterior del mismo proveedor en ese producto.
   function ofertar(licitacionId: string, o: NuevaOferta) {
     return enFila(licitacionId, async () => {
@@ -810,12 +822,7 @@ export async function crearRed({
       emitir('licitacion.oferta', {
         licitacionId: l.id, productoId: producto.id, licitacion: vista, oferta: { ...oferta, proveedorNombre: proveedor.nombre, nota }, nota, mejor,
       });
-      const precioNuevo = precioVigente(l, producto.id);
-      if (precioNuevo < antes) {
-        emitir('licitacion.precio_bajo', {
-          licitacionId: l.id, productoId: producto.id, precioAnterior: antes, precioNuevo, totalUnidades: unidades,
-        });
-      }
+      avisarSiBajo(l, producto.id, antes, unidades);
       return vista;
     });
   }
@@ -849,6 +856,27 @@ export async function crearRed({
       const licitacion = vistaLicitacion(l);
       const vista = vistaProducto(l, producto);
       emitir('licitacion.producto', { licitacionId: l.id, licitacion, producto: vista, proveedorNombre: proveedor.nombre });
+      return { licitacion, producto: vista };
+    });
+  }
+
+  function fijarTramos(licitacionId: string, productoId: string, proveedorId: string, tramos: Tramo[]) {
+    return enFila(licitacionId, async () => {
+      const l = licitacionEnCurso(licitacionId);
+      const proveedor = negocio(proveedorId, 'proveedor');
+      const producto = productoDeLicitacion(l, productoId);
+      if (duenoDeTramos(producto, l) !== proveedor.id) throw new ErrorRed('prohibido', 'Solo quien vende ese producto fija sus tramos');
+      const nuevos = ordenarTramos((Array.isArray(tramos) ? tramos : []).map(t => ({ desde: Number(t?.desde), precioUnitario: Number(t?.precioUnitario) })));
+      const unidades = unidadesDe(l, producto.id);
+      const error = errorDeTramos(nuevos, { unidades, precio: precioPorVolumen(producto, unidades) });
+      if (error) throw new ErrorRed('datos_invalidos', error);
+      const antes = precioVigente(l, producto.id);
+      producto.tramos = nuevos;
+      await guardar('licitaciones', l);
+      const licitacion = vistaLicitacion(l);
+      const vista = vistaProducto(l, producto);
+      emitir('licitacion.producto', { licitacionId: l.id, licitacion, producto: vista, proveedorNombre: proveedor.nombre, cambio: 'tramos' });
+      avisarSiBajo(l, producto.id, antes, unidades);
       return { licitacion, producto: vista };
     });
   }
@@ -1047,7 +1075,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

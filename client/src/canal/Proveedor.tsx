@@ -2,14 +2,16 @@
 // cerrar y facturar la compra conjunta, confirmar y facturar pedidos y emitir notas de crédito.
 // Toda acción en el SII pasa por un paso de confirmación en la página y recién ahí envía `confirmado: true`.
 
-import { useCallback, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useCallback, useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { totalOrden } from '../../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, MAX_TRAMOS, precioPorVolumen, totalOrden } from '../../../shared/precios.ts';
+import { Escalera } from '../components/Escalera.tsx';
+import { estadoTramos, licitacionDeProducto, nombreCorto, type EstadoTramos } from '../red/derivar.ts';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
-import type { Documento, Negocio } from '../red/tipos.ts';
+import type { Documento, Licitacion, Negocio, ProductoCompra } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import {
@@ -17,7 +19,7 @@ import {
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
-import type { ConfigRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
+import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo, YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
 import './canal.css';
 
@@ -62,6 +64,7 @@ export function Proveedor() {
           {lic ? <CompraDelProveedor {...props} lic={lic} yo={yo} config={config} /> : (
             <Vacio titulo="No hay una compra conjunta abierta" texto="Cuando parta una, aquí ves cuántos negocios se suman y la cierras y facturas con un toque." />
           )}
+          {lic && <TramosDeLaCompra {...props} lic={lic} yo={yo} />}
 
           <section className="cn-seccion">
             <h2 className="cn-titulo">Pedidos nuevos {nuevos.length > 0 && <span className="cn-globo">{nuevos.length}</span>}</h2>
@@ -191,6 +194,89 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
         </Confirmar>
       )}
     </section>
+  );
+}
+
+// ---------- Tramos por volumen ----------
+
+/** Cada producto de la canasta con su escalera de precios. El dueño de un producto la cambia mientras la compra está abierta. */
+function TramosDeLaCompra({ lic, yo, ...props }: PropsAccion & { lic: LicitacionCanal; yo: YoProveedor }) {
+  const ahora = useAhora();
+  const red = lic as unknown as Licitacion;
+  const productos = red.productos ?? [];
+  if (!productos.some(p => p.tramos.length)) return null;
+  const abierta = estaAbierta(lic, ahora);
+  return (
+    <section className="cn-seccion">
+      <h2 className="cn-titulo">Precios por volumen</h2>
+      <p className="mono tenue cn-texto">Mientras más junta el grupo, menos paga cada negocio. {abierta ? 'Cambia los tramos de lo que vendes; quien ya se sumó nunca paga más.' : ''}</p>
+      {productos.map(p => (
+        <TramosDeProducto key={p.id} {...props} lic={lic} producto={p} estado={estadoTramos(licitacionDeProducto(red, p.id))}
+          editable={abierta && duenoDeTramos(p, lic) === yo.proveedor?.id} />
+      ))}
+    </section>
+  );
+}
+
+type FilaTramo = { desde: string; precio: string };
+const aFilas = (tramos: readonly Tramo[]): FilaTramo[] => tramos.map(t => ({ desde: String(t.desde), precio: String(t.precioUnitario) }));
+const aTramos = (filas: readonly FilaTramo[]): Tramo[] => filas.map(f => ({ desde: Number(f.desde), precioUnitario: Number(f.precio.replace(/\D/g, '')) }));
+
+function TramosDeProducto({ api, token, alCambiar, lic, producto, estado, editable }: PropsAccion & {
+  lic: LicitacionCanal; producto: ProductoCompra; estado: EstadoTramos; editable: boolean;
+}) {
+  const u = { singular: producto.unidad, plural: producto.unidadPlural };
+  const [filas, setFilas] = useState<FilaTramo[] | null>(null);
+  const { enviando, error, enviar } = useEnvio();
+  const tramos = filas && aTramos(filas);
+  const problema = tramos && errorDeTramos(tramos, { unidades: estado.totalUnidades, precio: precioPorVolumen(producto, estado.totalUnidades) });
+  const cambiar = (i: number, campo: keyof FilaTramo, valor: string) => setFilas(f => f!.map((x, k) => (k === i ? { ...x, [campo]: valor.replace(/\D/g, '') } : x)));
+  const guardar = (e: FormEvent) => {
+    e.preventDefault();
+    if (!tramos || problema) return;
+    void enviar(async () => {
+      await api.fijarTramos(token, lic.id, producto.id, tramos);
+      setFilas(null);
+      alCambiar();
+    }, 'No pudimos guardar los tramos. Inténtalo de nuevo.');
+  };
+
+  return (
+    <div className="tarjeta cn-tramos">
+      <h3 className="cn-con-icono"><Icono nombre={iconoDeProducto(producto.nombre)} tam={22} /><span>{nombreCorto(producto.nombre, producto.unidad)}</span></h3>
+      {!filas ? (
+        <>
+          <Escalera tramos={estado} unidad={u} />
+          {editable && <button type="button" className="boton secundario cn-ancho cn-secundario" onClick={() => setFilas(aFilas(estado.tramos))}>Cambiar tramos</button>}
+        </>
+      ) : (
+        <form onSubmit={guardar}>
+          <div className="cn-tramos-filas">
+            <span className="etiqueta">Desde ({u.plural})</span><span className="etiqueta">Precio por {u.singular}</span><span />
+            {filas.map((f, i) => (
+              <Fragment key={i}>
+                <input aria-label={`Tramo ${i + 1}: desde cuántas ${u.plural}`} inputMode="numeric" value={f.desde} disabled={i === 0} onChange={e => cambiar(i, 'desde', e.target.value)} />
+                <input aria-label={`Tramo ${i + 1}: precio por ${u.singular}`} inputMode="numeric" value={f.precio ? dinero(Number(f.precio)) : ''} onChange={e => cambiar(i, 'precio', e.target.value)} />
+                {i === 0 ? <span /> : (
+                  <button type="button" className="cn-boton-texto" aria-label={`Quitar el tramo ${i + 1}`} onClick={() => setFilas(filas.filter((_, k) => k !== i))}>Quitar</button>
+                )}
+              </Fragment>
+            ))}
+          </div>
+          {filas.length < MAX_TRAMOS && (
+            <button type="button" className="cn-boton-texto" onClick={() => {
+              const ultimo = tramos!.at(-1)!;
+              setFilas([...filas, { desde: String(ultimo.desde * 2), precio: String(ultimo.precioUnitario) }]);
+            }}>Agregar tramo</button>
+          )}
+          {(problema || error) && <p className="error">{problema ? `${problema}.` : error}</p>}
+          <div className="cn-acciones">
+            <button className="boton" disabled={!!problema || enviando}>{enviando ? 'Guardando...' : 'Guardar tramos'}</button>
+            <button type="button" className="cn-boton-texto" onClick={() => setFilas(null)}>Cancelar</button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 

@@ -110,7 +110,8 @@ export function iniciarCompetencia(red: Red, { env = process.env, aleatorio = Ma
   }
 
   const dejarDeEscuchar = red.escuchar((evento: EventoRed) => {
-    if (evento.tipo === 'licitacion.participante') alSumarse((evento.datos as { licitacion: LicitacionVista }).licitacion);
+    // Al sumarse alguien o al cambiar los tramos de un producto: si su tramo bajó, los rivales responden.
+    if (evento.tipo === 'licitacion.participante' || evento.tipo === 'licitacion.producto') alSumarse((evento.datos as { licitacion: LicitacionVista }).licitacion);
     if (evento.tipo === 'red.reiniciada') {
       generacion++;
       tramoConocido.clear();

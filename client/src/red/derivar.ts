@@ -833,7 +833,9 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     }
     case 'licitacion.producto': {
       const nuevo = objeto(e.datos.producto);
-      return `${texto(e.datos.proveedorNombre) ?? 'Un proveedor'} sumó ${texto(nuevo.nombre) ?? 'un producto'} a la compra`;
+      const quien = texto(e.datos.proveedorNombre) ?? 'Un proveedor';
+      if (e.datos.cambio === 'tramos') return `${quien} cambió los precios por volumen de ${nombreCorto(texto(nuevo.nombre) ?? 'un producto', texto(nuevo.unidad))}`;
+      return `${quien} sumó ${texto(nuevo.nombre) ?? 'un producto'} a la compra`;
     }
     case 'negocio.registrado': {
       const n = objeto(e.datos.negocio);
