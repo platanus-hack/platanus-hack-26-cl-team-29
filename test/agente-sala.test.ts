@@ -26,7 +26,7 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string> } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
   const adjuntos: { to: string; link: string; filename: string }[] = [];
@@ -401,4 +401,35 @@ test('"Quiero comprar guantes" no deja al negocio llamado "comprar"', () => {
     assert.equal(interpretarCanastaConReglas(t, cat).nombre, undefined, t);
   }
   assert.equal(interpretarCanastaConReglas('Almacén Javier, 4 cajas de guantes', cat).nombre, 'Almacén Javier');
+});
+
+test('si la red pide RUT, nadie se suma sin uno válido: se pregunta una vez, con o sin puntos y guion, y un error se reintenta', async t => {
+  const { agente, escribir, ultimo, carrito, red } = montar({}, {}, { ruts: { '11111111-1': 'Comercial Prueba Limitada', '22222222-2': 'Panadería Prueba SpA' } });
+  t.after(() => agente.desconectar());
+  const ana = '56911111701';
+
+  await escribir(ana, 'Almacén Ana, 2 cajas de rollos');
+  assert.match(ultimo(ana), /Almacén Ana, ¿cuál es el RUT de tu negocio\? Tu factura sale a tu nombre en el SII \(ambiente de certificación\)/);
+  assert.equal(await carrito('Almacén Ana'), undefined, 'sin RUT no se suma');
+
+  await escribir(ana, '11.111.111-2');
+  assert.equal(ultimo(ana), 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.\n\n¿Cuál es el RUT de tu negocio?');
+  await escribir(ana, '33.333.333-3');
+  assert.match(ultimo(ana), /^No encontramos ese RUT en el SII/);
+  assert.equal(await carrito('Almacén Ana'), undefined);
+
+  await escribir(ana, '111111111');
+  assert.equal(ultimo(ana), 'Tu factura saldrá a nombre de Comercial Prueba Limitada.\n\nListo, Almacén Ana entra con 2 cajas de rollos.\nTotal $64.000.\nFaltan 8 cajas de rollos para bajar a $29.900.');
+  assert.deepEqual(await carrito('Almacén Ana'), [{ productoId: 'rollos', cantidad: 2 }]);
+  assert.equal(red.rutPorTelefono.get(ana), '11111111-1');
+
+  // Todo en un mensaje: nombre, productos y RUT; sus números no se leen como cantidades.
+  const beto = '56911111702';
+  await escribir(beto, 'Panadería Beto, 3 de bolsas, mi rut es 22.222.222-2');
+  assert.match(ultimo(beto), /^Tu factura saldrá a nombre de Panadería Prueba SpA\.\n\nListo, Panadería Beto entra con 3 paquetes de bolsas\./);
+  assert.deepEqual(await carrito('Panadería Beto'), [{ productoId: 'bolsas', cantidad: 3 }]);
+
+  // Ya sumada, cambia su carrito sin que se le vuelva a pedir el RUT.
+  await escribir(ana, 'agrega 1 de guantes');
+  assert.match(ultimo(ana), /^Listo, Almacén Ana ahora va con/);
 });
