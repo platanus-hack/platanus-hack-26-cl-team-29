@@ -24,6 +24,7 @@ function App() {
   return (
     <main style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 600, margin: 'auto' }}>
       <h1>team-29 · tiempo real</h1>
+      <p>¡Hola, Jorge! Un saludo desde Luciano.</p>
       <form onSubmit={enviar}>
         <input value={texto} onChange={e => setTexto(e.target.value)} placeholder="Escribe algo…" />
         <button>Enviar</button>
