@@ -3,30 +3,42 @@ import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { conectarAgente } from '../server/agente/index.ts';
 import type { TiemposSala } from '../server/agente/index.ts';
-import { interpreteDeReglas, interpretarSalaConReglas } from '../server/agente/intencion.ts';
+import { interpreteDeReglas } from '../server/agente/intencion.ts';
+import { aplicarCambios, catalogoDe, interpretarCanastaConReglas } from '../server/agente/canasta.ts';
 import { crearRedSalaFalsa } from '../server/agente/red-sala-falsa.ts';
 import { enmascarar } from '../server/agente/envios.ts';
 import type { Negocio } from '../server/agente/puerto.ts';
 import type { MessageHandler } from '../server/whatsapp/index.ts';
 
-// Datos ficticios: ni teléfonos ni negocios reales.
+// Datos ficticios: ni teléfonos ni negocios reales. La canasta es la de la demo.
 const PROVEEDOR: Negocio = { id: 'prov', nombre: 'Proveedor Demo', comuna: 'Santiago', rol: 'proveedor', telefono: '56900000101' };
-const LICITACION = {
-  id: 'L-sala', producto: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas', proveedorId: PROVEEDOR.id,
-  precioSolo: 32000,
-  tramos: [{ desde: 1, precioUnitario: 32000 }, { desde: 10, precioUnitario: 29900 }, { desde: 25, precioUnitario: 27900 }, { desde: 50, precioUnitario: 25900 }],
-  cierraEn: new Date(Date.now() + 3_600_000).toISOString(),
-};
+const REGISTRADO: Negocio = { id: 'reg', nombre: 'Almacén Registrado', comuna: 'Maipú', rol: 'comprador', telefono: '56900000202' };
+const PRODUCTOS = [
+  { id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32000,
+    tramos: [{ desde: 1, precioUnitario: 32000 }, { desde: 10, precioUnitario: 29900 }, { desde: 25, precioUnitario: 27900 }, { desde: 50, precioUnitario: 25900 }] },
+  { id: 'etiquetas', nombre: 'Rollo de etiquetas adhesivas 50x30 (1.000 un.)', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 6900,
+    tramos: [{ desde: 1, precioUnitario: 6900 }, { desde: 10, precioUnitario: 6400 }, { desde: 25, precioUnitario: 5900 }] },
+  { id: 'bolsas', nombre: 'Paquete de bolsas camiseta (1.000 un.)', unidad: 'paquete', unidadPlural: 'paquetes', precioSolo: 14900,
+    tramos: [{ desde: 1, precioUnitario: 14900 }, { desde: 10, precioUnitario: 13900 }] },
+  { id: 'guantes', nombre: 'Caja de guantes de nitrilo (100 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 8900,
+    tramos: [{ desde: 1, precioUnitario: 8900 }, { desde: 10, precioUnitario: 8200 }] },
+];
+const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}) {
-  const red = crearRedSalaFalsa([PROVEEDOR], { ...LICITACION, ...licitacion });
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean } = {}) {
+  const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
+  const adjuntos: { to: string; link: string; filename: string }[] = [];
   const logs: string[] = [];
   const registrar = (...partes: unknown[]) => logs.push(partes.map(String).join(' '));
   let handler: MessageHandler = () => {};
   const whatsapp = {
     onMessage: (h: MessageHandler) => { handler = h; return () => {}; },
     sendText: async (to: string, body: string) => { enviados.push({ to, body, en: Date.now() }); return { ok: true as const, messageIds: [] }; },
+    sendDocument: async (to: string, d: { link: string; filename: string }) => {
+      adjuntos.push({ to, link: d.link, filename: d.filename });
+      return { ok: true as const, messageIds: [] };
+    },
   };
   const agente = conectarAgente(whatsapp, red, {
     interprete: interpreteDeReglas,
@@ -46,163 +58,261 @@ function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof L
   };
   const de = (to: string) => enviados.filter(e => e.to === to).map(e => e.body);
   const ultimo = (to: string) => de(to).at(-1) ?? '';
-  return { red, agente, escribir, enviados, de, ultimo, logs };
+  const carrito = async (nombre: string) => (await red.licitacionAbierta())?.participantes.find(p => p.nombre === nombre)?.items;
+  return { red, agente, escribir, enviados, adjuntos, de, ultimo, logs, carrito };
 }
 
-test('el público se suma en un mensaje o en dos, y el mismo teléfono cambia su cantidad', async t => {
-  const { red, agente, escribir, ultimo } = montar();
+test('bienvenida con la canasta numerada, y se suma con varios productos en uno o dos mensajes', async t => {
+  const { agente, escribir, ultimo, carrito } = montar();
   t.after(() => agente.desconectar());
 
   await escribir('56911111001', 'Quiero sumarme');
   assert.equal(ultimo('56911111001'),
-    'Hola. La sala está comprando Caja de rollos térmicos 80 mm (50 un.) en conjunto. Hoy va en $32.000 por caja y puedes ser el primero en sumarte.\n\n'
-    + '¿Cómo se llama tu negocio y cuántas cajas quieres?');
-  await escribir('56911111001', 'Almacén Rosita, 4');
-  assert.equal(ultimo('56911111001'), 'Listo, Almacén Rosita entra con 4 cajas. Hoy va en $32.000. Faltan 6 cajas para bajar a $29.900: invita a otro.');
+    'Hola. La sala compra en conjunto: mientras más negocios, más baja el precio. Puedes ser el primero.\n'
+    + '1. Rollos, $32.000 por caja\n2. Etiquetas, $6.900 por rollo\n3. Bolsas, $14.900 por paquete\n4. Guantes, $8.900 por caja\n\n'
+    + '¿Cómo se llama tu negocio y qué quieres? Ej: 4 cajas de rollos y 2 de etiquetas');
+  await escribir('56911111001', 'Almacén Rosita, 4 cajas de rollos y 2 de etiquetas');
+  assert.equal(ultimo('56911111001'),
+    'Listo, Almacén Rosita entra con 4 cajas de rollos, 2 rollos de etiquetas.\nTotal $141.800.\nFaltan 6 cajas de rollos para bajar a $29.900.');
+  assert.deepEqual(await carrito('Almacén Rosita'), [{ productoId: 'rollos', cantidad: 4 }, { productoId: 'etiquetas', cantidad: 2 }]);
 
-  // Dos pasos: primero el nombre, después la cantidad.
+  // Dos pasos: primero el nombre, después lo que quiere.
   await escribir('56911111002', 'hola');
   await escribir('56911111002', 'Panadería Sol');
-  assert.equal(ultimo('56911111002'), 'Perfecto, Panadería Sol. ¿Cuántas cajas quieres?');
-  await escribir('56911111002', '8 cajas');
+  assert.equal(ultimo('56911111002'), 'Perfecto, Panadería Sol. ¿Qué quieres? Ej: 4 cajas de rollos y 2 de etiquetas');
+  await escribir('56911111002', '6 de rollos');
   assert.equal(ultimo('56911111002'),
-    'Listo, Panadería Sol entra con 8 cajas. Hoy va en $29.900 (solo pagarías $32.000). Faltan 13 cajas para bajar a $27.900: invita a otro.');
+    'Listo, Panadería Sol entra con 6 cajas de rollos.\nTotal $179.400, ahorras $12.600.\nFaltan 15 cajas de rollos para bajar a $27.900.');
 
-  // Todo en el primer mensaje, al revés.
-  await escribir('56911111003', '2 cajas, Minimarket Los Pinos');
-  assert.match(ultimo('56911111003'), /^Listo, Minimarket Los Pinos entra con 2 cajas\./);
-
-  // El mismo teléfono otra vez: actualiza, no duplica.
-  await escribir('56911111001', 'mejor 6');
-  assert.match(ultimo('56911111001'), /^Listo, Almacén Rosita ahora va con 6 cajas\. Hoy va en \$29\.900/);
-  const l = await red.licitacionAbierta();
-  assert.equal(l?.participantes.length, 3);
-  assert.equal(l?.totalUnidades, 16);
+  // Al revés: primero lo que quiere y un número sin producto se pregunta.
+  await escribir('56911111003', '3 paquetes');
+  assert.match(ultimo('56911111003'), /Anotado: 3 paquetes de bolsas\. ¿Cómo se llama tu negocio\?$/);
+  await escribir('56911111003', 'Minimarket Los Pinos');
+  assert.match(ultimo('56911111003'), /^Listo, Minimarket Los Pinos entra con 3 paquetes de bolsas\./);
+  await escribir('56911111004', 'Bazar Uno, 5');
+  assert.match(ultimo('56911111004'), /¿5 de cuál\?\n1\. Rollos\n2\. Etiquetas/);
+  await escribir('56911111004', 'guantes');
+  assert.match(ultimo('56911111004'), /^Listo, Bazar Uno entra con 5 cajas de guantes\./);
 });
 
-test('cantidad fuera de rango y subunidades: pregunta en vez de inventar', async t => {
+test('agregar, quitar, cambiar, por número de la lista, "mi pedido" y salir con un sí', async t => {
+  const { red, agente, escribir, ultimo, carrito } = montar();
+  t.after(() => agente.desconectar());
+  const yo = '56922222001';
+  await escribir(yo, 'Minimarket Los Pinos, 4 cajas de rollos y 2 de etiquetas');
+
+  await escribir(yo, 'agrega 3 bolsas');
+  assert.match(ultimo(yo), /^Listo, Minimarket Los Pinos ahora va con 4 cajas de rollos, 2 rollos de etiquetas, 3 paquetes de bolsas\.\n/);
+  await escribir(yo, 'agrega 2 bolsas más');
+  assert.deepEqual((await carrito('Minimarket Los Pinos'))?.find(i => i.productoId === 'bolsas'), { productoId: 'bolsas', cantidad: 5 });
+  await escribir(yo, 'quita las bolsas');
+  await escribir(yo, 'cambia las etiquetas a 5');
+  await escribir(yo, '2 del 4');
+  assert.deepEqual(await carrito('Minimarket Los Pinos'),
+    [{ productoId: 'rollos', cantidad: 4 }, { productoId: 'etiquetas', cantidad: 5 }, { productoId: 'guantes', cantidad: 2 }]);
+
+  await escribir(yo, 'mi pedido');
+  assert.equal(ultimo(yo), 'Tu pedido, Minimarket Los Pinos:\n'
+    + '4 cajas de rollos a $32.000: $128.000\n5 rollos de etiquetas a $6.900: $34.500\n2 cajas de guantes a $8.900: $17.800\n'
+    + 'Total $180.300. Faltan 5 rollos de etiquetas para bajar a $6.400.\n'
+    + 'Para cambiarlo, escribe por ejemplo "agrega 2 de guantes" o "quita guantes".');
+
+  await escribir(yo, 'solo rollos, 6');
+  assert.deepEqual(await carrito('Minimarket Los Pinos'), [{ productoId: 'rollos', cantidad: 6 }]);
+
+  // Salir pide un sí; un "no" lo deja como estaba.
+  await escribir(yo, 'salir');
+  assert.equal(ultimo(yo), 'Vas a salir de la compra y se borra tu pedido. ¿Te saco?\n1. Sí, sácame\n2. No');
+  await escribir(yo, 'no');
+  assert.equal(ultimo(yo), 'Perfecto, sigues en la compra con 6 cajas de rollos.');
+  // Quitar lo último también es salir: pregunta igual.
+  await escribir(yo, 'quita los rollos');
+  assert.match(ultimo(yo), /^Así tu pedido queda vacío y sales de la compra\. ¿Te saco\?/);
+  assert.equal((await red.licitacionAbierta())?.participantes.length, 1, 'sin sí no sale');
+  await escribir(yo, 'sí');
+  assert.equal(ultimo(yo), 'Listo, saliste de la compra conjunta. Si cambias de opinión, escribe lo que quieres.');
+  assert.equal((await red.licitacionAbierta())?.participantes.length, 0);
+  assert.deepEqual(red.llamadas.filter(l => l.startsWith('salirDeLicitacion')), ['salirDeLicitacion L-sala']);
+});
+
+test('un comprador ya registrado (como queda quien se suma por WhatsApp) arma su carrito y sale con "sí"', async t => {
+  const { red, agente, escribir, ultimo } = montar();
+  t.after(() => agente.desconectar());
+  await escribir(REGISTRADO.telefono, '4 cajas de rollos y 2 de etiquetas');
+  assert.match(ultimo(REGISTRADO.telefono), /^Listo, Almacén Registrado entra con 4 cajas de rollos, 2 rollos de etiquetas\./);
+  await escribir(REGISTRADO.telefono, 'vaciar');
+  assert.match(ultimo(REGISTRADO.telefono), /¿Te saco\?/);
+  await escribir(REGISTRADO.telefono, 'sí');
+  assert.equal(ultimo(REGISTRADO.telefono), 'Listo, saliste de la compra conjunta. Si cambias de opinión, escribe lo que quieres.');
+  assert.equal((await red.licitacionAbierta())?.participantes.length, 0);
+  // Lo de siempre del comprador sigue igual.
+  await escribir(REGISTRADO.telefono, 'pide 4 sacos de harina');
+  assert.match(ultimo(REGISTRADO.telefono), /^Te propongo pedir 4 sacos de harina/);
+});
+
+test('cantidad fuera de rango por producto: pregunta en vez de inventar', async t => {
   const { agente, escribir, ultimo, red } = montar();
   t.after(() => agente.desconectar());
-  await escribir('56911111004', 'Almacén Norte, 80 rollos');
-  assert.match(ultimo('56911111004'), /\n\nAquí se compra por caja\. ¿Cuántas cajas quieres\?$/);
-  await escribir('56911111004', '30');
-  assert.equal(ultimo('56911111004'), 'Cada negocio puede sumar entre 1 y 20 cajas. ¿Cuántas quieres?');
-  await escribir('56911111004', '3');
-  assert.match(ultimo('56911111004'), /^Listo, Almacén Norte entra con 3 cajas/);
-  assert.equal((await red.licitacionAbierta())?.totalUnidades, 3);
+  await escribir('56933333004', 'Almacén Norte, 80 rollos');
+  assert.match(ultimo('56933333004'), /\n\nCada negocio puede pedir entre 1 y 20 por producto\. Escribe la cantidad de nuevo\.$/);
+  await escribir('56933333004', '3 cajas de rollos');
+  assert.match(ultimo('56933333004'), /^Listo, Almacén Norte entra con 3 cajas de rollos/);
+  await escribir('56933333004', 'agrega 18 de rollos');
+  assert.equal(ultimo('56933333004'), 'Cada negocio puede pedir entre 1 y 20 por producto. Escribe la cantidad de nuevo.');
+  assert.equal((await red.licitacionAbierta())?.productos?.[0].totalUnidades, 3);
 });
 
-test('cascada: bajas seguidas salen como una sola difusión y nadie recibe dos en menos del mínimo', async t => {
+test('cascada por producto: bajas de la misma ventana salen en una sola difusión y nadie recibe dos en menos del mínimo', async t => {
   const { agente, escribir, enviados } = montar();
   t.after(() => agente.desconectar());
-  const bajas = (to: string) => enviados.filter(e => e.to === to && e.body.startsWith('¡Bajó'));
+  const bajas = (to: string) => enviados.filter(e => e.to === to && e.body.startsWith('¡Baj'));
 
-  await escribir('56922222001', 'Negocio Uno, 9');
-  await escribir('56922222002', 'Negocio Dos, 1'); // 10: baja a 29.900
-  await escribir('56922222003', 'Negocio Tres, 15'); // 25: baja a 27.900, en la misma ventana
+  await escribir('56944444001', 'Negocio Uno, 9 de rollos y nueve de etiquetas');
+  await escribir('56944444002', 'Negocio Dos, 1 de rollos y 1 de etiquetas'); // los dos productos llegan a 10
   await esperar(60);
-  assert.deepEqual(bajas('56922222001').map(e => e.body), ['¡Bajó a $27.900 por caja! Ya son 3 negocios.']);
-  assert.equal(bajas('56922222003').length, 1);
+  assert.deepEqual(bajas('56944444001').map(e => e.body),
+    ['¡Bajaron los precios! La caja de rollos a $29.900, el rollo de etiquetas a $6.400. Ya son 2 negocios.']);
 
-  await escribir('56922222004', 'Negocio Cuatro, 20');
-  await escribir('56922222005', 'Negocio Cinco, 5'); // 50: baja a 25.900
+  await escribir('56944444003', 'Negocio Tres, 15 de rollos'); // 25: baja solo rollos
   await esperar(60);
-  assert.equal(bajas('56922222005').length, 1, 'quien no recibió difusión la recibe de inmediato');
-  assert.equal(bajas('56922222001').length, 1, 'quien recibió una hace poco espera');
+  assert.deepEqual(bajas('56944444003').map(e => e.body), ['¡Bajó la caja de rollos a $27.900! Ya son 3 negocios.']);
+  assert.equal(bajas('56944444001').length, 1, 'quien recibió una hace poco espera');
   await esperar(200);
-  const [primera, segunda] = bajas('56922222001');
-  assert.equal(segunda.body, '¡Bajó a $25.900 por caja! Ya son 5 negocios.');
+  const [primera, segunda] = bajas('56944444001');
+  assert.equal(segunda.body, '¡Bajó la caja de rollos a $27.900! Ya son 3 negocios.');
   assert.ok(segunda.en - primera.en >= 145, `separación ${segunda.en - primera.en} ms`);
 });
 
-test('cascada con proveedores que compiten: la difusión dice quién ofertó y quién respondió', async t => {
+test('cascada con proveedores que compiten por un producto: dice quién ofertó y quién respondió', async t => {
   const { red, agente, escribir, enviados } = montar();
   t.after(() => agente.desconectar());
-  await escribir('56933333001', 'Negocio Uno, 10'); // 10: baja a 29.900 por tramo
-  await esperar(60);
+  await escribir('56955555001', 'Negocio Uno, 10 de etiquetas');
+  await esperar(200);
   const oferta = (proveedorNombre: string, precioUnitario: number, mejor = true) => red.emitir('licitacion.oferta', {
-    licitacionId: 'L-sala', oferta: { proveedorId: 'p', proveedorNombre, precioUnitario, nota: 4.6, en: '' }, mejor,
+    licitacionId: 'L-sala', productoId: 'etiquetas', oferta: { proveedorId: 'p', productoId: 'etiquetas', proveedorNombre, precioUnitario, plazoDias: 2, en: '' }, mejor,
   });
-  oferta('Papelera Central', 26800);
-  oferta('Rollos Express', 26900, false); // no mejoró: no se cuenta
-  oferta('Insumos del Sur', 26700);
-  red.emitir('licitacion.precio_bajo', { licitacionId: 'L-sala', precioAnterior: 29900, precioNuevo: 26700, totalUnidades: 10 });
+  oferta('Papelera Central', 6300);
+  oferta('Rollos Express', 6350, false); // no mejoró: no se cuenta
+  oferta('Insumos del Sur', 6200);
+  red.emitir('licitacion.precio_bajo', { licitacionId: 'L-sala', productoId: 'etiquetas', precioAnterior: 6400, precioNuevo: 6200, totalUnidades: 10 });
   await esperar(250);
-  const mensajes = enviados.filter(e => e.to === '56933333001').map(e => e.body);
-  assert.equal(mensajes.at(-1), 'Papelera Central ofertó $26.800. Insumos del Sur respondió $26.700. Ya van en $26.700 por caja.');
+  assert.equal(enviados.filter(e => e.to === '56955555001').at(-1)?.body,
+    'Papelera Central ofertó $6.300. Insumos del Sur respondió $6.200. El rollo de etiquetas ya va en $6.200.');
 });
 
-test('cierre: factura solo con el sí del proveedor, una vez, y cada comprador recibe su folio', async t => {
-  const { red, agente, escribir, ultimo, de } = montar();
+test('cierre: factura solo con el sí del proveedor, una vez, y cada comprador recibe su folio con cada línea y el PDF', async t => {
+  const { red, agente, escribir, ultimo, de, adjuntos } = montar({}, {}, { conPdf: true });
   t.after(() => agente.desconectar());
-  await escribir('56933333001', 'Almacén Rosita, 4');
-  await escribir('56933333002', 'Panadería Sol, 8');
+  await escribir('56966666001', 'Almacén Rosita, 4 cajas de rollos y 2 de etiquetas');
+  await escribir('56966666002', 'Panadería Sol, 8 de rollos');
 
   await red.cerrarLicitacion(LICITACION.id); // el dominio cierra al llegar cierraEn
   await esperar(10);
   assert.equal(ultimo(PROVEEDOR.telefono),
-    'Cerró la compra conjunta: 2 negocios, 12 cajas a $29.900. Total $358.800. ¿Las facturo todas en el SII?\n1. Sí, factura todo\n2. Todavía no');
+    'Cerró la compra conjunta: 2 negocios, 12 cajas de rollos, 2 rollos de etiquetas. Total $372.600. ¿Las facturo todas en el SII?\n'
+    + '1. Sí, factura todo\n2. Todavía no');
   assert.ok(!red.llamadas.some(l => l.startsWith('confirmarOrdenesDeLicitacion')), 'sin sí no se factura');
 
   await escribir(PROVEEDOR.telefono, 'Todavía no');
   assert.equal(ultimo(PROVEEDOR.telefono), 'Listo, no hice nada.');
   await escribir(PROVEEDOR.telefono, 'Sí, factura todo');
   assert.match(ultimo(PROVEEDOR.telefono), /^Cerró la compra conjunta/, 'tras un "todavía no" se vuelve a preguntar');
-  assert.ok(!red.llamadas.some(l => l.startsWith('confirmarOrdenesDeLicitacion')));
-
   await Promise.all([escribir(PROVEEDOR.telefono, '1'), escribir(PROVEEDOR.telefono, 'sí')]);
   assert.deepEqual(red.llamadas.filter(l => l.startsWith('confirmarOrdenesDeLicitacion')), ['confirmarOrdenesDeLicitacion L-sala']);
   assert.ok(de(PROVEEDOR.telefono).includes('Listo, emití 2 facturas en el SII en un solo envío. Cada negocio recibe su folio por aquí.'));
 
   await esperar(10);
-  assert.equal(ultimo('56933333001'), 'Tu factura folio 1042 fue emitida en el SII: 4 cajas a $29.900, total $119.600. Ahorraste $8.400.');
-  assert.equal(ultimo('56933333002'), 'Tu factura folio 1043 fue emitida en el SII: 8 cajas a $29.900, total $239.200. Ahorraste $16.800.');
+  assert.equal(ultimo('56966666001'), 'Tu factura folio 5190 fue emitida en el SII: 4 cajas de rollos, 2 rollos de etiquetas. '
+    + 'Total $133.400. Ahorraste $8.400.\nDescárgala: https://demo.invalid/pdf/doc-5190');
+  assert.equal(ultimo('56966666002'), 'Tu factura folio 5191 fue emitida en el SII: 8 cajas de rollos. '
+    + 'Total $239.200. Ahorraste $16.800.\nDescárgala: https://demo.invalid/pdf/doc-5191');
+  assert.deepEqual(adjuntos.find(a => a.to === '56966666001'),
+    { to: '56966666001', link: 'https://demo.invalid/pdf/doc-5190', filename: 'factura-5190.pdf' });
 
   // Veredicto del SII dentro del plazo: un aviso corto, una sola vez.
   red.emitir('documento.actualizado', { documento: { ...red.documentos[0], estadoSii: 'aceptado' } });
   red.emitir('documento.actualizado', { documento: { ...red.documentos[0], estadoSii: 'aceptado' } });
   await esperar(10);
-  assert.deepEqual(de('56933333001').filter(b => b.startsWith('El SII')), ['El SII aceptó tu factura folio 1042.']);
+  assert.deepEqual(de('56966666001').filter(b => b.startsWith('El SII')), ['El SII aceptó tu factura folio 5190.']);
 });
 
 test('si el dominio no cierra al llegar cierraEn, el agente lo cierra', async t => {
-  const { red, agente, escribir, ultimo } = montar({ vigilarCierreMs: 10 }, { cierraEn: new Date(Date.now() + 80).toISOString() });
+  const { red, agente, escribir, ultimo, adjuntos } = montar({ vigilarCierreMs: 10 }, { cierraEn: new Date(Date.now() + 80).toISOString() });
   t.after(() => agente.desconectar());
-  await escribir('56944444001', 'Almacén Rosita, 4');
+  await escribir('56977777001', 'Almacén Rosita, 4 cajas de rollos');
   await esperar(150);
   assert.deepEqual(red.llamadas.filter(l => l.startsWith('cerrarLicitacion')), ['cerrarLicitacion L-sala']);
-  assert.match(ultimo(PROVEEDOR.telefono), /^Cerró la compra conjunta: 1 negocio, 4 cajas/);
-  await escribir('56944444001', 'hola');
-  assert.equal(ultimo('56944444001'), 'La compra conjunta ya cerró. Te escribo por aquí con tu folio apenas salga tu factura.');
+  assert.match(ultimo(PROVEEDOR.telefono), /^Cerró la compra conjunta: 1 negocio, 4 cajas de rollos\./);
+  await escribir('56977777001', 'hola');
+  assert.equal(ultimo('56977777001'), 'La compra conjunta ya cerró. Te escribo por aquí con tu folio apenas salga tu factura.');
+  assert.equal(adjuntos.length, 0);
+});
+
+test('red sin canasta (un solo producto): el flujo de siempre sigue funcionando', async t => {
+  const { agente, escribir, ultimo } = montar({}, {}, { sinCanasta: true });
+  t.after(() => agente.desconectar());
+  await escribir('56988888001', 'hola');
+  assert.match(ultimo('56988888001'), /\n1\. Rollos, \$32\.000 por caja\n\n¿Cómo se llama tu negocio y qué quieres\? Ej: 4 cajas$/);
+  await escribir('56988888001', 'Almacén Rosita, 4');
+  assert.equal(ultimo('56988888001'),
+    'Listo, Almacén Rosita entra con 4 cajas de rollos.\nTotal $128.000.\nFaltan 6 cajas de rollos para bajar a $29.900.');
+  await escribir('56988888001', 'mejor 6');
+  assert.match(ultimo('56988888001'), /^Listo, Almacén Rosita ahora va con 6 cajas de rollos\./);
 });
 
 test('los logs nunca llevan un teléfono completo', async t => {
   const { agente, escribir, logs } = montar();
   t.after(() => agente.desconectar());
-  await escribir('56955555123', 'Almacén Rosita, 4');
-  await escribir('56955555456', 'Panadería Sol, 8');
+  await escribir('56955555123', 'Almacén Rosita, 4 cajas de rollos');
+  await escribir('56955555456', 'Panadería Sol, 8 de rollos y 2 de etiquetas');
+  await escribir('56955555456', 'salir');
+  await escribir('56955555456', 'sí');
   await esperar(60);
   assert.ok(logs.length > 0);
   assert.ok(logs.every(l => !/\d{6,}/.test(l)), logs.join('\n'));
   assert.ok(logs.some(l => l.includes('***123')));
+  assert.ok(logs.some(l => l.includes('***456 salió')));
   assert.equal(enmascarar('+56 9 5555 5123'), '***123');
 });
 
-test('el parser de reglas entiende las respuestas del público', () => {
-  const u = { singular: 'caja', plural: 'cajas', maximo: 20 };
-  assert.deepEqual(interpretarSalaConReglas('Almacén Rosita, 4', u), { nombre: 'Almacén Rosita', cantidad: 4, claro: true });
-  assert.deepEqual(interpretarSalaConReglas('4 cajas, Panadería Sol', u), { nombre: 'Panadería Sol', cantidad: 4, claro: true });
-  assert.deepEqual(interpretarSalaConReglas('somos Panadería Sol y queremos tres', u), { nombre: 'Panadería Sol', cantidad: 3, claro: true });
-  assert.deepEqual(interpretarSalaConReglas('mi negocio se llama La Picá, 2 cajas de rollos', u), { nombre: 'La Picá', cantidad: 2, claro: true });
-  assert.deepEqual(interpretarSalaConReglas('3 rollos', u), { cantidad: 3, claro: true });
-  assert.deepEqual(interpretarSalaConReglas('80 rollos', u), { dudaUnidad: true, claro: true });
-  assert.deepEqual(interpretarSalaConReglas('Quiero sumarme', u), { claro: true });
-  assert.equal(interpretarSalaConReglas('¿cuánto cuesta?', u).claro, false);
-  assert.equal(interpretarSalaConReglas('hola quería saber si todavía se puede entrar a esto', u).claro, false);
+test('el parser de reglas entiende el carrito en lenguaje natural', () => {
+  const productos = PRODUCTOS.map(p => ({ ...p, totalUnidades: 0, precioActual: p.precioSolo, siguienteTramo: null }));
+  const cat = catalogoDe({ ...LICITACION, productos, participantes: [] } as never, 20);
+  const leer = (texto: string) => interpretarCanastaConReglas(texto, cat);
+  const fijar = (productoId: string, cantidad: number) => ({ productoId, cantidad, modo: 'fijar' });
+  assert.deepEqual(leer('4 cajas de rollos y 2 de etiquetas').cambios, [fijar('rollos', 4), fijar('etiquetas', 2)]);
+  assert.deepEqual(leer('Almacén Rosita, 4 cajas de rollos y 2 de etiquetas').nombre, 'Almacén Rosita');
+  assert.deepEqual(leer('somos Panadería Sol y queremos tres de papel'), { nombre: 'Panadería Sol', cambios: [fijar('rollos', 3)], claro: true });
+  assert.deepEqual(leer('mi negocio se llama La Picá, 2 cajas de rollos').nombre, 'La Picá');
+  assert.deepEqual(leer('2 rollos de etiquetas').cambios, [fijar('etiquetas', 2)], 'la unidad de un producto no confunde');
+  assert.deepEqual(leer('rollo térmico 3').cambios, [fijar('rollos', 3)]);
+  assert.deepEqual(leer('agrega 3 bolsas').cambios, [{ productoId: 'bolsas', cantidad: 3, modo: 'sumar' }]);
+  assert.deepEqual(leer('agrega guantes').cambios, [{ productoId: 'guantes', cantidad: 1, modo: 'sumar' }]);
+  assert.deepEqual(leer('quita los guantes y las bolsas').cambios,
+    [{ productoId: 'guantes', cantidad: 0, modo: 'quitar' }, { productoId: 'bolsas', cantidad: 0, modo: 'quitar' }]);
+  assert.deepEqual(leer('cambia las etiquetas a 5').cambios, [fijar('etiquetas', 5)]);
+  assert.deepEqual(leer('solo rollos, 6'), { cambios: [fijar('rollos', 6)], soloEstos: true, claro: true });
+  assert.deepEqual(leer('2 del 3').cambios, [fijar('bolsas', 2)]);
+  assert.deepEqual(leer('3 paquetes').cambios, [fijar('bolsas', 3)]);
+  assert.deepEqual(leer('mejor 6'), { cambios: [], suelta: { cantidad: 6, modo: 'fijar' }, claro: true });
+  assert.deepEqual(leer('rollos'), { cambios: [], sinCantidad: { productoId: 'rollos', modo: 'fijar' }, claro: true });
+  assert.deepEqual(leer('80 rollos'), { cambios: [], fueraDeRango: true, claro: true });
+  for (const [texto, accion] of [['mi pedido', 'ver'], ['salir', 'salir'], ['me salgo', 'salir'], ['vaciar', 'salir'],
+    ['productos', 'lista'], ['sí', 'si'], ['no', 'no']] as const) assert.equal(leer(texto).accion, accion, texto);
+  assert.deepEqual(leer('Quiero sumarme'), { cambios: [], claro: true });
+  assert.deepEqual(leer('Bazar Uno, 5'), { nombre: 'Bazar Uno', cambios: [], suelta: { cantidad: 5, modo: 'fijar' }, claro: true });
+  assert.deepEqual(leer('una caja de guantes').cambios, [fijar('guantes', 1)]);
+  assert.equal(leer('¿cuánto cuesta?').claro, false);
+  assert.equal(leer('hola quería saber si todavía se puede entrar a esto').claro, false);
+  assert.deepEqual(aplicarCambios([{ productoId: 'rollos', cantidad: 4 }, { productoId: 'guantes', cantidad: 2 }],
+    [{ productoId: 'rollos', cantidad: 3, modo: 'sumar' }, { productoId: 'guantes', cantidad: 0, modo: 'quitar' }]),
+  [{ productoId: 'rollos', cantidad: 7 }]);
 });
 
 test('60 personas a la vez: todas quedan sumadas y los envíos masivos no pasan de 5 en vuelo', async t => {
-  const red = crearRedSalaFalsa([PROVEEDOR], { ...LICITACION, tramos: [{ desde: 1, precioUnitario: 32000 }, { desde: 100, precioUnitario: 24500 }] });
+  const red = crearRedSalaFalsa([PROVEEDOR], {
+    ...LICITACION, productos: [{ ...PRODUCTOS[0], tramos: [{ desde: 1, precioUnitario: 32000 }, { desde: 100, precioUnitario: 24500 }] }, PRODUCTOS[1]],
+  });
   let enVuelo = 0;
   let maximo = 0;
   const difusiones: string[] = [];
@@ -227,14 +337,14 @@ test('60 personas a la vez: todas quedan sumadas y los envíos masivos no pasan 
   const respuestas: string[] = [];
   await Promise.all(Array.from({ length: 60 }, (_, i) => {
     const from = `5696600${String(i).padStart(4, '0')}`;
-    const text = `Tienda ${'abcdefghij'[i % 10]}${'klmnopqrst'[Math.floor(i / 10)]}, 2`;
+    const text = `Tienda ${'abcdefghij'[i % 10]}${'klmnopqrst'[Math.floor(i / 10)]}, 2 cajas de rollos y 1 de etiquetas`;
     return handler(
       { id: `c${i}`, conversationId: from, from, contactName: null, sentAt: new Date(), text, content: { kind: 'text', text } },
       { reply: async body => { respuestas.push(body); return { ok: true, messageIds: [] }; }, markRead: async () => ({ ok: true, messageIds: [] }) },
     );
   }));
   assert.equal(respuestas.filter(r => r.startsWith('Listo,')).length, 60);
-  assert.equal((await red.licitacionAbierta())?.totalUnidades, 120);
+  assert.equal((await red.licitacionAbierta())?.productos?.[0].totalUnidades, 120);
   await esperar(200);
   assert.ok(new Set(difusiones).size >= 50, 'la baja al llegar a 100 llega a todos los que estaban sumados');
   assert.ok(maximo <= 5, `máximo en vuelo ${maximo}`);

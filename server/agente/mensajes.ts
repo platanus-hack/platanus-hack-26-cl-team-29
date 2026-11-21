@@ -1,5 +1,6 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
-import type { LicitacionSala, Negocio, OrdenCompra } from './puerto.ts';
+import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
+import { cortoDe, pluralDe, productosDe } from './canasta.ts';
 
 const pesos = new Intl.NumberFormat('es-CL');
 
@@ -101,76 +102,138 @@ export function notaCreditoEmitida(p: { comprador: Negocio; mismoDia: boolean; n
 export const avisoNotaCredito = (proveedor: Negocio, monto: number, faltante: number) =>
   `${proveedor.nombre} emitió la nota de crédito por ${dinero(monto)} por las ${faltante} unidades que faltaron. Quedó amarrada a tu factura en el SII.`;
 
-// --- Compra conjunta de la sala ---
+// --- Compra conjunta de la sala (canasta de varios productos) ---
 
 /** "caja" / "cajas" según la cantidad; usa el plural que entrega la red si viene. */
-export function unidadDe(l: Pick<LicitacionSala, 'unidad' | 'unidadPlural'>, n: number): string {
-  if (n === 1) return l.unidad;
-  if (l.unidadPlural) return l.unidadPlural;
-  return /[aeiou]$/i.test(l.unidad) ? `${l.unidad}s` : `${l.unidad}es`;
+export function unidadDe(p: Pick<ProductoCompra, 'unidad' | 'unidadPlural'>, n: number): string {
+  return n === 1 ? p.unidad : pluralDe(p.unidad, p.unidadPlural);
 }
 
 const negociosTexto = (n: number) => `${n} ${n === 1 ? 'negocio' : 'negocios'}`;
+const mayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "la caja" / "el rollo": la gente escribe en femenino o masculino según la unidad. */
+const articulo = (p: Pick<ProductoCompra, 'unidad'>) => (/a$/i.test(p.unidad) ? 'la' : 'el');
+const cuantas = (p: Pick<ProductoCompra, 'unidad'>) => (/a$/i.test(p.unidad) ? 'Cuántas' : 'Cuántos');
 
-export const preguntaSala = (l: LicitacionSala) => `¿Cómo se llama tu negocio y cuántas ${unidadDe(l, 2)} quieres?`;
+/** "4 cajas de rollos" */
+export const itemTexto = (p: ProductoCompra, cantidad: number) => `${cantidad} ${unidadDe(p, cantidad)} de ${cortoDe(p)}`;
 
-/** " (solo pagarías $32.000)", solo si el grupo ya consiguió un precio mejor. */
-const versusSolo = (l: LicitacionSala) => (l.precioActual < l.precioSolo ? ` (solo pagarías ${dinero(l.precioSolo)})` : '');
+function lineasDe(items: readonly ItemCarrito[], l: LicitacionSala): { p: ProductoCompra; cantidad: number }[] {
+  const productos = productosDe(l);
+  return items.flatMap(i => {
+    const p = productos.find(x => x.id === i.productoId);
+    return p ? [{ p, cantidad: i.cantidad }] : [];
+  });
+}
+
+const listaItems = (items: readonly ItemCarrito[], l: LicitacionSala) =>
+  lineasDe(items, l).map(x => itemTexto(x.p, x.cantidad)).join(', ');
+
+/** "Total $133.400, ahorras $8.400." */
+function totalYAhorro(items: readonly ItemCarrito[], l: LicitacionSala): string {
+  const lineas = lineasDe(items, l);
+  const total = lineas.reduce((s, x) => s + x.cantidad * x.p.precioActual, 0);
+  const ahorro = lineas.reduce((s, x) => s + x.cantidad * Math.max(0, x.p.precioSolo - x.p.precioActual), 0);
+  return `Total ${dinero(total)}${ahorro > 0 ? `, ahorras ${dinero(ahorro)}` : ''}.`;
+}
+
+/** El tramo más cercano entre lo que lleva (o de toda la canasta si no lleva nada): "Faltan 3 cajas de rollos para bajar a $27.900." */
+function siguienteTramo(items: readonly ItemCarrito[], l: LicitacionSala): string {
+  const mios = new Set(items.map(i => i.productoId));
+  const conTramo = productosDe(l).filter(p => p.siguienteTramo && (mios.size === 0 || mios.has(p.id)));
+  const [p] = conTramo.sort((a, b) => a.siguienteTramo!.faltan - b.siguienteTramo!.faltan);
+  if (!p) return 'Ya está en el mejor precio.';
+  const { faltan, precioUnitario } = p.siguienteTramo!;
+  return `${faltan === 1 ? 'Falta' : 'Faltan'} ${itemTexto(p, faltan)} para bajar a ${dinero(precioUnitario)}.`;
+}
+
+/** "Ej: 4 cajas de rollos y 2 de etiquetas" */
+function ejemplo(l: LicitacionSala): string {
+  const [a, b] = productosDe(l);
+  return b ? `Ej: ${itemTexto(a, 4)} y 2 de ${cortoDe(b)}` : `Ej: 4 ${unidadDe(a, 4)}`;
+}
+
+/** "1. Rollos, $29.900 por caja (bajó de $32.000)" */
+const listaNumerada = (l: LicitacionSala) => productosDe(l).map((p, i) =>
+  `${i + 1}. ${mayuscula(cortoDe(p))}, ${dinero(p.precioActual)} por ${p.unidad}`
+  + (p.precioActual < p.precioSolo ? ` (bajó de ${dinero(p.precioSolo)})` : '')).join('\n');
+
+export const preguntaSala = (l: LicitacionSala) => `¿Cómo se llama tu negocio y qué quieres? ${ejemplo(l)}`;
 
 export function bienvenidaSala(l: LicitacionSala, pregunta: string, urlPublica: string | null): string {
   const n = l.participantes.length;
-  const quienes = n === 0 ? 'puedes ser el primero en sumarte' : `ya se ${n === 1 ? 'sumó' : 'sumaron'} ${negociosTexto(n)}`;
+  const quienes = n === 0 ? 'Puedes ser el primero.' : `Ya ${n === 1 ? 'va' : 'van'} ${negociosTexto(n)}.`;
   const web = urlPublica ? `\n\nTambién puedes sumarte en ${urlPublica.replace(/\/+$/, '')}/app` : '';
-  return `Hola. La sala está comprando ${l.producto} en conjunto. Hoy va en ${dinero(l.precioActual)} por ${l.unidad}${versusSolo(l)} `
-    + `y ${quienes}.\n\n${pregunta}${web}`;
+  return `Hola. La sala compra en conjunto: mientras más negocios, más baja el precio. ${quienes}\n${listaNumerada(l)}\n\n${pregunta}${web}`;
 }
 
-export const pedirCantidadSala = (nombre: string, l: LicitacionSala) => `Perfecto, ${nombre}. ¿Cuántas ${unidadDe(l, 2)} quieres?`;
-export const pedirNombreSala = (cantidad: number, l: LicitacionSala) =>
-  `Anotado: ${cantidad} ${unidadDe(l, cantidad)}. ¿Cómo se llama tu negocio?`;
-export const preguntarUnidadSala = (l: LicitacionSala) =>
-  `Aquí se compra por ${l.unidad}. ¿Cuántas ${unidadDe(l, 2)} quieres?`;
-export const cantidadFueraDeRango = (maximo: number, l: LicitacionSala) =>
-  `Cada negocio puede sumar entre 1 y ${maximo} ${unidadDe(l, maximo)}. ¿Cuántas quieres?`;
+export const listaProductos = (l: LicitacionSala) => `Precios de hoy:\n${listaNumerada(l)}\n\nEscribe lo que quieres. ${ejemplo(l)}`;
+export const pedirCarritoSala = (nombre: string, l: LicitacionSala) => `Perfecto, ${nombre}. ¿Qué quieres? ${ejemplo(l)}`;
+export const pedirNombreSala = (items: readonly ItemCarrito[], l: LicitacionSala) =>
+  `Anotado: ${listaItems(items, l)}. ¿Cómo se llama tu negocio?`;
+export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantas(p)} ${unidadDe(p, 2)} de ${cortoDe(p)} quieres?`;
+export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
+  `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;
+export const cantidadFueraDeRango = (maximo: number) =>
+  `Cada negocio puede pedir entre 1 y ${maximo} por producto. Escribe la cantidad de nuevo.`;
 
-/** "Hoy va en $X (solo pagarías $Y). Faltan N cajas para bajar a $Z: invita a otro." */
-function precioYFaltante(l: LicitacionSala): string {
-  const siguiente = l.siguienteTramo
-    ? `${l.siguienteTramo.faltan === 1 ? 'Falta' : 'Faltan'} ${l.siguienteTramo.faltan} ${unidadDe(l, l.siguienteTramo.faltan)} para bajar a ${dinero(l.siguienteTramo.precioUnitario)}: invita a otro.`
-    : 'Ya está en el mejor precio.';
-  return `Hoy va en ${dinero(l.precioActual)}${versusSolo(l)}. ${siguiente}`;
+/** Tras cada cambio, en 3 líneas: el carrito, total y ahorro, y el tramo más cercano. */
+export const carritoActualizado = (nombre: string, items: readonly ItemCarrito[], l: LicitacionSala, actualizado: boolean) =>
+  `Listo, ${nombre} ${actualizado ? 'ahora va' : 'entra'} con ${listaItems(items, l)}.\n${totalYAhorro(items, l)}\n${siguienteTramo(items, l)}`;
+
+/** "mi pedido": cada línea con su precio. */
+export function resumenCarrito(nombre: string, items: readonly ItemCarrito[], l: LicitacionSala): string {
+  const lineas = lineasDe(items, l).map(x => `${itemTexto(x.p, x.cantidad)} a ${dinero(x.p.precioActual)}: ${dinero(x.cantidad * x.p.precioActual)}`);
+  const ultimo = productosDe(l).at(-1)!;
+  return `Tu pedido, ${nombre}:\n${lineas.join('\n')}\n${totalYAhorro(items, l)} ${siguienteTramo(items, l)}\n`
+    + `Para cambiarlo, escribe por ejemplo "agrega 2 de ${cortoDe(ultimo)}" o "quita ${cortoDe(ultimo)}".`;
 }
 
-export const unidoSala = (nombre: string, cantidad: number, l: LicitacionSala, actualizado: boolean) =>
-  `Listo, ${nombre} ${actualizado ? 'ahora va' : 'entra'} con ${cantidad} ${unidadDe(l, cantidad)}. ${precioYFaltante(l)}`;
-
-export const estadoParticipante = (nombre: string, cantidad: number, l: LicitacionSala) =>
-  `${nombre} va con ${cantidad} ${unidadDe(l, cantidad)}. ${precioYFaltante(l)} Para cambiar la cantidad, escribe el número.`;
+export const confirmarSalida = (porVaciar: boolean) =>
+  `${porVaciar ? 'Así tu pedido queda vacío y sales de la compra.' : 'Vas a salir de la compra y se borra tu pedido.'} ¿Te saco?\n`
+  + opciones('Sí, sácame', 'No');
+export const SALISTE = 'Listo, saliste de la compra conjunta. Si cambias de opinión, escribe lo que quieres.';
+export const sigues = (items: readonly ItemCarrito[], l: LicitacionSala) =>
+  `Perfecto, sigues en la compra con ${listaItems(items, l)}.`;
+export const noParticipas = (l: LicitacionSala) => `Aún no estás en la compra conjunta. ${preguntaSala(l)}`;
 
 /** Una oferta de un proveedor que compite por la compra conjunta. */
-export interface OfertaSala { readonly proveedorNombre: string; readonly precioUnitario: number }
+export interface OfertaSala { readonly proveedorNombre: string; readonly precioUnitario: number; readonly productoId?: string }
 
-/** Sin ofertas, la baja es por tramo; con ofertas, cuenta por qué bajó: "X ofertó $P. Y respondió $Q. Ya van en $Q por caja." */
-export function bajoPrecio(precio: number, l: LicitacionSala, ofertas: readonly OfertaSala[] = []): string {
-  if (ofertas.length === 0) return `¡Bajó a ${dinero(precio)} por ${l.unidad}! Ya son ${negociosTexto(l.participantes.length)}.`;
-  const porque = ofertas.map((o, k) => `${o.proveedorNombre} ${k === 0 ? 'ofertó' : 'respondió'} ${dinero(o.precioUnitario)}.`).join(' ');
-  return `${porque} Ya van en ${dinero(precio)} por ${l.unidad}.`;
+export interface BajaDePrecio { readonly producto: ProductoCompra; readonly precio: number; readonly ofertas: readonly OfertaSala[] }
+
+/**
+ * Una difusión para todas las bajas de la ventana. Sin ofertas: "¡Bajó la caja de rollos a $27.900! Ya son 3 negocios.";
+ * con ofertas, cuenta por qué bajó: "X ofertó $P. Y respondió $Q. La caja de rollos ya va en $Q."
+ */
+export function bajoPrecio(bajas: readonly BajaDePrecio[], negocios: number): string {
+  const ya = `Ya son ${negociosTexto(negocios)}.`;
+  const cosa = (b: BajaDePrecio) => `${articulo(b.producto)} ${b.producto.unidad} de ${cortoDe(b.producto)}`;
+  const porOferta = bajas.filter(b => b.ofertas.length > 0).map(b => {
+    const porque = b.ofertas.map((o, k) => `${o.proveedorNombre} ${k === 0 ? 'ofertó' : 'respondió'} ${dinero(o.precioUnitario)}.`).join(' ');
+    return `${porque} ${mayuscula(cosa(b))} ya va en ${dinero(b.precio)}.`;
+  });
+  const porTramo = bajas.filter(b => b.ofertas.length === 0);
+  const tramo = porTramo.length === 0 ? []
+    : porTramo.length === 1 ? [`¡Bajó ${cosa(porTramo[0])} a ${dinero(porTramo[0].precio)}! ${ya}`]
+    : [`¡Bajaron los precios! ${mayuscula(porTramo.map(b => `${cosa(b)} a ${dinero(b.precio)}`).join(', '))}. ${ya}`];
+  return [...porOferta, ...tramo].join('\n');
 }
 
-export function cierreAlProveedor(r: { negocios: number; unidades: number; precio: number; total: number }, l: LicitacionSala): string {
-  return `Cerró la compra conjunta: ${negociosTexto(r.negocios)}, ${r.unidades} ${unidadDe(l, r.unidades)} a ${dinero(r.precio)}. `
+export function cierreAlProveedor(r: { negocios: number; lineas: readonly string[]; total: number }): string {
+  return `Cerró la compra conjunta: ${negociosTexto(r.negocios)}, ${r.lineas.join(', ')}. `
     + `Total ${dinero(r.total)}. ¿Las facturo todas en el SII?\n` + opciones('Sí, factura todo', 'Todavía no');
 }
 
 export const facturasDeLaSala = (cantidad: number) =>
   `Listo, emití ${cantidad} ${cantidad === 1 ? 'factura' : 'facturas'} en el SII en un solo envío. Cada negocio recibe su folio por aquí.`;
 
-export function folioAlComprador(p: { folio: number; cantidad: number; precio: number; precioSolo: number }, l: Pick<LicitacionSala, 'unidad' | 'unidadPlural'>): string {
-  const total = p.cantidad * p.precio;
-  const ahorro = p.cantidad * (p.precioSolo - p.precio);
-  return `Tu factura folio ${p.folio} fue emitida en el SII: ${p.cantidad} ${unidadDe(l, p.cantidad)} a ${dinero(p.precio)}, total ${dinero(total)}.`
-    + (ahorro > 0 ? ` Ahorraste ${dinero(ahorro)}.` : '');
-}
+export const folioAlComprador = (p: { folio: number; lineas: readonly string[]; total: number; ahorro: number; pdf?: string | null }) =>
+  `Tu factura folio ${p.folio} fue emitida en el SII: ${p.lineas.join(', ')}. Total ${dinero(p.total)}.`
+  + (p.ahorro > 0 ? ` Ahorraste ${dinero(p.ahorro)}.` : '')
+  + (p.pdf ? `\nDescárgala: ${p.pdf}` : '');
+
+export const leyendaPdf = (folio: number) => `Factura folio ${folio}`;
 
 export const siiAcepto = (folio: number) => `El SII aceptó tu factura folio ${folio}.`;
 
