@@ -190,6 +190,13 @@ export const listaProductos = (l: LicitacionSala) => `Precios de hoy:\n${listaNu
 export const pedirCarritoSala = (nombre: string, l: LicitacionSala) => `Perfecto, ${nombre}. ¿Qué quieres? ${ejemplo(l)}`;
 export const pedirNombreSala = (items: readonly ItemCarrito[], l: LicitacionSala) =>
   `Anotado: ${listaItems(items, l)}. ¿Cómo se llama tu negocio?`;
+/** Se pide una vez, antes de sumarse: sin RUT válido no hay factura. */
+export const pedirRut = (nombre?: string) =>
+  `${nombre ? `${nombre}, ¿cuál` : '¿Cuál'} es el RUT de tu negocio? Tu factura sale a tu nombre en el SII (ambiente de certificación). Ej: 12.345.678-5`;
+export const rutConError = (mensaje: string) => `${mensaje}
+
+¿Cuál es el RUT de tu negocio?`;
+export const facturaA = (razonSocial: string) => `Tu factura saldrá a nombre de ${razonSocial}.`;
 export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantas(p)} ${unidadDe(p, 2)} de ${cortoDe(p)} quieres?`;
 export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
   `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;

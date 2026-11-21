@@ -120,3 +120,19 @@ test('la compra conjunta queda facturada cuando todas sus órdenes (ordenIds) pa
   assert.equal(estaFacturada(lic, [orden('facturada', { id: 'a' }), orden('recibida', { id: 'b' })]), true);
   assert.equal(estaFacturada(licitacion([4]), []), false, 'abierta no está facturada');
 });
+
+test('el RUT se formatea mientras se escribe y se valida con módulo 11', async () => {
+  const { formatearRutAlEscribir, rutValido } = await import('../client/src/canal/rut.ts');
+  assert.equal(formatearRutAlEscribir('1'), '1');
+  assert.equal(formatearRutAlEscribir('12'), '1-2');
+  assert.equal(formatearRutAlEscribir('1234'), '123-4');
+  assert.equal(formatearRutAlEscribir('123456785'), '12.345.678-5');
+  assert.equal(formatearRutAlEscribir('12.345.678-5'), '12.345.678-5');
+  assert.equal(formatearRutAlEscribir('12345678k'), '12.345.678-K');
+  assert.equal(formatearRutAlEscribir('12k34'), '123-4', 'una K en medio se descarta');
+  assert.equal(formatearRutAlEscribir('1234567890'), '12.345.678-9', 'no pasa de 9 caracteres');
+  assert.ok(rutValido('12.345.678-5'));
+  assert.ok(rutValido('5126663-3'));
+  assert.ok(!rutValido('12.345.678-6'));
+  assert.ok(!rutValido('123-4'));
+});

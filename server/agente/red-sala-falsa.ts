@@ -2,6 +2,7 @@
 // Imita el contrato: tramos de precio por producto, el mismo teléfono reemplaza su carrito, carrito vacío = sale,
 // eventos `licitacion.precio_bajo` (con productoId), `licitacion.cerrada`, `documento.emitido` y `licitacion.facturada`.
 // Con `sinCanasta` imita a la red antigua: un solo producto y solo `unirseALicitacion`. Con `conPdf`, ofrece `enlacePdf`.
+// Con `ruts` (RUT -> razón social), ofrece `consultarRut` como la red real: valida el dígito verificador y solo conoce esos RUT.
 import { crearRedFalsa } from './red-falsa.ts';
 import type { RedFalsa } from './red-falsa.ts';
 import type {
@@ -11,6 +12,8 @@ import type {
 export interface RedSalaFalsa extends RedFalsa, RedSala {
   emitir(tipo: string, datos: unknown): void;
   readonly documentos: Documento[];
+  /** RUT con que se sumó cada teléfono (solo con `ruts`). */
+  readonly rutPorTelefono: Map<string, string>;
 }
 
 export interface ProductoFalso {
@@ -31,12 +34,30 @@ export interface DatosLicitacionFalsa {
 
 const MAXIMO = 20;
 
-export function crearRedSalaFalsa(negocios: readonly Negocio[], datos: DatosLicitacionFalsa, opciones: { sinCanasta?: boolean; conPdf?: boolean } = {}): RedSalaFalsa {
+/** Error como los de la red real: `codigo` y un mensaje para mostrar tal cual. */
+const errorRut = (mensaje: string) => Object.assign(new Error(mensaje), { codigo: 'datos_invalidos' });
+
+/** "12.345.678-5", "123456785" -> "12345678-5" si el dígito verificador (módulo 11) calza; si no, null. */
+function rutValido(texto: string): string | null {
+  const m = /^0*(\d{7,8})([\dK])$/.exec(texto.replace(/[.\s-]/g, '').toUpperCase());
+  if (!m) return null;
+  let suma = 0;
+  [...m[1]!].reverse().forEach((d, i) => { suma += Number(d) * (2 + (i % 6)); });
+  const resto = 11 - (suma % 11);
+  const dv = resto === 11 ? '0' : resto === 10 ? 'K' : String(resto);
+  return dv === m[2] ? `${m[1]}-${dv}` : null;
+}
+
+export function crearRedSalaFalsa(
+  negocios: readonly Negocio[], datos: DatosLicitacionFalsa,
+  opciones: { sinCanasta?: boolean; conPdf?: boolean; ruts?: Readonly<Record<string, string>> } = {},
+): RedSalaFalsa {
   const base = crearRedFalsa(negocios);
   const oyentes = new Set<(e: EventoDeLaRed) => void>();
   const participantes: { telefono: string; negocioId: string; nombre: string; items: ItemCarrito[] }[] = [];
   const telefonos = new Map<string, string>(negocios.map(n => [n.id, n.telefono]));
   const documentos: Documento[] = [];
+  const rutPorTelefono = new Map<string, string>();
   let estado: 'abierta' | 'cerrada' | 'facturada' = 'abierta';
   let ordenesSala: OrdenCompra[] = [];
   let folio = 5190;
@@ -69,8 +90,9 @@ export function crearRedSalaFalsa(negocios: readonly Negocio[], datos: DatosLici
     };
   }
 
-  function actualizarCarrito(id: string, p: { telefono: string; nombre?: string; items: readonly ItemCarrito[] }) {
+  function actualizarCarrito(id: string, p: { telefono: string; nombre?: string; rut?: string; items: readonly ItemCarrito[] }) {
     if (estado !== 'abierta' || id !== datos.id) throw new Error('la compra conjunta ya cerró');
+    if (p.rut) rutPorTelefono.set(p.telefono, p.rut);
     for (const i of p.items) {
       if (!datos.productos.some(x => x.id === i.productoId)) throw new Error(`no existe el producto ${i.productoId}`);
       if (!Number.isInteger(i.cantidad) || i.cantidad < 0 || i.cantidad > MAXIMO) throw new Error('cantidad fuera de rango');
@@ -147,6 +169,17 @@ export function crearRedSalaFalsa(negocios: readonly Negocio[], datos: DatosLici
       return emitidos;
     },
     ...(opciones.conPdf ? { enlacePdf: (d: Documento) => `https://demo.invalid/pdf/${d.id}` } : {}),
+    rutPorTelefono,
+    ...(opciones.ruts ? {
+      consultarRut(texto: string) {
+        base.llamadas.push('consultarRut');
+        const rut = rutValido(texto);
+        if (!rut) throw errorRut('Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.');
+        const razonSocial = opciones.ruts![rut];
+        if (!razonSocial) throw errorRut('No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.');
+        return { rut, razonSocial };
+      },
+    } : {}),
     telefonoDeNegocio: id => telefonos.get(id) ?? null,
     escuchar(oyente) {
       oyentes.add(oyente);

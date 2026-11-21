@@ -13,12 +13,14 @@ import { crearAlmacenFoliosMemoria, crearAlmacenFoliosPostgres } from './folios.
 import type { AlmacenFolios } from './folios.ts';
 import { crearSiiReal } from './sii-real.ts';
 import type { SiiReal } from './sii-real.ts';
+import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
+import type { ConsultarContribuyente } from './contribuyente.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
-export { crearRed, ErrorRed, normalizarRubro, precioAjustado } from './dominio.ts';
+export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, precioAjustado, RUT_DESCONOCIDO, RUT_INVALIDO, SII_NO_DISPONIBLE } from './dominio.ts';
 export { RUBROS } from './tipos.ts';
 export type {
-  BajadaPrecio, CodigoError, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
+  BajadaPrecio, CodigoError, ContribuyenteDeRut, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
   NuevoParticipante, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
 } from './dominio.ts';
 export { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
@@ -27,7 +29,10 @@ export { sinTelefonos } from './publico.ts';
 export { enlacePdf, nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
 export type { SinTelefono } from './publico.ts';
 export { crearRepositorioMemoria } from './repositorio.ts';
-export { crearSiiFalso } from './sii.ts';
+export { crearSiiFalso, receptorDelComprador } from './sii.ts';
+export { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
+export type { ActividadEconomica, ConsultarContribuyente, DatosContribuyente, OpcionesFila } from './contribuyente.ts';
+export { formatearRut, validarRut } from './rut.ts';
 export type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
 export { crearSiiReal } from './sii-real.ts';
 export type { SiiReal } from './sii-real.ts';
@@ -42,12 +47,23 @@ export { precioPorVolumen, precioVigente, productoDe, siguienteTramo, unidadesDe
 export type * from './tipos.ts';
 export type { DocumentoImpreso } from '../sii/index.ts';
 
+export interface OpcionesIniciarRed {
+  /**
+   * Consulta de RUT en el SII. Costura con la sesión compartida del portal del SII: cuando exista, se pasa aquí
+   * su consulta (esta red nunca abre su propia sesión). Sin ella, la falsa. Siempre se envuelve con cache por RUT
+   * y fila de 1 consulta por segundo.
+   */
+  consultarContribuyente?: ConsultarContribuyente;
+}
+
 /**
  * Arma la red para el servidor: Postgres si hay DATABASE_URL (si falla, memoria),
  * siembra la demo si está vacía y usa el SII falso salvo que se entregue otro. Con DEMO_COMPETENCIA
  * distinto de 0, los proveedores ficticios compiten en vivo por la compra conjunta.
  */
-export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii | ((falso: PuertoSii) => PuertoSii)): Promise<Red> {
+export async function iniciarRed(
+  db: pg.Pool | null, sii?: PuertoSii | ((falso: PuertoSii) => PuertoSii), opciones: OpcionesIniciarRed = {},
+): Promise<Red> {
   let repo: Repositorio = crearRepositorioMemoria();
   if (db) {
     try {
@@ -59,7 +75,8 @@ export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii | ((falso: 
   await sembrarSiVacio(repo);
   await aplicarDatosDemo(repo);
   const falso = crearSiiFalso((await repo.cargar()).documentos);
-  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso });
+  const consultarContribuyente = conCacheYFila(opciones.consultarContribuyente ?? crearConsultaContribuyenteFalsa());
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }

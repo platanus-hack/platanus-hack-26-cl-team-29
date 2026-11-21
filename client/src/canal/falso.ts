@@ -5,7 +5,8 @@
 import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoDocumento, TipoEvento } from '../red/tipos.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
-import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
+import { formatearRutAlEscribir, rutValido } from './rut.ts';
+import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
 
 const tramos = (lista: Array<[number, number]>) => lista.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
 
@@ -136,6 +137,8 @@ export function crearApiFalsa(): CanalApi {
   const red = sembrar();
   const folios: Record<TipoDocumento, number> = { 33: 1200, 52: 800, 61: 300 };
   const sesiones = new Map<string, string>();
+  /** A quién sale la factura de cada comprador web (datos simulados, como la consulta falsa del servidor). */
+  const facturas = new Map<string, FacturaA>();
   const oyentes = new Set<(e?: EventoRed) => void>();
   let contador = 0;
 
@@ -264,14 +267,18 @@ export function crearApiFalsa(): CanalApi {
     config: async () => CONFIG,
     estado: async () => foto(),
 
-    async sesion(nombre, comuna, rubro) {
+    async sesion({ nombre, comuna, rubro, rut }) {
       await espera(300);
       exigir(!!nombre.trim(), 'Escribe el nombre de tu negocio.');
+      exigir(rutValido(rut), 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.');
       const negocio: Negocio = { id: `c-web-${++contador}`, nombre: nombre.trim(), comuna: comuna.trim() || 'Santiago', rol: 'comprador', ...(rubro ? { rubro } : {}) };
       red.negocios.push(negocio);
       sembrarComprador(negocio);
       const token = `falso-${negocio.id}`;
       sesiones.set(token, negocio.id);
+      facturas.set(negocio.id, {
+        rut: formatearRutAlEscribir(rut), razonSocial: 'Contribuyente de prueba', giro: 'Comercio al por menor', comuna: 'Santiago', simulado: true,
+      });
       return { token, negocio };
     },
 
@@ -282,6 +289,7 @@ export function crearApiFalsa(): CanalApi {
         l.participantes.filter(p => p.negocioId === negocio.id).map(p => ({ licitacionId: l.id, cantidad: p.cantidad, items: p.items ?? [] })));
       return structuredClone({
         negocio,
+        facturaA: facturas.get(negocio.id) ?? null,
         ordenes,
         documentos: red.documentos.filter(d => ordenes.some(o => o.id === d.ordenId)),
         participaciones,

@@ -199,9 +199,9 @@ test('el carrito por la web: PUT y DELETE con la sesión, config con la canasta 
 
     // Alguien por WhatsApp también compra: su teléfono no puede aparecer en nada público.
     await red.actualizarCarrito('L-1', { telefono: ANA, nombre: 'Ana', items: [{ productoId: 'rollos', cantidad: 1 }] });
-    const { cuerpo: { token, negocio } } = await pedir('POST', '/sesion', { nombre: 'Carla', rubro: 'Panadería' });
+    const { cuerpo: { token, negocio } } = await pedir('POST', '/sesion', { nombre: 'Carla', rubro: 'Panadería', rut: '33333333-3' });
     assert.equal(negocio.rubro, 'panaderia');
-    assert.equal((await pedir('POST', '/licitaciones/L-1/unirse', { nombre: 'Dani', rubro: 'astronauta', cantidad: 1 })).cuerpo.participante.rubro, 'otro');
+    assert.equal((await pedir('POST', '/licitaciones/L-1/unirse', { nombre: 'Dani', rubro: 'astronauta', rut: '44444444-4', cantidad: 1 })).cuerpo.participante.rubro, 'otro');
     assert.equal((await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [] })).status, 401);
     const puesto = await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [{ productoId: 'etiquetas', cantidad: 3 }, { productoId: 'bolsas', cantidad: 1 }] }, token);
     assert.equal(puesto.status, 200);

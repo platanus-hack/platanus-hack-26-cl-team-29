@@ -51,8 +51,10 @@ test('la foto pública y los eventos nunca llevan teléfonos', async () => {
   for (const e of eventos) sinTelefonos(e, telefonos);
 });
 
-test('el sanitizador central quita teléfonos y tokens a cualquier nivel', async () => {
+test('el sanitizador central quita teléfonos, tokens, RUT y datos del SII a cualquier nivel', async () => {
   const { sinTelefonos: limpiar } = await import('../server/red/publico.ts');
-  const sucio = { a: { telefono: '56911112222', token: 'secreto', lista: [{ telefono: 'x', nombre: 'Ana' }] } };
+  const sucio = {
+    a: { telefono: '56911112222', token: 'secreto', lista: [{ telefono: 'x', nombre: 'Ana', rut: '11111111-1', contribuyente: { razonSocial: 'Ana SpA' } }] },
+  };
   assert.deepEqual(limpiar(sucio), { a: { lista: [{ nombre: 'Ana' }] } });
 });

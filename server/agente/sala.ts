@@ -1,6 +1,7 @@
 // "La sala compra junta": el público arma su pedido de una canasta de productos escribiendo al número de la demo.
 //   desconocido --(mensaje)--> bienvenida con la canasta numerada + "¿cómo se llama tu negocio y qué quieres?"
-//               --(nombre y productos, en uno o dos mensajes)--> se suma (sin efecto legal, no pide sí)
+//               --(nombre y productos, en uno o dos mensajes)--> "¿cuál es el RUT de tu negocio?" (si la red lo pide)
+//               --(RUT válido y conocido en el SII)--> se suma (sin efecto legal, no pide sí); su factura sale a ese RUT
 //   participante --("agrega 3 bolsas", "quita los guantes", "2 del 3", "mi pedido")--> carrito actualizado
 //               --("salir", "vaciar")--> pide un sí corto, porque lo saca de la compra
 //   cada baja de precio --> una difusión a todos los participantes (agrupada por ventana, con freno por teléfono);
@@ -68,8 +69,19 @@ interface Borrador {
   suelta?: Omit<CambioCarrito, 'productoId'>;
   /** Se le preguntó cuántas de este producto. */
   productoId?: string;
+  /** RUT ya consultado en el SII (forma "12345678-5") y su razón social. */
+  rut?: string;
+  razonSocial?: string;
+  /** Se le preguntó el RUT: un mensaje solo con números se lee como RUT. */
+  esperandoRut?: boolean;
   pregunta: string;
 }
+
+/** Un RUT dentro de un mensaje, con o sin puntos y guion ("12.345.678-5", "12345678-5", "123456785"). */
+const PATRON_RUT = /\b\d{1,2}(?:\.?\d{3}){2}\s*-?\s*[\dkK]\b/;
+const SOLO_RUT = /^[\d.\s-]+[kK]?$/;
+const esErrorDeRut = (e: unknown): e is Error =>
+  e instanceof Error && ['datos_invalidos', 'sii_no_disponible'].includes(String((e as { codigo?: unknown }).codigo));
 interface OrdenDeSala { orden: OrdenCompra; licitacion: LicitacionSala; telefono: string | null }
 
 export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
@@ -116,17 +128,17 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   }
 
   /** Red sin canasta: un solo producto por `unirseALicitacion`. */
-  async function guardarEnRed(telefono: string, nombre: string, items: readonly ItemCarrito[], l: LicitacionSala): Promise<ResultadoCarrito> {
-    if (red.actualizarCarrito) return red.actualizarCarrito(l.id, { telefono, nombre, items });
+  async function guardarEnRed(telefono: string, nombre: string, items: readonly ItemCarrito[], l: LicitacionSala, rut?: string): Promise<ResultadoCarrito> {
+    if (red.actualizarCarrito) return red.actualizarCarrito(l.id, { telefono, nombre, items, ...(rut ? { rut } : {}) });
     const r = await red.unirseALicitacion(l.id, { telefono, nombre, cantidad: items[0].cantidad });
     return { licitacion: r.licitacion, participante: r.participante };
   }
 
-  async function guardar(telefono: string, nombre: string, items: readonly ItemCarrito[], l: LicitacionSala, actualizado: boolean): Promise<string> {
+  async function guardar(telefono: string, nombre: string, items: readonly ItemCarrito[], l: LicitacionSala, actualizado: boolean, rut?: string): Promise<string> {
     const clave = claveTelefono(telefono);
     let r: ResultadoCarrito;
     try {
-      r = await guardarEnRed(telefono, nombre, items, l);
+      r = await guardarEnRed(telefono, nombre, items, l, rut);
     } catch (error) {
       if (!(await abierta())) return m.SIN_COMPRA_ABIERTA;
       throw error;
@@ -160,7 +172,26 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const confirmandoSalida = salidas.delete(clave);
     const pregunta = confirmandoSalida ? m.confirmarSalida(false)
       : yo ? m.resumenCarrito(yo.nombre, yo.items, l) : borrador?.pregunta ?? m.preguntaSala(l);
-    const d = await leer(texto, pregunta, catalogoDe(l, o.cantidadMaxima));
+
+    // El RUT, antes de sumarse: se saca del mensaje (sus números no son cantidades) y se consulta en el SII.
+    let delRut: { rut: string; razonSocial: string } | undefined;
+    let mensaje = texto;
+    if (!yo && red.consultarRut) {
+      const dicho = PATRON_RUT.exec(texto)?.[0] ?? (borrador?.esperandoRut && SOLO_RUT.test(texto.trim()) ? texto.trim() : undefined);
+      if (dicho) {
+        mensaje = texto.replace(dicho, ' ').replace(/\b(?:mi|el)?\s*rut\b(?:\s+es)?\s*:?/gi, ' ').trim();
+        try {
+          delRut = await red.consultarRut(dicho);
+          o.log.info(`[sala] ${enmascarar(telefono)} dio un RUT válido`);
+        } catch (e) {
+          if (!esErrorDeRut(e)) throw e;
+          borradores.set(clave, { ...(borrador ?? { items: [] }), esperandoRut: true, pregunta: m.pedirRut(borrador?.nombre ?? nombreConocido) });
+          return m.rutConError(e.message);
+        }
+      }
+    }
+    const cat = catalogoDe(l, o.cantidadMaxima);
+    const d = mensaje ? await leer(mensaje, pregunta, cat) : interpretarCanastaConReglas('', cat);
 
     if (confirmandoSalida && yo) {
       const t = normalizar(texto);
@@ -176,16 +207,28 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       return m.confirmarSalida(false);
     }
 
+    /** Con el RUT recién dado, primero a quién sale la factura. */
+    const conRut = (respuesta: string) => (delRut ? `${m.facturaA(delRut.razonSocial)}\n\n${respuesta}` : respuesta);
     /** Responde con la pregunta y la recuerda; al primer contacto, con la bienvenida. */
     const preguntar = (b: Borrador) => {
       if (yo) return b.pregunta;
       borradores.set(clave, b);
       if (!borrador) o.log.info(`[sala] ${enmascarar(telefono)} llegó a la compra conjunta`);
-      return borrador ? b.pregunta : m.bienvenidaSala(l, b.pregunta, o.urlPublica);
+      return conRut(borrador ? b.pregunta : m.bienvenidaSala(l, b.pregunta, o.urlPublica));
     };
     const base = yo?.items ?? borrador?.items ?? [];
     const nombre = yo?.nombre ?? d.nombre ?? borrador?.nombre ?? nombreConocido;
-    const guardado = { ...(nombre ? { nombre } : {}), items: base };
+    const rut = delRut?.rut ?? borrador?.rut;
+    const razonSocial = delRut?.razonSocial ?? borrador?.razonSocial;
+    const conocido = { ...(rut ? { rut } : {}), ...(razonSocial ? { razonSocial } : {}) };
+    const guardado = { ...(nombre ? { nombre } : {}), items: base, ...conocido };
+    /** Se suma a la compra; si la red pide RUT y todavía no lo tiene, lo pregunta primero. */
+    const sumar = async (nombre: string, items: readonly ItemCarrito[]) => {
+      if (red.consultarRut && !rut && !(await red.negocioPorTelefono(telefono))?.rut) {
+        return preguntar({ ...guardado, nombre, items, esperandoRut: true, pregunta: m.pedirRut(nombre) });
+      }
+      return conRut(await guardar(telefono, nombre, items, l, false, rut));
+    };
     if (d.fueraDeRango) return preguntar({ ...guardado, pregunta: m.cantidadFueraDeRango(o.cantidadMaxima) });
 
     const cambios = [...d.cambios];
@@ -205,7 +248,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
 
     if (cambios.length === 0) {
       if (yo) return m.resumenCarrito(yo.nombre, yo.items, l);
-      if (nombre && base.length) return guardar(telefono, nombre, base, l, false);
+      if (nombre && base.length) return sumar(nombre, base);
       return preguntar({ ...guardado, pregunta: nombre ? m.pedirCarritoSala(nombre, l) : m.preguntaSala(l) });
     }
     if (items.length === 0) {
@@ -213,8 +256,8 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       salidas.add(clave);
       return m.confirmarSalida(true);
     }
-    if (!nombre) return preguntar({ items, pregunta: m.pedirNombreSala(items, l) });
-    return guardar(telefono, nombre, items, l, Boolean(yo));
+    if (!nombre) return preguntar({ items, ...conocido, pregunta: m.pedirNombreSala(items, l) });
+    return yo ? guardar(telefono, nombre, items, l, true) : sumar(nombre, items);
   }
 
   async function hablaDeLaCanasta(producto: string): Promise<boolean> {

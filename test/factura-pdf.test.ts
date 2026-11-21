@@ -103,7 +103,7 @@ async function servidor() {
     return { status: r.status, cuerpo: await r.json() };
   };
   const entrar = async (nombre: string): Promise<string> =>
-    (await json('/sesion', { metodo: 'POST', body: { nombre } })).cuerpo.token;
+    (await json('/sesion', { metodo: 'POST', body: { nombre, rut: '11111111-1' } })).cuerpo.token;
   return { red, server, base, eventos, json, entrar };
 }
 

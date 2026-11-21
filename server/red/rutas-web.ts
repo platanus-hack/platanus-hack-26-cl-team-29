@@ -1,15 +1,16 @@
 import express from 'express';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import { ErrorRed } from './dominio.ts';
+import { ErrorRed, FALTA_RUT } from './dominio.ts';
 import type { Recepcion, Red } from './dominio.ts';
 import { sinTelefonos } from './publico.ts';
 import { PROVEEDOR_SALA } from './semilla.ts';
+import { formatearRut } from './rut.ts';
 import { mismoSecreto } from './sesiones.ts';
 import type { Sesion, Sesiones } from './sesiones.ts';
 import type { Negocio, OrdenCompra } from './tipos.ts';
 
 // Canal web, paralelo a WhatsApp: las mismas acciones y las mismas funciones del dominio.
-// Comprador: sesión con su nombre (sin teléfono). Proveedor de la sala: sesión con PROVEEDOR_CODIGO.
+// Comprador: sesión con su nombre y su RUT (sin teléfono); su factura sale a ese RUT. Proveedor de la sala: sesión con PROVEEDOR_CODIGO.
 // Toda acción con efecto legal en el SII exige `confirmado: true` (la web muestra antes un paso de
 // confirmación), igual que WhatsApp exige un sí.
 
@@ -71,18 +72,29 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
 
   // ---- Comprador ----
 
-  // Crea un negocio comprador con su nombre; si el pedido ya trae una sesión válida de comprador, la reusa.
+  // Comprar exige RUT: sin él (sesión anterior a este cambio) no se arma carrito; se vuelve a entrar con /sesion.
+  const exigirRut = (n: Negocio) => {
+    if (!n.rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
+  };
+
+  // Crea un negocio comprador con su nombre y su RUT (consultado en el SII); si el pedido ya trae una sesión
+  // válida de comprador, la reusa (y si trae un RUT, se lo deja).
   rutas.post('/sesion', limitar, async (req, res) => {
+    const b = cuerpo(req);
+    const rut = typeof b.rut === 'string' && b.rut.trim() ? b.rut : undefined;
     const actual = sesionDe(req);
     if (actual?.rol === 'comprador') {
-      res.json({ token: tokenDe(req), negocio: sinTelefonos(actual.negocio) });
+      if (!rut && !actual.negocio.rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
+      const negocio = rut ? await red.registrarComprador({ negocioId: actual.negocio.id, nombre: actual.negocio.nombre, rut }) : actual.negocio;
+      res.json({ token: tokenDe(req), negocio: sinTelefonos(negocio) });
       return;
     }
-    const b = cuerpo(req);
+    if (!rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
     const negocio = await red.registrarComprador({
       nombre: typeof b.nombre === 'string' ? b.nombre : '',
       comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
       rubro: typeof b.rubro === 'string' ? b.rubro : undefined,
+      rut,
     });
     res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id, rol: 'comprador' }), negocio: sinTelefonos(negocio) });
   });
@@ -105,10 +117,16 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
           };
         }),
       })));
-    res.json({ negocio: sinTelefonos(negocio), ordenes, documentos: documentosDe(ordenes), participaciones });
+    // A quién sale su factura: solo a su dueño (nunca en la foto pública ni en eventos).
+    const c = negocio.contribuyente;
+    const facturaA = negocio.rut && c
+      ? { rut: formatearRut(negocio.rut), razonSocial: c.razonSocial, giro: c.giro, comuna: c.comuna, ...(c.simulado ? { simulado: true } : {}) }
+      : null;
+    res.json({ negocio: sinTelefonos(negocio), facturaA, ordenes, documentos: documentosDe(ordenes), participaciones });
   });
 
   rutas.post('/yo/unirse', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+    exigirRut(yo(req));
     const b = cuerpo(req);
     res.json(await red.unirseALicitacion(String(b.licitacionId ?? ''), {
       negocioId: yo(req).id, cantidad: Number(b.cantidad), ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
@@ -117,6 +135,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
 
   // El carrito completo de la compra conjunta: cantidad 0 quita un ítem y un carrito vacío sale.
   rutas.put('/yo/carrito', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+    exigirRut(yo(req));
     const b = cuerpo(req);
     if (!Array.isArray(b.items)) throw new ErrorRed('datos_invalidos', 'items debe ser una lista de { productoId, cantidad }');
     res.json(await red.actualizarCarrito(String(b.licitacionId ?? ''), { negocioId: yo(req).id, items: b.items as never }));

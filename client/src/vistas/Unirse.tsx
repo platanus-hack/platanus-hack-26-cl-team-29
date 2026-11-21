@@ -3,7 +3,7 @@
 
 import { useRef } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { CarritoCompra, FormularioNegocio, resumenGrupo, ultimoEnSumarse } from '../canal/Carrito.tsx';
+import { CarritoCompra, FacturaANombre, FormularioNegocio, resumenGrupo, ultimoEnSumarse } from '../canal/Carrito.tsx';
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
 import { BotonWhatsapp, Marca } from '../canal/piezas.tsx';
 import { useCanal, useDatosConSesion, useSesionComprador } from '../canal/useCanal.ts';
@@ -20,7 +20,7 @@ export function Unirse() {
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
   const lic = foto.licitaciones.find(l => l.id === idPedido.current) ?? licitacionVigente(foto.licitaciones);
-  const aviso = <p className="nota-demo">Modo demo: cualquiera puede sumarse sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>;
+  const aviso = <p className="nota-demo">Modo demo: te sumas solo con tu RUT, sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>;
 
   if (!lic) {
     return (
@@ -54,7 +54,7 @@ export function Unirse() {
         abierta ? (
           <>
             <p className="cn-bajada">Elige lo que necesitas: cada producto baja de precio cuando el grupo junta más unidades.</p>
-            <FormularioNegocio boton="Ver productos" enviandoTexto="Entrando..." onEntrar={entrar} />
+            <FormularioNegocio boton="Ver productos" onEntrar={entrar} />
             <BotonWhatsapp numero={config?.whatsappNumero} />
           </>
         ) : <p className="vacio">Esta compra conjunta ya cerró.</p>
@@ -63,6 +63,7 @@ export function Unirse() {
       ) : (
         <>
           <p className="cn-hola mono">Comprando como <strong>{yo.negocio.nombre}</strong></p>
+          <FacturaANombre factura={yo.facturaA} />
           <CarritoCompra api={api} token={token} lic={lic} negocioId={yo.negocio.id} participacion={mia} abierta={abierta} />
           <BotonWhatsapp numero={config?.whatsappNumero} />
           <a className="cn-enlace-app" href="/app">Ver mis pedidos y facturas</a>

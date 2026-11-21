@@ -10,6 +10,8 @@ export interface Negocio {
   readonly comuna: string;
   readonly rol: 'comprador' | 'proveedor';
   readonly telefono: string;
+  /** RUT del comprador, si ya lo dio. Solo interno. */
+  readonly rut?: string;
 }
 
 export interface ItemOrden {
@@ -157,8 +159,15 @@ export interface RedSala {
   actualizarCarrito?(licitacionId: string, datos: {
     readonly telefono: string;
     readonly nombre?: string;
+    /** RUT del comprador (ya consultado con `consultarRut`): su factura sale a ese RUT. */
+    readonly rut?: string;
     readonly items: readonly ItemCarrito[];
   }): Talvez<ResultadoCarrito>;
+  /**
+   * Valida el RUT y lo consulta en el SII (una vez por RUT). Si la red lo ofrece, nadie se suma sin RUT. Falla con
+   * un error con `codigo` (`datos_invalidos`, `sii_no_disponible`) y un `message` para mostrar tal cual.
+   */
+  consultarRut?(rut: string): Talvez<{ readonly rut: string; readonly razonSocial: string }>;
   salirDeLicitacion?(licitacionId: string, datos: { readonly telefono: string }): Talvez<unknown>;
   /** Emite `licitacion.cerrada` con las órdenes; el agente usa el evento, no el valor devuelto. */
   cerrarLicitacion(licitacionId: string): Talvez<unknown>;

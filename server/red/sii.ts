@@ -1,4 +1,4 @@
-import { crearSiiEnMemoria } from '../sii/index.ts';
+import { crearSiiEnMemoria, limpiarLatin1 } from '../sii/index.ts';
 import type { DocumentoImpreso, Item as ItemSii, Receptor } from '../sii/index.ts';
 import type { Documento, Item, Negocio, OrdenCompra, TipoDocumento } from './tipos.ts';
 
@@ -45,6 +45,33 @@ export interface CambioEstadoSii {
   estadoSii: string;
 }
 
+/** Largos del receptor en el XSD del DTE (server/sii/dte.ts rechaza uno más largo, no lo recorta). */
+const LARGO_RECEPTOR = { razonSocial: 100, giro: 40, direccion: 70, comuna: 20 } as const;
+
+/** Texto del SII listo para el XML: Latin-1, sin espacios repetidos y cortado al largo del campo. */
+export function textoReceptor(texto: string, largo: number): string {
+  return limpiarLatin1(texto.replace(/\s+/g, ' ')).slice(0, largo).trim();
+}
+
+/**
+ * Receptor de la factura de un comprador: su RUT con su razón social, giro, dirección y comuna del SII, limpios
+ * y cortados como exige el SII (giro a 40). null si el negocio no dio su RUT o sus datos son simulados (sin
+ * consulta real al SII): entonces quien emite usa su receptor de respaldo.
+ */
+export function receptorDelComprador(n: Negocio): Receptor | null {
+  const c = n.contribuyente;
+  if (!n.rut || !c || c.simulado) return null;
+  const campos = {
+    razonSocial: textoReceptor(c.razonSocial, LARGO_RECEPTOR.razonSocial),
+    giro: textoReceptor(c.giro, LARGO_RECEPTOR.giro),
+    direccion: textoReceptor(c.direccion, LARGO_RECEPTOR.direccion),
+    comuna: textoReceptor(c.comuna, LARGO_RECEPTOR.comuna),
+  };
+  // Un campo vacío lo rechaza el XSD: mejor el respaldo que un sobre rechazado.
+  if (Object.values(campos).some(v => !v)) return null;
+  return { rut: n.rut, ...campos };
+}
+
 /** RUT de ejemplo, sin dueño real, para el receptor del PDF simulado. */
 const RUT_RECEPTOR_SIMULADO = '22222222-2';
 const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date(iso));
@@ -63,9 +90,10 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
     folios[tipo]++;
     return { folio: folios[tipo], trackId: `SIM-${tipo}-${folios[tipo]}`, estadoSii: 'simulado' };
   };
-  const receptor = (n: Negocio): Receptor => ({
-    rut: RUT_RECEPTOR_SIMULADO, razonSocial: n.nombre, giro: 'Comercio', direccion: 'Sin informar', comuna: n.comuna || 'Santiago',
-  });
+  // El PDF simulado sale al RUT del comprador (con sus datos del SII si son reales); sin RUT, al de ejemplo.
+  const receptor = (n: Negocio): Receptor => receptorDelComprador(n) ?? {
+    rut: n.rut ?? RUT_RECEPTOR_SIMULADO, razonSocial: n.nombre, giro: 'Comercio', direccion: 'Sin informar', comuna: n.comuna || 'Santiago',
+  };
   const items = (lista: readonly Item[], cantidad: (i: Item) => number): ItemSii[] =>
     lista.map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' })).filter(i => i.cantidad > 0);
   const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: dia(o.creadaEn) });
