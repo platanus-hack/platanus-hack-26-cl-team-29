@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { Escalera } from '../components/Escalera.tsx';
+import { Icono, LogoSii, Monograma } from '../components/Iconos.tsx';
 import { useGrillaQueCabe } from '../components/medidas.ts';
 import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
@@ -118,10 +119,13 @@ function Muro({ s }: { s: ResumenSala }) {
       <ul className="sala-muro" ref={ref}>
         {s.muro.slice(0, caben).map(p => (
           <li key={p.n} className="ficha">
-            <span className="nombre">{p.nombre}</span>
-            <span className="ficha-pie">
-              <span className="comuna">{p.comuna || ' '}</span>
-              <span className="verde">+{cuantas(p.cantidad, s.unidad)}</span>
+            <Monograma nombre={p.nombre} rubro />
+            <span className="ficha-texto">
+              <span className="nombre">{p.nombre}</span>
+              <span className="ficha-pie">
+                <span className="comuna">{p.comuna || ' '}</span>
+                <span className="verde">+{cuantas(p.cantidad, s.unidad)}</span>
+              </span>
             </span>
           </li>
         ))}
@@ -131,7 +135,7 @@ function Muro({ s }: { s: ResumenSala }) {
 }
 
 /** La ganadora siempre a la vista, primero; después las ofertas más nuevas que quepan en una línea. */
-function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
+function Competencia({ ofertas, logoEnSala }: { ofertas: OfertaSala[]; logoEnSala?: string }) {
   const [ref, { columnas }] = useGrillaQueCabe<HTMLUListElement>(12, ofertas.length);
   return (
     <section className="sala-competencia">
@@ -139,6 +143,7 @@ function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
       <ul className="competencia-lista" ref={ref}>
         {[...ofertas.filter(o => o.gana), ...ofertas.filter(o => !o.gana)].slice(0, columnas).map(o => (
           <li key={o.clave} className={`oferta-sala ${o.gana ? 'gana' : ''}`}>
+            <Monograma nombre={o.proveedor} logoUrl={o.enEscenario ? logoEnSala : undefined} />
             <span className="nombre">{o.proveedor}</span>
             <strong>{dinero(o.precioUnitario)}</strong>
             <span className="oferta-pie">
@@ -183,7 +188,7 @@ function Abierta({ s, lic, config, ofertas, destello }: { s: ResumenSala; lic: L
         </div>
         <Escalera tramos={t} unidad={s.unidad} className="horizontal" />
       </section>
-      {ofertas.length > 0 && <Competencia ofertas={ofertas} />}
+      {ofertas.length > 0 && <Competencia ofertas={ofertas} logoEnSala={config.proveedorLogoUrl} />}
       <Muro s={s} />
     </div>
   );
@@ -235,13 +240,14 @@ function Factura({ f, unidad }: { f: FacturaSala; unidad: Unidad }) {
     <li className={`factura ${aceptada ? 'aceptada' : ''}`}>
       <span className="factura-folio">Factura {f.folio ?? ''}</span>
       <span className="nombre">{f.nombre}</span>
-      <span className="sello" aria-hidden="true">SII</span>
+      <span className="sello"><LogoSii /></span>
       <span className="factura-linea">
         <span>{cuantas(f.unidades, unidad)}</span>
         <strong>{dinero(f.monto)}</strong>
       </span>
       <span className="factura-estado" key={f.estadoSii ?? ''}>
-        {aceptada ? `✓ ${f.estadoSii === 'reparo' ? 'aceptada con reparos' : 'aceptada por el SII'}` : textoEstadoSii(f.estadoSii) || 'enviada al SII'}
+        {aceptada && <Icono nombre="check" />}
+        {aceptada ? (f.estadoSii === 'reparo' ? 'aceptada con reparos' : 'aceptada por el SII') : textoEstadoSii(f.estadoSii) || 'enviada al SII'}
       </span>
     </li>
   );
@@ -265,7 +271,7 @@ function Facturando({ s }: { s: ResumenSala }) {
         <div>
           <div className="numero-gigante" key={s.facturas.length}>{s.facturas.length}</div>
           <p className="resumen-texto">{s.facturas.length === 1 ? 'factura en el SII' : 'facturas en el SII'}</p>
-          <p className="sin-sii">Nadie entró al sitio del SII: todo salió solo.</p>
+          <p className="sin-sii"><LogoSii /> Nadie entró al sitio del SII: todo salió solo.</p>
         </div>
         <div>
           <div className="avance sii"><i style={{ width: `${s.facturas.length ? (s.aceptadas / s.facturas.length) * 100 : 0}%` }} /></div>
@@ -288,18 +294,18 @@ function Facturando({ s }: { s: ResumenSala }) {
 }
 
 /** La historia en tres pasos; se ilumina el de la fase actual. */
-const PASOS: Array<[string, ResumenSala['fase'][]]> = [
+const PASOS: Array<[string, ResumenSala['fase'][], boolean?]> = [
   ['Compran juntos', ['abierta']],
   ['Proveedores compiten', ['abierta', 'cerrada']],
-  ['Factura automática', ['facturando', 'lista']],
+  ['Factura automática', ['facturando', 'lista'], true],
 ];
 
 function Pasos({ fase }: { fase: ResumenSala['fase'] }) {
   return (
     <ol className="sala-pasos">
-      {PASOS.map(([texto, fases], i) => (
+      {PASOS.map(([texto, fases, sii], i) => (
         <li key={texto} className={fases.includes(fase) ? 'activo' : ''}>
-          <b>{i + 1}</b> <span className="paso-texto">{texto}</span>
+          <b>{i + 1}</b> <span className="paso-texto">{texto}</span>{sii && <LogoSii />}
         </li>
       ))}
     </ol>
@@ -309,7 +315,7 @@ function Pasos({ fase }: { fase: ResumenSala['fase'] }) {
 const TITULO_FASE: Record<ResumenSala['fase'], string> = {
   abierta: 'Cierra en',
   cerrada: 'Pedido cerrado',
-  facturando: 'Facturando en el SII',
+  facturando: 'Facturando',
   lista: 'Listo',
 };
 
@@ -349,7 +355,7 @@ export function Sala() {
           </div>
         </div>
         <div className={`sala-reloj ${s.fase === 'abierta' && restante < 10_000 ? 'urgente' : ''}`}>
-          <p className="etiqueta">{TITULO_FASE[s.fase]}</p>
+          <p className="etiqueta">{(s.fase === 'facturando' || s.fase === 'lista') && <LogoSii />} {TITULO_FASE[s.fase]}</p>
           {s.fase === 'abierta' && <div className="numero-grande">{cuentaRegresiva(restante)}</div>}
         </div>
       </header>

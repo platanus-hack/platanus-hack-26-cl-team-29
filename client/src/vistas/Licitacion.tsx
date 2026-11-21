@@ -1,6 +1,7 @@
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CurvaPrecio } from '../components/CurvaPrecio.tsx';
 import { Escalera } from '../components/Escalera.tsx';
+import { Monograma } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import { Qr } from '../components/Qr.tsx';
 import { estadoTramos, licitacionActual, resumenLicitacion, tieneTramos, unidadDeLicitacion, type OfertaVista, type ResumenLicitacion } from '../red/derivar.ts';
@@ -34,6 +35,7 @@ function Grupo({ lic, r, cerrada, unidad }: { lic: LicitacionRed; r: ResumenLici
       <ul className="lista-grupo ajustable" ref={lista}>
         {r.ultimos.slice(0, caben).map((p, i) => (
           <li key={`${r.compradores - i}`}>
+            <Monograma nombre={p.nombre} rubro />
             <span className="nombre">{p.nombre}</span>
             <span className="comuna">{p.comuna || '\u00a0'}</span>
             <span className="verde">+{contar(p.cantidad, unidad.singular, unidad.plural)}</span>
@@ -65,7 +67,7 @@ function Ofertas({ r, cerrada }: { r: ResumenLicitacion; cerrada: boolean }) {
         <ul className="ofertas ajustable" ref={lista}>
           {r.ofertas.slice(0, caben).map(o => (
             <li key={o.proveedorId} className={`oferta ${o.gana ? 'gana' : ''} ${o.riesgo ? 'riesgo' : ''}`}>
-              <div className="nombre-oferta">{o.proveedor}</div>
+              <div className="nombre-oferta"><Monograma nombre={o.proveedor} /><span className="nombre">{o.proveedor}</span></div>
               <div className="linea">
                 <span className="precio">{dinero(o.precioUnitario)}</span>
                 <span className="detalle">{detalleOferta(o)}</span>

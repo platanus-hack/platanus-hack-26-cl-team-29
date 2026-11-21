@@ -113,6 +113,8 @@ export interface ConfigRed {
   producto?: string;
   unidad?: string;
   unidadPlural?: string;
+  /** Logo del proveedor real de la demo (el de `licitacion.proveedorId`), si el backend lo configura. */
+  proveedorLogoUrl?: string;
 }
 
 export interface EstadoRed {
