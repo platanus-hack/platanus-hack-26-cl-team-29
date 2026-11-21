@@ -60,8 +60,9 @@ const proveedorSala = (c: ConfigDemo): Negocio => ({
 });
 
 /**
- * "La sala compra junta": abierta, sin participantes, con la canasta de la demo. El proveedor real vende a
- * todo el grupo y cada producto baja por sus propios tramos. Los pisos de competencia no se guardan aquí (son ocultos).
+ * "La sala compra junta": abierta, sin participantes, con la canasta de la demo. Cada producto baja por sus propios
+ * tramos y lo gana la mejor oferta. Con los ficticios, el proveedor de la sala vende a todo el grupo. Los pisos de
+ * competencia no se guardan aquí (son ocultos).
  */
 export function licitacionDemo(ahora: Date, c: ConfigDemo = configDemo()): Licitacion {
   return {
@@ -74,7 +75,7 @@ export function licitacionDemo(ahora: Date, c: ConfigDemo = configDemo()): Licit
     comuna: c.proveedor.comuna,
     cierraEn: new Date(ahora.getTime() + c.minutos * MINUTO).toISOString(),
     precioSolo: c.precioSolo,
-    proveedorId: PROVEEDOR_SALA,
+    ...(c.ficticios ? { proveedorId: PROVEEDOR_SALA } : {}),
     tramos: structuredClone(c.tramos),
     participantes: [],
     ofertas: [],
@@ -82,10 +83,15 @@ export function licitacionDemo(ahora: Date, c: ConfigDemo = configDemo()): Licit
   };
 }
 
-/** Siembra la demo completa sobre un repositorio vacío. */
+/** Siembra la demo sobre un repositorio vacío: la compra conjunta y, con DEMO_FICTICIOS=1, los negocios ficticios. */
 export async function sembrar(repo: Repositorio, ahora = new Date(), env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const c = configDemo(env);
-  const en = ahora.toISOString();
+  if (c.ficticios) await sembrarFicticios(repo, c, ahora.toISOString());
+  await repo.guardar('licitaciones', licitacionDemo(ahora, c));
+  await aplicarDatosDemo(repo, env);
+}
+
+async function sembrarFicticios(repo: Repositorio, c: ConfigDemo, en: string) {
   for (const n of [...negocios, ...competidores]) await repo.guardar('negocios', n);
   await repo.guardar('negocios', proveedorSala(c));
   let i = 0;
@@ -94,13 +100,12 @@ export async function sembrar(repo: Repositorio, ahora = new Date(), env: NodeJS
       await repo.guardar('eventosReputacion', { id: `historial-${++i}`, proveedorId, ordenId: 'historial', tipo, en });
     }
   }
-  await repo.guardar('licitaciones', licitacionDemo(ahora, c));
-  await aplicarDatosDemo(repo, env);
 }
 
+/** Vacío = sin negocios ni compras (sin ficticios, la red parte solo con la compra conjunta). */
 export async function sembrarSiVacio(repo: Repositorio, ahora = new Date(), env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const actuales: DatosRed = await repo.cargar();
-  if (actuales.negocios.length === 0) await sembrar(repo, ahora, env);
+  if (actuales.negocios.length === 0 && actuales.licitaciones.length === 0) await sembrar(repo, ahora, env);
 }
 
 /**
@@ -108,6 +113,8 @@ export async function sembrarSiVacio(repo: Repositorio, ahora = new Date(), env:
  * proveedor real de la sala y sus competidores (los crea si faltan, p. ej. en una base sembrada antes de existir).
  */
 export async function aplicarDatosDemo(repo: Repositorio, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const config = configDemo(env);
+  if (!config.ficticios) return;
   const { negocios: actuales } = await repo.cargar();
   const comprador = actuales.find(n => n.id === COMPRADOR_DEMO);
   if (comprador && env.DEMO_TELEFONO_COMPRADOR && env.DEMO_TELEFONO_COMPRADOR !== comprador.telefono) {
@@ -119,7 +126,7 @@ export async function aplicarDatosDemo(repo: Repositorio, env: NodeJS.ProcessEnv
     const actual = actuales.find(x => x.id === n.id);
     if (actual && n.rubro && !actual.rubro) await repo.guardar('negocios', { ...actual, rubro: n.rubro });
   }
-  const deseado = proveedorSala(configDemo(env));
+  const deseado = proveedorSala(config);
   const actual = actuales.find(n => n.id === PROVEEDOR_SALA);
   if (!actual || JSON.stringify(actual) !== JSON.stringify(deseado)) await repo.guardar('negocios', deseado);
 }

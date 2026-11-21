@@ -7,7 +7,7 @@ import {
 import type { EventoRed } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 
-const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };
+const ENV = { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };
 
 /** Sala con competencia sin esperas y con un azar fijo, para que el resultado sea reproducible. */
 async function salaQueCompite(env: NodeJS.ProcessEnv = ENV, aleatorio = () => 0.99) {

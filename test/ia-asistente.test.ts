@@ -13,6 +13,8 @@ import { iniciarRed } from '../server/red/index.ts';
 type Bloque = Anthropic.Beta.Messages.BetaContentBlock;
 type Params = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
 const silencio = { warn() {} };
+// La consulta sobre la red real recorre la demo con sus negocios ficticios.
+process.env.DEMO_FICTICIOS = '1';
 
 const texto = (t: string) => ({ type: 'text', text: t, citations: null }) as Bloque;
 const herramienta = (name: string, input: object, id = `t-${name}`) => ({ type: 'tool_use', id, name, input }) as Bloque;

@@ -13,7 +13,7 @@ import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { precioPorVolumen } from '../shared/precios.ts';
 import { consultaConFicha, RUT_EMPRESA } from './sii-apoyo.ts';
 
-const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };
+const ENV = { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };
 const ANA = '+56 9 1111 2222';
 const BETO = '+56 9 3333 4444';
 

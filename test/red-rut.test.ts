@@ -30,7 +30,7 @@ function consultaContada(fichas: Record<string, DatosContribuyente | null>) {
   return { consultar, llamadas };
 }
 
-async function redDePrueba(consultar: ConsultarContribuyente, sii: PuertoSii = crearSiiFalso(), env: NodeJS.ProcessEnv = {}) {
+async function redDePrueba(consultar: ConsultarContribuyente, sii: PuertoSii = crearSiiFalso(), env: NodeJS.ProcessEnv = { DEMO_FICTICIOS: '1' }) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), env);
   const red = await crearRed({ repo, sii, env, consultarContribuyente: conCacheYFila(consultar, { intervaloMs: 0 }) });

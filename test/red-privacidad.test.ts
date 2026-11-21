@@ -4,6 +4,9 @@ import { crearRed, crearRepositorioMemoria, crearSiiFalso, COMPRADOR_DEMO, PROVE
 import type { EventoRed } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 
+// Estos tests recorren la demo con sus negocios ficticios (sin DEMO_FICTICIOS la red parte vacía).
+process.env.DEMO_FICTICIOS = '1';
+
 /** Falla si algún teléfono (o un campo `telefono`) aparece en lo que ve una pantalla. */
 function sinTelefonos(publico: unknown, telefonos: string[]) {
   const texto = JSON.stringify(publico);

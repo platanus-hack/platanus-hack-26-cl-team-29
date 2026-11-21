@@ -164,7 +164,7 @@ test('con la conexión completa la red emite con el SII de la app; sin ella, con
 
 test('las rutas exigen la sesión del proveedor y nunca devuelven el certificado, su clave ni el CAF', async () => {
   const repo = crearRepositorioMemoria();
-  await sembrarSiVacio(repo, new Date(), {});
+  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1' });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const conexion = conexionDePrueba();
   const app = express().use(express.json())

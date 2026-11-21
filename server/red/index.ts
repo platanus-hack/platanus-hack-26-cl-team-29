@@ -55,8 +55,8 @@ export interface OpcionesIniciarRed {
 
 /**
  * Arma la red para el servidor: Postgres si hay DATABASE_URL (si falla, memoria),
- * siembra la demo si está vacía y usa el SII falso salvo que se entregue otro. Con DEMO_COMPETENCIA
- * distinto de 0, los proveedores ficticios compiten en vivo por la compra conjunta.
+ * siembra la demo si está vacía y usa el SII falso salvo que se entregue otro. Con DEMO_FICTICIOS=1 (y
+ * DEMO_COMPETENCIA distinto de 0), los proveedores ficticios compiten en vivo por la compra conjunta.
  */
 export async function iniciarRed(
   db: pg.Pool | null, sii?: PuertoSii | ((falso: PuertoSii) => PuertoSii), opciones: OpcionesIniciarRed = {},

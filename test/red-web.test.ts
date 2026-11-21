@@ -6,11 +6,12 @@ import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso, PROVEE
 import type { Red } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 
+
 const ENV = { PROVEEDOR_CODIGO: 'codigo-de-prueba', DEMO_TOKEN: 'token-de-prueba', DEMO_WHATSAPP_NUMERO: '+56 9 0000 0000' };
 
 async function servidor(env: NodeJS.ProcessEnv = ENV, limitePorMinuto?: number) {
   const repo = crearRepositorioMemoria();
-  await sembrarSiVacio(repo, new Date(), {});
+  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1' });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const app = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { limitePorMinuto }));
   const server = app.listen(0);

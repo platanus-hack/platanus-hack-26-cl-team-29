@@ -9,7 +9,7 @@ import type { DatosEmision, EventoRed, Licitacion, PuertoSii } from '../server/r
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { consultaConFicha, RUT_EMPRESA } from './sii-apoyo.ts';
 
-const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099' };
+const ENV = { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099' };
 
 async function redDePrueba(sii: PuertoSii = crearSiiFalso()) {
   const repo = crearRepositorioMemoria();

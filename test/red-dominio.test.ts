@@ -4,6 +4,9 @@ import { crearRed, crearRepositorioMemoria, crearSiiFalso, COMPRADOR_DEMO, PROVE
 import type { EventoRed, Red } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 
+// Estos tests recorren la demo con sus negocios ficticios (sin DEMO_FICTICIOS la red parte vacía).
+process.env.DEMO_FICTICIOS = '1';
+
 async function redDePrueba(reloj: { ahora: Date }) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, reloj.ahora);
