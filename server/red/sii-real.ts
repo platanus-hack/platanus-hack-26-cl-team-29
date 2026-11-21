@@ -43,7 +43,10 @@ const detalleDe = (error: unknown) =>
   error instanceof ErrorSii ? `${error.message}\n${error.respuesta}` : String(error instanceof Error ? error.message : error);
 const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
 
-/** Rango de folios del CAF del tipo (variable `SII_CAF_<tipo>_BASE64`). Solo lee `TD` y `RNG`; server/sii valida el resto al timbrar. */
+/**
+ * Rango de folios del CAF del tipo (variable `SII_CAF_<tipo>_BASE64`). Solo lee `TD` y `RNG`; server/sii valida el resto al timbrar.
+ * `SII_FOLIO_DESDE_<tipo>` adelanta el inicio cuando el CAF ya tiene folios usados fuera de esta app (nunca lo atrasa).
+ */
 export function rangoDelCaf(env: NodeJS.ProcessEnv, tipo: number): RangoFolios {
   const base64 = env[`SII_CAF_${tipo}_BASE64`];
   if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir la ${NOMBRE[tipo] ?? tipo}`);
@@ -51,7 +54,8 @@ export function rangoDelCaf(env: NodeJS.ProcessEnv, tipo: number): RangoFolios {
   const td = /<TD>\s*(\d+)\s*<\/TD>/.exec(xml)?.[1];
   const rango = /<RNG>\s*<D>\s*(\d+)\s*<\/D>\s*<H>\s*(\d+)\s*<\/H>\s*<\/RNG>/.exec(xml);
   if (Number(td) !== tipo || !rango) throw new Error(`[sii] SII_CAF_${tipo}_BASE64 no es un CAF del tipo ${tipo}`);
-  return { desde: Number(rango[1]), hasta: Number(rango[2]) };
+  const desde = Math.max(Number(rango[1]), Number(env[`SII_FOLIO_DESDE_${tipo}`]) || 0);
+  return { desde, hasta: Number(rango[2]) };
 }
 
 /** Receptor de los documentos (el comprador de la demo). */
