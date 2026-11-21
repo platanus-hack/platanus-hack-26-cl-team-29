@@ -1,7 +1,7 @@
 // "Conectar mi SII": API pública del módulo. Fuera de server/conexion-sii/ se importa solo este archivo.
 import type express from 'express';
 import type pg from 'pg';
-import { crearAlmacenFolios, crearConsultaContribuyenteFalsa, crearSiiReal } from '../red/index.ts';
+import { crearAlmacenFolios, crearSiiReal } from '../red/index.ts';
 import type { ConsultarContribuyente, DatosContribuyente } from '../red/contribuyente.ts';
 import type { EventoRed, PuertoSii } from '../red/index.ts';
 import type { TipoDocumento } from '../../shared/documentos.ts';
@@ -36,9 +36,8 @@ export interface ConexionSiiDelServidor {
   /** Para `iniciarRed`: envuelve el SII falso de la red con el que corresponda en cada emisión. */
   sii: (falso: PuertoSii) => PuertoSii;
   /**
-   * Para `iniciarRed`: datos de un comprador por su RUT, leídos del portal del SII con el certificado conectado y la
-   * misma sesión única (server/sii-portal). Sin certificado conectado, la consulta pública STC (sin sesión, sin
-   * dirección ni comuna); si la STC no responde, la consulta falsa de la red.
+   * Para `iniciarRed`: datos de un comprador por su RUT, de la consulta pública STC del SII (sin certificado ni
+   * sesión, sin dirección ni comuna).
    */
   consultarContribuyente: ConsultarContribuyente;
   /** Eventos `sii.folios` (folios bajos, reponiéndose o repuestos), con el mismo formato que `red:evento`. */
@@ -63,24 +62,16 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     crearConsulta: (pfx, clave, rutEmisor) => crearConsultaDocumentos({ pfx, clave }, rutEmisor),
     tomados: tipo => folios.tomados(tipo),
   });
-  const falsa = crearConsultaContribuyenteFalsa();
-  const consultarSinCertificado: ConsultarContribuyente = async rut => {
+  // RUT de terceros: siempre la consulta pública STC, sin certificado ni sesión. El portal con certificado no sirve
+  // para terceros (falla y suma segundos por comprador). Si la STC no responde, el error llega a la red con el texto
+  // del SII y el registro sigue con la dirección que declare la persona.
+  const consultarContribuyente: ConsultarContribuyente = async rut => {
     try {
       return datosDeStc(await consultarContribuyentePublico(rut));
     } catch (error) {
       if (error instanceof ErrorStc && error.noRegistrado) return null;
-      const delSii = error instanceof ErrorStc && error.mensajeSii ? ` | SII: ${error.mensajeSii}` : '';
-      console.warn(`[conexion-sii] la consulta pública STC de ${rut} falló, se usan datos simulados: ${error instanceof Error ? error.message : String(error)}${delSii}`);
-      return falsa(rut);
+      throw error;
     }
-  };
-  const consultarContribuyente: ConsultarContribuyente = async rut => {
-    const ficha = await conexion.consultarContribuyente(rut);
-    if (ficha === undefined) return consultarSinCertificado(rut);
-    return ficha && {
-      razonSocial: ficha.razonSocial, giro: ficha.giro, direccion: ficha.direccion, comuna: ficha.comuna,
-      actividades: ficha.actividades.map(a => ({ codigo: String(a.codigo), glosa: a.descripcion })),
-    };
   };
   return {
     conexion,

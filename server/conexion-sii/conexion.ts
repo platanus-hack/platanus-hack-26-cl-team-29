@@ -51,11 +51,6 @@ export interface ConexionSii {
   /** Vuelve a correr la conexión automática (por ejemplo, tras el límite de sesiones o un bloqueo). */
   conectarAutomatico(rutEmisor?: unknown): Promise<EstadoConexionSii>;
   consultarEmpresa(rutEmisor: unknown): Promise<FichaSii>;
-  /**
-   * Datos de otro contribuyente (un comprador) en el SII, con el certificado conectado y su misma sesión del portal.
-   * `null` si el SII no entrega su ficha; `undefined` si no hay certificado conectado (quien llama usa la falsa).
-   */
-  consultarContribuyente(rut: string): Promise<FichaSii | null | undefined>;
   guardarEmpresa(datos: Record<string, unknown>): Promise<EstadoConexionSii>;
   subirCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexionSii; avisos: string[] }>;
   fijarFolio(tipo: unknown, folio: unknown): Promise<EstadoConexionSii>;
@@ -480,19 +475,6 @@ export function crearConexionSii({
         const detalle = error instanceof Error ? error.message : String(error);
         log.warn(`[conexion-sii] no se pudo leer la ficha de ${rut} del portal: ${detalle}`);
         throw new ErrorConexion(502, `No pudimos leer tus datos del SII. Escríbelos tú. Detalle: ${detalle}`);
-      }
-    },
-
-    async consultarContribuyente(rut) {
-      const c = normalizar(await almacen.leer());
-      if (!c?.certificado || !puedeGuardar()) return undefined;
-      const { pfx, clave } = certificadoDe(c);
-      try {
-        return await portal.ficha({ pfx, clave }, rut);
-      } catch (error) {
-        // La página respondió sin ficha: el SII no tiene datos de ese RUT. Lo demás (límite, red) es "no disponible".
-        if (esErrorPortal(error, 'RESPUESTA_INESPERADA') && error.paso === 'ce_consulta_muestra_e') return null;
-        throw error;
       }
     },
 
