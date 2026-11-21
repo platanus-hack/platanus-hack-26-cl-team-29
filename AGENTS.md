@@ -36,6 +36,10 @@ Para avanzar rápido, cada persona corre tantos agentes en paralelo como pueda. 
 - **Nunca `git stash`.** La pila de stash es una sola para todos los worktrees: un `stash pop` de un agente puede sacar el stash de otro. Para dejar trabajo de lado, usa un commit temporal en tu rama.
 - **Al terminar, se limpia:** worktree y rama local se borran después del merge.
 
+## Interfaz (regla fija)
+
+Toda vista nueva o cambiada en `client/` pasa por la skill `revision-ui` (`.claude/skills/revision-ui/SKILL.md`) antes de mergear: nada encimado, cortado ni desalineado en los tamaños obligatorios, la acción principal a la vista con el mínimo de clics, y textos naturales y concisos. El PR incluye la tabla de vistas y tamaños revisados.
+
 ## Documenta todo
 
 Cada decisión y cada hallazgo queda escrito en `docs/`, en el mismo PR del trabajo que lo produjo:
