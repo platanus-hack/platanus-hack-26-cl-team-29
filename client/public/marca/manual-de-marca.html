@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bando — Manual de marca</title>
+<link rel="icon" href="01-logo/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --miel:#E2B031; --miel-600:#B8892A; --miel-texto:#8A6A10; --miel-50:#FFF8E6;
+    --oliva:#928C3E; --oliva-texto:#5F6B28; --oliva-oscuro:#434538;
+    --crema:#F3E9D0; --fondo-crema:#FCF4DC; --carbon:#343532; --tinta:#1D1D1F;
+    --bg:#FFFFFF; --muted:#F4F1E7; --secondary:#F6F4EF; --border:#EDEADE;
+    --fg:#000; --fg-2:#404040; --fg-3:#6E6A5E; --primary:#171717;
+    --ok:#21C45D; --warn:#FBBD23; --err:#EF4343;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 32px}
+  nav{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:.8px solid var(--border)}
+  nav .wrap{display:flex;align-items:center;gap:24px;height:60px;overflow-x:auto}
+  nav img{height:28px}
+  nav a{font-size:14px;color:var(--fg-2);text-decoration:none;white-space:nowrap}
+  nav a:hover{color:var(--fg)}
+  section{padding:96px 0;border-bottom:.8px solid var(--border)}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-3)}
+  h1{font-size:72px;line-height:76px;font-weight:700;letter-spacing:-.045em}
+  h2{font-size:48px;line-height:52px;font-weight:700;letter-spacing:-.035em;margin:12px 0 16px}
+  h3{font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+  p.lead{font-size:20px;line-height:30px;color:var(--fg-2);max-width:720px}
+  p{color:var(--fg-2);font-size:16px}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  .card{border:.8px solid var(--border);border-radius:12px;padding:20px;background:#fff}
+  .tile{border-radius:16px;display:flex;align-items:center;justify-content:center;padding:32px;min-height:220px}
+  .tag{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
+  .ok{background:#E9F6EC;color:#1C7A3A} .no{background:#FDECEA;color:#A52A1F}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+  pre{background:var(--tinta);color:#F3E9D0;border-radius:12px;padding:20px;overflow:auto;line-height:1.6}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-weight:400;color:var(--fg-2);padding:10px 0;border-bottom:.8px solid var(--border)}
+  td{padding:12px 0;border-bottom:.8px solid var(--border);vertical-align:top}
+  .swatch{border-radius:16px;overflow:hidden;border:.8px solid var(--border)}
+  .swatch .chip{height:140px;display:flex;align-items:flex-end;padding:14px;font-weight:600;font-size:14px}
+  .swatch .meta{padding:14px;font-size:13px;color:var(--fg-2);display:flex;flex-direction:column;gap:2px}
+  .swatch .meta b{color:var(--fg);font-size:15px}
+  .do-dont{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .bad{position:relative}
+  .bad::after{content:"✕";position:absolute;top:10px;right:12px;width:26px;height:26px;border-radius:13px;background:var(--err);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .cover{background:var(--fondo-crema);padding:120px 0 96px;border-bottom:none}
+  .cover img.logo{width:420px;max-width:100%}
+  .btn{height:36px;padding:0 16px;border-radius:12px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;border:.8px solid var(--border);background:#fff}
+  .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn.miel{background:var(--miel);color:var(--tinta);border-color:var(--miel-600)}
+  .bar{height:8px;border-radius:8px;background:var(--secondary);overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--miel);border-radius:8px}
+  .flow{display:flex;gap:16px;align-items:center}
+  .flow img{width:72px;height:60px;object-fit:contain;flex-shrink:0}
+  .ilus img{width:100%;height:150px;object-fit:contain}
+  .ilus figcaption{font-size:13px;color:var(--fg-2);margin-top:8px}
+  .ilus figcaption b{color:var(--fg);display:block}
+  .tree{background:var(--secondary);border-radius:12px;padding:20px;font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.8;color:var(--fg-2);white-space:pre}
+  footer{padding:48px 0;color:var(--fg-3);font-size:13px}
+  @media (max-width:860px){.g3,.g4,.do-dont{grid-template-columns:repeat(2,1fr)} h1{font-size:48px;line-height:52px} h2{font-size:36px;line-height:40px}}
+  @media (max-width:520px){.g2,.g3,.g4,.do-dont{grid-template-columns:1fr} .wrap{padding:0 16px}}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <img src="01-logo/bando-icono.png" alt="Bando">
+  <a href="#esencia">Esencia</a><a href="#logo">Logo</a><a href="#color">Color</a><a href="#tipo">Tipografía</a>
+  <a href="#iconos">Íconos de flujo</a><a href="#ilus">Ilustración</a><a href="#ui">Producto</a>
+  <a href="#apps">Aplicaciones</a><a href="#voz">Voz</a><a href="#dev">Para desarrollo</a>
+</div></nav>
+
+<section class="cover"><div class="wrap">
+  <img class="logo" src="01-logo/bando-logo.png" alt="bando">
+  <h1 style="margin-top:48px;max-width:900px">Manual de marca</h1>
+  <p class="lead" style="margin-top:16px">Todo lo necesario para que Bando se vea igual en el producto, el pitch y la calle. Versión 1 · noviembre 2026.</p>
+</div></section>
+
+<!-- ESENCIA -->
+<section id="esencia"><div class="wrap">
+  <div class="eyebrow">01 · Esencia</div>
+  <h2>La red de compras de los locales.</h2>
+  <p class="lead">Bando junta a los restaurantes que le compran a los mismos proveedores. Cuantos más se suman, más baja el precio y más se comparten los envíos. El proveedor recibe pedidos por WhatsApp y cobra al momento de entregar.</p>
+  <div class="card" style="margin-top:32px;background:var(--tinta);border:none;padding:32px">
+    <div class="eyebrow" style="color:var(--miel)">Nuestro valor agregado</div>
+    <div style="font-size:32px;line-height:40px;font-weight:700;letter-spacing:-.03em;margin-top:8px;color:var(--crema)">Integración nativa al SII.</div>
+    <p style="color:#D9D2BD;margin-top:8px;max-width:820px">Cada local conecta su SII una vez con su certificado digital. De sus facturas sacamos sus <b style="color:var(--miel)">insumos</b>, los <b style="color:var(--miel)">precios reales</b> que paga y sus <b style="color:var(--miel)">proveedores</b>. Sin formularios ni catálogos: cada local que se conecta agranda la red. Cuando se comunique Bando, esto va primero.</p>
+  </div>
+  <div class="card" style="margin-top:16px;background:var(--fondo-crema);border:none;padding:32px">
+    <div class="eyebrow">Eslogan</div>
+    <div style="font-size:40px;line-height:46px;font-weight:700;letter-spacing:-.035em;margin-top:8px">Ahorra dinero encontrando al <span style="color:var(--oliva-texto)">mejor proveedor.</span></div>
+  </div>
+  <div class="grid g4" style="margin-top:16px">
+    <div class="card"><h3>Colaborativa</h3><p>Ganamos juntos. Somos un panal, no un catálogo.</p></div>
+    <div class="card"><h3>Cercana</h3><p>Hablamos como el vecino del local de al lado.</p></div>
+    <div class="card"><h3>Simple</h3><p>Un número grande y una acción por pantalla.</p></div>
+    <div class="card"><h3>Honesta</h3><p>Precios claros. Sin comisiones escondidas en letra chica.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Por qué un panal</h3><p>Cada celda es un local. Solo no hace mucho, pero juntos llenan el panal. La miel es el ahorro que se va acumulando. Las abejas son la red: los locales, los proveedores y los camiones que van y vienen.</p></div>
+    <div class="card"><h3>Lo que no somos</h3><p>No somos un marketplace frío ni un ERP. Tampoco una app de delivery. No usamos tono corporativo ni fotos de stock.</p></div>
+  </div>
+</div></section>
+
+<!-- LOGO -->
+<section id="logo"><div class="wrap">
+  <div class="eyebrow">02 · Logo</div>
+  <h2>Panal + «bando» en minúscula.</h2>
+  <p class="lead">El logo es un dibujo. No se redibuja ni se escribe con una tipografía: siempre se usa el archivo.</p>
+  <div class="grid g3" style="margin-top:32px">
+    <div><div class="tile" style="background:#fff;border:.8px solid var(--border)"><img src="01-logo/bando-logo.png" style="width:85%"></div><p style="margin-top:10px"><b style="color:#000">Principal</b> · sobre blanco o crema. <code>bando-logo.png</code></p></div>
+    <div><div class="tile" style="background:var(--carbon)"><img src="01-logo/bando-logo-sobre-oscuro.png" style="width:85%"></div><p style="margin-top:10px"><b style="color:#000">Sobre oscuro</b> · carbón o fotos oscuras. <code>bando-logo-sobre-oscuro.png</code></p></div>
+    <div><div class="tile" style="background:var(--fondo-crema)"><img src="01-logo/bando-icono.png" style="width:150px"></div><p style="margin-top:10px"><b style="color:#000">Ícono</b> · app, favicon, avatar y espacios menores a 120 px. <code>bando-icono.png</code></p></div>
+  </div>
+  <div class="grid g2" style="margin-top:32px">
+    <div class="card"><h3>Área de resguardo</h3><p>Deja libre alrededor del logo el alto de una celda del panal (≈ 25% del alto del logo). Ahí no va texto, borde ni otra imagen.</p>
+      <div style="margin-top:16px;background:var(--fondo-crema);border-radius:12px;padding:24px;display:flex;justify-content:center"><div style="outline:1.5px dashed var(--miel-600);outline-offset:0;padding:22px"><img src="01-logo/bando-logo.png" style="width:240px;display:block"></div></div></div>
+    <div class="card"><h3>Tamaños mínimos</h3>
+      <table><tr><th>Versión</th><th>Pantalla</th><th>Impreso</th></tr>
+      <tr><td>Logo horizontal</td><td>120 px de ancho</td><td>30 mm</td></tr>
+      <tr><td>Ícono</td><td>16 px (favicon)</td><td>8 mm</td></tr>
+      <tr><td>Ícono con abejas / sticker</td><td>64 px</td><td>15 mm</td></tr></table>
+      <p style="margin-top:12px">Si el logo queda más chico que eso, usa el ícono.</p></div>
+  </div>
+  <h3 style="margin-top:40px">No hacer</h3>
+  <div class="do-dont" style="margin-top:12px">
+    <div class="tile bad" style="background:#fff;border:.8px solid var(--border);min-height:160px"><img src="01-logo/bando-logo.png" style="width:80%;transform:scaleX(1.4)"></div>
+    <div class="tile bad" style="background:#fff;border:.8px solid var(--border);min-height:160px"><img src="01-logo/bando-logo.png" style="width:80%;filter:hue-rotate(160deg)"></div>
+    <div class="tile bad" style="background:var(--miel);min-height:160px"><img src="01-logo/bando-logo.png" style="width:80%"></div>
+    <div class="tile bad" style="background:#fff;border:.8px solid var(--border);min-height:160px"><img src="01-logo/bando-logo.png" style="width:70%;transform:rotate(-12deg);filter:drop-shadow(6px 6px 4px rgba(0,0,0,.4))"></div>
+  </div>
+  <div class="grid g4" style="margin-top:8px"><p>No estirar ni deformar.</p><p>No cambiar los colores.</p><p>No poner sobre miel ni sobre fondos que compitan.</p><p>No rotar ni agregar sombras o efectos.</p></div>
+</div></section>
+
+<!-- COLOR -->
+<section id="color"><div class="wrap">
+  <div class="eyebrow">03 · Color</div>
+  <h2>Miel, oliva y crema.</h2>
+  <p class="lead">Salen del panal: la miel es el ahorro, el oliva la red y el crema la cera. La interfaz es mayormente blanca y neutra; la marca aparece en momentos puntuales.</p>
+  <h3 style="margin-top:32px">Marca</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div class="swatch"><div class="chip" style="background:var(--miel);color:var(--tinta)">Miel</div><div class="meta"><b>#E2B031</b>RGB 226 176 49<br>Rellenos, progreso, ícono. Nunca texto sobre blanco.</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--oliva);color:#fff">Oliva</div><div class="meta"><b>#928C3E</b>RGB 146 140 62<br>Rellenos secundarios, ilustración, avatar de WhatsApp.</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--crema)">Crema</div><div class="meta"><b>#F3E9D0</b>RGB 243 233 208<br>Celdas y tarjetas cálidas.</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--carbon);color:var(--crema)">Carbón</div><div class="meta"><b>#343532</b>RGB 52 53 50<br>Trazo de ilustración y fondo oscuro.</div></div>
+  </div>
+  <h3 style="margin-top:28px">Apoyo de marca</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div class="swatch"><div class="chip" style="background:var(--miel-texto);color:#fff">Miel texto</div><div class="meta"><b>#8A6A10</b>Texto miel sobre blanco o crema · 5,1:1</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--oliva-texto);color:#fff">Oliva texto</div><div class="meta"><b>#5F6B28</b>Ahorro y precios bajos en texto · 5,8:1</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--miel-600);color:#fff">Miel 600</div><div class="meta"><b>#B8892A</b>Bordes, barras, hover de miel</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--fondo-crema)">Fondo crema</div><div class="meta"><b>#FCF4DC</b>Fondo de ilustraciones, OG, app icon</div></div>
+  </div>
+  <h3 style="margin-top:28px">Producto (DS Welcome Back)</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div class="swatch"><div class="chip" style="background:var(--primary);color:#fff">Primario</div><div class="meta"><b>#171717</b>Botón principal, texto fuerte</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--muted)">Sidebar</div><div class="meta"><b>#F4F1E7</b>Lateral y superficies de apoyo</div></div>
+    <div class="swatch"><div class="chip" style="background:#fff">Lienzo</div><div class="meta"><b>#FFFFFF</b> · borde <b>#EDEADE</b></div></div>
+    <div class="swatch"><div class="chip" style="background:linear-gradient(90deg,var(--ok) 33%,var(--warn) 33% 66%,var(--err) 66%);color:#fff">Estados</div><div class="meta"><b>#21C45D · #FBBD23 · #EF4343</b>Éxito, aviso, error</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:28px">
+    <div class="card"><h3>Proporción</h3><div style="display:flex;height:44px;border-radius:10px;overflow:hidden;margin:12px 0"><div style="flex:60;background:#fff;border:.8px solid var(--border)"></div><div style="flex:25;background:var(--muted)"></div><div style="flex:10;background:var(--miel)"></div><div style="flex:5;background:var(--oliva)"></div></div><p>60% blanco · 25% neutros · 10% miel · 5% oliva. Si toda la pantalla se ve amarilla, sobra miel.</p></div>
+    <div class="card"><h3>Qué significa cada color</h3><table>
+      <tr><td><span class="tag" style="background:var(--miel-50);color:var(--miel-texto)">Miel</span></td><td>Progreso del grupo, «faltan X», destacado ★</td></tr>
+      <tr><td><span class="tag" style="background:#EEF0E2;color:var(--oliva-texto)">Oliva</span></td><td>Ahorro, precio que bajó, «$0 envío»</td></tr>
+      <tr><td><span class="tag" style="background:var(--secondary);color:var(--fg-2)">Neutro</span></td><td>Todo lo demás</td></tr></table></div>
+  </div>
+  <h3 style="margin-top:28px">Combinaciones permitidas (contraste WCAG)</h3>
+  <table style="margin-top:8px">
+    <tr><th>Texto</th><th>Fondo</th><th>Contraste</th><th>Uso</th></tr>
+    <tr><td><b style="background:var(--miel);color:var(--tinta);padding:2px 8px;border-radius:6px">Tinta</b></td><td>Miel</td><td>8,4:1 <span class="tag ok">AA</span></td><td>Botones y chips miel</td></tr>
+    <tr><td><b style="color:var(--miel-texto)">Miel texto</b></td><td>Blanco</td><td>5,1:1 <span class="tag ok">AA</span></td><td>Etiquetas «siguiente tramo»</td></tr>
+    <tr><td><b style="color:var(--oliva-texto)">Oliva texto</b></td><td>Blanco</td><td>5,8:1 <span class="tag ok">AA</span></td><td>Ahorros</td></tr>
+    <tr><td><b style="background:var(--carbon);color:var(--crema);padding:2px 8px;border-radius:6px">Crema</b></td><td>Carbón</td><td>10,2:1 <span class="tag ok">AA</span></td><td>Versión oscura</td></tr>
+    <tr><td><b style="color:var(--miel)">Miel</b></td><td>Blanco</td><td>2,0:1 <span class="tag no">No</span></td><td>Nunca miel como texto sobre blanco</td></tr>
+    <tr><td><b style="color:var(--oliva)">Oliva</b></td><td>Blanco</td><td>3,5:1 <span class="tag no">Solo ≥ 24 px</span></td><td>Solo números grandes</td></tr>
+  </table>
+</div></section>
+
+<!-- TIPOGRAFIA -->
+<section id="tipo"><div class="wrap">
+  <div class="eyebrow">04 · Tipografía</div>
+  <h2>Inter, apretada y grande.</h2>
+  <p class="lead">Una sola familia: <b>Inter</b> (Google Fonts, gratis). Los titulares van grandes, en bold y con poco espacio entre letras. Los textos chicos van con aire. El «bando» del logo no se escribe con Inter: siempre es el archivo.</p>
+  <div class="card" style="margin-top:32px;padding:0">
+    <table>
+      <tr><th style="padding-left:20px">Estilo</th><th>Tamaño / interlineado</th><th>Peso</th><th>Espaciado</th><th>Muestra</th></tr>
+      <tr><td style="padding-left:20px">Display</td><td>72 / 76</td><td>700</td><td>−0,045em</td><td style="font-size:40px;font-weight:700;letter-spacing:-.045em;line-height:44px">Compran juntos.</td></tr>
+      <tr><td style="padding-left:20px">Número héroe</td><td>60 / 60</td><td>600</td><td>−1,5px</td><td style="font-size:40px;font-weight:600;letter-spacing:-1px;line-height:44px">$184.300</td></tr>
+      <tr><td style="padding-left:20px">Título</td><td>36 / 40</td><td>700</td><td>−0,03em</td><td style="font-size:28px;font-weight:700;letter-spacing:-.03em">Te sumaste.</td></tr>
+      <tr><td style="padding-left:20px">Subtítulo</td><td>24 / 32</td><td>700</td><td>−0,025em</td><td style="font-size:22px;font-weight:700;letter-spacing:-.025em">Rollos térmicos 80 mm</td></tr>
+      <tr><td style="padding-left:20px">Cuerpo</td><td>16 / 24 · 14 / 20</td><td>400–500</td><td>0</td><td>Faltan 13 cajas para $27.000.</td></tr>
+      <tr><td style="padding-left:20px">Etiqueta</td><td>12 / 16</td><td>600 · MAYÚS</td><td>+0,05em</td><td style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-3)">Cierra en</td></tr>
+    </table>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Reglas</h3><p>• Un número grande por pantalla.<br>• Usar <code>font-variant-numeric: tabular-nums</code> en contadores y precios.<br>• Montos en CLP sin decimales: $27.000.<br>• Nada bajo 12 px.</p></div>
+    <div class="card"><h3>Pesos disponibles</h3><p style="font-size:20px;line-height:34px;color:#000"><span style="font-weight:400">Regular 400</span> · <span style="font-weight:500">Medium 500</span> · <span style="font-weight:600">Semibold 600</span> · <span style="font-weight:700">Bold 700</span></p></div>
+  </div>
+</div></section>
+
+<!-- ICONOS -->
+<section id="iconos"><div class="wrap">
+  <div class="eyebrow">05 · Íconos de flujo</div>
+  <h2>Un ícono por cada cosa que hace Bando.</h2>
+  <p class="lead">Se usan en el índice, en las tarjetas de cada flujo, en onboarding y en estados vacíos. No reemplazan a los íconos de interfaz (para eso usamos Lucide, con trazo de 2 px).</p>
+  <div class="grid g2" style="margin-top:32px">
+    <div class="card flow"><img src="02-iconos-flujos/flujo-1.png"><div><h3>1 · Entrar</h3><p>Una abeja entra al panal. Onboarding e invitaciones.</p></div></div>
+    <div class="card flow" style="border-color:var(--miel)"><img src="02-iconos-flujos/flujo-2.png"><div><h3>2 · Comprar en grupo ★</h3><p>Se llena la miel y baja el $. Compras en grupo y tramos.</p></div></div>
+    <div class="card flow"><img src="02-iconos-flujos/flujo-3.png"><div><h3>3 · Recibir y pagar</h3><p>QR + moneda. Recepción, pago al instante.</p></div></div>
+    <div class="card flow"><img src="02-iconos-flujos/flujo-4.png"><div><h3>4 · Pedido por WhatsApp</h3><p>Chat con ✓ y caja. Pedidos del proveedor.</p></div></div>
+    <div class="card flow"><img src="02-iconos-flujos/flujo-5.png"><div><h3>5 · Cómo vende</h3><p>Escalones que bajan. Tramos de precio, stock, reparto.</p></div></div>
+    <div class="card flow"><img src="02-iconos-flujos/flujo-6.png" style="width:110px"><div><h3>6 · Más paradas</h3><p>Camión con ruta. Rutas y envíos compartidos.</p></div></div>
+    <div class="card flow"><img src="02-iconos-flujos/flujo-7.png"><div><h3>7 · Sumar proveedores</h3><p>Lupa, contacto y +. Prospectos e invitaciones.</p></div></div>
+    <div class="card"><h3>Reglas</h3><p>Tamaño mínimo 32 px. Siempre con su color original. No mezclarlos con íconos de línea en una misma fila.</p></div>
+  </div>
+</div></section>
+
+<!-- ILUSTRACION -->
+<section id="ilus"><div class="wrap">
+  <div class="eyebrow">06 · Ilustración</div>
+  <h2>Dibujado a mano, con trazo negro.</h2>
+  <p class="lead">Las ilustraciones le dan calidez a una herramienta de números. Se usan en láminas, estados vacíos, confirmaciones y marketing. Nunca adentro de tablas ni formularios.</p>
+  <div class="grid g4" style="margin-top:32px">
+    <figure class="card ilus"><img src="03-ilustraciones/problema.png"><figcaption><b>Problema</b>Dos envíos para lo mismo</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/equipo.png"><figcaption><b>Equipo</b>Compra en grupo, comunidad</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/camion.png"><figcaption><b>Camión</b>Rutas, envío compartido</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/entrega.png"><figcaption><b>Entrega</b>Recepción, pago, confianza</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/proveedor-celular.png"><figcaption><b>Proveedor con celular</b>Pedidos por WhatsApp</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/qr-monedas.png"><figcaption><b>QR y monedas</b>Pago al instante</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/capital.png"><figcaption><b>Capital</b>Préstamos a proveedores</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/mapa-red.png"><figcaption><b>Mapa de la red</b>Zonas y conexiones</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/panal.png"><figcaption><b>Panal</b>Marca, portadas</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/cajas.png"><figcaption><b>Cajas</b>Stock, pedidos</figcaption></figure>
+  </div>
+  <h3 style="margin-top:40px">El panal se llena: la animación del ahorro</h3>
+  <p>Cuatro cuadros para mostrar cómo baja el precio a medida que entran locales. En loop, 0,8 s por cuadro, y el último con confeti.</p>
+  <div class="grid g4" style="margin-top:12px">
+    <figure class="card ilus"><img src="03-ilustraciones/panal-0.png"><figcaption><b>1 local · $32.000</b></figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/panal-1.png"><figcaption><b>20 cajas · $30.500</b></figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/panal-2.png"><figcaption><b>35 cajas · $28.900</b></figcaption></figure>
+    <figure class="card ilus" style="background:var(--miel-50);border-color:var(--miel)"><img src="03-ilustraciones/panal-3.png"><figcaption><b>50 cajas · $27.000</b></figcaption></figure>
+  </div>
+  <h3 style="margin-top:40px">Las abejas</h3>
+  <div class="grid g3" style="margin-top:12px">
+    <figure class="card ilus"><img src="04-abejas/abeja-volando.png"><figcaption><b>Volando</b>Carga, «buscando proveedores…»</figcaption></figure>
+    <figure class="card ilus"><img src="04-abejas/abeja-celebra.png"><figcaption><b>Celebra</b>Confirmaciones: «te sumaste», «tramo alcanzado»</figcaption></figure>
+    <figure class="card ilus"><img src="04-abejas/abeja-senala.png"><figcaption><b>Señala</b>Llamar la atención: «faltan 13 cajas»</figcaption></figure>
+  </div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3><span class="tag ok">Sí</span> Usar</h3><p>Sobre blanco o crema. Una ilustración por pantalla. Con espacio alrededor.</p></div>
+    <div class="card"><h3><span class="tag no">No</span> Evitar</h3><p>Mezclar con fotos o con ilustraciones 3D. Recolorear. Ponerlas sobre miel. Recortarlas o deformarlas.</p></div>
+  </div>
+</div></section>
+
+<!-- PRODUCTO -->
+<section id="ui"><div class="wrap">
+  <div class="eyebrow">07 · Producto</div>
+  <h2>La interfaz es Welcome Back; la marca es Bando.</h2>
+  <p class="lead">El producto usa el design system de Welcome Back: lateral crema, lienzo blanco con radio de 16, bordes finos y botón primario negro. Bando aporta el logo, la miel para el progreso y el oliva para el ahorro.</p>
+  <div class="grid g2" style="margin-top:32px">
+    <div class="card"><h3>Botones</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><span class="btn primary">Sumarme con 6 cajas</span><span class="btn">Comparar</span><span class="btn miel">★ Destacado</span></div><p style="margin-top:12px">36 px de alto, radio 12, texto 14/600. El botón miel se usa como máximo una vez por pantalla, solo en momentos de marca.</p></div>
+    <div class="card"><h3>Progreso del grupo</h3><div style="display:flex;justify-content:space-between;font-size:14px;margin:8px 0"><b>Rollos 80 mm</b><b>$28.900 <s style="color:var(--fg-3);font-weight:400">$32.000</s></b></div><div class="bar"><i style="width:74%"></i></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-top:8px"><span style="color:var(--fg-2)">11 locales · 37 de 50 cajas</span><b style="color:var(--oliva-texto)">Faltan 13 para $27.000</b></div><p style="margin-top:12px">La barra va en miel y el ahorro en oliva texto.</p></div>
+    <div class="card"><h3>Tarjetas</h3><p>Fondo blanco, borde 0,8 px #EDEADE, radio 12, padding 16. Título 14/600. Sin sombras, salvo en vistas previas flotantes.</p></div>
+    <div class="card"><h3>Lateral</h3><p>224 px, fondo #F4F1E7. Arriba el ícono y «bando», luego el menú (ítems de 38 px, el activo en blanco y 600) y abajo Configuración y el negocio.</p></div>
+  </div>
+</div></section>
+
+<!-- APLICACIONES -->
+<section id="apps"><div class="wrap">
+  <div class="eyebrow">08 · Aplicaciones</div>
+  <h2>Dónde vive la marca.</h2>
+  <div class="grid g3" style="margin-top:32px">
+    <figure class="card ilus"><img src="06-aplicaciones/app-icon-1024.png" style="height:180px"><figcaption><b>App icon · 1024</b>Fondo crema, ícono al 74%</figcaption></figure>
+    <figure class="card ilus"><img src="06-aplicaciones/perfil-whatsapp-640.png" style="height:180px;border-radius:50%"><figcaption><b>Perfil de WhatsApp Business</b>Fondo oliva; WhatsApp lo recorta en círculo</figcaption></figure>
+    <figure class="card ilus"><img src="06-aplicaciones/og-image-1200x630.png" style="height:180px"><figcaption><b>Imagen para compartir · 1200×630</b>Vista previa de links (og:image)</figcaption></figure>
+    <figure class="card ilus"><img src="01-logo/favicon-32.png" style="height:60px;image-rendering:pixelated"><figcaption><b>Favicon</b>favicon.ico + PNG de 16 a 512</figcaption></figure>
+    <figure class="card ilus"><img src="03-ilustraciones/camion.png" style="height:180px"><figcaption><b>Camión</b>Panal en el costado, cabina miel</figcaption></figure>
+    <figure class="card ilus"><img src="04-abejas/abeja-celebra.png" style="height:180px"><figcaption><b>Stickers</b>Abejas para WhatsApp y redes</figcaption></figure>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Láminas del pitch</h3><p>Fondo blanco, titular display de 72 px con una palabra en color (miel texto u oliva texto) y una ilustración grande. Una idea por lámina y la cifra clave abajo a la derecha.</p></div>
+</div></section>
+
+<!-- VOZ -->
+<section id="voz"><div class="wrap">
+  <div class="eyebrow">09 · Voz</div>
+  <h2>Corto, claro y en chileno amable.</h2>
+  <p class="lead">Tratamos de tú. Una idea por frase. Primero el número y después la explicación.</p>
+  <table style="margin-top:24px">
+    <tr><th>Sí</th><th>No</th></tr>
+    <tr><td>Faltan 13 cajas para $27.000.</td><td>Aún no se ha alcanzado el umbral de volumen para acceder al siguiente tramo de precio.</td></tr>
+    <tr><td>Te sumaste. Ya van 45 de 50.</td><td>Su solicitud de participación ha sido procesada exitosamente.</td></tr>
+    <tr><td>El proveedor ya tiene la plata.</td><td>La transacción fue liquidada al beneficiario.</td></tr>
+    <tr><td>Lo que no llegó no se paga.</td><td>Los ítems no recepcionados serán descontados conforme a la política vigente.</td></tr>
+  </table>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card"><h3>Palabras nuestras</h3><p>sumarse · juntos · bando · tramo · ruta · envío compartido · llega mañana</p></div>
+    <div class="card"><h3>Evitar</h3><p>transacción · usuario · sinergia · plataforma · «estimado cliente»</p></div>
+    <div class="card"><h3>Privacidad</h3><p>Nunca mostrar el nombre de otro comprador: «11 locales de Providencia», no «Café Kant y otros».</p></div>
+  </div>
+</div></section>
+
+<!-- DEV -->
+<section id="dev"><div class="wrap">
+  <div class="eyebrow">10 · Para desarrollo</div>
+  <h2>Ya está en la app.</h2>
+  <p class="lead">Las reglas para el código están en <code>DESIGN.md</code>, en la raíz del repositorio. Los tokens están en <code>client/src/marca/tokens.css</code>, las rutas de estos archivos en <code>client/src/marca/recursos.ts</code> y el logo en <code>&lt;Logo /&gt;</code>. No hay nada que copiar.</p>
+</div></section>
+
+<footer><div class="wrap">Bando · Manual de marca v1 · Platanus Hack 26 · Hecho con el design system de Welcome Back.</div></footer>
+</body>
+</html>

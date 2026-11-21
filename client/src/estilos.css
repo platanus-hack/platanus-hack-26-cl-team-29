@@ -1,3 +1,5 @@
+@import './marca/tokens.css';
+
 :root {
   --color-background: #1a1a1a;
   --color-surface: #000000;
@@ -114,11 +116,8 @@ body {
 
 /* ---------- La red en vivo ---------- */
 .red-cabecera { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
-.marca {
-  width: clamp(36px, 5.5vh, 60px); height: clamp(36px, 5.5vh, 60px); border-radius: 10px; background: var(--color-primary);
-  display: grid; place-items: center; color: var(--color-primary-foreground);
-  font-weight: 800; font-size: clamp(20px, 3vh, 32px);
-}
+/* El ícono de Bando (<Logo variante="icono" />): cuadrado, desde su archivo. */
+.marca { width: clamp(36px, 5.5vh, 60px); height: clamp(36px, 5.5vh, 60px); object-fit: contain; flex-shrink: 0; }
 .titulo-red { margin: 0; font-size: clamp(28px, 4.6vh, 56px); font-weight: 800; letter-spacing: var(--tracking-tight); }
 .red-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 31vw, 600px); gap: var(--hueco); margin-top: var(--hueco); }
 .columna { display: flex; flex-direction: column; gap: var(--hueco); min-width: 0; min-height: 0; }

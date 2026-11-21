@@ -8,7 +8,7 @@
 .cn-app .etiqueta, .cn-pagina .etiqueta { font-size: 12px; }
 
 .cn-marca { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; flex-wrap: wrap; }
-.cn-marca .marca { width: 36px; height: 36px; font-size: 20px; border-radius: 8px; }
+.cn-marca .cn-logo { width: 120px; height: auto; } /* 120 px: el mínimo del logo horizontal */
 
 /* ---------- Estructura ---------- */
 .cn-app { min-height: 100vh; min-height: 100dvh; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
