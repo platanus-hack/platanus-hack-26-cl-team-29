@@ -813,3 +813,33 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   }
   return 'Algo cambió en la red';
 }
+
+/**
+ * Variante corta de describirEvento para las tarjetas que flotan sobre el mapa 3D: dos o tres palabras y el dato,
+ * sin nombres de compradores (la tarjeta ya está sobre su punto). Lo que no tiene versión corta usa la larga.
+ */
+export function describirEventoCorto(e: EventoRed, estado: EstadoRed): string {
+  switch (e.tipo) {
+    case 'orden.creada': {
+      const total = totalOrden({ items: lista<ItemOrden>(objeto(e.datos.orden).items) });
+      return total > 0 ? `Pedido · ${dinero(total)}` : 'Pedido';
+    }
+    case 'documento.emitido': {
+      const doc = objeto(e.datos.documento);
+      const monto = numero(doc.monto);
+      if (doc.tipo === 33) return `Venta facturada en el SII${monto ? ` · ${dinero(monto)}` : ''}`;
+      break;
+    }
+    case 'reclamo.registrado':
+      return '¿Llegó bien? No · reclamo en el SII';
+    case 'nota.cambiada': {
+      const [a, n] = [numero(e.datos.anterior), numero(e.datos.nota)];
+      if (a !== undefined && n !== undefined) return `¿Llegó bien? Nota ${nota(a)} → ${nota(n)}`;
+      break;
+    }
+    case 'licitacion.participante':
+      if (e.datos.accion === 'entra') return 'Se sumó a la red';
+      break;
+  }
+  return describirEvento(e, estado);
+}

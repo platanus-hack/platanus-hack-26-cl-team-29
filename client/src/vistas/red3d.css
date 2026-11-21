@@ -1,0 +1,85 @@
+/* ---------- /red-3d: la red crece, en 3D sobre Santiago ---------- */
+/* Pantalla completa: el mapa ocupa todo y los textos flotan encima, en las esquinas (arriba a la derecha va el menú).
+   Cabecera, cifra, íconos y ficha reusan las piezas comunes (CabeceraRed, Contador, IconoEvento, Monograma, .tarjeta). */
+.r3d { position: fixed; inset: 0; overflow: hidden; background: #000; color: var(--color-text); }
+.r3d-lienzo, .r3d-mapa { position: absolute; inset: 0; }
+.r3d-lienzo { z-index: 0; }
+
+.r3d-arriba { position: absolute; left: var(--relleno); top: var(--relleno); right: 140px; pointer-events: none; }
+.r3d-arriba .red-cabecera { gap: 14px; }
+.r3d-arriba .titulo-red { font-size: clamp(22px, 3.4vh, 40px); }
+.r3d-arriba .fuente-falsa, .r3d-arriba .en-vivo { pointer-events: auto; }
+.r3d-ayuda { margin: 8px 0 0; font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); }
+
+/* La cifra abajo a la izquierda: cuántos negocios hay y qué ganan con eso. */
+.r3d-cifra { position: absolute; left: var(--relleno); bottom: calc(var(--relleno) + 22px); max-width: min(42vw, 520px); pointer-events: none; }
+.r3d-cifra .tarjeta { background: rgb(10 10 10 / 0.72); border-color: transparent; }
+.r3d-cifra .etiqueta { text-transform: none; letter-spacing: 0; }
+
+.r3d-leyenda {
+  position: absolute; right: var(--relleno); bottom: var(--relleno); margin: 0; padding: 0; list-style: none;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; max-width: min(48vw, 520px);
+  font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); text-shadow: 0 1px 4px #000;
+}
+.r3d-leyenda li { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.r3d-leyenda .punto { width: 9px; height: 9px; border-radius: 50%; }
+.r3d-leyenda .punto.verde { background: var(--color-green); }
+.r3d-leyenda .punto.amarillo { background: var(--color-primary); }
+.r3d-leyenda .punto.local { width: 6px; height: 6px; background: #9adfff; }
+
+/* Lo que va pegado a un punto del mapa: el JS pone el translate de cada ancla en cada cuadro. */
+.r3d-sobre { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
+.r3d-ancla { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+
+/* Etiqueta de los proveedores principales, a la derecha de su punto: monograma, nombre y nota. */
+.r3d-proveedor {
+  position: absolute; left: 12px; top: 0; translate: 0 -50%; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; white-space: nowrap;
+  background: rgb(10 10 10 / 0.75); border: 0; border-radius: 999px;
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(11px, 1.35vh, 14px); color: var(--color-text);
+}
+.r3d-proveedor .monograma { width: 1.7em; height: 1.7em; font-size: 0.8em; }
+.r3d-proveedor b { font-family: var(--font-mono); color: var(--color-primary); }
+.r3d-proveedor.baja b { color: var(--color-magenta); }
+.r3d-proveedor.sube b { color: var(--color-green); }
+
+/* Tarjeta de un evento sobre su punto: chica, con el color de su tipo; entra, se queda y se apaga sola. */
+.r3d-evento {
+  position: absolute; left: 0; bottom: 14px; translate: -50% 0; display: flex; align-items: center; gap: 4px;
+  padding: 4px 10px 4px 2px; white-space: nowrap; border-radius: 8px;
+  background: rgb(10 10 10 / 0.88); border: 1px solid var(--color-green);
+  font-family: var(--font-mono); font-size: clamp(11px, 1.4vh, 15px); color: var(--color-text);
+  animation: r3d-evento 3.2s ease-out both;
+}
+.r3d-evento.pedido { border-color: var(--color-primary); }
+.r3d-evento.venta { border-color: #fff; }
+.r3d-evento.reclamo, .r3d-evento.baja { border-color: var(--color-magenta); }
+@keyframes r3d-evento {
+  from { opacity: 0; transform: translateY(8px); }
+  10%, 85% { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+/* Ficha del proveedor elegido con un clic (sobre .tarjeta). */
+.r3d-ficha {
+  position: absolute; right: var(--relleno); top: calc(var(--relleno) + 60px); width: min(340px, calc(100vw - 32px));
+  background: rgb(10 10 10 / 0.92); font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted);
+}
+.r3d-ficha h2 { display: flex; align-items: center; gap: 10px; margin: 0 28px 8px 0; font-family: var(--font-display); font-size: clamp(18px, 2.4vh, 26px); color: var(--color-text); }
+.r3d-ficha p { margin: 4px 0; }
+.r3d-nota b { font-size: clamp(22px, 3vh, 32px); color: var(--color-primary); margin-right: 6px; }
+.r3d-ficha ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.r3d-ficha li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--color-border); padding-top: 4px; }
+.r3d-ficha li b { color: var(--color-text); }
+.r3d-cerrar {
+  position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; border: 0; background: transparent;
+  color: var(--color-muted); font-size: 22px; cursor: pointer;
+}
+.r3d-cerrar:hover { color: var(--color-text); }
+
+.r3d .maplibregl-ctrl-attrib { background: rgb(0 0 0 / 0.6); color: var(--color-tenue); font-size: 10px; }
+.r3d .maplibregl-ctrl-attrib a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  .r3d-evento { animation: none; }
+}

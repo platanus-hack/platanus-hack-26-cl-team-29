@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../client/src/mapa/geo.ts';
+import { capas, circulo, MUT, pulsoDeEvento, pulsosNuevos, RADIO_KM, ubicar } from '../client/src/mapa/geo.ts';
 import { iniciarRedFalsaCompartida } from '../client/src/red/falso-compartido.ts';
 import type { EstadoRed, EventoRed } from '../client/src/red/tipos.ts';
 
@@ -76,4 +76,15 @@ test('dos pestañas con la red falsa ven la misma foto y los mismos eventos', as
   // La siembra trae 4 negocios en la compra; el quinto es el que sumó la segunda pestaña.
   const sumado = visto.a.find(x => x.startsWith('licitacion.participante:') && x.endsWith(':5'));
   assert.ok(sumado && visto.b.includes(sumado));
+});
+
+test('cada evento late una sola vez, y los viejos se marcan sin latir', () => {
+  const e = estado();
+  const orden = { compradorId: 'c1' };
+  const evento = (clave: number, recibido: number) => ({ tipo: 'orden.creada' as const, datos: { orden }, en: '', clave, recibido });
+  const vistos = new Set<number>();
+  const primera = pulsosNuevos([evento(1, 1000), evento(2, 0)], vistos, e, 2000, 2500);
+  assert.deepEqual(primera.map(p => [p.evento.clave, p.clase, p.negocio.id]), [[1, 'pedido', 'c1']]);
+  assert.deepEqual([...vistos], [1, 2]);
+  assert.deepEqual(pulsosNuevos([evento(1, 1000)], vistos, e, 2000, 2500), []);
 });
