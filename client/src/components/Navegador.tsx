@@ -6,7 +6,6 @@ const ENLACES = [
   { ruta: '/sala', nombre: 'La sala compra junta', detalle: 'Pantalla de la demo' },
   { ruta: '/red', nombre: 'La red en vivo', detalle: 'Ciclo de compra y notas' },
   { ruta: '/mapa', nombre: 'El mapa en vivo', detalle: 'La red sobre Santiago' },
-  { ruta: '/red-3d', nombre: 'La red crece', detalle: 'Santiago en 3D' },
   { ruta: '/licitacion', nombre: 'Licitación', detalle: 'Compra conjunta con QR' },
   { ruta: '/app', nombre: 'Mi negocio', detalle: 'Comprador por web' },
   { ruta: '/proveedor', nombre: 'Proveedor', detalle: 'Panel del proveedor' },

@@ -1,6 +1,7 @@
 // /red-3d: "la red crece" sobre el mapa real de Santiago, en 3D. MapLibre pone las calles con inclinación y giro;
-// deck.gl, en un canvas encima con la misma cámara, dibuja los locales, los negocios, las columnas de los proveedores y los arcos.
-// Los datos son los de /red y /mapa (useRed, useLocales): cada `red:evento` también se anima aquí.
+// deck.gl, en un canvas encima con la misma cámara, dibuja los locales, los negocios, los proveedores y los arcos.
+// Los datos son los de /red y /mapa (useRed, useLocales): cada `red:evento` también se anima aquí, con una tarjeta
+// chica y efímera en el nodo donde pasó (máximo tres a la vez). Pantalla de presentación: no está en el menú.
 // /red-3d#recorrido: cámara automática y determinista para grabar. Sin hash: modo libre (arrastrar, girar, inclinar).
 
 import { useEffect, useRef, useState } from 'react';
@@ -11,13 +12,16 @@ import type { Layer } from '@deck.gl/core';
 import './red3d.css';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { AMARILLO, AZUL_LOCAL, crear, crearMapa, MAGENTA, VERDE } from '../mapa/base.ts';
-import { camara, capitulo, DURACION_HISTORIA, historia, INICIO_LOCALES, relaciones, type NodoHistoria } from '../mapa/crece.ts';
+import {
+  camara, capitulo, DURACION_HISTORIA, guion, historia, INICIO_LOCALES, relaciones, sumarTarjeta, tarjetaDeEvento, VIDA_TARJETA,
+  type ContenidoTarjeta, type NodoHistoria, type PasoGuion, type Tarjeta,
+} from '../mapa/crece.ts';
 import { MUT, pulsosNuevos, ubicar, type Punto } from '../mapa/geo.ts';
 import { useLocales, type LocalMapa } from '../mapa/useLocales.ts';
 import { notaDe, type CambioNota } from '../red/derivar.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useRed, type EventoVisto } from '../red/useRed.ts';
-import { dinero, miles, nota } from '../../../shared/formato.ts';
+import { miles, nota } from '../../../shared/formato.ts';
 
 type Color = [number, number, number, number];
 const rgb = (hex: string, a = 255): Color => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).concat(a) as Color;
@@ -33,6 +37,10 @@ const APARECER_MS = 1000;
 /** Duración de cada animación del guion: venta 1,5 s, opinión 2 s, pedido 0,8 s (más lo que tarda en apagarse). */
 const DURACION: Record<Animacion['tipo'], number> = { venta: 1500, reclamo: 2000, pedido: 2000, nuevo: 1200, baja: 2000, sube: 2000 };
 const MUESTRA_NOTA_DESDE = 8000;
+/** Solo los proveedores con más compradores llevan nombre en el mapa; el resto se ve al hacer clic o en una tarjeta. */
+const PROVEEDORES_CON_NOMBRE = 3;
+/** Margen de pantalla donde no se ancla nada (cabecera, cifra y leyenda), en px. */
+const MARGEN = { lados: 120, arriba: 110, abajo: 170 };
 
 interface Animacion {
   tipo: 'venta' | 'reclamo' | 'pedido' | 'nuevo' | 'baja' | 'sube';
@@ -87,67 +95,78 @@ const queda = (ilustrativo: boolean, t: number) => (ilustrativo ? 1 - entre(t, D
 function capasDeck(escena: Escena, locales: LocalMapa[], animaciones: Animacion[], t: number, ahora: number, alElegir: (id: string) => void): Layer[] {
   const vivas = (tipo: Animacion['tipo']) => animaciones.filter(a => a.tipo === tipo);
   const edad = (a: Animacion) => (ahora - a.inicio) / DURACION[a.tipo];
+  /** Un arco recién nacido brilla un momento y después queda tenue, para que se lea solo el que tiene novedad. */
+  const brillo = (a: Arco) => entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t) * (0.14 + 0.6 * (1 - entre(t, a.aparece + APARECER_MS, a.aparece + APARECER_MS + 1500)));
+  const visible = (p: Proveedor) => entre(t, p.aparece, p.aparece + APARECER_MS);
+  const colorProveedor = (p: Proveedor) => conAlfa(!p.cambio ? C_AMARILLO : p.cambio.nota < p.cambio.anterior ? C_MAGENTA : C_VERDE, visible(p));
+  const elegir = ({ object }: { object?: Proveedor }) => { if (object) alElegir(object.id); };
+  const cambiosNota = escena.proveedores.map(p => p.cambio?.en ?? 0).join();
   return [
     new ScatterplotLayer<LocalMapa>({
       id: 'locales', data: locales, getPosition: l => [l.lng, l.lat], getFillColor: C_LOCAL,
-      radiusUnits: 'pixels', getRadius: 1.6, opacity: 0.22 + 0.4 * entre(t, INICIO_LOCALES - 1000, INICIO_LOCALES + 1500),
+      radiusUnits: 'pixels', getRadius: 1.3, opacity: 0.14 + 0.3 * entre(t, INICIO_LOCALES - 1000, INICIO_LOCALES + 1500),
     }),
     new ArcLayer<Arco>({
       id: 'arcos', data: escena.arcos, getSourcePosition: a => a.desde, getTargetPosition: a => a.hasta,
-      getSourceColor: a => conAlfa(C_VERDE, 0.55 * entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t)),
-      getTargetColor: a => conAlfa(C_AMARILLO, 0.7 * entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t)),
-      getWidth: 1.4, getHeight: 0.35, updateTriggers: { getSourceColor: t, getTargetColor: t },
+      getSourceColor: a => conAlfa(C_VERDE, brillo(a)), getTargetColor: a => conAlfa(C_AMARILLO, brillo(a)),
+      getWidth: 1, getHeight: 0.25, updateTriggers: { getSourceColor: t, getTargetColor: t },
     }),
     new ArcLayer<Animacion>({
       id: 'pedidos', data: vivas('pedido'), getSourcePosition: a => a.desde, getTargetPosition: a => a.hasta!,
       getSourceColor: a => conAlfa(C_AMARILLO, 1 - entre(edad(a), 0.4, 1)), getTargetColor: a => conAlfa(C_AMARILLO, 1 - entre(edad(a), 0.4, 1)),
-      getWidth: 4, getHeight: 0.6, updateTriggers: { getSourceColor: ahora, getTargetColor: ahora },
+      getWidth: 3, getHeight: 0.4, updateTriggers: { getSourceColor: ahora, getTargetColor: ahora },
     }),
-    new ArcLayer<Animacion>({
-      id: 'opiniones', data: vivas('reclamo').filter(a => a.hasta), getSourcePosition: a => a.desde, getTargetPosition: a => a.hasta!,
-      getSourceColor: a => conAlfa(C_MAGENTA, 1 - entre(edad(a), 0.6, 1)), getTargetColor: a => conAlfa(C_MAGENTA, 1 - entre(edad(a), 0.6, 1)),
-      getWidth: 2, getHeight: 0.35, updateTriggers: { getSourceColor: ahora, getTargetColor: ahora },
-    }),
-    // La opinión viaja del negocio al proveedor como una fila de puntos.
+    // La opinión viaja del negocio al proveedor como una línea punteada.
     new ScatterplotLayer<{ p: Punto; a: number }>({
       id: 'opiniones-viajan',
-      data: vivas('reclamo').filter(a => a.hasta).flatMap(a => [0, 0.08, 0.16, 0.24].map(atraso => {
-        const k = entre(edad(a), atraso, atraso + 0.6);
+      data: vivas('reclamo').filter(a => a.hasta).flatMap(a => Array.from({ length: 8 }, (_, i) => {
+        const atraso = i * 0.05;
+        const k = entre(edad(a), atraso, atraso + 0.55);
         return { p: [a.desde[0] + (a.hasta![0] - a.desde[0]) * k, a.desde[1] + (a.hasta![1] - a.desde[1]) * k] as Punto, a: k > 0 && k < 1 ? 1 : 0 };
       })),
-      getPosition: d => d.p, getFillColor: d => conAlfa(C_MAGENTA, d.a), radiusUnits: 'pixels', getRadius: 3.5,
+      getPosition: d => d.p, getFillColor: d => conAlfa(C_MAGENTA, d.a), radiusUnits: 'pixels', getRadius: 2.5,
     }),
     new ColumnLayer<Proveedor>({
-      id: 'proveedores', data: escena.proveedores, getPosition: p => p.punto, diskResolution: 4, radius: 180, angle: 45, extruded: true,
-      getElevation: p => {
-        const n = p.conectados.filter(x => x <= t).length;
-        return entre(t, p.aparece, p.aparece + APARECER_MS) * (250 + 380 * Math.sqrt(n));
-      },
-      getFillColor: p => {
-        const visible = entre(t, p.aparece, p.aparece + APARECER_MS);
-        const c = !p.cambio ? C_AMARILLO : p.cambio.nota < p.cambio.anterior ? C_MAGENTA : C_VERDE;
-        return conAlfa(c, 0.92 * visible);
-      },
-      material: { ambient: 0.6, diffuse: 0.5, shininess: 16 },
-      pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 90],
-      onClick: ({ object }) => { if (object) alElegir(object.id); },
-      updateTriggers: { getElevation: t, getFillColor: [t, escena.proveedores.map(p => p.cambio?.en ?? 0).join()] },
+      id: 'proveedores', data: escena.proveedores, getPosition: p => p.punto, diskResolution: 4, radius: 110, angle: 45, extruded: true,
+      getElevation: p => visible(p) * (120 + 90 * Math.sqrt(p.conectados.filter(x => x <= t).length)),
+      getFillColor: colorProveedor, material: { ambient: 0.6, diffuse: 0.5, shininess: 16 },
+      pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 90], onClick: elegir,
+      updateTriggers: { getElevation: t, getFillColor: [t, cambiosNota] },
+    }),
+    // Un punto en la base: a zoom de ciudad la columna es fina y el proveedor se lee igual.
+    new ScatterplotLayer<Proveedor>({
+      id: 'proveedores-base', data: escena.proveedores, getPosition: p => p.punto, getFillColor: colorProveedor,
+      radiusUnits: 'pixels', getRadius: 4, pickable: true, onClick: elegir, updateTriggers: { getFillColor: [t, cambiosNota] },
     }),
     new ScatterplotLayer<Nodo>({
       id: 'negocios', data: escena.nodos, getPosition: n => n.punto,
       getFillColor: n => mezcla(C_LOCAL, C_VERDE, queda(n.ilustrativo, t)),
-      getRadius: n => (n.ilustrativo ? 2 + 3.5 * queda(true, t) : 5.5) * rebote(t - n.aparece),
+      getRadius: n => (n.ilustrativo ? 2 + 2.5 * queda(true, t) : 4.5) * rebote(t - n.aparece),
       radiusUnits: 'pixels', stroked: true, getLineColor: [11, 11, 11, 255], lineWidthUnits: 'pixels', getLineWidth: 1,
       updateTriggers: { getFillColor: t, getRadius: t },
     }),
     new ScatterplotLayer<Animacion>({
       id: 'pulsos', data: animaciones.filter(a => a.tipo !== 'pedido'), getPosition: a => a.desde,
-      stroked: true, filled: false, radiusUnits: 'pixels', lineWidthUnits: 'pixels', getLineWidth: 3,
-      getRadius: a => 6 + 42 * Math.sqrt(Math.min(1, edad(a))),
+      stroked: true, filled: false, radiusUnits: 'pixels', lineWidthUnits: 'pixels', getLineWidth: 2,
+      getRadius: a => 5 + 30 * Math.sqrt(Math.min(1, edad(a))),
       getLineColor: a => conAlfa(a.tipo === 'venta' ? C_BLANCO : a.tipo === 'reclamo' || a.tipo === 'baja' ? C_MAGENTA : C_VERDE, 1 - Math.min(1, edad(a))),
       updateTriggers: { getRadius: ahora, getLineColor: ahora },
     }),
   ];
+}
+
+/** Edificios en 3D (capa `building` de OpenMapTiles), gris oscuro sobrio: se ven a nivel de calle y se apagan al alejarse. */
+function ponerEdificios(m: MapaLibre) {
+  if (!m.getSource('openmaptiles') || m.getLayer('edificios-3d')) return;
+  m.addLayer({
+    id: 'edificios-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
+    paint: {
+      'fill-extrusion-color': '#262626',
+      'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, ['coalesce', ['get', 'render_height'], 6]],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+      'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 0.9],
+    },
+  });
 }
 
 /** Nota que muestra la etiqueta: si cambió hace poco, baja (o sube) de la anterior a la nueva en 2 s. */
@@ -168,6 +187,10 @@ interface Datos {
   apariciones: Map<string, number>;
   escena: Escena;
   animaciones: Animacion[];
+  pasos: PasoGuion[];
+  /** Cuántos pasos del guion ya salieron. */
+  hechos: number;
+  tarjetas: Tarjeta[];
 }
 
 function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvanzar }: {
@@ -179,8 +202,9 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
   const [listo, setListo] = useState(false);
   const [esperaVencida, setEsperaVencida] = useState(false);
   const etiquetas = useRef(new Map<string, Marker>());
+  const marcasTarjeta = useRef(new Map<string, Marker>());
   const vistos = useRef(new Set<number>());
-  const datos = useRef<Datos>({ estado, cambios, locales: [], cuento: [], inicio: null, apariciones: new Map(), escena: { nodos: [], arcos: [], proveedores: [] }, animaciones: [] });
+  const datos = useRef<Datos>({ estado, cambios, locales: [], cuento: [], inicio: null, apariciones: new Map(), escena: { nodos: [], arcos: [], proveedores: [] }, animaciones: [], pasos: [], hechos: 0, tarjetas: [] });
   const elegir = useRef(alElegir);
   const avanzar = useRef(alAvanzar);
   elegir.current = alElegir;
@@ -213,14 +237,23 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
     }
   };
 
-  /** Cada cuadro: visibilidad, color y nota de las etiquetas de los proveedores. */
+  /** ¿Se puede anclar algo en este punto sin tapar los textos de las esquinas ni salirse de la pantalla? */
+  const aLaVista = (punto: Punto) => {
+    const m = mapa.current!;
+    const { x, y } = m.project(punto);
+    const { clientWidth: w, clientHeight: h } = m.getContainer();
+    return x > MARGEN.lados && x < w - MARGEN.lados && y > MARGEN.arriba && y < h - MARGEN.abajo;
+  };
+
+  /** Cada cuadro: las etiquetas de los proveedores (solo los que más compran, desde el tercer hito), con su color y nota. */
   const pintarEtiquetas = (t: number) => {
     const d = datos.current;
     if (!d.estado) return;
+    const conNombre = new Set([...d.escena.proveedores].sort((a, b) => b.conectados.length - a.conectados.length).slice(0, PROVEEDORES_CON_NOMBRE).map(p => p.id));
     for (const p of d.escena.proveedores) {
       const el = etiquetas.current.get(p.id)?.getElement();
       if (!el) continue;
-      el.classList.toggle('oculto', t < p.aparece);
+      el.classList.toggle('oculto', t < Math.max(p.aparece, MUESTRA_NOTA_DESDE) || !conNombre.has(p.id) || !aLaVista(p.punto));
       el.classList.toggle('baja', !!p.cambio && p.cambio.nota < p.cambio.anterior);
       el.classList.toggle('sube', !!p.cambio && p.cambio.nota > p.cambio.anterior);
       const texto = t >= MUESTRA_NOTA_DESDE ? notaVisible(p, d.estado) : '';
@@ -229,15 +262,54 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
     }
   };
 
+  /** Muestra una tarjeta en `punto` si cabe en pantalla. Las que ya no están en la lista salen con una transición. */
+  const mostrarTarjeta = (contenido: ContenidoTarjeta, punto: Punto, ahora: number) => {
+    const m = mapa.current;
+    if (!m || !aLaVista(punto)) return;
+    const nueva: Tarjeta = { ...contenido, clave: `${ahora}-${punto.join()}`, punto, inicio: ahora };
+    datos.current.tarjetas = sumarTarjeta(datos.current.tarjetas, nueva);
+    if (datos.current.tarjetas.includes(nueva)) {
+      const el = crear(`r3d-tarjeta ${nueva.tipo}`, '<b></b><span></span>');
+      el.querySelector('b')!.textContent = nueva.titulo;
+      el.querySelector('span')!.textContent = nueva.detalle ?? '';
+      marcasTarjeta.current.set(nueva.clave, new Marker({ element: el, anchor: 'bottom', offset: [0, -16] }).setLngLat(punto).addTo(m));
+    }
+    quitarTarjetas(ahora);
+  };
+
+  const quitarTarjetas = (ahora: number) => {
+    const d = datos.current;
+    d.tarjetas = d.tarjetas.filter(t => ahora - t.inicio < VIDA_TARJETA);
+    for (const [clave, marca] of marcasTarjeta.current) {
+      if (d.tarjetas.some(t => t.clave === clave)) continue;
+      marcasTarjeta.current.delete(clave);
+      marca.getElement().classList.add('sale');
+      setTimeout(() => marca.remove(), 400);
+    }
+  };
+
+  /** Pasos del guion de la secuencia que ya tocan: su animación y su tarjeta. */
+  const avanzarGuion = (t: number, ahora: number) => {
+    const d = datos.current;
+    while (d.hechos < d.pasos.length && d.pasos[d.hechos].t <= t) {
+      const paso = d.pasos[d.hechos++];
+      const nodo = d.cuento[paso.nodo];
+      const proveedor = d.escena.proveedores.find(p => p.id === paso.proveedorId);
+      if (paso.tipo === 'pedido' && proveedor) d.animaciones.push({ tipo: 'pedido', desde: proveedor.punto, hasta: nodo.punto, inicio: ahora });
+      if (paso.tipo === 'venta') d.animaciones.push({ tipo: 'venta', desde: nodo.punto, inicio: ahora });
+      if (paso.tipo === 'opinion') d.animaciones.push({ tipo: 'reclamo', desde: nodo.punto, hasta: proveedor?.punto, inicio: ahora });
+      mostrarTarjeta(paso, paso.enProveedor && proveedor ? proveedor.punto : nodo.punto, ahora);
+    }
+  };
+
   useEffect(() => {
-    // Recorrido: parte de cerca, sobre el MUT. Libre: Santiago inclinado, listo para explorar.
+    // Recorrido: parte a nivel de calle, junto a los edificios del primer negocio. Libre: Santiago inclinado, listo para explorar.
     const inicial = camara(recorrido ? 0 : 8000, MUT);
-    const m = crearMapa(caja.current!, { ...inicial, interactive: !recorrido, maxPitch: 75 }, () => {});
+    const m = crearMapa(caja.current!, { ...inicial, interactive: !recorrido, maxPitch: 80 }, ponerEdificios);
     const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
     m.addControl(overlay);
     mapa.current = m;
     m.once('load', () => setListo(true));
-    new Marker({ element: crear('r3d-mut', '<i></i><span>MUT</span>'), anchor: 'left' }).setLngLat(MUT).addTo(m);
     const espera = setTimeout(() => setEsperaVencida(true), ESPERA_LOCALES_MS);
 
     let cuadro = 0;
@@ -247,6 +319,8 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
       const ahora = performance.now();
       const t = d.inicio === null ? 0 : ahora - d.inicio;
       if (recorrido && d.inicio !== null) m.jumpTo(camara(t, d.cuento[0]?.punto ?? MUT));
+      if (d.inicio !== null) avanzarGuion(t, ahora);
+      quitarTarjetas(ahora);
       d.animaciones = d.animaciones.filter(a => ahora - a.inicio < DURACION[a.tipo]);
       overlay.setProps({ layers: capasDeck(d.escena, d.locales, d.animaciones, t, ahora, id => elegir.current(id)) });
       pintarEtiquetas(t);
@@ -262,6 +336,7 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
       cancelAnimationFrame(cuadro);
       clearTimeout(espera);
       etiquetas.current.clear();
+      marcasTarjeta.current.clear();
       mapa.current = null;
       m.remove();
     };
@@ -275,6 +350,7 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
     d.cuento = historia(estado, locales ?? []);
     d.inicio = performance.now();
     rearmar();
+    d.pasos = guion(d.cuento, estado);
   }, [listo, locales, esperaVencida, estado]);
 
   useEffect(() => {
@@ -287,26 +363,23 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
     datos.current.locales = locales ?? [];
   }, [locales]);
 
-  // Cada evento nuevo se anima una vez donde pasó, con el guion: venta, opinión, pedido o negocio nuevo.
+  // Cada evento nuevo se anima una vez donde pasó, con el guion: venta, opinión, pedido o negocio nuevo. Su tarjeta
+  // sale después de la secuencia (durante la secuencia mandan las del guion, así el recorrido se graba siempre igual).
   useEffect(() => {
-    const m = mapa.current;
-    if (!m) return;
+    if (!mapa.current) return;
+    const d = datos.current;
     for (const { evento: e, clase, negocio } of pulsosNuevos(eventos, vistos.current, estado, DURACION.reclamo)) {
       const desde = ubicar(negocio);
       const inicio = performance.now();
       const orden = (e.datos.orden ?? {}) as { proveedorId?: unknown };
       const proveedor = typeof orden.proveedorId === 'string' ? estado.negocios.find(n => n.id === orden.proveedorId) : undefined;
       if (clase === 'pedido') {
-        if (proveedor) datos.current.animaciones.push({ tipo: 'pedido', desde: ubicar(proveedor), hasta: desde, inicio });
-        continue;
+        if (proveedor) d.animaciones.push({ tipo: 'pedido', desde: ubicar(proveedor), hasta: desde, inicio });
+      } else {
+        d.animaciones.push({ tipo: clase, desde, hasta: proveedor ? ubicar(proveedor) : undefined, inicio });
       }
-      datos.current.animaciones.push({ tipo: clase, desde, hasta: proveedor ? ubicar(proveedor) : undefined, inicio });
-      const monto = (e.datos.documento as { monto?: unknown } | undefined)?.monto;
-      if (clase === 'venta' && typeof monto === 'number') {
-        const precio = new Marker({ element: crear('r3d-precio'), anchor: 'bottom', offset: [0, -10] }).setLngLat(desde).addTo(m);
-        precio.getElement().textContent = dinero(monto);
-        setTimeout(() => precio.remove(), DURACION.venta);
-      }
+      const contenido = tarjetaDeEvento(e, clase, estado);
+      if (contenido && d.inicio !== null && inicio - d.inicio >= DURACION_HISTORIA) mostrarTarjeta(contenido, desde, inicio);
     }
   }, [eventos, estado]);
 
@@ -357,7 +430,7 @@ export function Red3D() {
       <header className="r3d-arriba">
         <span className="r3d-marca">Bando</span>
         <span className="r3d-titulo">La red crece</span>
-        {ilustrando ? <span className="etiqueta r3d-modo">con locales reales de OpenStreetMap</span> : <span className="en-vivo contorno">En vivo</span>}
+        {!ilustrando && <span className="en-vivo contorno">En vivo</span>}
         <AvisoFuente fuente={fuente} />
         {!recorrido && <span className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</span>}
       </header>
@@ -365,9 +438,8 @@ export function Red3D() {
       <ul className="r3d-leyenda" aria-label="Leyenda">
         <li><i className="punto verde" /> negocio</li>
         <li><i className="cubo" /> proveedor</li>
-        <li><i className="punto local" /> local de Chile</li>
-        <li><i className="raya" /> compra</li>
-        <li className="credito">mapa © OpenStreetMap</li>
+        <li><i className="punto local" /> local</li>
+        <li className="credito">mapa y locales © OpenStreetMap</li>
       </ul>
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
     </main>

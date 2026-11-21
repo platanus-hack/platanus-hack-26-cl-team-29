@@ -2,8 +2,9 @@
 // Lógica pura (sin MapLibre ni deck.gl) para probarla con node:test. Todo depende solo de los datos y del
 // tiempo transcurrido: la misma red da siempre la misma secuencia, cuadro a cuadro, para grabar el video.
 
-import type { EstadoRed } from '../red/tipos.ts';
-import { MUT, ubicar, type Punto } from './geo.ts';
+import type { EstadoRed, EventoRed } from '../red/tipos.ts';
+import { totalOrden } from '../../../shared/precios.ts';
+import { MUT, ubicar, type ClasePulso, type Punto } from './geo.ts';
 
 export interface NodoHistoria {
   id: string;
@@ -22,8 +23,8 @@ const TRAMOS: Array<[desde: number, hasta: number]> = [[600, 600], [2000, 7000],
 /** Al terminar, la cámara se aleja y quedan los locales de Chile. Después sigue en vivo. */
 export const DURACION_HISTORIA = 18_000;
 export const INICIO_LOCALES = 15_000;
-/** Cada negocio se une a sus dos proveedores más cercanos si la red todavía no tiene compras suyas. */
-const PROVEEDORES_POR_NEGOCIO = 2;
+/** Cada local de la secuencia se une a su proveedor más cercano: un arco por negocio, para que el mapa respire. */
+const PROVEEDORES_POR_NEGOCIO = 1;
 
 export function distanciaKm(a: Punto, b: Punto): number {
   return Math.hypot((a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180), a[1] - b[1]) * 111.19;
@@ -112,14 +113,16 @@ export interface Camara {
   bearing: number;
 }
 
-/** Tomas del recorrido: de cerca sobre el primer negocio, hacia afuera hasta ver Santiago entero. */
+/** Tomas del recorrido: a nivel de calle junto a los edificios del primer negocio, y se eleva hasta ver Santiago entero. */
 function tomas(foco: Punto): Array<Camara & { t: number }> {
+  const medio: Punto = [(foco[0] + MUT[0]) / 2, (foco[1] + MUT[1]) / 2];
   return [
-    { t: 0, center: foco, zoom: 14.4, pitch: 62, bearing: -35 },
-    { t: 2000, center: foco, zoom: 14, pitch: 60, bearing: -28 },
-    { t: 8000, center: MUT, zoom: 12.5, pitch: 56, bearing: -8 },
-    { t: INICIO_LOCALES, center: MUT, zoom: 11.2, pitch: 52, bearing: 14 },
-    { t: DURACION_HISTORIA, center: [-70.63, -33.45], zoom: 10.3, pitch: 48, bearing: 24 },
+    { t: 0, center: foco, zoom: 16.9, pitch: 78, bearing: -28 },
+    { t: 2600, center: foco, zoom: 16.3, pitch: 75, bearing: -18 },
+    { t: 6000, center: medio, zoom: 14.4, pitch: 66, bearing: -6 },
+    { t: 10_000, center: MUT, zoom: 12.6, pitch: 58, bearing: 6 },
+    { t: INICIO_LOCALES, center: MUT, zoom: 11.3, pitch: 52, bearing: 14 },
+    { t: DURACION_HISTORIA, center: [-70.63, -33.45], zoom: 10.4, pitch: 48, bearing: 22 },
   ];
 }
 /** Después de la secuencia la cámara gira despacio, en grados por segundo. */
@@ -142,4 +145,61 @@ export function camara(t: number, foco: Punto = MUT): Camara {
     pitch: mezclar(a.pitch, b.pitch, k),
     bearing: mezclar(a.bearing, b.bearing, k),
   };
+}
+
+/* ---------- Tarjetas de eventos: lo que pasa en cada nodo, pocas y efímeras ---------- */
+
+/** Una tarjeta sobre el mapa: el evento (su texto e ícono salen de describirEventoCorto e IconoEvento) y dónde pasó. */
+export interface Tarjeta { clave: string; evento: EventoRed; clase: ClasePulso; punto: Punto; inicio: number }
+
+export const MAX_TARJETAS = 3;
+export const VIDA_TARJETA = 3200;
+
+/**
+ * Suma una tarjeta a las visibles en el instante `nueva.inicio`: saca las vencidas y la que había en el mismo
+ * punto, y nunca deja más de MAX_TARJETAS (sale la más vieja). "Se sumó a la red" es la menos importante:
+ * solo entra si sobra lugar, nunca desplaza a otra.
+ */
+export function sumarTarjeta(visibles: Tarjeta[], nueva: Tarjeta): Tarjeta[] {
+  const vivas = visibles.filter(t => nueva.inicio - t.inicio < VIDA_TARJETA && (t.punto[0] !== nueva.punto[0] || t.punto[1] !== nueva.punto[1]));
+  if (nueva.clase === 'nuevo' && vivas.length >= MAX_TARJETAS - 1) return vivas;
+  return [...vivas, nueva].slice(-MAX_TARJETAS);
+}
+
+/** Un momento del guion: el evento que se anima, en qué negocio de la secuencia y, si va o viene, con qué proveedor. */
+export interface PasoGuion { t: number; nodo: number; clase: ClasePulso; evento: EventoRed; proveedorId?: string }
+
+/**
+ * Los eventos de la secuencia, deterministas y con la forma de los `red:evento` reales: el primer negocio se suma,
+ * pide y su venta queda facturada en el SII; después un negocio dice que no llegó bien y la nota del proveedor
+ * baja; otros se suman. Montos y notas salen de la red; si no hay, la tarjeta va sin monto.
+ */
+export function guion(cuento: NodoHistoria[], estado: EstadoRed): PasoGuion[] {
+  const primero = cuento[0];
+  if (!primero) return [];
+  const en = '';
+  const orden = estado.ordenes.find(o => o.compradorId === primero.id) ?? estado.ordenes.find(o => o.items.length);
+  const items = orden?.items ?? [];
+  const monto = estado.documentos.find(d => d.tipo === 33 && d.monto)?.monto ?? (orden ? totalOrden(orden) : undefined);
+  const entra = (i: number, t: number): PasoGuion => ({
+    t, nodo: i, clase: 'nuevo', evento: { tipo: 'licitacion.participante', datos: { accion: 'entra', participante: { negocioId: cuento[i].id } }, en },
+  });
+  const pasos: PasoGuion[] = [
+    entra(0, primero.aparece + 150),
+    { t: 2600, nodo: 0, clase: 'pedido', proveedorId: primero.proveedores[0], evento: { tipo: 'orden.creada', datos: { orden: { compradorId: primero.id, proveedorId: primero.proveedores[0], items } }, en } },
+    { t: 4800, nodo: 0, clase: 'venta', evento: { tipo: 'documento.emitido', datos: { documento: { tipo: 33, monto } }, en } },
+  ];
+  const opina = cuento[6];
+  const proveedorId = opina?.proveedores[0];
+  const anterior = estado.notas.find(n => n.proveedorId === proveedorId)?.nota;
+  if (opina && proveedorId) {
+    const t = Math.max(opina.aparece + 400, 7000);
+    pasos.push({ t, nodo: 6, clase: 'reclamo', proveedorId, evento: { tipo: 'reclamo.registrado', datos: { orden: { compradorId: opina.id, proveedorId } }, en } });
+    if (anterior !== undefined) {
+      const datos = { proveedorId, anterior, nota: Math.round((anterior - 0.4) * 10) / 10 };
+      pasos.push({ t: t + 1300, nodo: 6, clase: 'baja', proveedorId, evento: { tipo: 'nota.cambiada', datos, en } });
+    }
+  }
+  for (const [i, t] of [[18, 10_200], [40, 12_000], [65, 13_800]] as const) if (cuento[i]) pasos.push(entra(i, Math.max(t, cuento[i].aparece + 150)));
+  return pasos;
 }

@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aparicion, camara, capitulo, distanciaKm, DURACION_HISTORIA, historia, HITOS, relaciones } from '../client/src/mapa/crece.ts';
+import {
+  aparicion, camara, capitulo, distanciaKm, DURACION_HISTORIA, guion, historia, HITOS, MAX_TARJETAS, relaciones, sumarTarjeta, tarjetaDeEvento, VIDA_TARJETA,
+  type Tarjeta,
+} from '../client/src/mapa/crece.ts';
 import { MUT } from '../client/src/mapa/geo.ts';
 import type { EstadoRed } from '../client/src/red/tipos.ts';
 
@@ -39,7 +42,7 @@ test('la secuencia parte por los compradores de la red y se completa con locales
   assert.equal(h.length, HITOS.at(-1));
   assert.deepEqual(h.slice(0, 2).map(n => [n.id, n.ilustrativo]), [['c1', false], ['c2', false]]);
   assert.deepEqual(h[0].proveedores, ['p2'], 'un comprador con compras usa sus proveedores reales');
-  assert.equal(h[2].proveedores.length, 2, 'un local se une a sus dos proveedores más cercanos');
+  assert.equal(h[2].proveedores.length, 1, 'un local se une solo a su proveedor más cercano');
   const lejos = h.slice(2).map(n => distanciaKm(n.punto, MUT));
   assert.ok(lejos.every((d, i) => i === 0 || d >= lejos[i - 1] - 1e-9), 'los locales salen en orden de distancia');
   for (let i = 3; i < h.length; i++) {
@@ -79,4 +82,39 @@ test('la cámara del recorrido es determinista, continua y sigue girando despué
     assert.ok(Math.abs(a.zoom - b.zoom) < 0.2 && Math.abs(a.bearing - b.bearing) < 1.5, `salto en ${t} ms`);
   }
   assert.ok(camara(DURACION_HISTORIA + 4000, foco).bearing > camara(DURACION_HISTORIA, foco).bearing);
+});
+
+const tarjeta = (inicio: number, lng: number, tipo: Tarjeta['tipo'] = 'pedido'): Tarjeta => ({ clave: `${inicio}`, tipo, titulo: 'x', punto: [lng, 0], inicio });
+
+test('las tarjetas no se acumulan: máximo tres, sin repetir nodo, y "se sumó" nunca desplaza a otra', () => {
+  let v: Tarjeta[] = [];
+  for (let i = 0; i < 5; i++) v = sumarTarjeta(v, tarjeta(i * 100, i));
+  assert.deepEqual(v.map(t => t.punto[0]), [2, 3, 4], 'sale la más vieja');
+  assert.equal(sumarTarjeta(v, tarjeta(600, 9, 'nuevo')).length, MAX_TARJETAS);
+  assert.ok(!sumarTarjeta(v, tarjeta(600, 9, 'nuevo')).some(t => t.punto[0] === 9));
+  assert.deepEqual(sumarTarjeta(v, tarjeta(600, 4)).map(t => t.punto[0]), [2, 3, 4], 'en el mismo nodo reemplaza');
+  assert.deepEqual(sumarTarjeta(v, tarjeta(400 + VIDA_TARJETA, 9)).map(t => t.punto[0]), [9], 'las vencidas salen');
+});
+
+test('cada evento lleva su tarjeta con montos chilenos y sin nombres de compradores', () => {
+  const e = estado();
+  const evento = (tipo: string, datos: Record<string, unknown>) => ({ tipo, datos, en: '' }) as Parameters<typeof tarjetaDeEvento>[0];
+  const pedido = tarjetaDeEvento(evento('orden.creada', { orden: { compradorId: 'c1', items: [{ cantidad: 4, precioUnitario: 21_000 }] } }), 'pedido', e);
+  assert.deepEqual(pedido, { tipo: 'pedido', titulo: 'Pedido', detalle: '$84.000' });
+  assert.equal(tarjetaDeEvento(evento('documento.emitido', { documento: { tipo: 33, monto: 119_600 } }), 'venta', e)?.detalle, '$119.600');
+  assert.deepEqual(tarjetaDeEvento(evento('nota.cambiada', { proveedorId: 'p1', anterior: 4.6, nota: 4.2 }), 'baja', e), { tipo: 'opinion', titulo: 'Nota 4,6 → 4,2', detalle: 'Proveedor Uno' });
+  assert.equal(tarjetaDeEvento(evento('licitacion.participante', { accion: 'cambia' }), 'nuevo', e), undefined, 'cambiar el carrito no es sumarse');
+});
+
+test('el guion de la secuencia es determinista, ordenado y nunca pide más de tres tarjetas a la vez', () => {
+  const e = { ...estado(), notas: [{ proveedorId: 'p1', nota: 4.6 }, { proveedorId: 'p2', nota: 4.2 }, { proveedorId: 'p3', nota: 4.4 }] };
+  const h = historia(e, locales);
+  const g = guion(h, e);
+  assert.deepEqual(g, guion(h, e));
+  assert.equal(g[0].nodo, 0);
+  assert.equal(g[1].detalle, undefined, 'sin montos en la red, la tarjeta va sin monto (no se inventa)');
+  assert.ok(g.every((p, i) => i === 0 || p.t >= g[i - 1].t) && g.at(-1)!.t < DURACION_HISTORIA);
+  assert.ok(g.every(p => p.t >= h[p.nodo].aparece), 'una tarjeta nunca sale antes que su negocio');
+  assert.ok(g.every(p => g.filter(q => q.t <= p.t && p.t - q.t < VIDA_TARJETA).length <= MAX_TARJETAS));
+  assert.deepEqual(guion([], e), []);
 });
