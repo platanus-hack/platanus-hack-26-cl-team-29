@@ -184,9 +184,10 @@ export interface Red {
   registrarComprador(datos: NuevoComprador): Promise<Negocio>;
   /**
    * Valida el RUT (módulo 11) y trae sus datos del SII, una sola vez por RUT. `datos_invalidos` si no es válido
-   * o el SII no lo conoce; `sii_no_disponible` si la consulta falló. Solo interno.
+   * o el SII no lo conoce; `sii_no_disponible` si la consulta falló. Con `telefono`, también `datos_invalidos` si
+   * ese RUT ya lo registró otro teléfono. Solo interno.
    */
-  consultarRut(rut: string): Promise<ContribuyenteDeRut>;
+  consultarRut(rut: string, telefono?: string): Promise<ContribuyenteDeRut>;
   /** Solo interno (agente de WhatsApp): a qué teléfono avisar por un negocio. */
   telefonoDeNegocio(negocioId: string): string | null;
   /** Foto interna, con teléfonos: solo para el servidor (agente de WhatsApp). */
@@ -227,6 +228,7 @@ export interface OpcionesRed {
 
 export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
 export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
+export const RUT_DE_OTRO_TELEFONO = 'Ese RUT ya está registrado con otro número de teléfono. Escribe el RUT de tu negocio.';
 export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
 
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
@@ -477,9 +479,21 @@ export async function crearRed({
 
   // RUT del comprador: una consulta al SII por RUT. Primero se busca en los negocios guardados (sobrevive a
   // reinicios del servidor); si no, la consulta del puerto, que ya trae su propia cache y fila.
-  async function consultarRut(texto: string): Promise<ContribuyenteDeRut> {
+  /**
+   * Un RUT es del teléfono que lo registró primero: otro teléfono no puede usarlo ni ver los datos que se
+   * guardaron con él (nombre y dirección declarados). Los negocios sin teléfono no reclaman su RUT.
+   */
+  function exigirRutDelTelefono(rut: string, telefono: string | undefined) {
+    const tel = telefono ? normalizarTelefono(telefono) : '';
+    if (tel && datos.negocios.some(n => n.rut === rut && n.telefono && normalizarTelefono(n.telefono) !== tel)) {
+      throw new ErrorRed('datos_invalidos', RUT_DE_OTRO_TELEFONO);
+    }
+  }
+
+  async function consultarRut(texto: string, telefono?: string): Promise<ContribuyenteDeRut> {
     const rut = validarRut(texto);
     if (!rut) throw new ErrorRed('datos_invalidos', RUT_INVALIDO);
+    exigirRutDelTelefono(rut, telefono);
     const conocido = datos.negocios.find(n => n.rut === rut && n.contribuyente)?.contribuyente;
     if (conocido) return { rut, ...structuredClone(conocido) };
     let encontrado: DatosContribuyente | null;
@@ -501,13 +515,14 @@ export async function crearRed({
   /** Deja el RUT y sus datos del SII en el negocio (si cambió) y lo guarda. */
   async function asignarRut(n: Negocio, delSii: ContribuyenteDeRut) {
     if (n.rut === delSii.rut && n.contribuyente) return;
+    exigirRutDelTelefono(delSii.rut, n.telefono);
     Object.assign(n, camposRut(delSii));
     await guardar('negocios', n);
   }
 
   async function registrarComprador({ nombre, comuna, telefono, rubro, rut, negocioId }: NuevoComprador) {
     // La consulta al SII va antes de la fila: una sala que se suma de golpe no espera detrás de cada consulta.
-    const delSii = rut === undefined ? undefined : await consultarRut(rut);
+    const delSii = rut === undefined ? undefined : await consultarRut(rut, telefono);
     return enFila('compradores', async () => {
       const tel = telefono ? normalizarTelefono(telefono) : '';
       const existente = negocioId ? negocio(negocioId, 'comprador')
@@ -560,7 +575,7 @@ export async function crearRed({
    */
   async function rutParaFactura(q: DuenoCarrito): Promise<ContribuyenteDeRut> {
     try {
-      return await consultarRut(q.rut!);
+      return await consultarRut(q.rut!, q.telefono);
     } catch (error) {
       const rut = validarRut(q.rut);
       const d = q.direccionFactura;

@@ -6,7 +6,7 @@ import { crearSii } from '../server/sii/index.ts';
 import type { EntradaFactura } from '../server/sii/index.ts';
 import {
   conCacheYFila, crearAlmacenFoliosMemoria, crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso, crearSiiReal,
-  receptorDelComprador, ErrorRed, RUT_DESCONOCIDO,
+  receptorDelComprador, ErrorRed, RUT_DE_OTRO_TELEFONO, RUT_DESCONOCIDO,
 } from '../server/red/index.ts';
 import { RUT_INVALIDO } from '../shared/rut.ts';
 import type { ConsultarContribuyente, DatosContribuyente, EventoRed, PuertoSii } from '../server/red/index.ts';
@@ -217,4 +217,19 @@ test('por WhatsApp, si el SII rechaza la consulta de un RUT válido, se suma con
   assert.deepEqual(receptorDelComprador(n), {
     rut: '77865227-7', razonSocial: 'Almacén Javier', giro: 'Sin informar', direccion: 'Av. Escuela Agrícola 1710', comuna: 'Macul',
   });
+});
+
+test('un RUT es del teléfono que lo registró: otro teléfono no lo usa ni ve sus datos', async () => {
+  const { consultar } = consultaContada({ [RUT_A]: ficha('Comercial Prueba Limitada') });
+  const { red } = await redDePrueba(consultar);
+  await red.registrarComprador({ nombre: 'Almacén Ana', telefono: '+56 9 1111 2222', rut: RUT_A });
+
+  const deOtro = (e: ErrorRed) => e.codigo === 'datos_invalidos' && e.message === RUT_DE_OTRO_TELEFONO;
+  await assert.rejects(red.consultarRut(RUT_A, '+56 9 3333 4444'), deOtro);
+  await assert.rejects(red.registrarComprador({ nombre: 'Beto', telefono: '+56 9 3333 4444', rut: RUT_A }), deOtro);
+  const beto = await red.registrarComprador({ nombre: 'Beto', telefono: '+56 9 3333 4444' });
+  await assert.rejects(red.registrarComprador({ nombre: 'Beto', negocioId: beto.id, rut: RUT_A }), deOtro);
+
+  // El mismo teléfono, escrito de otra forma, sigue siendo el dueño.
+  assert.equal((await red.consultarRut(RUT_A, '56911112222')).razonSocial, 'Comercial Prueba Limitada');
 });

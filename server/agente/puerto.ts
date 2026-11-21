@@ -167,9 +167,10 @@ export interface RedSala {
   }): Talvez<ResultadoCarrito>;
   /**
    * Valida el RUT y lo consulta en el SII (una vez por RUT). Si la red lo ofrece, nadie se suma sin RUT. Falla con
-   * un error con `codigo` (`datos_invalidos`, `sii_no_disponible`) y un `message` para mostrar tal cual.
+   * un error con `codigo` (`datos_invalidos`, `sii_no_disponible`) y un `message` para mostrar tal cual. Con el
+   * `telefono` de quien escribe, rechaza un RUT que ya registró otro teléfono (sin mostrar sus datos).
    */
-  consultarRut?(rut: string): Talvez<{
+  consultarRut?(rut: string, telefono?: string): Talvez<{
     readonly rut: string;
     readonly razonSocial: string;
     /** Dirección y comuna del SII, si las tiene. `simulado`: datos de prueba, no se ofrecen como reales. */
