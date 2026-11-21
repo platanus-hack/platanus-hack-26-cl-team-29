@@ -17,6 +17,8 @@ export function avanceAlSiguiente(t: EstadoTramos): number {
 /** "Faltan 12 cajas para bajar a $27.900", o el aviso de que ya está en el mejor precio. */
 export function textoFaltan(t: EstadoTramos, unidad: Props['unidad']): string {
   if (!t.siguiente) return 'Precio más bajo alcanzado';
+  // El primer tramo suele ser el precio de comprar solo: todavía no hay nada que bajar.
+  if (t.precioActual !== undefined && t.siguiente.precioUnitario >= t.precioActual) return 'Sé el primero en sumarte';
   const n = t.siguiente.faltan;
   return `${n === 1 ? 'Falta' : 'Faltan'} ${contar(n, unidad.singular, unidad.plural)} para bajar a ${dinero(t.siguiente.precioUnitario)}`;
 }

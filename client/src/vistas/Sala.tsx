@@ -51,7 +51,7 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
   const destino = numero ? `https://wa.me/${numero.replace(/\D/g, '')}?text=Quiero%20sumarme` : `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   return (
     <section className="sala-unirse">
-      <h2>Escríbele a Dominó y <span className="subrayado">súmate al pedido</span></h2>
+      <h2>{numero ? 'Escríbele a Dominó y' : 'Escanea y'} <span className="subrayado">súmate al pedido</span></h2>
       <Qr className="sala-qr" texto={destino} />
       {numero ? (
         <div className="sala-numero">
@@ -60,7 +60,7 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
         </div>
       ) : (
         <div className="sala-numero">
-          <span className="etiqueta">Escanea y súmate</span>
+          <span className="etiqueta">Sin WhatsApp: desde el navegador</span>
         </div>
       )}
       <p className="sala-web">o entra en <strong>{sinProtocolo(web)}</strong></p>
@@ -73,6 +73,7 @@ function Muro({ s }: { s: ResumenSala }) {
   return (
     <section className="sala-muro-caja">
       <p className="etiqueta">Se van sumando</p>
+      {!s.muro.length && <p className="muro-vacio">Aquí aparece cada negocio que se suma.</p>}
       <ul className="sala-muro" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
         {s.muro.slice(0, caben).map(p => (
           <li key={p.n} className="ficha">
