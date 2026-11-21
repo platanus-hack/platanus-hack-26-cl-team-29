@@ -1,16 +1,12 @@
-/// <reference types="vite/client" />
 // /mapa: la red sobre un mapa real de Santiago, 30 km alrededor del MUT.
 // Los datos son los mismos de /red (useRed): cada `red:evento` mueve el mapa y el panel a la vez.
 
 import { useEffect, useRef } from 'react';
-import { AttributionControl, Map as MapaLibre, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
-// MapLibre 6 busca su worker junto a su propio archivo; al compilar con Vite ese archivo cambia de nombre.
-// Vite copia el worker a dist/assets y nos da su URL.
-import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import { Marker, type GeoJSONSource, type Map as MapaLibre } from 'maplibre-gl';
 import './mapa.css';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
-import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
+import { AMARILLO, AZUL_LOCAL, crear, crearMapa, MAGENTA, VERDE } from '../mapa/base.ts';
+import { capas, circulo, MUT, pulsosNuevos, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
 import { notaDe, type CambioNota } from '../red/derivar.ts';
 import { miles, nota } from '../../../shared/formato.ts';
@@ -18,20 +14,7 @@ import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contadores, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
 
-setWorkerUrl(urlDelWorker);
-
-const ESTILO = 'https://tiles.openfreemap.org/styles/dark';
-/** Sin internet no hay calles: queda un fondo liso y los negocios se dibujan igual. */
-const SIN_CALLES: StyleSpecification = {
-  version: 8,
-  sources: {},
-  layers: [{ id: 'fondo', type: 'background', paint: { 'background-color': '#0b0b0b' } }],
-};
 const DURACION_PULSO = 2400;
-
-const AMARILLO = '#f2ff00';
-const VERDE = '#08ff00';
-const MAGENTA = '#ff1ab3';
 
 function agregarCapas(m: MapaLibre) {
   const vacio = { type: 'FeatureCollection' as const, features: [] };
@@ -42,8 +25,8 @@ function agregarCapas(m: MapaLibre) {
   m.addSource('buscando', { type: 'geojson', data: vacio });
   m.addLayer({ id: 'radio', type: 'line', source: 'radio', paint: { 'line-color': AMARILLO, 'line-width': 1.5, 'line-opacity': 0.7, 'line-dasharray': [3, 3] } });
   // Locales que encontró el explorador: debajo de la red, tenues, para que la red mande.
-  m.addLayer({ id: 'locales', type: 'circle', source: 'locales', paint: { 'circle-radius': 2.5, 'circle-color': '#9adfff', 'circle-opacity': 0.55 } });
-  m.addLayer({ id: 'buscando', type: 'line', source: 'buscando', paint: { 'line-color': '#9adfff', 'line-width': 1.5, 'line-dasharray': [1, 1] } });
+  m.addLayer({ id: 'locales', type: 'circle', source: 'locales', paint: { 'circle-radius': 2.5, 'circle-color': AZUL_LOCAL, 'circle-opacity': 0.55 } });
+  m.addLayer({ id: 'buscando', type: 'line', source: 'buscando', paint: { 'line-color': AZUL_LOCAL, 'line-width': 1.5, 'line-dasharray': [1, 1] } });
   m.addLayer({
     id: 'lineas', type: 'line', source: 'lineas', filter: ['!=', ['get', 'tipo'], 'reclamo'],
     paint: {
@@ -67,13 +50,6 @@ function agregarCapas(m: MapaLibre) {
   });
 }
 
-function crear(clase: string, html = ''): HTMLDivElement {
-  const el = document.createElement('div');
-  el.className = clase;
-  el.innerHTML = html;
-  return el;
-}
-
 function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; cambios: CambioNota[]; eventos: EventoVisto[]; locales: Locales | null }) {
   const caja = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaLibre | null>(null);
@@ -92,24 +68,11 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
   };
 
   useEffect(() => {
-    // Créditos abajo a la izquierda: arriba están el aviso y la leyenda.
-    const m = new MapaLibre({ container: caja.current!, style: ESTILO, center: MUT, zoom: 10, attributionControl: false });
-    m.addControl(new AttributionControl({ compact: true }), 'bottom-left');
-    // Plegados en el botón (i): el crédito de OpenStreetMap queda siempre a la vista en la leyenda.
-    m.once('load', () => caja.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
-    mapa.current = m;
-    let conCalles = false;
-    m.on('style.load', () => {
-      conCalles = true;
+    const m = crearMapa(caja.current!, { center: MUT, zoom: 10 }, () => {
       agregarCapas(m);
       pintar();
     });
-    // Si el estilo no carga (sala sin internet), se cambia una sola vez al fondo liso.
-    m.on('error', () => {
-      if (conCalles) return;
-      conCalles = true;
-      m.setStyle(SIN_CALLES);
-    });
+    mapa.current = m;
     new Marker({ element: crear('mapa-mut', '<i></i><span>MUT</span>'), anchor: 'left' }).setLngLat(MUT).addTo(m);
     return () => {
       etiquetas.current.clear();
@@ -157,14 +120,8 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
   useEffect(() => {
     const m = mapa.current;
     if (!m) return;
-    for (const e of eventos) {
-      if (vistos.current.has(e.clave)) continue;
-      vistos.current.add(e.clave);
-      if (Date.now() - e.recibido > DURACION_PULSO) continue;
-      const pulso = pulsoDeEvento(e, estado);
-      const negocio = pulso && estado.negocios.find(n => n.id === pulso.negocioId);
-      if (!pulso || !negocio) continue;
-      const marcador = new Marker({ element: crear(`mapa-pulso ${pulso.clase}`) }).setLngLat(ubicar(negocio)).addTo(m);
+    for (const { clase, negocio } of pulsosNuevos(eventos, vistos.current, estado, DURACION_PULSO)) {
+      const marcador = new Marker({ element: crear(`mapa-pulso ${clase}`) }).setLngLat(ubicar(negocio)).addTo(m);
       setTimeout(() => marcador.remove(), DURACION_PULSO);
     }
   }, [eventos, estado]);

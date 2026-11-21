@@ -1,0 +1,103 @@
+/* ---------- /red-3d: la red crece, en 3D sobre Santiago ---------- */
+/* Pantalla completa: el mapa ocupa todo y los textos flotan encima, en las esquinas (arriba a la derecha va el menú). */
+.r3d { position: fixed; inset: 0; overflow: hidden; background: #000; color: var(--color-text); }
+.r3d-lienzo { position: absolute; inset: 0; }
+
+.r3d-arriba {
+  position: absolute; left: var(--relleno); top: var(--relleno); right: 140px; pointer-events: none;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+}
+.r3d-arriba .fuente-falsa, .r3d-arriba .en-vivo { pointer-events: auto; }
+.r3d-marca {
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(18px, 2.6vh, 30px);
+  color: var(--color-primary-foreground); background: var(--color-primary); padding: 0.05em 0.4em;
+}
+.r3d-titulo { font-family: var(--font-display); font-weight: 700; font-size: clamp(20px, 3.2vh, 38px); letter-spacing: var(--tracking-tight); }
+.r3d-modo { color: var(--color-tenue); }
+
+/* La cifra grande abajo a la izquierda: cuántos negocios hay y qué ganan con eso. */
+.r3d-cifra {
+  position: absolute; left: var(--relleno); bottom: calc(var(--relleno) + 22px); margin: 0; max-width: min(46vw, 640px);
+  pointer-events: none; text-shadow: 0 2px 12px #000;
+}
+.r3d-cifra b {
+  display: block; font-family: var(--font-display); font-weight: 800; line-height: 1;
+  font-size: clamp(48px, 11vh, 132px); letter-spacing: var(--tracking-tight); color: var(--color-green);
+  font-variant-numeric: tabular-nums;
+}
+.r3d-cifra small { display: block; margin-top: 0.4em; font-family: var(--font-mono); font-size: var(--t-cuerpo); color: var(--color-muted); }
+
+.r3d-leyenda {
+  position: absolute; right: var(--relleno); bottom: var(--relleno); margin: 0; padding: 8px 12px; list-style: none;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; max-width: min(48vw, 560px);
+  background: rgb(0 0 0 / 0.8); border: 1px solid var(--color-border);
+  font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted);
+}
+.r3d-leyenda li { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.r3d-leyenda .punto { width: 10px; height: 10px; border-radius: 50%; }
+.r3d-leyenda .punto.verde { background: var(--color-green); }
+.r3d-leyenda .punto.local { width: 7px; height: 7px; background: #9adfff; }
+.r3d-leyenda .cubo { width: 9px; height: 14px; background: var(--color-primary); }
+.r3d-leyenda .raya { width: 22px; height: 3px; background: linear-gradient(90deg, var(--color-green), var(--color-primary)); }
+.r3d-leyenda .credito { color: var(--color-tenue); }
+
+.r3d-ayuda {
+  position: absolute; left: 50%; top: var(--relleno); transform: translateX(-50%); margin: 0; padding: 6px 12px;
+  background: rgb(0 0 0 / 0.7); border: 1px solid var(--color-border); pointer-events: none;
+  font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); white-space: nowrap;
+}
+@media (max-width: 1100px) { .r3d-ayuda { display: none; } }
+
+/* Etiqueta de cada proveedor: nombre y nota. Se tiñe unos segundos cuando su nota se mueve. */
+.r3d-proveedor {
+  display: flex; align-items: center; gap: 8px; padding: 3px 9px; white-space: nowrap; cursor: pointer;
+  background: rgb(0 0 0 / 0.85); border: 1px solid var(--color-primary);
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(12px, 1.6vh, 16px); color: var(--color-text);
+  transition: opacity 0.4s;
+}
+.r3d-proveedor.oculto { opacity: 0; pointer-events: none; }
+.r3d-proveedor b { font-family: var(--font-mono); color: var(--color-primary); }
+.r3d-proveedor b:empty { display: none; }
+.r3d-proveedor.baja { border-color: var(--color-magenta); }
+.r3d-proveedor.baja b { color: var(--color-magenta); }
+.r3d-proveedor.sube { border-color: var(--color-green); }
+.r3d-proveedor.sube b { color: var(--color-green); }
+
+.r3d-mut { display: flex; align-items: center; gap: 6px; pointer-events: none; font-family: var(--font-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.08em; color: #fff; }
+.r3d-mut i { width: 9px; height: 9px; background: #fff; border: 2px solid #000; transform: rotate(45deg); }
+
+/* Venta facturada: el monto sube sobre el anillo blanco y se apaga en 1,5 s. */
+.r3d-precio {
+  pointer-events: none; font-family: var(--font-mono); font-weight: 700; font-size: clamp(13px, 1.8vh, 18px);
+  color: #fff; text-shadow: 0 1px 6px #000; animation: r3d-precio 1.5s ease-out both;
+}
+@keyframes r3d-precio {
+  from { transform: translateY(6px); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateY(-22px); opacity: 0; }
+}
+
+/* Ficha del proveedor elegido con un clic. */
+.r3d-ficha {
+  position: absolute; right: var(--relleno); top: calc(var(--relleno) + 52px); width: min(340px, calc(100vw - 32px));
+  padding: 18px 20px; background: rgb(0 0 0 / 0.9); border: 1px solid var(--color-primary);
+  font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted);
+}
+.r3d-ficha h2 { margin: 0 28px 8px 0; font-family: var(--font-display); font-size: clamp(18px, 2.4vh, 26px); color: var(--color-text); }
+.r3d-ficha p { margin: 4px 0; }
+.r3d-nota b { font-size: clamp(22px, 3vh, 32px); color: var(--color-primary); margin-right: 6px; }
+.r3d-ficha ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.r3d-ficha li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--color-border); padding-top: 4px; }
+.r3d-ficha li b { color: var(--color-text); }
+.r3d-cerrar {
+  position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; border: 0; background: transparent;
+  color: var(--color-muted); font-size: 22px; cursor: pointer;
+}
+.r3d-cerrar:hover { color: var(--color-text); }
+
+.r3d .maplibregl-ctrl-attrib { background: rgb(0 0 0 / 0.6); color: var(--color-tenue); font-size: 10px; }
+.r3d .maplibregl-ctrl-attrib a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  .r3d-precio { animation: none; }
+}

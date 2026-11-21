@@ -3,6 +3,7 @@
 
 import type { CambioNota } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed, Negocio } from '../red/tipos.ts';
+import type { EventoVisto } from '../red/useRed.ts';
 import { sinTildes } from '../../../shared/texto.ts';
 
 export type Punto = [lng: number, lat: number];
@@ -130,4 +131,21 @@ export function pulsoDeEvento(e: EventoRed, estado: EstadoRed): { negocioId: str
     default:
       return undefined;
   }
+}
+
+/**
+ * Eventos que todavía no se animaron (los marca en `vistos`) y llegaron hace menos de `edadMaxima` ms,
+ * con el negocio donde late cada uno. Los más viejos se marcan sin animar, para no repetir una ráfaga al volver.
+ */
+export function pulsosNuevos(eventos: EventoVisto[], vistos: Set<number>, estado: EstadoRed, edadMaxima: number, ahora = Date.now()) {
+  const nuevos: Array<{ evento: EventoVisto; clase: ClasePulso; negocio: Negocio }> = [];
+  for (const evento of eventos) {
+    if (vistos.has(evento.clave)) continue;
+    vistos.add(evento.clave);
+    if (ahora - evento.recibido > edadMaxima) continue;
+    const pulso = pulsoDeEvento(evento, estado);
+    const negocio = pulso && estado.negocios.find(n => n.id === pulso.negocioId);
+    if (pulso && negocio) nuevos.push({ evento, clase: pulso.clase, negocio });
+  }
+  return nuevos;
 }

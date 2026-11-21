@@ -11,10 +11,13 @@ import { Unirse } from './vistas/Unirse.tsx';
 
 // El mapa trae MapLibre, que pesa: se descarga solo al entrar a /mapa.
 const Mapa = lazy(() => import('./vistas/Mapa.tsx').then(m => ({ default: m.Mapa })));
+// La red en 3D suma deck.gl encima de MapLibre: se descarga solo al entrar a /red-3d.
+const Red3D = lazy(() => import('./vistas/Red3D.tsx').then(m => ({ default: m.Red3D })));
 
 // Rutas por path, sin librería: la pantalla de la demo, la licitación y la página del QR.
 const VISTAS: Record<string, ComponentType> = {
   '/mapa': Mapa,
+  '/red-3d': Red3D,
   '/licitacion': Licitacion,
   '/sala': Sala,
   '/unirse': Unirse,
