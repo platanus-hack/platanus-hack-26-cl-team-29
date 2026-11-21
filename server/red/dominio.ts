@@ -91,6 +91,11 @@ export interface DuenoCarrito {
   rubro?: string;
   /** RUT del comprador (con o sin puntos y guion). Se consulta en el SII y su factura sale a ese RUT. Solo interno. */
   rut?: string;
+  /**
+   * Dirección para la factura que confirmó o escribió la persona (WhatsApp). Reemplaza la del SII en sus datos de
+   * contribuyente, que son privados y son los que usa la factura. Solo interno.
+   */
+  direccionFactura?: { direccion: string; comuna: string };
 }
 
 export interface NuevoCarrito extends DuenoCarrito {
@@ -532,12 +537,23 @@ export async function crearRed({
     return p;
   }
 
+  /** La dirección que dio la persona reemplaza la del SII en sus datos de contribuyente (los que usa la factura). */
+  async function conDireccion(n: Negocio, q: DuenoCarrito): Promise<Negocio> {
+    const d = q.direccionFactura;
+    if (!d || !n.contribuyente) return n;
+    const direccion = textoCorto(d.direccion), comuna = textoCorto(d.comuna);
+    if (!direccion || !comuna || (n.contribuyente.direccion === direccion && n.contribuyente.comuna === comuna)) return n;
+    n.contribuyente = { ...n.contribuyente, direccion, comuna };
+    await guardar('negocios', n);
+    return n;
+  }
+
   /** El negocio comprador de quien edita su carrito. Con `crear`, registra el teléfono nuevo. */
   async function compradorDe(q: DuenoCarrito, crear: boolean): Promise<Negocio | undefined> {
     if (q.negocioId) {
       const n = negocio(q.negocioId, 'comprador');
       if (q.rut !== undefined) await asignarRut(n, await consultarRut(q.rut));
-      return n;
+      return conDireccion(n, q);
     }
     if (!q.telefono) return undefined;
     const tel = normalizarTelefono(q.telefono);
@@ -545,10 +561,11 @@ export async function crearRed({
     if (existente?.rol === 'proveedor') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
     if (existente) {
       if (q.rut !== undefined) await asignarRut(existente, await consultarRut(q.rut));
-      return existente;
+      return conDireccion(existente, q);
     }
     if (!crear) return undefined;
-    return registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro, rut: q.rut });
+    const nuevo = await registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro, rut: q.rut });
+    return conDireccion(negocio(nuevo.id, 'comprador'), q);
   }
 
   /**

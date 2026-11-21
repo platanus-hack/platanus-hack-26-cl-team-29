@@ -38,7 +38,7 @@ const url = `${local}/api/whatsapp/webhook`;
 const certificados = await crearCertificados({ env: { ...env, PUBLIC_URL: local }, log: silencio });
 app.use(certificados.rutas);
 const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(env, red), env, certificados });
-certificados.alConectar((tel, rut) => agente.rutDeCertificado(tel, rut));
+certificados.alConectar((tel, rut) => agente.certificadoConectado(tel, rut));
 
 const rol = flag('como') === 'proveedor' ? 'proveedor' : 'comprador';
 const negocio = red.estadoDeLaRed().negocios.find(n => n.rol === rol && n.telefono);

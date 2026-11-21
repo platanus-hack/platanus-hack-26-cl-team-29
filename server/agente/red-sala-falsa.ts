@@ -16,6 +16,8 @@ export interface RedSalaFalsa extends RedFalsa, RedSala {
   readonly documentos: Documento[];
   /** RUT con que se sumó cada teléfono (solo con `ruts`). */
   readonly rutPorTelefono: Map<string, string>;
+  /** Dirección para la factura con que se sumó cada teléfono. */
+  readonly direccionPorTelefono: Map<string, { direccion: string; comuna: string }>;
 }
 
 export interface ProductoFalso {
@@ -41,7 +43,7 @@ const errorRut = (mensaje: string) => Object.assign(new Error(mensaje), { codigo
 
 export function crearRedSalaFalsa(
   negocios: readonly Negocio[], datos: DatosLicitacionFalsa,
-  opciones: { sinCanasta?: boolean; conPdf?: boolean; ruts?: Readonly<Record<string, string>> } = {},
+  opciones: { sinCanasta?: boolean; conPdf?: boolean; ruts?: Readonly<Record<string, string | { razonSocial: string; direccion: string; comuna: string }>> } = {},
 ): RedSalaFalsa {
   const base = crearRedFalsa(negocios);
   const oyentes = new Set<(e: EventoDeLaRed) => void>();
@@ -49,6 +51,7 @@ export function crearRedSalaFalsa(
   const telefonos = new Map<string, string>(negocios.map(n => [n.id, n.telefono]));
   const documentos: Documento[] = [];
   const rutPorTelefono = new Map<string, string>();
+  const direccionPorTelefono = new Map<string, { direccion: string; comuna: string }>();
   let estado: 'abierta' | 'cerrada' | 'facturada' = 'abierta';
   let ordenesSala: OrdenCompra[] = [];
   let folio = 5190;
@@ -76,9 +79,10 @@ export function crearRedSalaFalsa(
     };
   }
 
-  function actualizarCarrito(id: string, p: { telefono: string; nombre?: string; rut?: string; items: readonly ItemCarrito[] }) {
+  function actualizarCarrito(id: string, p: { telefono: string; nombre?: string; rut?: string; direccionFactura?: { direccion: string; comuna: string }; items: readonly ItemCarrito[] }) {
     if (estado !== 'abierta' || id !== datos.id) throw new Error('la compra conjunta ya cerró');
     if (p.rut) rutPorTelefono.set(p.telefono, p.rut);
+    if (p.direccionFactura) direccionPorTelefono.set(p.telefono, { ...p.direccionFactura });
     for (const i of p.items) {
       if (!datos.productos.some(x => x.id === i.productoId)) throw new Error(`no existe el producto ${i.productoId}`);
       if (!Number.isInteger(i.cantidad) || i.cantidad < 0 || i.cantidad > MAXIMO) throw new Error('cantidad fuera de rango');
@@ -156,14 +160,15 @@ export function crearRedSalaFalsa(
     },
     ...(opciones.conPdf ? { enlacePdf: (d: Documento) => `https://demo.invalid/pdf/${d.id}` } : {}),
     rutPorTelefono,
+    direccionPorTelefono,
     ...(opciones.ruts ? {
       consultarRut(texto: string) {
         base.llamadas.push('consultarRut');
         const rut = validarRut(texto);
         if (!rut) throw errorRut(RUT_INVALIDO);
-        const razonSocial = opciones.ruts![rut];
-        if (!razonSocial) throw errorRut('No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.');
-        return { rut, razonSocial };
+        const conocido = opciones.ruts![rut];
+        if (!conocido) throw errorRut('No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.');
+        return typeof conocido === 'string' ? { rut, razonSocial: conocido } : { rut, ...conocido };
       },
     } : {}),
     telefonoDeNegocio: id => telefonos.get(id) ?? null,

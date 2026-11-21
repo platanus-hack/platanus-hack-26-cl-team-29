@@ -218,17 +218,34 @@ export const rutConError = (mensaje: string) => `${mensaje}
 
 ¿Cuál es el RUT de tu negocio?`;
 export const facturaA = (razonSocial: string) => `Tu factura saldrá a nombre de ${razonSocial}.`;
-/** La pregunta del RUT cuando se puede conectar el certificado: tres salidas, una de ellas explícita para la demo. */
-export const pedirRutOCertificado = (nombre?: string) =>
-  `${nombre ? `${nombre}, para` : 'Para'} que tu factura salga a tu nombre en el SII, conecta tu certificado digital `
-  + '(te mando un link privado: la clave no pasa por WhatsApp) o escribe el RUT de tu negocio.\n\n'
-  + 'Para la demo puedes saltarlo: tu factura sale a un receptor de prueba en el ambiente de certificación del SII.\n'
-  + opciones('Conectar certificado', 'No (demo)');
+/**
+ * Primer mensaje de un número sin registrar: elegir cómo registrarse antes de ver productos. El certificado da más
+ * (emitir y revisar facturas en el SII); RUT y dirección basta para comprar. Sin certificado disponible, solo lo segundo.
+ */
+export const elegirRegistro = (conCertificado: boolean) =>
+  'Hola, soy Bando. La sala compra en conjunto y el precio baja para todos.\n\n'
+  + 'Para sumarte necesito los datos de tu factura. ¿Cómo quieres registrarte?\n'
+  + (conCertificado
+    ? '• Certificado digital: además de comprar, emites y revisas tus facturas en el SII desde aquí.\n'
+      + '• RUT y dirección: solo para comprar.\n' + opciones('Certificado digital', 'RUT y dirección')
+    : 'Escribe el RUT de tu negocio. Ej: 12.345.678-5');
+export const enlaceCertificadoRegistro = (url: string) =>
+  `Conecta tu certificado aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
+  + 'La clave no pasa por WhatsApp. Cuando termines, sigo tu registro por acá. Si prefieres, escribe el RUT de tu negocio.';
+export const registroListo = (razonSocial: string, d: { direccion: string; comuna: string }) =>
+  `Listo, quedaste registrado ✓ Tu factura sale a nombre de ${razonSocial}, ${d.direccion}, ${d.comuna}.`;
+
+/** La dirección del SII para su RUT: confirmarla o escribir otra. Las opciones salen como botones. */
+export const confirmarDireccion = (d: { direccion: string; comuna: string }) =>
+  `¿Tu factura va a ${d.direccion}, ${d.comuna}?\n` + opciones('Sí, es esa', 'Es otra');
+export const pedirDireccion = () =>
+  '¿Cuál es la dirección de tu negocio para la factura? Escribe calle, número y comuna. Ej: Av. Grecia 1234, Ñuñoa';
+export const direccionNoEntendida = () =>
+  'No entendí la dirección. Escribe calle, número y comuna, separados por una coma. Ej: Av. Grecia 1234, Ñuñoa';
 export const enlaceCertificado = (url: string) =>
   `Conecta tu certificado aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
-  + 'Cuando termines, sigo tu registro por acá. También puedes escribir el RUT de tu negocio.';
-export const MODO_DEMO = 'Listo, modo demo: tu factura sale a un receptor de prueba en el ambiente de certificación del SII.';
-export const CERTIFICADO_CONECTADO = 'Certificado conectado ✓ Tu RUT sale de él: no tienes que escribirlo.';
+  + 'La clave no pasa por WhatsApp. Cuando termines, te aviso por acá.';
+export const CERTIFICADO_CONECTADO = 'Certificado conectado ✓ Ya podemos emitir y revisar tus facturas en el SII a tu nombre.';
 export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantos(unidadDe(p, 2))} ${unidadDe(p, 2)} de ${cortoDe(p)} quieres?`;
 export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
   `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;

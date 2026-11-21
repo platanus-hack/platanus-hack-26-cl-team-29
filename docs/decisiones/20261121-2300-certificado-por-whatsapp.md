@@ -1,26 +1,27 @@
-# Certificado digital por WhatsApp: link privado, RUT del titular y salida "No (demo)"
+# Registro por WhatsApp: certificado digital o RUT y dirección, antes de comprar
 
 Fecha: 2026-11-21 23:00
 Autor: javier-whatsapp
 
 ## Contexto
 Reemplaza la propuesta `20261121-1935-conectar-sii-por-whatsapp.md`. Desde #49 cada comprador da su RUT y su factura sale
-a su nombre. Queríamos que pudiera conectar su certificado digital desde WhatsApp (para que el RUT salga de él y quede
-guardado para aceptar o reclamar después), sin que la clave pase por el chat, y que en la demo muchas personas pudieran
-saltarlo sabiendo que es por la demo.
+a su nombre. Faltaba la dirección (la factura la necesita) y una forma de conectar el certificado digital sin que la clave
+pase por el chat. El certificado no es necesario para comprar: sirve para emitir y revisar facturas en el SII.
 
 ## Decisión
-- **Link privado** (un uso, 15 min) a una página de Bando que sube el .pfx y la clave. Descartados: archivo en el chat
-  (queda en Meta y Kapso) y WhatsApp Flows (endpoint propio con Kapso no documentado).
-- Módulo `server/certificados/`: valida con `abrirCertificado`, guarda cifrado por RUT del titular y avisa al agente,
-  que sigue el registro con ese RUT por el mismo camino que un RUT escrito.
-- La pregunta del RUT ofrece **[Conectar certificado] [No (demo)]** y dice que saltarlo es por la demo. "No (demo)" suma
-  sin RUT; la factura va al receptor de prueba.
-- `certificadoDe(rut)` queda para el módulo del SII: usar el certificado del comprador para aceptar o reclamar es el
-  siguiente paso de su dueño.
+- Un número sin registrar, antes de ver productos, elige cómo registrarse: **[Certificado digital] [RUT y dirección]**.
+  - **Certificado digital**: link privado (un uso, 15 min) a una página de Bando que sube el .pfx y la clave
+    (`server/certificados/`, guardado cifrado por RUT del titular). El RUT sale del certificado.
+  - **RUT y dirección**: escribe su RUT.
+- Con el RUT consultado en el SII: si el SII tiene su dirección, se confirma (**[Sí, es esa] [Es otra]**); si no, la escribe
+  ("calle, número, comuna"). Sin RUT válido y dirección no entra a la compra.
+- La dirección confirmada o escrita reemplaza la del SII en los datos privados del comprador (`direccionFactura` →
+  `contribuyente`), que son los que usa la factura. La factura llega por WhatsApp como siempre.
+- Al terminar: "quedaste registrado ✓" y recién ahí los productos; si el primer mensaje traía un pedido, se atiende.
+- Descartados: archivo en el chat (queda en Meta y Kapso), WhatsApp Flows (endpoint propio con Kapso no documentado) y un
+  "No (demo)" que dejaba comprar sin datos de factura.
 
 ## Consecuencias
-- Probado con el certificado real de Devlas en local: link → subida → "Certificado conectado ✓" → se suma con el RUT del
-  titular.
-- El RUT del certificado es el de la **persona titular**; para un negocio con RUT de empresa distinto, la persona puede
-  seguir escribiendo el RUT de la empresa.
+- `certificados.certificadoDe(rut)` queda para el módulo del SII (aceptar o reclamar a nombre del comprador).
+- Probado con el certificado real de Devlas en local: link → subida → el registro sigue con el RUT del titular.
+- El RUT del certificado es el de la persona titular; si el negocio tiene otro RUT, puede elegir "RUT y dirección".

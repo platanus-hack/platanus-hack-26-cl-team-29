@@ -39,7 +39,7 @@ export interface OpcionesAgente {
   /** Tiempos y límites de la compra conjunta; por defecto los de la demo. */
   readonly sala?: Partial<TiemposSala>;
   readonly env?: NodeJS.ProcessEnv;
-  /** Certificado digital por link privado (server/certificados). Sin él, el RUT solo se escribe. */
+  /** Certificado digital por link privado (server/certificados), opcional: se ofrece al sumarse y con "conectar certificado". */
   readonly certificados?: { enlace(telefono: string): string };
 }
 
@@ -65,8 +65,11 @@ const TIEMPOS_SALA: TiemposSala = {
 export interface Agente {
   /** Para facturas emitidas fuera de WhatsApp (p. ej. desde la pantalla): pregunta al comprador si recibió todo. */
   avisarFactura(ordenId: string): Promise<void>;
-  /** La persona conectó su certificado: se sigue su registro como si hubiera escrito el RUT del titular. */
-  rutDeCertificado(telefono: string, rut: string): Promise<void>;
+  /**
+   * La persona conectó su certificado: se le confirma por WhatsApp y, si se está registrando, su registro sigue con
+   * el RUT del titular como si lo hubiera escrito.
+   */
+  certificadoConectado(telefono: string, rut: string): Promise<void>;
   desconectar(): void;
 }
 
@@ -380,14 +383,14 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     async avisarFactura(ordenId) {
       await avisarFacturaDe(await ordenPorId(ordenId), await negociosPorId());
     },
-    rutDeCertificado(telefono, rut) {
+    certificadoConectado(telefono, rut) {
       return enFila(telefono, async () => {
         const ctx = { reply: (body: string) => enviar(telefono, body, 'reply') };
         try {
           await enviar(telefono, m.CERTIFICADO_CONECTADO, 'agente');
-          await atender(telefono, rut, ctx);
+          if (sala?.esperaRut(telefono)) await atender(telefono, rut, ctx);
         } catch (error) {
-          log.error(`[agente] falló seguir con el certificado de ${enmascarar(telefono)}:`, error instanceof Error ? error.message : error);
+          log.error(`[agente] falló seguir el registro de ${enmascarar(telefono)}:`, error instanceof Error ? error.message : error);
           await ctx.reply(m.ERROR_TEMPORAL);
         }
       });
