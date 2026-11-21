@@ -7,6 +7,7 @@ import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
 import type { TipoDocumento } from '../../../shared/documentos.ts';
+import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
@@ -67,6 +68,7 @@ const MENSAJE_HTTP: Record<number, string> = {
   403: 'No tienes permiso para hacer esto.',
   404: 'No encontramos lo que buscas. Puede que ya haya cambiado.',
   409: 'Esto ya cambió en la red. Actualizamos lo que ves.',
+  429: MENSAJE_LIMITE,
 };
 
 const esJson = (r: Response) => !!r.headers.get('content-type')?.includes('application/json');

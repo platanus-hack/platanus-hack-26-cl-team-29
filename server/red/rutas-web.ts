@@ -1,5 +1,6 @@
 import express from 'express';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { limitarPor } from '../limite.ts';
 import { ErrorRed, FALTA_RUT } from './dominio.ts';
 import { cuerpo, nuevoComprador } from './peticion.ts';
 import type { Recepcion, Red } from './dominio.ts';
@@ -17,7 +18,8 @@ import type { Negocio, OrdenCompra } from './tipos.ts';
 
 export interface OpcionesWeb {
   sesiones: Sesiones;
-  limitar: RequestHandler;
+  /** Límite por RUT para entrar sin sesión (la sala comparte la IP del wifi, así que nunca por IP). */
+  porRut: RequestHandler;
   /** Rutas "Conectar mi SII" (server/conexion-sii), montadas en /proveedor/sii detrás de la sesión del proveedor. */
   conexionSii?: express.Router;
 }
@@ -26,7 +28,7 @@ interface ConSesion extends Request {
   sesion?: Sesion & { negocio: Negocio };
 }
 
-export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limitar, conexionSii }: OpcionesWeb): express.Router {
+export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porRut, conexionSii }: OpcionesWeb): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
   const tokenDe = (req: Request) => /^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1];
@@ -45,6 +47,16 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
     next();
   };
   const yo = (req: ConSesion) => req.sesion!.negocio;
+
+  // Límites por negocio con sesión, holgados para que nadie que toca rápido los alcance. El carrito ya junta los
+  // toques seguidos en un envío cada 400 ms; las acciones del proveedor que van al SII son pocas por minuto.
+  const MINUTO = 60_000;
+  const porNegocio = (maximo: number) => limitarPor(maximo, MINUTO, (req: ConSesion) => req.sesion?.negocio.id);
+  const limitarCarrito = porNegocio(300);
+  const limitarProveedor = porNegocio(30);
+  const limitarSii = limitarPor(30, MINUTO, (req: ConSesion) => (req.method === 'GET' ? null : req.sesion?.negocio.id));
+  // El ingreso del proveedor es la única ruta por IP: frena que se adivine el código y no la usa el público.
+  const porIp = limitarPor(20, MINUTO, req => req.ip ?? 'sin-ip');
 
   const exigirConfirmado = (req: Request) => {
     if (cuerpo(req).confirmado !== true) {
@@ -79,7 +91,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
 
   // Crea un negocio comprador con su nombre y su RUT (consultado en el SII); si el pedido ya trae una sesión
   // válida de comprador, la reusa (y si trae un RUT, se lo deja).
-  rutas.post('/sesion', limitar, async (req, res) => {
+  rutas.post('/sesion', porRut, async (req, res) => {
     const b = cuerpo(req);
     const rut = typeof b.rut === 'string' && b.rut.trim() ? b.rut : undefined;
     const actual = sesionDe(req);
@@ -120,7 +132,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
     res.json({ negocio: sinTelefonos(negocio), facturaA, ordenes, documentos: documentosDe(ordenes), participaciones });
   });
 
-  rutas.post('/yo/unirse', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+  rutas.post('/yo/unirse', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     exigirRut(yo(req));
     const b = cuerpo(req);
     res.json(await red.unirseALicitacion(String(b.licitacionId ?? ''), {
@@ -129,23 +141,23 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
   });
 
   // El carrito completo de la compra conjunta: cantidad 0 quita un ítem y un carrito vacío sale.
-  rutas.put('/yo/carrito', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+  rutas.put('/yo/carrito', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     exigirRut(yo(req));
     const b = cuerpo(req);
     if (!Array.isArray(b.items)) throw new ErrorRed('datos_invalidos', 'items debe ser una lista de { productoId, cantidad }');
     res.json(await red.actualizarCarrito(String(b.licitacionId ?? ''), { negocioId: yo(req).id, items: b.items as never }));
   });
 
-  rutas.delete('/yo/carrito/:id', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+  rutas.delete('/yo/carrito/:id', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     res.json(await red.salirDeLicitacion(id(req), { negocioId: yo(req).id }));
   });
 
-  rutas.post('/yo/ordenes', exigir('comprador'), async (req: ConSesion, res) => {
+  rutas.post('/yo/ordenes', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     const b = cuerpo(req);
     res.status(201).json(await red.crearOrden({ compradorId: yo(req).id, proveedorId: String(b.proveedorId ?? ''), items: b.items as never }));
   });
 
-  rutas.post('/yo/ordenes/:id/recepcion', exigir('comprador'), async (req: ConSesion, res) => {
+  rutas.post('/yo/ordenes/:id/recepcion', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     ordenPropia(id(req), 'compradorId', yo(req).id);
     exigirConfirmado(req);
     const b = cuerpo(req);
@@ -155,7 +167,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
 
   // ---- Proveedor de la sala ----
 
-  rutas.post('/proveedor/sesion', limitar, (req, res) => {
+  rutas.post('/proveedor/sesion', porIp, (req, res) => {
     if (!env.PROVEEDOR_CODIGO) {
       res.status(404).json({ error: 'no_encontrado', mensaje: 'Ruta no disponible' });
       return;
@@ -188,29 +200,29 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
     return l.id;
   }
 
-  rutas.post('/proveedor/licitacion/:id/cerrar', exigir('proveedor'), async (req: ConSesion, res) => {
+  rutas.post('/proveedor/licitacion/:id/cerrar', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
     res.json(await red.cerrarLicitacion(licitacionPropia(req)));
   });
 
-  rutas.post('/proveedor/licitacion/:id/facturar', exigir('proveedor'), async (req: ConSesion, res) => {
+  rutas.post('/proveedor/licitacion/:id/facturar', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
     const licitacionId = licitacionPropia(req);
     exigirConfirmado(req);
     res.json(await red.confirmarOrdenesDeLicitacion(licitacionId));
   });
 
-  rutas.post('/proveedor/ordenes/:id/confirmar', exigir('proveedor'), async (req: ConSesion, res) => {
+  rutas.post('/proveedor/ordenes/:id/confirmar', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
     ordenPropia(id(req), 'proveedorId', yo(req).id);
     exigirConfirmado(req);
     res.json(await red.confirmarOrden(id(req)));
   });
 
-  rutas.post('/proveedor/ordenes/:id/nota-credito', exigir('proveedor'), async (req: ConSesion, res) => {
+  rutas.post('/proveedor/ordenes/:id/nota-credito', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
     ordenPropia(id(req), 'proveedorId', yo(req).id);
     exigirConfirmado(req);
     res.status(201).json(await red.emitirNotaCredito(id(req)));
   });
 
-  if (conexionSii) rutas.use('/proveedor/sii', exigir('proveedor'), conexionSii);
+  if (conexionSii) rutas.use('/proveedor/sii', exigir('proveedor'), limitarSii, conexionSii);
 
   return rutas;
 }

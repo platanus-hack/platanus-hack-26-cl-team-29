@@ -34,8 +34,11 @@ export function paginaSubida(token: string): string {
 <small>Este link es de un solo uso y vence en 15 minutos. Si vence, pide otro en WhatsApp escribiendo "conectar certificado".</small>
 </main><script>
 const f = document.getElementById('f'), b = document.getElementById('b'), r = document.getElementById('resultado');
+let enviando = false;
 f.addEventListener('submit', async e => {
-  e.preventDefault(); b.disabled = true; r.className = ''; r.textContent = 'Revisando tu certificado…';
+  e.preventDefault();
+  if (enviando) return;
+  enviando = true; b.disabled = true; b.textContent = 'Conectando...'; r.className = ''; r.textContent = 'Revisando tu certificado...';
   try {
     const archivo = document.getElementById('pfx').files[0];
     const bytes = new Uint8Array(await archivo.arrayBuffer());
@@ -43,9 +46,11 @@ f.addEventListener('submit', async e => {
     const resp = await fetch('/api/certificado/${escapar(token)}', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pfxBase64: btoa(bin), clave: document.getElementById('clave').value }) });
     const j = await resp.json();
+    if (resp.status === 410) { f.remove(); throw new Error(j.mensaje); }
     if (!resp.ok) throw new Error(j.mensaje || 'No se pudo conectar el certificado.');
     r.className = 'ok'; r.textContent = 'Listo, certificado conectado. Vuelve a WhatsApp: ahí sigue tu registro.'; f.remove();
-  } catch (err) { r.className = 'error'; r.textContent = err.message; b.disabled = false; }
+  } catch (err) { r.className = 'error'; r.textContent = err.message; b.disabled = false; b.textContent = 'Conectar'; }
+  enviando = false;
 });
 </script></body></html>`;
 }

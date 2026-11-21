@@ -29,3 +29,6 @@ export const mayuscula = (texto: string): string => texto.charAt(0).toUpperCase(
 
 /** En minúsculas y sin tildes, para comparar lo que escribe una persona ("Ñuñoa" → "nunoa"). */
 export const sinTildes = (texto: string): string => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Respuesta 429: alguien repitió una acción demasiadas veces seguidas. Lo usan el servidor y la web. */
+export const MENSAJE_LIMITE = 'Demasiados intentos seguidos. Espera un momento e inténtalo de nuevo.';

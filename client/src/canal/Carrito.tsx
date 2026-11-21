@@ -13,7 +13,7 @@ import {
 } from './carrito.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { mensajeDeError } from './logica.ts';
-import { Confirmar } from './piezas.tsx';
+import { Confirmar, useEnvio } from './piezas.tsx';
 import { formatearRutAlEscribir, validarRut } from '../../../shared/rut.ts';
 import type { DatosEntrada, FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
 
@@ -52,6 +52,7 @@ export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar
 
   const enviar = async (e: FormEvent) => {
     e.preventDefault();
+    if (enviando) return;
     if (!nombre.trim()) return setError('Escribe el nombre de tu negocio.');
     setError('');
     if (!validarRut(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
@@ -263,25 +264,18 @@ export function CarritoCompra({ api, token, lic, negocioId, participacion, abier
   const servidor = carritoEnLaFoto(lic, negocioId) ?? desdeItems(participacion?.items ?? []);
   const c = useCarrito(api, token, lic.id, servidor, orden);
   const r = resumirCarrito(productos, c.local, servidor);
-  const [saliendo, setSaliendo] = useState<'no' | 'preguntando' | 'enviando'>('no');
-  const [errorSalir, setErrorSalir] = useState('');
+  const [preguntando, setPreguntando] = useState(false);
+  const { enviando: saliendo, error: errorSalir, setError: setErrorSalir, enviar } = useEnvio();
   const [salio, setSalio] = useState(false);
   const enCompra = Object.keys(c.guardado).length > 0;
 
   useEffect(() => { if (r.productos > 0) setSalio(false); }, [r.productos]);
 
-  const salir = async () => {
-    setSaliendo('enviando');
-    setErrorSalir('');
-    try {
-      await c.salir();
-      setSaliendo('no');
-      setSalio(true);
-    } catch (e) {
-      setErrorSalir(mensajeDeError(e, 'No pudimos sacarte de la compra. Inténtalo de nuevo.'));
-      setSaliendo('preguntando');
-    }
-  };
+  const salir = () => enviar(async () => {
+    await c.salir();
+    setPreguntando(false);
+    setSalio(true);
+  }, 'No pudimos sacarte de la compra. Inténtalo de nuevo.');
 
   const estado = c.error
     ? <span className="cn-barra-estado error" role="alert">{c.error}</span>
@@ -302,12 +296,12 @@ export function CarritoCompra({ api, token, lic, negocioId, participacion, abier
         ))}
       </ul>
 
-      {abierta && enCompra && saliendo === 'no' && (
-        <button type="button" className="cn-boton-texto cn-salir" onClick={() => setSaliendo('preguntando')}>Salir de la compra</button>
+      {abierta && enCompra && !preguntando && (
+        <button type="button" className="cn-boton-texto cn-salir" onClick={() => setPreguntando(true)}>Salir de la compra</button>
       )}
-      {saliendo !== 'no' && (
-        <Confirmar titulo="¿Salir de la compra?" si="Sí, salir" no="No, seguir en la compra" enviando={saliendo === 'enviando'}
-          error={errorSalir} onSi={salir} onNo={() => { setSaliendo('no'); setErrorSalir(''); }}>
+      {preguntando && (
+        <Confirmar titulo="¿Salir de la compra?" si="Sí, salir" no="No, seguir en la compra" enviando={saliendo}
+          error={errorSalir} onSi={() => { void salir(); }} onNo={() => { setPreguntando(false); setErrorSalir(''); }}>
           <p>Se vacía tu carrito y dejas de sumar al grupo. Puedes volver mientras siga abierta.</p>
         </Confirmar>
       )}

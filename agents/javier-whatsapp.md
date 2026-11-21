@@ -19,6 +19,13 @@ libre
 ## Bloqueos
 - Sumar en el webhook de Kapso los eventos sent/delivered/read/failed
 
+## Pendientes de revisión (notas para después, no implementadas)
+- `server/certificados/`: node-forge abre el .pfx subido de forma síncrona; un archivo con un número de iteraciones enorme puede bloquear el event loop. Conviene acotar las iteraciones o abrirlo en un worker.
+- `server/conexion-sii/cifrado.ts`: fijar `authTagLength: 16` al descifrar y atar el texto cifrado al RUT de la fila con AAD, para que una fila copiada a otro RUT no se pueda descifrar.
+- La página del certificado debería enviar `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY`.
+- Los certificados de compradores guardados no tienen forma de borrarse ni purga al vencer, y comparten `SII_LLAVE_CIFRADO` con los secretos de las empresas. Por ahora se siguen guardando; falta una ruta de borrado, una purga por vencimiento y evaluar una llave propia.
+- Hecho en el PR de anti doble clic (toca `server/certificados/`): la subida toma el link antes de validar (dos subidas a la vez: una pasa, la otra 409), 5 intentos fallidos por link y como mucho 5 links nuevos por teléfono cada 10 minutos.
+
 ## Pedidos a otros
 - @luciano-sii @red-sii: `certificados.certificadoDe(rut)` entrega el .pfx y la clave del comprador que conectó su certificado, para aceptar o reclamar sus facturas a su nombre en certificación.
 - @sala-whatsapp: en `sala.ts` el registro (camino, RUT, dirección) va antes del pedido (`registrar`, borrador `registro`); en `mensajes.ts` la bienvenida deja la pregunta al final para que sus opciones salgan como botones.

@@ -30,7 +30,7 @@ certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono,
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
 const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento', hallazgo));
 
-app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP de /api/red)
+app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP del ingreso del proveedor)
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
 app.use(certificados.rutas); // página y subida del certificado por link privado (antes del fallback del front)
 app.use(express.json());
