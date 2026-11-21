@@ -21,6 +21,12 @@ export interface Tramo {
 export interface LicitacionCanal extends Omit<Licitacion, 'estado'> {
   estado: string;
   tramos?: Tramo[];
+  /** Precio por unidad que calcula el backend según los tramos. */
+  precioActual?: number;
+  /** El proveedor único de la compra conjunta. */
+  proveedorId?: string;
+  /** Órdenes creadas al cerrar, una por participante. */
+  ordenIds?: string[];
   facturadaEn?: string;
 }
 
@@ -52,7 +58,7 @@ export interface YoProveedor {
   licitaciones?: LicitacionCanal[];
 }
 
-export type Recepcion = { conforme: true } | { faltante: number; confirmado: true };
+export type Recepcion = { conforme: true; confirmado: true } | { faltante: number; confirmado: true };
 
 export interface FotoRed extends Omit<EstadoRed, 'licitaciones' | 'ordenes'> {
   licitaciones: LicitacionCanal[];

@@ -2,14 +2,14 @@
 // cerrar y facturar la compra conjunta, confirmar y facturar pedidos y emitir notas de crédito.
 // Toda acción en el SII pasa por un paso de confirmación en la página y recién ahí envía `confirmado: true`.
 
-import { useCallback, useState, type FormEvent } from 'react';
+import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import {
-  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
+  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
 } from './logica.ts';
 import { Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
@@ -30,8 +30,11 @@ export function Proveedor() {
   if (!tokenValido) return <Acceso api={api} fuente={fuente} onEntrar={guardar} />;
   if (!yo) return <main className="cn-pagina"><p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu panel...'}</p></main>;
 
-  const lic = licitacionVigente(yo.licitaciones ?? foto.licitaciones);
-  const nuevos = yo.ordenes.filter(o => o.estado === 'enviada' && !o.licitacionId).sort((a, b) => Date.parse(a.creadaEn) - Date.parse(b.creadaEn));
+  const lics = yo.licitaciones ?? foto.licitaciones;
+  const lic = licitacionVigente(lics);
+  // Las órdenes de la compra conjunta se facturan juntas desde su tarjeta, no una por una.
+  const deCompras = new Set(lics.flatMap(l => ordenesDeLaCompra(l, yo.ordenes)).map(o => o.id));
+  const nuevos = yo.ordenes.filter(o => o.estado === 'enviada' && !deCompras.has(o.id)).sort((a, b) => Date.parse(a.creadaEn) - Date.parse(b.creadaEn));
   const reclamos = yo.ordenes.filter(o => o.estado === 'reclamada');
   const comprador = (id: string) => foto.negocios.find(n => n.id === id);
   const props = { api, token: tokenValido, alCambiar: recargar };
@@ -132,7 +135,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
   const g = precioDelGrupo(lic);
   const total = g.unidades * (g.precio ?? 0);
   const abierta = estaAbierta(lic, ahora);
-  const facturada = estaFacturada(lic);
+  const facturada = estaFacturada(lic, yo.ordenes);
   const ejecutar = useCallback(async (a: AccionCompra) => {
     if (a.tipo === 'cerrar') await api.cerrar(token, lic.id);
     else await api.facturar(token, lic.id);
@@ -293,11 +296,18 @@ function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }
 
 // ---------- Nota y documentos ----------
 
+/** La nota anterior: la que manda el backend o, si no la manda, la última distinta que vio esta pestaña. */
+function useNotaAnterior(actual: number | null, delBackend?: number): number | undefined {
+  const vista = useRef<{ actual: number | null; anterior?: number }>({ actual });
+  if (vista.current.actual !== actual) vista.current = { actual, anterior: vista.current.actual ?? undefined };
+  return delBackend ?? vista.current.anterior;
+}
+
 function MiNota({ yo }: { yo: YoProveedor }) {
+  const anterior = useNotaAnterior(yo.nota, yo.notaAnterior);
   if (yo.nota === null) {
     return <Vacio titulo="Todavía no tienes nota" texto="Tu nota se calcula con tus entregas: cada entrega conforme suma y cada reclamo resta." />;
   }
-  const anterior = yo.notaAnterior;
   const cambio = anterior !== undefined ? Math.round((yo.nota - anterior) * 10) / 10 : 0;
   return (
     <section className="tarjeta cn-mi-nota">

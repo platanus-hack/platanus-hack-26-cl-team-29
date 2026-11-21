@@ -17,7 +17,7 @@ import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
 import './canal.css';
 
 const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'Santiago', 'San Joaquín', 'La Florida', 'Las Condes', 'Maipú'];
-/** Copia del catálogo de la red (server/red/catalogo.ts); el producto de la compra conjunta va primero, desde la config. */
+/** Copia del catálogo de la red (server/red/catalogo.ts). El producto de la compra conjunta se compra en su sección. */
 const CATALOGO = ['Harina 25 kg', 'Levadura 500 g', 'Azúcar 25 kg', 'Manteca 10 kg', 'Sal 25 kg'];
 const MAX_COMPRA_CONJUNTA = 20;
 
@@ -313,12 +313,11 @@ function Tramos({ lic, unidades, u }: { lic: LicitacionCanal; unidades: number; 
 function Pedir({ api, token, foto, config, alEnviar }: {
   api: CanalApi; token: string; foto: FotoRed; config: ConfigRed | null; alEnviar: () => void;
 }) {
-  const productos = [...new Set([...(config ? [config.producto] : []), ...CATALOGO])];
   const proveedores = foto.negocios
     .filter(n => n.rol === 'proveedor')
     .map(n => ({ negocio: n, nota: foto.notas.find(x => x.proveedorId === n.id)?.nota }))
     .sort((a, b) => (b.nota ?? 0) - (a.nota ?? 0));
-  const [producto, setProducto] = useState(productos[0] ?? '');
+  const [producto, setProducto] = useState(CATALOGO[0]);
   const [cantidad, setCantidad] = useState(4);
   const [proveedorId, setProveedorId] = useState(proveedores[0]?.negocio.id ?? '');
   const [enviando, setEnviando] = useState(false);
@@ -362,7 +361,7 @@ function Pedir({ api, token, foto, config, alEnviar }: {
       <div className="tarjeta">
         <p className="etiqueta">1. ¿Qué necesitas?</p>
         <div className="cn-opciones" role="radiogroup" aria-label="Producto">
-          {productos.map(p => (
+          {CATALOGO.map(p => (
             <button key={p} type="button" role="radio" aria-checked={p === producto} className={`cn-opcion${p === producto ? ' elegida' : ''}`} onClick={() => setProducto(p)}>
               {p}
             </button>
@@ -443,7 +442,7 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
     setEnviando(true);
     setError('');
     try {
-      await api.recepcion(token, orden.id, { conforme: true });
+      await api.recepcion(token, orden.id, { conforme: true, confirmado: true });
       alCambiar();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No pudimos registrarlo. Inténtalo de nuevo.');

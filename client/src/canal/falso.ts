@@ -66,6 +66,7 @@ function sembrar() {
   const licitacion: LicitacionCanal = {
     id: 'L-1',
     producto: CONFIG.producto,
+    proveedorId: PROVEEDOR_DEMO,
     comuna: 'Santiago',
     cierraEn: new Date(Date.now() + 8 * MINUTO).toISOString(),
     estado: 'abierta',
@@ -164,12 +165,12 @@ export function crearApiFalsa(): CanalApi {
     if (!l) throw new ErrorCanal('No encontramos esa compra conjunta.');
     return l;
   };
-  const ordenesDe = (lic: LicitacionCanal) => red.ordenes.filter(o => o.licitacionId === lic.id);
+  const ordenesDe = (lic: LicitacionCanal) => red.ordenes.filter(o => lic.ordenIds?.includes(o.id));
 
   /** Siembra el historial de un comprador nuevo para que vea todas las secciones con datos. */
   const sembrarComprador = (negocio: Negocio) => {
     const item = (cantidad: number, producto: string) => [{ producto, cantidad, precioUnitario: PRECIOS[producto] }];
-    const porRecibir: OrdenCanal = { id: `o-${++contador}`, compradorId: negocio.id, proveedorId: PROVEEDOR_DEMO, estado: 'confirmada', creadaEn: hace(20 * MINUTO), items: item(8, CONFIG.producto) };
+    const porRecibir: OrdenCanal = { id: `o-${++contador}`, licitacionId: 'L-0', compradorId: negocio.id, proveedorId: PROVEEDOR_DEMO, estado: 'confirmada', creadaEn: hace(20 * MINUTO), items: item(8, CONFIG.producto) };
     const corregida: OrdenCanal = {
       id: `o-${++contador}`, compradorId: negocio.id, proveedorId: 'p-nuble', estado: 'reclamada', creadaEn: hace(26 * 60 * MINUTO), items: item(4, 'Harina 25 kg'),
       reclamo: { producto: 'Harina 25 kg', faltante: 1, en: hace(25 * 60 * MINUTO), estadoSii: 'aceptado' },
@@ -263,6 +264,7 @@ export function crearApiFalsa(): CanalApi {
       await espera(400);
       const negocio = quien(token);
       const o = orden(ordenId);
+      exigir(r.confirmado === true, 'Esta acción queda registrada en el SII: falta tu confirmación.');
       exigir(o.compradorId === negocio.id, 'Ese pedido no es tuyo.');
       exigir(o.estado === 'facturada', 'Este pedido ya no espera tu recepción.');
       if ('conforme' in r) {
@@ -308,12 +310,13 @@ export function crearApiFalsa(): CanalApi {
       lic.estado = 'cerrada';
       const unidades = lic.participantes.reduce((s, p) => s + p.cantidad, 0);
       const precio = [...TRAMOS].reverse().find(t => t.desde <= unidades)?.precioUnitario ?? TRAMOS[0].precioUnitario;
-      for (const p of lic.participantes) {
-        red.ordenes.push({
-          id: `o-${++contador}`, licitacionId: lic.id, compradorId: p.negocioId ?? '', proveedorId: PROVEEDOR_DEMO, estado: 'confirmada',
-          creadaEn: ahoraIso(), items: [{ producto: lic.producto, cantidad: p.cantidad, precioUnitario: precio }],
-        });
-      }
+      // Como el backend: una orden por participante, enviada, y sus ids en la licitación.
+      const nuevas: OrdenCanal[] = lic.participantes.map(p => ({
+        id: `o-${++contador}`, compradorId: p.negocioId ?? '', proveedorId: PROVEEDOR_DEMO, estado: 'enviada',
+        creadaEn: ahoraIso(), items: [{ producto: lic.producto, cantidad: p.cantidad, precioUnitario: precio }],
+      }));
+      red.ordenes.push(...nuevas);
+      lic.ordenIds = nuevas.map(o => o.id);
       avisar('licitacion.cerrada', { licitacion: lic });
     },
 
@@ -321,9 +324,8 @@ export function crearApiFalsa(): CanalApi {
       await espera(900);
       quien(token);
       const lic = licitacion(licitacionId);
-      exigir(lic.estado === 'cerrada' && !lic.facturadaEn, 'Esta compra conjunta no está lista para facturar.');
+      exigir(lic.estado === 'cerrada' && ordenesDe(lic).some(o => o.estado === 'enviada'), 'Esta compra conjunta no está lista para facturar.');
       ordenesDe(lic).forEach(o => facturar(o, false));
-      lic.facturadaEn = ahoraIso();
       avisar('licitacion.facturada' as TipoEvento, { licitacion: lic });
     },
 

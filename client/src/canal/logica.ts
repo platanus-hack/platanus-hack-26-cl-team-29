@@ -40,7 +40,7 @@ export function precioDelGrupo(lic: LicitacionCanal): PrecioGrupo {
     const prox = tramos.find(t => t.desde > unidades && t.precioUnitario < actual.precioUnitario);
     return {
       unidades,
-      precio: actual.precioUnitario,
+      precio: numero(lic.precioActual) ?? actual.precioUnitario,
       precioSolo: lic.precioSolo ?? tramos[0].precioUnitario,
       ...(prox ? { siguiente: { faltan: prox.desde - unidades, precio: prox.precioUnitario } } : {}),
     };
@@ -50,7 +50,20 @@ export function precioDelGrupo(lic: LicitacionCanal): PrecioGrupo {
   return { unidades, precio, precioSolo: lic.precioSolo };
 }
 
-export const estaFacturada = (lic: LicitacionCanal) => lic.estado === 'facturada' || !!lic.facturadaEn;
+/** Órdenes nacidas del cierre de la compra conjunta: por `ordenIds` de la licitación o `licitacionId` de la orden. */
+export function ordenesDeLaCompra(lic: LicitacionCanal, ordenes: readonly OrdenCanal[]): OrdenCanal[] {
+  const ids = new Set(lic.ordenIds ?? []);
+  return ordenes.filter(o => o.licitacionId === lic.id || ids.has(o.id));
+}
+
+const SIN_FACTURAR = new Set<OrdenCanal['estado']>(['enviada', 'confirmada']);
+
+/** Cerrada y con todas sus órdenes ya facturadas en el SII. */
+export function estaFacturada(lic: LicitacionCanal, ordenes: readonly OrdenCanal[]): boolean {
+  if (lic.estado === 'facturada' || lic.facturadaEn) return true;
+  const deLaCompra = ordenesDeLaCompra(lic, ordenes);
+  return lic.estado === 'cerrada' && deLaCompra.length > 0 && deLaCompra.every(o => !SIN_FACTURAR.has(o.estado));
+}
 
 export function estaAbierta(lic: LicitacionCanal, ahora: number): boolean {
   return lic.estado === 'abierta' && Date.parse(lic.cierraEn) > ahora;
@@ -196,10 +209,10 @@ export function enlaceWhatsapp(numero: string | null | undefined, texto = 'Hola'
 
 /**
  * Lo que emite "Facturar todo en el SII": una factura por cada orden de la compra conjunta que falta facturar.
- * Si el backend todavía no marca las órdenes con `licitacionId`, se estima con los participantes al precio del grupo.
+ * Antes de cerrar (sin órdenes todavía), se estima con los participantes al precio del grupo.
  */
 export function resumenFacturacion(lic: LicitacionCanal, ordenes: readonly OrdenCanal[]): { facturas: number; total: number } {
-  const porFacturar = ordenes.filter(o => o.licitacionId === lic.id && (o.estado === 'enviada' || o.estado === 'confirmada'));
+  const porFacturar = ordenesDeLaCompra(lic, ordenes).filter(o => SIN_FACTURAR.has(o.estado));
   if (porFacturar.length) return { facturas: porFacturar.length, total: porFacturar.reduce((s, o) => s + totalOrden(o), 0) };
   const { unidades, precio } = precioDelGrupo(lic);
   return { facturas: lic.participantes.length, total: unidades * (precio ?? 0) };
