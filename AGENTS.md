@@ -5,7 +5,7 @@ Contexto del proyecto para cualquier agente de código. Stack, comandos, estruct
 ## Qué es esto
 
 - Proyecto del team-29 en **Platanus Hack 26: Santiago ft. Buk**, hackathon de ~36 horas.
-- Track: **Multiplayer** (colaboración en tiempo real entre personas, agentes, o ambos).
+- Track: **Multiplayer**. La prueba del track: **el producto tiene que mejorar cuando hay más de una persona usándolo**. No necesita ser en tiempo real (vale asincrónico o por turnos, si lo que hace uno cambia lo que ve el otro), pero la demo tiene que mostrar a dos personas usándolo. Asistentes personales o "una persona con muchos agentes" no califican. Definición completa: `docs/hallazgos/20261121-0324-definicion-track-multiplayer.md`.
 - 3 personas trabajando en paralelo, cada una con varios agentes. Llegan cambios a `main` todo el tiempo.
 
 ## Prioridades
