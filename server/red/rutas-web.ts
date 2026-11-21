@@ -58,9 +58,15 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
     return o;
   }
 
+  // Solo en las respuestas al dueño (/yo, /proveedor/yo): cada documento con el enlace privado a su PDF.
   const documentosDe = (ordenes: OrdenCompra[]) => {
     const ids = new Set(ordenes.map(o => o.id));
-    return red.estadoDeLaRed().documentos.filter(d => ids.has(d.ordenId));
+    return red.estadoDeLaRed().documentos
+      .filter(d => ids.has(d.ordenId))
+      .map(d => {
+        const pdfUrl = red.enlacePdf(d);
+        return pdfUrl ? { ...d, pdfUrl } : d;
+      });
   };
 
   // ---- Comprador ----

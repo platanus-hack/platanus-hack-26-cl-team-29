@@ -24,6 +24,7 @@ export type {
 export { normalizarProducto, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
 export { sinTelefonos } from './publico.ts';
+export { enlacePdf, nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
 export type { SinTelefono } from './publico.ts';
 export { crearRepositorioMemoria } from './repositorio.ts';
 export { crearSiiFalso } from './sii.ts';
@@ -39,6 +40,7 @@ export { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
 export type { ConfigDemo, ProductoDemo } from './config-demo.ts';
 export { precioPorVolumen, precioVigente, productoDe, siguienteTramo, unidadesDe, vistaLicitacion } from './compra.ts';
 export type * from './tipos.ts';
+export type { DocumentoImpreso } from '../sii/index.ts';
 
 /**
  * Arma la red para el servidor: Postgres si hay DATABASE_URL (si falla, memoria),

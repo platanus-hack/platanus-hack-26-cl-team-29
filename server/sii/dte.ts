@@ -5,6 +5,7 @@ import { firmarElemento } from './firma.ts';
 import { timbrar } from './timbre.ts';
 import type {
   DocumentoEmitido,
+  DocumentoImpreso,
   Emisor,
   EntradaFactura,
   EntradaGuia,
@@ -39,7 +40,9 @@ export interface EntradaDte {
 }
 
 export interface DteFirmado {
-  readonly documento: DocumentoEmitido;
+  readonly documento: Omit<DocumentoEmitido, 'impreso'>;
+  /** `<TED>` exacto del documento, para el PDF417 de la representación impresa. */
+  readonly ted: string;
   /** `<DTE>` firmado, sin declaración XML. */
   readonly xml: string;
 }
@@ -163,6 +166,7 @@ export function armarDte(e: EntradaDte, caf: Caf, certificado: Certificado, ahor
   );
   return {
     xml,
+    ted,
     documento: {
       tipo: e.tipo,
       folio: e.folio,
@@ -173,6 +177,45 @@ export function armarDte(e: EntradaDte, caf: Caf, certificado: Certificado, ahor
       iva: totales.iva,
       montoTotal: totales.total,
     },
+  };
+}
+
+export interface OpcionesImpreso {
+  readonly ted: string;
+  readonly resolucion: DocumentoImpreso['resolucion'];
+  readonly simulado: boolean;
+  readonly oficinaSii?: string;
+}
+
+/** Datos de la representación impresa de un DTE ya armado (o simulado), con los mismos totales del XML. */
+export function datosImpresos(e: EntradaDte, opciones: OpcionesImpreso): DocumentoImpreso {
+  const totales = calcularTotales(e.items);
+  return {
+    tipo: e.tipo,
+    folio: e.folio,
+    fechaEmision: e.fechaEmision,
+    emisor: e.emisor,
+    receptor: e.receptor,
+    lineas: e.items.map((item, i) => ({
+      nombre: limpiarLatin1(item.nombre),
+      cantidad: item.cantidad,
+      ...(item.unidad ? { unidad: item.unidad } : {}),
+      precioUnitario: item.precioUnitario,
+      monto: totales.lineas[i] ?? 0,
+    })),
+    referencias: e.referencias.map(r => ({
+      tipoDocumento: r.tipoDocumento, folio: r.folio, fecha: r.fecha,
+      ...(r.codigo ? { codigo: r.codigo } : {}), ...(r.razon ? { razon: r.razon } : {}),
+    })),
+    neto: totales.neto,
+    tasaIva: TASA_IVA,
+    iva: totales.iva,
+    total: totales.total,
+    ...(e.tipo === 52 ? { indTraslado: e.indTraslado ?? 1 } : {}),
+    ted: opciones.ted,
+    resolucion: opciones.resolucion,
+    ...(opciones.oficinaSii ? { oficinaSii: opciones.oficinaSii } : {}),
+    simulado: opciones.simulado,
   };
 }
 

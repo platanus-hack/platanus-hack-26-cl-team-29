@@ -1,5 +1,6 @@
 // Entidades de la red de compras. Contrato: docs/decisiones/20261121-1130-contrato-red.md
 // Las fechas van como texto ISO para que viajen igual por HTTP, Socket.io y jsonb.
+import type { DocumentoImpreso } from '../sii/index.ts';
 
 export type Rol = 'comprador' | 'proveedor';
 
@@ -183,6 +184,16 @@ export interface LicitacionVista extends Omit<Licitacion, 'productos'> {
   siguienteTramo: SiguienteTramo | null;
 }
 
+/**
+ * Representación impresa de un documento (PDF), con el TED. Solo interna: lleva los RUT y datos tributarios
+ * del SII, así que nunca va en la foto pública ni en eventos; sale solo como PDF por un enlace firmado.
+ */
+export interface ImpresoDocumento {
+  /** El `id` del documento. */
+  id: string;
+  impreso: DocumentoImpreso;
+}
+
 /** Todo lo que se persiste, por colección. */
 export interface DatosRed {
   negocios: Negocio[];
@@ -190,6 +201,7 @@ export interface DatosRed {
   documentos: Documento[];
   eventosReputacion: EventoReputacion[];
   licitaciones: Licitacion[];
+  impresos: ImpresoDocumento[];
 }
 
 export type Coleccion = keyof DatosRed;

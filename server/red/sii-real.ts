@@ -174,7 +174,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
         await guardar(n.registro, {
           fechaEmision: d.fechaEmision, montoTotal: d.montoTotal, rutReceptor: d.rutReceptor, estado, ...cambios,
         });
-        resultados[n.posicion] = resultado(n.registro);
+        resultados[n.posicion] = { ...resultado(n.registro), impreso: d.impreso };
       }
       if (envio.estado === 'rechazado') {
         log.error(`[sii] ${nombre}: sobre rechazado (STATUS ${envio.status}). Respuesta:\n${envio.respuesta}`);
@@ -216,12 +216,12 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
       if (envio.estado === 'incierto') {
         await guardar(registro, { ...consulta, estado: 'incierto', detalle: envio.error });
         log.warn(`[sii] ${nombre} folio ${registro.folio}: envío incierto, no se reenvía; revisar con consultarDocumento. ${envio.error}`);
-        return resultado(registro);
+        return { ...resultado(registro), impreso: documento.impreso };
       }
       await guardar(registro, { ...consulta, estado: 'recibido', trackId: envio.trackId, detalle: envio.respuesta });
       log.info(`[sii] ${nombre} folio ${registro.folio}: recibido, track id ${envio.trackId}`);
       if (seguirEnvios) seguir([registro]).catch(error => log.error(`[sii] seguimiento de ${nombre} falló`, error));
-      return resultado(registro);
+      return { ...resultado(registro), impreso: documento.impreso };
     });
   }
 

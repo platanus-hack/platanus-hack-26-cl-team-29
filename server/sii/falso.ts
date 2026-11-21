@@ -1,14 +1,20 @@
 // Implementación en memoria con respuestas plausibles del SII, para trabajar sin certificado ni CAF.
 // Valida la entrada igual que la real (RUT, totales, tipos y acciones), así un error aparece antes de certificar.
-import { aDte, calcularTotales, type EntradaDte } from './dte.ts';
+import { aDte, calcularTotales, datosImpresos, type EntradaDte } from './dte.ts';
 import type { Sii } from './index.ts';
 import { resultadoDe, validarReclamo } from './reclamo.ts';
-import { normalizarRut } from './texto.ts';
-import type { AccionReceptor, DocumentoEmitido, EventoReceptor, RespuestaReclamo } from './tipos.ts';
+import { timbrarSimulado } from './timbre.ts';
+import { marcaEnChile, normalizarRut } from './texto.ts';
+import type { AccionReceptor, DocumentoEmitido, Emisor, EventoReceptor, RespuestaReclamo } from './tipos.ts';
 
 /** RUT de ejemplo, sin dueño real, para cuando no se configura uno. */
 const RUT_DE_EJEMPLO = '11111111-1';
 const RECLAMOS: readonly AccionReceptor[] = ['RCD', 'RFP', 'RFT'];
+
+/** Datos del emisor que muestra el PDF simulado; quien llama puede reemplazarlos por los de su negocio. */
+const EMISOR_SIMULADO: Omit<Emisor, 'rut'> = {
+  razonSocial: 'Emisor de prueba', giro: 'Venta de insumos', acteco: 0, direccion: 'Sin informar', comuna: 'Santiago',
+};
 
 export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
   const emisor = normalizarRut(rutEmisor);
@@ -24,8 +30,18 @@ export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
   /** Un sobre con uno o más documentos: un track id para todos. */
   async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]) {
     if (entradas.length === 0) throw new Error('El sobre necesita al menos un DTE.');
+    const marca = marcaEnChile(new Date());
     const documentos = entradas.map((entrada): DocumentoEmitido => {
       const totales = calcularTotales(entrada.items);
+      const ted = timbrarSimulado({
+        tipo: entrada.tipo, folio: entrada.folio, fechaEmision: entrada.fechaEmision, rutEmisor: emisor,
+        rutReceptor: entrada.receptor.rut, razonSocialReceptor: entrada.receptor.razonSocial, montoTotal: totales.total,
+        primerItem: entrada.items[0]?.nombre ?? '', marca,
+      });
+      const impreso = datosImpresos(
+        { ...entrada, emisor: { ...EMISOR_SIMULADO, rut: emisor } },
+        { ted, resolucion: { numero: 0, fecha: entrada.fechaEmision }, simulado: true },
+      );
       return {
         tipo: entrada.tipo,
         folio: entrada.folio,
@@ -35,6 +51,7 @@ export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
         montoNeto: totales.neto,
         iva: totales.iva,
         montoTotal: totales.total,
+        impreso,
       };
     });
     const trackId = String(++ultimoTrack);
