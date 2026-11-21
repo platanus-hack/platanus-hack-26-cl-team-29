@@ -34,7 +34,8 @@ export interface OpcionesExplorador {
 export interface Explorador {
   iniciar(): Promise<void>;
   detener(): void;
-  avance(): Avance;
+  /** Avance actual; si el explorador no está corriendo, lo lee de lo guardado. */
+  avance(): Promise<Avance>;
 }
 
 /** Tras un error de Overpass (cargado, sin red) se espera más antes de reintentar la misma celda. */
@@ -45,7 +46,7 @@ export function crearExplorador(o: OpcionesExplorador): Explorador {
   let siguiente = 0;
   let despertar: (() => void) | undefined;
 
-  const avance = (): Avance => {
+  const calcular = (): Avance => {
     const hecha = o.celdas[siguiente - 1];
     const terminado = siguiente >= o.celdas.length;
     const actual = o.celdas[Math.min(siguiente, o.celdas.length - 1)];
@@ -72,7 +73,7 @@ export function crearExplorador(o: OpcionesExplorador): Explorador {
           const nuevos = await o.almacen.guardar(encontrados);
           siguiente += 1;
           await o.almacen.marcarCelda(siguiente);
-          o.alAvanzar({ nuevos, avance: avance() });
+          o.alAvanzar({ nuevos, avance: calcular() });
         } catch (error) {
           espera *= MULTIPLICADOR_ERROR;
           o.registrar?.(`[locales] celda ${siguiente}: ${error instanceof Error ? error.message : error}; reintento en ${espera / 1000} s`);
@@ -86,6 +87,9 @@ export function crearExplorador(o: OpcionesExplorador): Explorador {
       activo = false;
       despertar?.();
     },
-    avance,
+    async avance() {
+      if (!activo) siguiente = await o.almacen.siguienteCelda();
+      return calcular();
+    },
   };
 }

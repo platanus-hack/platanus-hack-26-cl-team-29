@@ -80,6 +80,9 @@ test('el servidor arranca desde el JSON del repo si su almacén va más atrás',
   const almacen = crearAlmacenLocalesMemoria();
   assert.equal(await sembrarDesdeArchivo(almacen, ruta), 2);
   assert.equal(await almacen.siguienteCelda(), 4);
+  const celdas = recorrido(MUT, 30, RECORRIDO);
+  const parado = crearExplorador({ almacen, celdas, buscar: async () => [], esperaMs: 1, alAvanzar: () => {} });
+  assert.equal((await parado.avance()).celda, 4, 'sin correr, el avance sale de lo guardado');
   assert.equal(await sembrarDesdeArchivo(almacen, ruta), 0, 'no vuelve a sembrar si ya va igual o más adelante');
   assert.equal(await sembrarDesdeArchivo(crearAlmacenLocalesMemoria(), join(ruta, 'no-existe')), 0);
 });

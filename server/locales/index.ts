@@ -69,7 +69,7 @@ export async function iniciarLocales(
 
   const rutas = express.Router();
   rutas.get('/', async (_req, res) => {
-    res.json({ locales: await almacen.todos(), avance: explorador.avance(), centro: MUT, radioKm: RADIO_KM });
+    res.json({ locales: await almacen.todos(), avance: await explorador.avance(), centro: MUT, radioKm: RADIO_KM });
   });
   return { rutas, detener: () => explorador.detener() };
 }
