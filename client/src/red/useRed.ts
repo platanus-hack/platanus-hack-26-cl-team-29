@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { ConfigRed, EstadoRed, EventoRed, Fuente } from './tipos.ts';
 import { cambiosDeNota, normalizarEstado, type CambioNota } from './derivar.ts';
-import { CONFIG_FALSA, iniciarRedFalsa, type RedFalsa } from './falso.ts';
+import { CONFIG_FALSA, type RedFalsa } from './falso.ts';
+import { iniciarRedFalsaCompartida } from './falso-compartido.ts';
 
 /** Cuánto tiempo se muestra animado un cambio de nota. */
 const DURACION_CAMBIO = 12_000;
@@ -110,7 +111,7 @@ export function useRed() {
           if (!activo) return;
           if (!falsa.current) {
             setFuente('falsa');
-            falsa.current = iniciarRedFalsa((e, ev) => {
+            falsa.current = iniciarRedFalsaCompartida((e, ev) => {
               if (ev?.tipo === 'red.reiniciada') return reiniciar(e);
               recibirEstado(e);
               if (ev) recibirEvento(ev);

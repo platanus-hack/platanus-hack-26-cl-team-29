@@ -8,7 +8,7 @@ import { cantidadCon, contar, dinero, haceCuanto, miles, nota, unidadDe } from '
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 
-function Contador({ valor, texto, color }: { valor: number; texto: string; color?: string }) {
+export function Contador({ valor, texto, color }: { valor: number; texto: string; color?: string }) {
   return (
     <div className="tarjeta contador">
       <div className={`numero-grande ${color ?? ''}`}>{miles(valor)}</div>
@@ -41,7 +41,7 @@ function Fila({ fila }: { fila: FilaRanking }) {
   );
 }
 
-function Ranking({ estado, cambios, ahora }: { estado: EstadoRed; cambios: CambioNota[]; ahora: number }) {
+export function Ranking({ estado, cambios, ahora }: { estado: EstadoRed; cambios: CambioNota[]; ahora: number }) {
   const filas = ranking(estado, cambios);
   const [lista, caben] = useFilasQueCaben<HTMLOListElement>(5, cambios.length);
   // Si un proveedor que cambió queda fuera de las filas que caben, se muestra igual en la última.
@@ -62,7 +62,7 @@ function Ranking({ estado, cambios, ahora }: { estado: EstadoRed; cambios: Cambi
   );
 }
 
-function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVisto[]; ahora: number }) {
+export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVisto[]; ahora: number }) {
   const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, eventos.length > 0);
   return (
     <section className="tarjeta apilada crece">
@@ -83,6 +83,23 @@ function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVi
   );
 }
 
+/** Resumen de la compra conjunta en curso: precio de hoy, negocios y unidades. Lleva a /licitacion. */
+export function MiniLicitacion({ estado }: { estado: EstadoRed }) {
+  const lic = licitacionActual(estado);
+  if (!lic) return null;
+  const resumenLic = resumenLicitacion(lic, estado);
+  return (
+    <a className="tarjeta mini-lic" href="/licitacion">
+      <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
+      <div className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</div>
+      <p>
+        {contar(resumenLic.compradores, 'negocio')}, {contar(resumenLic.totalUnidades, unidadDeLicitacion(lic).singular, unidadDeLicitacion(lic).plural)}
+        {resumenLic.precioSolo !== undefined && <> · solo: <span className="tachado">{dinero(resumenLic.precioSolo)}</span></>}
+      </p>
+    </a>
+  );
+}
+
 export function RedEnVivo() {
   const { estado, eventos, cambios, fuente } = useRed();
   const ahora = useAhora();
@@ -92,8 +109,6 @@ export function RedEnVivo() {
   const orden = ordenActual(estado);
   const pasos = orden ? cicloDeOrden(estado, orden, eventos) : [];
   const item = orden?.items[0];
-  const lic = licitacionActual(estado);
-  const resumenLic = lic && resumenLicitacion(lic, estado);
 
   return (
     <main className="pagina proyeccion red">
@@ -142,16 +157,7 @@ export function RedEnVivo() {
             <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} />
           </div>
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
-          {lic && resumenLic && (
-            <a className="tarjeta mini-lic" href="/licitacion">
-              <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
-              <div className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</div>
-              <p>
-                {contar(resumenLic.compradores, 'negocio')}, {contar(resumenLic.totalUnidades, unidadDeLicitacion(lic).singular, unidadDeLicitacion(lic).plural)}
-                {resumenLic.precioSolo !== undefined && <> · solo: <span className="tachado">{dinero(resumenLic.precioSolo)}</span></>}
-              </p>
-            </a>
-          )}
+          <MiniLicitacion estado={estado} />
         </div>
       </div>
     </main>
