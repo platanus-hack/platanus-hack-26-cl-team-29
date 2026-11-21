@@ -9,6 +9,7 @@ const ENLACES = [
   { ruta: '/licitacion', nombre: 'Licitación', detalle: 'Compra conjunta con QR' },
   { ruta: '/app', nombre: 'Mi negocio', detalle: 'Comprador por web' },
   { ruta: '/proveedor', nombre: 'Proveedor', detalle: 'Panel del proveedor' },
+  { ruta: '/proveedores', nombre: 'Proveedores', detalle: 'Buscador: red y Mercado Público' },
   { ruta: '/unirse', nombre: 'Sumarse', detalle: 'Página del QR en el celular' },
 ] as const;
 
