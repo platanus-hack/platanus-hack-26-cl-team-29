@@ -338,7 +338,6 @@
   display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; min-height: 64px; box-sizing: border-box;
   border-radius: 16px; background: var(--color-text); color: #0b0b0b; box-shadow: 0 -6px 24px 6px rgb(0 0 0 / 0.6);
 }
-.cn-barra-carrito.sobre-pestanas { bottom: calc(76px + env(safe-area-inset-bottom)); }
 .cn-barra-izq, .cn-barra-der { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cn-barra-der { align-items: flex-end; flex-shrink: 0; text-align: right; }
 .cn-barra-estado { font-weight: 800; font-size: 15px; line-height: 1.25; display: inline-flex; align-items: center; gap: 6px; }
@@ -351,33 +350,15 @@
 .cn-barra-ahorro { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #067a00; white-space: nowrap; }
 .cn-barra-neto { font-family: var(--font-mono); font-size: 12px; color: #444; }
 
-/* El grupo en vivo */
-.cn-cifras-grupo { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-.cn-cifras-grupo .ancha { grid-column: 1 / -1; }
-.cn-recientes { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 0; }
-.cn-recientes li {
-  display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--color-border);
-}
-.cn-recientes li.nuevo { animation: aparecer 0.4s ease-out; }
-.cn-recientes .cn-monograma { grid-row: span 2; }
-.cn-reciente-nombre { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
-.cn-reciente-detalle { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted); }
-
 /* En el teléfono y la tablet, fija abajo como en una app de delivery; la lista deja espacio para verse entera al final. */
 @media (max-width: 899px) {
   .cn-unirse:has(.cn-barra-carrito) { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
-  .cn-app:has(.cn-barra-carrito) { padding-bottom: calc(164px + env(safe-area-inset-bottom)); }
   .cn-barra-carrito {
     position: fixed; left: 50%; transform: translateX(-50%); width: min(calc(100% - 24px), 496px);
   }
 }
-@media (min-width: 900px) {
-  .cn-barra-carrito.sobre-pestanas { bottom: 16px; }
-  .cn-cifras-grupo { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
-  .cn-cifras-grupo .ancha { grid-column: auto; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .cn-item-valor.bajo, .cn-item-pista.bajo, .cn-se-sumo, .cn-recientes li.nuevo { animation: none; }
+  .cn-item-valor.bajo, .cn-item-pista.bajo, .cn-se-sumo { animation: none; }
 }
 
 /* Pedir por WhatsApp: alternativa visible al carrito, en el verde de WhatsApp y más baja que la acción principal. */

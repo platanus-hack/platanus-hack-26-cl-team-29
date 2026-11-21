@@ -28,7 +28,8 @@ La interfaz actual (oscura, neón, Oxanium y JetBrains Mono) es la anterior. Se 
 1. La vista rediseñada se envuelve en `.bando-ui`. Ahí los tokens de producto (`--color-primary`, `--color-border`,
    radios, tipografía) toman los valores de Bando; fuera de `.bando-ui` siguen los anteriores, así nada se rompe a medias.
 2. Los colores de marca (`--bando-*`) son globales y sirven en cualquier vista.
-3. No se mezclan los dos sistemas en una misma pantalla. Una vista está migrada o no.
+3. No se mezclan los dos sistemas en una misma pantalla. Una sección anterior que tiene que vivir dentro de una vista
+   migrada (mientras le llega su turno) va envuelta en `.puente-legado`, que les da a sus tokens viejos los valores de la marca.
 4. Cuando todas estén migradas, los tokens de `.bando-ui` pasan a `:root` y se borra la capa anterior de `estilos.css`.
 
 Tokens: [`client/src/marca/tokens.css`](client/src/marca/tokens.css) (ya importado en `estilos.css`).

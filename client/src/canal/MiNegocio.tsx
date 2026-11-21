@@ -7,36 +7,40 @@ import { dinero, nota } from '../../../shared/formato.ts';
 import { totalOrden } from '../../../shared/precios.ts';
 import { contar, cuantos } from '../../../shared/texto.ts';
 import { puedeVender } from '../../../shared/red.ts';
-import { cuentaRegresiva } from '../red/formato.ts';
-import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import {
-  cicloDelPedido, estaAbierta, licitacionVigente, unidadPara, montoNotaCredito,
+  cicloDelPedido, licitacionVigente, unidadPara, montoNotaCredito,
   type Unidad,
 } from './logica.ts';
-import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
-import { CarritoCompra, FacturaANombre, GrupoEnVivo } from './Carrito.tsx';
+import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { Invitar } from './Invitar.tsx';
 import { MiCredito } from './MiCredito.tsx';
-import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
+import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
+import { Marco, type SeccionMarco } from '../comprador/Marco.tsx';
+import { Inicio } from '../comprador/Inicio.tsx';
+import { ComprasEnGrupo } from '../comprador/ComprasEnGrupo.tsx';
 import './canal.css';
 
 /** Copia del catálogo de la red (server/red/catalogo.ts). El producto de la compra conjunta se compra en su sección. */
 const CATALOGO = ['Harina 25 kg', 'Levadura 500 g', 'Azúcar 25 kg', 'Manteca 10 kg', 'Sal 25 kg'];
 
-type Seccion = 'compra' | 'pedir' | 'pedidos' | 'facturas' | 'credito';
-const SECCIONES: Array<[Seccion, string, NombreIcono]> = [
-  ['compra', 'Compra conjunta', 'grupo'], ['pedir', 'Pedir', 'carro'], ['pedidos', 'Mis pedidos', 'paquete'], ['facturas', 'Mis facturas', 'documento'], ['credito', 'Crédito', 'tarjeta'],
+type Seccion = 'inicio' | 'compra' | 'pedidos' | 'pedir' | 'facturas' | 'credito';
+const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
+  { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'compra', titulo: 'Compras en grupo', corto: 'Compras', icono: 'grupo' },
+  { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' }, { id: 'pedir', titulo: 'Pedir', icono: 'carro' },
+  { id: 'facturas', titulo: 'Facturas', icono: 'documento' }, { id: 'credito', titulo: 'Crédito', icono: 'tarjeta' },
 ];
 
-const seccionDelHash = (): Seccion => {
-  const h = location.hash.slice(1);
-  return SECCIONES.some(([s]) => s === h) ? (h as Seccion) : 'compra';
+/** `#compra/rollos` → la compra en grupo con ese producto abierto. Sin hash, la portada. */
+const rutaDelHash = (): { seccion: Seccion; productoId?: string } => {
+  const [s, productoId] = location.hash.slice(1).split('/');
+  const seccion = SECCIONES.find(x => x.id === s)?.id ?? 'inicio';
+  return seccion === 'compra' && productoId ? { seccion, productoId: decodeURIComponent(productoId) } : { seccion };
 };
 
 const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
@@ -44,10 +48,10 @@ const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 export function MiNegocio() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const { token, entrar, vencer, salir } = useSesion(api);
-  const [seccion, setSeccion] = useState<Seccion>(seccionDelHash);
+  const [{ seccion, productoId }, setRuta] = useState(rutaDelHash);
 
   useEffect(() => {
-    const alCambiar = () => setSeccion(seccionDelHash());
+    const alCambiar = () => { setRuta(rutaDelHash()); scrollTo(0, 0); };
     addEventListener('hashchange', alCambiar);
     return () => removeEventListener('hashchange', alCambiar);
   }, []);
@@ -70,69 +74,28 @@ export function MiNegocio() {
   const porRecibir = yo.ordenes.filter(o => o.estado === 'facturada').length;
   const vigente = licitacionVigente(foto.licitaciones);
   const participa = yo.participaciones.some(p => p.licitacionId === vigente?.id);
+  const secciones = SECCIONES.map(s => (s.id === 'pedidos' ? { ...s, globo: porRecibir } : s));
 
   return (
-    <div className="cn-app">
-      <header className="cn-cabecera">
-        <Marca />
-        <Monograma nombre={yo.negocio.nombre} />
-        <div className="cn-quien">
-          <strong className="nombre">{yo.negocio.nombre}</strong>
-          <span className="mono tenue">{yo.negocio.comuna} <AvisoFuente fuente={fuente} /></span>
+    <Marco secciones={secciones} activa={seccion} negocio={yo.negocio} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
+      {error && <p className="bm-error">{error}</p>}
+      {seccion === 'inicio' && <Inicio foto={foto} yo={yo} config={config} secciones={SECCIONES} evento={cambio} />}
+      {seccion === 'compra' && <ComprasEnGrupo api={api} token={token} foto={foto} yo={yo} productoId={productoId} />}
+      {seccion === 'compra' && !productoId && vigente && participa && (
+        <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>
+      )}
+      {seccion !== 'inicio' && seccion !== 'compra' && (
+        // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).
+        <div className="puente-legado cn-contenido">
+          <AvisoCompraAbierta lic={vigente} participa={participa} irACompra={() => irA('compra')} />
+          {seccion === 'pedir' && <Pedir api={api} token={token} foto={foto} config={config} alEnviar={() => { recargar(); irA('pedidos'); }} />}
+          {seccion === 'pedidos' && <MisPedidos api={api} token={token} foto={foto} yo={yo} config={config} alCambiar={recargar} irAPedir={() => irA('pedir')} />}
+          {seccion === 'facturas' && <MisFacturas foto={foto} yo={yo} />}
+          {seccion === 'credito' && <MiCredito api={api} token={token} foto={foto} cambio={cambio} />}
+          <BotonWhatsapp numero={config?.whatsappNumero} />
         </div>
-        <button type="button" className="cn-boton-texto" onClick={salir}>Salir</button>
-      </header>
-
-      <nav className="cn-pestanas" aria-label="Secciones">
-        {SECCIONES.map(([s, titulo, icono]) => (
-          <a key={s} href={`#${s}`} className={s === seccion ? 'activa' : ''} aria-current={s === seccion ? 'page' : undefined}>
-            <Icono nombre={icono} />
-            <span>{titulo}</span>
-            {s === 'pedidos' && porRecibir > 0 && <span className="cn-globo" aria-label={`${porRecibir} por revisar`}>{porRecibir}</span>}
-          </a>
-        ))}
-      </nav>
-
-      <main className="cn-contenido">
-        {error && <p className="error">{error}</p>}
-        {seccion !== 'compra' && <AvisoCompraAbierta lic={vigente} participa={participa} irACompra={() => irA('compra')} />}
-        {seccion === 'compra' && <CompraConjunta api={api} token={token} foto={foto} yo={yo} />}
-        {seccion === 'pedir' && <Pedir api={api} token={token} foto={foto} config={config} alEnviar={() => { recargar(); irA('pedidos'); }} />}
-        {seccion === 'pedidos' && <MisPedidos api={api} token={token} foto={foto} yo={yo} config={config} alCambiar={recargar} irAPedir={() => irA('pedir')} />}
-        {seccion === 'facturas' && <MisFacturas foto={foto} yo={yo} />}
-        {seccion === 'credito' && <MiCredito api={api} token={token} foto={foto} cambio={cambio} />}
-        <BotonWhatsapp numero={config?.whatsappNumero} />
-      </main>
-    </div>
-  );
-}
-
-// ---------- Compra conjunta ----------
-
-function CompraConjunta({ api, token, foto, yo }: { api: CanalApi; token: string; foto: FotoRed; yo: YoComprador }) {
-  const ahora = useAhora();
-  const lic = licitacionVigente(foto.licitaciones);
-  if (!lic) {
-    return <Vacio titulo="No hay una compra conjunta abierta" texto="Cuando parta una, aparece aquí con sus precios en vivo. Mientras tanto, puedes pedir directo a un proveedor." />;
-  }
-  const abierta = estaAbierta(lic, ahora);
-  const mia = yo.participaciones.find(p => p.licitacionId === lic.id);
-  return (
-    <section className="cn-seccion">
-      <div className="cn-compra-cabecera">
-        <div className="cn-fila-meta">
-          {abierta ? <span className="en-vivo">En vivo</span> : <span className="cn-chip">Cerrada</span>}
-          {abierta && <span className="mono">cierra en {cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}</span>}
-        </div>
-        <h2 className="cn-titulo-compra">Compra conjunta</h2>
-        <p className="mono tenue cn-grupo">Cada producto baja de precio cuando el grupo junta más unidades.</p>
-        <FacturaANombre factura={yo.facturaA} />
-      </div>
-      {!abierta && mia && <p className="cn-ok">La compra cerró con tu carrito: tu pedido y su factura aparecen en Mis pedidos.</p>}
-      <CarritoCompra api={api} token={token} lic={lic} negocioId={yo.negocio.id} participacion={mia} abierta={abierta} conPestanas />
-      {abierta && mia && <Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} />}
-      <GrupoEnVivo lic={lic} negocioId={yo.negocio.id} ahora={ahora} />
-    </section>
+      )}
+    </Marco>
   );
 }
 

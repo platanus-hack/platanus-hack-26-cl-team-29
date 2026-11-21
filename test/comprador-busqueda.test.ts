@@ -1,0 +1,24 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { buscarEnApp, type FuentesBusqueda } from '../client/src/comprador/busqueda.ts';
+
+const FUENTES: FuentesBusqueda = {
+  productos: [{ id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm' }, { id: 'guantes', nombre: 'Guantes de nitrilo' }],
+  ordenes: [{ id: 'o1', proveedorId: 'p1', items: [{ producto: 'Harina 25 kg' }] }],
+  documentos: [{ tipo: 33, folio: 5190, ordenId: 'o1' }, { tipo: 61, folio: null, ordenId: 'o1' }],
+  negocios: [{ id: 'p1', nombre: 'Molinos del Sur' }],
+  secciones: [{ id: 'credito', titulo: 'Crédito' }, { id: 'facturas', titulo: 'Facturas' }],
+};
+
+test('la búsqueda encuentra productos, pedidos, facturas y secciones, sin importar tildes ni mayúsculas', () => {
+  assert.deepEqual(buscarEnApp('TERMICOS', FUENTES).map(r => r.href), ['#compra/rollos']);
+  assert.deepEqual(buscarEnApp('molinos', FUENTES).map(r => [r.tipo, r.titulo]), [['pedido', 'Harina 25 kg']]);
+  assert.deepEqual(buscarEnApp('5190', FUENTES).map(r => [r.titulo, r.detalle]), [['Factura folio 5190', 'Molinos del Sur']]);
+  assert.deepEqual(buscarEnApp('credito', FUENTES).map(r => r.href), ['#credito']);
+});
+
+test('todas las palabras tienen que aparecer, y con menos de 2 letras no busca', () => {
+  assert.deepEqual(buscarEnApp('rollos 80', FUENTES).map(r => r.href), ['#compra/rollos']);
+  assert.deepEqual(buscarEnApp('rollos nitrilo', FUENTES), []);
+  assert.deepEqual(buscarEnApp('g', FUENTES), []);
+});

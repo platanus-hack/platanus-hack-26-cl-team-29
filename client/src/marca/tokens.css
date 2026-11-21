@@ -66,3 +66,19 @@
   font-size: var(--text-base);
   line-height: var(--leading-base);
 }
+
+/* Puente temporal: una sección de la interfaz anterior dentro de una vista ya migrada. Les da a sus tokens viejos
+   valores de la marca (sobre todo `--color-muted`, que antes era un color de texto) para que no quede una isla oscura.
+   Se borra cuando la última sección anterior se rediseñe (DESIGN.md, "Cómo migrar"). */
+.bando-ui .puente-legado {
+  --color-background: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-text: #000000;
+  --color-muted: #404040;
+  --color-tenue: #6E6A5E;
+  --color-green: var(--bando-oliva-texto);
+  --color-magenta: #EF4343;
+  --font-display: var(--font-sans);
+  --font-mono: var(--font-sans);
+  color: var(--color-text);
+}
