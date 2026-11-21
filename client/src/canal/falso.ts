@@ -2,25 +2,29 @@
 // no tiene las rutas con sesión (o con `?prueba`). Todos los nombres son ficticios.
 // Simula a la contraparte: el proveedor confirma y factura solo, y emite la nota de crédito tras un reclamo.
 
-import type { Documento, EventoRed, Negocio, TipoDocumento, TipoEvento } from '../red/tipos.ts';
+import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoDocumento, TipoEvento } from '../red/tipos.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
 
+const tramos = (lista: Array<[number, number]>) => lista.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
+
+/** La canasta por defecto del contrato (docs/decisiones/20261121-1130-contrato-red.md). */
+const PRODUCTOS: ProductoCompra[] = [
+  { id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32_000, tramos: tramos([[1, 32_000], [10, 29_900], [25, 27_900], [50, 25_900], [100, 24_500]]) },
+  { id: 'etiquetas', nombre: 'Rollo de etiquetas adhesivas 50x30 (1.000 un.)', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 6_900, tramos: tramos([[1, 6_900], [10, 6_400], [25, 5_900], [50, 5_500]]) },
+  { id: 'bolsas', nombre: 'Paquete de bolsas camiseta (1.000 un.)', unidad: 'paquete', unidadPlural: 'paquetes', precioSolo: 14_900, tramos: tramos([[1, 14_900], [10, 13_900], [25, 12_900], [50, 11_900]]) },
+  { id: 'guantes', nombre: 'Caja de guantes de nitrilo (100 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 8_900, tramos: tramos([[1, 8_900], [10, 8_200], [25, 7_600], [50, 7_100]]) },
+];
+const TRAMOS = PRODUCTOS[0].tramos;
+
 const CONFIG: ConfigRed = {
   whatsappNumero: null,
-  producto: 'Caja de rollos térmicos 80 mm (50 un.)',
-  unidad: 'caja',
-  unidadPlural: 'cajas',
+  productos: PRODUCTOS.map(({ id, nombre, unidad, unidadPlural }) => ({ id, nombre, unidad, unidadPlural })),
+  producto: PRODUCTOS[0].nombre,
+  unidad: PRODUCTOS[0].unidad,
+  unidadPlural: PRODUCTOS[0].unidadPlural,
 };
-
-const TRAMOS = [
-  { desde: 1, precioUnitario: 32_000 },
-  { desde: 10, precioUnitario: 29_900 },
-  { desde: 25, precioUnitario: 27_900 },
-  { desde: 50, precioUnitario: 25_900 },
-  { desde: 100, precioUnitario: 24_500 },
-];
 
 const PROVEEDOR_DEMO = 'p-papelera';
 
@@ -46,13 +50,41 @@ const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', '
 
 /** Precio neto de referencia de los productos que no son de la compra conjunta. */
 const PRECIOS: Record<string, number> = {
-  [CONFIG.producto]: 32_000,
+  ...Object.fromEntries(PRODUCTOS.map(p => [p.nombre, p.precioSolo])),
   'Harina 25 kg': 18_000,
   'Levadura 500 g': 3_500,
   'Azúcar 25 kg': 24_000,
   'Manteca 10 kg': 21_000,
   'Sal 25 kg': 9_000,
 };
+
+/** Carritos de los compradores sembrados: el grupo parte cerca de bajar de tramo en varios productos. */
+const CARRITOS_SEMBRADOS: Array<Array<[string, number]>> = [
+  [['rollos', 4], ['etiquetas', 2]], [['rollos', 6], ['bolsas', 3]], [['rollos', 3], ['guantes', 2]],
+  [['rollos', 2], ['bolsas', 2]], [['rollos', 3], ['etiquetas', 4]], [['rollos', 3], ['guantes', 4]],
+];
+
+const conCantidad = (p: Participante): Participante => ({ ...p, cantidad: (p.items ?? []).reduce((s, i) => s + i.cantidad, 0) });
+
+const tramoEn = (p: ProductoCompra, unidades: number) => [...p.tramos].reverse().find(t => t.desde <= unidades) ?? p.tramos[0];
+
+/** Los derivados que calcula el backend: por producto (unidades, precio, próximo tramo) y de toda la canasta. */
+function conDerivados(lic: LicitacionCanal): LicitacionCanal {
+  const productos = (lic.productos ?? []).map(p => {
+    const totalUnidades = lic.participantes.reduce((s, x) => s + (x.items ?? []).filter(i => i.productoId === p.id).reduce((a, i) => a + i.cantidad, 0), 0);
+    const precioActual = tramoEn(p, totalUnidades).precioUnitario;
+    const sig = p.tramos.find(t => t.desde > totalUnidades && t.precioUnitario < precioActual);
+    return { ...p, totalUnidades, precioActual, siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null };
+  });
+  const p0 = productos[0];
+  return {
+    ...lic, productos,
+    tramos: p0?.tramos, precioSolo: p0?.precioSolo, precioActual: p0?.precioActual, siguienteTramo: p0?.siguienteTramo,
+    unidad: p0?.unidad, unidadPlural: p0?.unidadPlural,
+    totalUnidades: productos.reduce((s, p) => s + p.totalUnidades, 0),
+    ahorroTotal: productos.reduce((s, p) => s + p.totalUnidades * (p.precioSolo - p.precioActual), 0),
+  };
+}
 
 const MINUTO = 60_000;
 const hace = (ms: number) => new Date(Date.now() - ms).toISOString();
@@ -74,7 +106,11 @@ function sembrar() {
     precioSolo: TRAMOS[0].precioUnitario,
     tramos: TRAMOS,
     ofertas: [],
-    participantes: COMPRADORES.map(([negocioId, nombre, comuna], i) => ({ negocioId, nombre, comuna, cantidad: [4, 6, 3, 2, 3, 3][i], en: hace((12 - i) * MINUTO) })),
+    productos: structuredClone(PRODUCTOS),
+    participantes: COMPRADORES.map(([negocioId, nombre, comuna], i) => conCantidad({
+      negocioId, nombre, comuna, cantidad: 0, en: hace((12 - i) * MINUTO),
+      items: CARRITOS_SEMBRADOS[i].map(([productoId, cantidad]) => ({ productoId, cantidad })),
+    })),
   };
   const item = (cantidad: number, producto = CONFIG.producto) => [{ producto, cantidad, precioUnitario: PRECIOS[producto] }];
   const ordenes: OrdenCanal[] = [
@@ -182,16 +218,36 @@ export function crearApiFalsa(): CanalApi {
     facturar(porRecibir);
   };
 
+  /** Guarda el carrito de un participante y avisa como el backend: participante y, si bajó, un precio_bajo por producto. */
+  const cambiarCarrito = (lic: LicitacionCanal, participante: Participante, accion: 'entra' | 'cambia' | 'sale') => {
+    const antes = conDerivados(lic).productos ?? [];
+    lic.participantes = lic.participantes.filter(p => p.negocioId !== participante.negocioId);
+    if (participante.cantidad > 0) lic.participantes.push(participante);
+    const despues = conDerivados(lic);
+    avisar('licitacion.participante', { licitacionId: lic.id, licitacion: despues, participante, accion });
+    for (const p of despues.productos ?? []) {
+      const previo = antes.find(x => x.id === p.id);
+      if (previo?.precioActual && p.precioActual && p.precioActual < previo.precioActual) {
+        avisar('licitacion.precio_bajo', { licitacionId: lic.id, productoId: p.id, precioAnterior: previo.precioActual, precioNuevo: p.precioActual, totalUnidades: p.totalUnidades });
+      }
+    }
+  };
+  const abierta = (licitacionId: string) => {
+    const lic = licitacion(licitacionId);
+    exigir(lic.estado === 'abierta' && Date.parse(lic.cierraEn) > Date.now(), 'Esta compra conjunta ya cerró.');
+    return lic;
+  };
+
   // El público se sigue sumando: el precio baja en vivo.
   setInterval(() => {
     const lic = red.licitaciones.find(l => l.estado === 'abierta' && Date.parse(l.cierraEn) > Date.now());
-    if (!lic || lic.participantes.reduce((s, p) => s + p.cantidad, 0) > 60) return;
+    if (!lic || lic.participantes.reduce((s, p) => s + p.cantidad, 0) > 120) return;
     const nombre = DEL_PUBLICO[contador++ % DEL_PUBLICO.length];
     const negocio: Negocio = { id: `c-pub-${contador}`, nombre, comuna: COMUNAS[contador % COMUNAS.length], rol: 'comprador' };
     red.negocios.push(negocio);
-    const participante = { negocioId: negocio.id, nombre, comuna: negocio.comuna, cantidad: 1 + (contador % 3), en: ahoraIso() };
-    lic.participantes.push(participante);
-    avisar('licitacion.participante', { licitacion: lic, participante });
+    const productoId = PRODUCTOS[contador % PRODUCTOS.length].id;
+    const participante = conCantidad({ negocioId: negocio.id, nombre, comuna: negocio.comuna, cantidad: 0, items: [{ productoId, cantidad: 1 + (contador % 3) }], en: ahoraIso() });
+    cambiarCarrito(lic, participante, 'entra');
   }, 9000);
 
   const foto = (): FotoRed => structuredClone({
@@ -199,7 +255,7 @@ export function crearApiFalsa(): CanalApi {
     ordenes: red.ordenes,
     documentos: red.documentos,
     notas: [...red.notas].map(([proveedorId, nota]) => ({ proveedorId, nota })),
-    licitaciones: red.licitaciones,
+    licitaciones: red.licitaciones.map(conDerivados),
   });
 
   return {
@@ -208,10 +264,10 @@ export function crearApiFalsa(): CanalApi {
     config: async () => CONFIG,
     estado: async () => foto(),
 
-    async sesion(nombre, comuna) {
+    async sesion(nombre, comuna, rubro) {
       await espera(300);
       exigir(!!nombre.trim(), 'Escribe el nombre de tu negocio.');
-      const negocio: Negocio = { id: `c-web-${++contador}`, nombre: nombre.trim(), comuna: comuna.trim() || 'Santiago', rol: 'comprador' };
+      const negocio: Negocio = { id: `c-web-${++contador}`, nombre: nombre.trim(), comuna: comuna.trim() || 'Santiago', rol: 'comprador', ...(rubro ? { rubro } : {}) };
       red.negocios.push(negocio);
       sembrarComprador(negocio);
       const token = `falso-${negocio.id}`;
@@ -223,7 +279,7 @@ export function crearApiFalsa(): CanalApi {
       const negocio = quien(token);
       const ordenes = red.ordenes.filter(o => o.compradorId === negocio.id);
       const participaciones: Participacion[] = red.licitaciones.flatMap(l =>
-        l.participantes.filter(p => p.negocioId === negocio.id).map(p => ({ licitacionId: l.id, cantidad: p.cantidad })));
+        l.participantes.filter(p => p.negocioId === negocio.id).map(p => ({ licitacionId: l.id, cantidad: p.cantidad, items: p.items ?? [] })));
       return structuredClone({
         negocio,
         ordenes,
@@ -235,14 +291,31 @@ export function crearApiFalsa(): CanalApi {
     async unirse(token, licitacionId, cantidad) {
       await espera(300);
       const negocio = quien(token);
-      const lic = licitacion(licitacionId);
-      exigir(lic.estado === 'abierta' && Date.parse(lic.cierraEn) > Date.now(), 'Esta compra conjunta ya cerró.');
+      const lic = abierta(licitacionId);
       exigir(Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 20, 'Puedes pedir entre 1 y 20.');
       const previo = lic.participantes.find(p => p.negocioId === negocio.id);
-      const participante = previo ?? { negocioId: negocio.id, nombre: negocio.nombre, comuna: negocio.comuna, cantidad, en: ahoraIso() };
-      participante.cantidad = cantidad;
-      if (!previo) lic.participantes.push(participante);
-      avisar('licitacion.participante', { licitacion: lic, participante });
+      const items = [...(previo?.items ?? []).filter(i => i.productoId !== PRODUCTOS[0].id), { productoId: PRODUCTOS[0].id, cantidad }];
+      cambiarCarrito(lic, conCantidad({ negocioId: negocio.id, nombre: negocio.nombre, comuna: negocio.comuna, cantidad: 0, items, en: previo?.en ?? ahoraIso() }), previo ? 'cambia' : 'entra');
+    },
+
+    async carrito(token, licitacionId, items) {
+      await espera(250);
+      const negocio = quien(token);
+      const lic = abierta(licitacionId);
+      exigir(items.every(i => PRODUCTOS.some(p => p.id === i.productoId) && Number.isInteger(i.cantidad) && i.cantidad >= 0 && i.cantidad <= 20), 'Puedes pedir entre 0 y 20 de cada producto.');
+      const previo = lic.participantes.find(p => p.negocioId === negocio.id);
+      const orden = PRODUCTOS.map(p => p.id);
+      const limpios = items.filter(i => i.cantidad > 0).sort((a, b) => orden.indexOf(a.productoId) - orden.indexOf(b.productoId));
+      const participante = conCantidad({ negocioId: negocio.id, nombre: negocio.nombre, comuna: negocio.comuna, cantidad: 0, items: limpios, en: previo?.en ?? ahoraIso() });
+      cambiarCarrito(lic, participante, !limpios.length ? 'sale' : previo ? 'cambia' : 'entra');
+    },
+
+    async salir(token, licitacionId) {
+      await espera(250);
+      const negocio = quien(token);
+      const lic = licitacion(licitacionId);
+      const previo = lic.participantes.find(p => p.negocioId === negocio.id);
+      if (previo) cambiarCarrito(lic, { ...previo, items: [], cantidad: 0 }, 'sale');
     },
 
     async pedir(token, proveedorId, items) {
@@ -310,12 +383,15 @@ export function crearApiFalsa(): CanalApi {
       const lic = licitacion(licitacionId);
       exigir(lic.estado === 'abierta', 'Esta compra conjunta ya estaba cerrada.');
       lic.estado = 'cerrada';
-      const unidades = lic.participantes.reduce((s, p) => s + p.cantidad, 0);
-      const precio = [...TRAMOS].reverse().find(t => t.desde <= unidades)?.precioUnitario ?? TRAMOS[0].precioUnitario;
-      // Como el backend: una orden por participante, enviada, y sus ids en la licitación.
+      const productos = conDerivados(lic).productos ?? [];
+      // Como el backend: una orden por participante con todo su carrito, enviada, y sus ids en la licitación.
       const nuevas: OrdenCanal[] = lic.participantes.map(p => ({
         id: `o-${++contador}`, compradorId: p.negocioId ?? '', proveedorId: PROVEEDOR_DEMO, estado: 'enviada',
-        creadaEn: ahoraIso(), items: [{ producto: lic.producto, cantidad: p.cantidad, precioUnitario: precio }],
+        creadaEn: ahoraIso(),
+        items: (p.items ?? []).map(i => {
+          const producto = productos.find(x => x.id === i.productoId)!;
+          return { producto: producto.nombre, cantidad: i.cantidad, precioUnitario: producto.precioActual ?? producto.precioSolo };
+        }),
       }));
       red.ordenes.push(...nuevas);
       lic.ordenIds = nuevas.map(o => o.id);

@@ -9,6 +9,8 @@ export interface ConfigRed {
   producto: string;
   unidad: string;
   unidadPlural: string;
+  /** Canasta de la compra conjunta: los productos y cómo se cuentan. */
+  productos?: Array<{ id: string; nombre: string; unidad: string; unidadPlural: string }>;
   /** Logo del proveedor de la compra conjunta, si se configuró. Opcional: sin él se usa su monograma. */
   proveedorLogoUrl?: string | null;
 }
@@ -40,6 +42,8 @@ export interface OrdenCanal extends OrdenCompra {
 export interface Participacion {
   licitacionId: string;
   cantidad: number;
+  /** Canasta: el carrito de este negocio en esa compra. */
+  items?: Array<{ productoId: string; cantidad: number }>;
 }
 
 /** `GET /api/red/yo`. */
