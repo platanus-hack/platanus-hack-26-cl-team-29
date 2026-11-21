@@ -42,6 +42,34 @@ export function unidadesDe(
   return l.participantes.reduce((s, p) => s + (p.items ?? []).filter(i => i.productoId === productoId).reduce((t, i) => t + i.cantidad, 0), 0);
 }
 
+/** Máximo de tramos que un proveedor puede fijar para un producto. */
+export const MAX_TRAMOS = 8;
+
+/** Quien fija los tramos de un producto: quien lo creó o, en la canasta de la compra, su proveedor fijo. */
+export const duenoDeTramos = (p: { proveedorId?: string }, l: { proveedorId?: string }): string | undefined => p.proveedorId ?? l.proveedorId;
+
+/**
+ * Por qué unos tramos nuevos no sirven, o null si sirven: de 1 a MAX_TRAMOS, "desde" enteros distintos (el primero
+ * desde 1) y precios enteros positivos que no suben con el volumen. Con `vigente`, el precio que ya tiene el grupo con sus
+ * unidades no puede subir: quien ya se sumó nunca paga más por un cambio de tramos.
+ */
+export function errorDeTramos(tramos: readonly Tramo[], vigente?: { unidades: number; precio: number }): string | null {
+  if (tramos.length === 0 || tramos.length > MAX_TRAMOS) return `Fija entre 1 y ${MAX_TRAMOS} tramos`;
+  if (!tramos.every(t => Number.isInteger(t.desde) && t.desde >= 1)) return 'Cada tramo parte desde 1 o más unidades enteras';
+  if (!tramos.every(t => Number.isInteger(t.precioUnitario) && t.precioUnitario > 0)) return 'Cada precio debe ser un entero positivo, en pesos';
+  const orden = ordenarTramos(tramos);
+  if (orden[0].desde !== 1) return 'El primer tramo parte desde 1 unidad: es el precio de comprar solo';
+  for (let i = 1; i < orden.length; i++) {
+    if (orden[i].desde === orden[i - 1].desde) return `Hay dos tramos desde ${orden[i].desde}`;
+    if (orden[i].precioUnitario > orden[i - 1].precioUnitario) return 'Un tramo de más volumen no puede costar más que uno menor';
+  }
+  if (vigente && vigente.unidades > 0) {
+    const nuevo = tramoAlcanzado(orden, vigente.unidades)?.precioUnitario;
+    if (nuevo !== undefined && nuevo > vigente.precio) return 'El precio que ya alcanzó el grupo no puede subir';
+  }
+  return null;
+}
+
 /** Descuento de cada tramo automático sobre el precio de un producto creado por un proveedor. */
 const TRAMOS_AUTOMATICOS: readonly [desde: number, factor: number][] = [[1, 1], [10, 0.95], [25, 0.9], [50, 0.85]];
 

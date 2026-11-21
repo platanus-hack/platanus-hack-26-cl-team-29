@@ -9,7 +9,7 @@ import { PROVEEDOR_SALA } from './semilla.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import { mismoSecreto } from './sesiones.ts';
 import type { Sesion, Sesiones } from './sesiones.ts';
-import type { Negocio, OrdenCompra } from './tipos.ts';
+import type { Negocio, OrdenCompra, Tramo } from './tipos.ts';
 
 // Canal web, paralelo a WhatsApp: las mismas acciones y las mismas funciones del dominio.
 // Comprador: sesión con su nombre y su RUT (sin teléfono); su factura sale a ese RUT. Proveedor de la sala: sesión con PROVEEDOR_CODIGO.
@@ -208,6 +208,12 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
     const licitacionId = licitacionPropia(req);
     exigirConfirmado(req);
     res.json(await red.confirmarOrdenesDeLicitacion(licitacionId));
+  });
+
+  // Sus tramos por volumen, mientras la compra está abierta. El dominio exige que el producto sea suyo.
+  rutas.put('/proveedor/licitacion/:id/productos/:productoId/tramos', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
+    const r = await red.fijarTramos(id(req), String(req.params.productoId), yo(req).id, cuerpo(req).tramos as Tramo[]);
+    res.json(sinTelefonos(r));
   });
 
   rutas.post('/proveedor/ordenes/:id/confirmar', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
