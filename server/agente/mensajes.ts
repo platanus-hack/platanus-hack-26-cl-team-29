@@ -159,6 +159,10 @@ const cuantas = (p: Pick<ProductoCompra, 'unidad'>) => (/a$/i.test(p.unidad) ? '
 
 /** "4 cajas de rollos" */
 export const itemTexto = (p: ProductoCompra, cantidad: number) => `${cantidad} ${unidadDe(p, cantidad)} de ${cortoDe(p)}`;
+/** Un número suelto que bajaría lo que lleva: ¿queda en ese número o lo suma? Las opciones salen como botones. */
+export const dudaCantidad = (p: ProductoCompra, cantidad: number, lleva: number) =>
+  `Llevas ${itemTexto(p, lleva)}. ¿Quedas en ${cantidad} o sumo ${cantidad} (${lleva + cantidad} en total)?\n`
+  + opciones(`Quedar en ${cantidad}`, `Sumar (${lleva + cantidad})`);
 
 function lineasDe(items: readonly ItemCarrito[], l: LicitacionSala): { p: ProductoCompra; cantidad: number }[] {
   const productos = productosDe(l);

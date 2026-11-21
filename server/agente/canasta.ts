@@ -139,6 +139,22 @@ const VERBOS: Record<string, ModoCambio> = {
   cambia: 'fijar', cambiar: 'fijar', cambiame: 'fijar', deja: 'fijar', dejame: 'fijar', pon: 'fijar', ponme: 'fijar',
   mejor: 'fijar', ahora: 'fijar',
 };
+/**
+ * Si el mensaje suma, fija o quita. Bugs reales de la sala lo dejaron así:
+ *  - "más" solo suma junto al número ("4 más", "4 cajas más"); en "pa que sea más barato" no es cantidad.
+ *  - "las 4 que faltan" suma.
+ *  - "las 10 en total" fija, aunque diga "más" en otra parte.
+ */
+function modoDe(tokens: readonly string[]): ModoCambio | undefined {
+  const numero = tokens.findIndex(t => /^\d{1,4}$/.test(t));
+  const masJuntoAlNumero = tokens.some((t, i) => t === 'mas' && (numero < 0 || Math.abs(i - numero) <= 2));
+  let modo: ModoCambio | undefined;
+  for (const token of tokens) if (token !== 'mas' && token in VERBOS) { modo = VERBOS[token]; break; }
+  if (modo !== 'quitar' && (masJuntoAlNumero || tokens.some(t => /^(falta|faltan|falten|faltaban)$/.test(t)))) modo = 'sumar';
+  if (tokens.some(t => /^(total|totales|totals)$/.test(t))) modo = 'fijar';
+  return modo;
+}
+
 /** "2 del 3", "4 de la 2", "1 del producto 3". */
 const POSICION = /(?:^|\s)(\d{1,3})\s+(?:del?|de la)\s+(?:(?:producto|numero|opcion|item)\s+)?(?:n\s*)?(\d{1,2})(?=\s|$)/;
 /** "el 3", "producto 2", "numero 1". */
@@ -216,7 +232,7 @@ function leerTramo(original: string, texto: string, cat: Catalogo): Lectura {
     }
   }
   const tokens = resto.split(/\s+/).filter(Boolean);
-  for (const token of tokens) if (token in VERBOS) { lectura.modo = VERBOS[token]; break; }
+  lectura.modo = modoDe(tokens) ?? lectura.modo;
   if (lectura.cantidad === undefined) {
     // Primero dígitos ("Negocio Uno, 9" son 9); las palabras ("tres cajas") solo si no hay dígitos.
     const numero = tokens.find(t => /^\d{1,4}$/.test(t)) ?? tokens.find((_, i) => esNumeroEnPalabras(tokens, i, cat));
