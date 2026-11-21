@@ -109,7 +109,7 @@ test('crearSii en certificación arma, timbra, firma y sube la factura en un sob
   const archivo = Buffer.from(llamadas(URLS.subida)[0]!.cuerpo as Uint8Array).toString('latin1');
   assert.ok(archivo.includes(r.sobreXml), 'el archivo subido es el sobre devuelto');
   assert.match(r.sobreXml, /<RznSoc>Compañía de Prueba<\/RznSoc>/);
-  await assert.rejects(sii.emitirGuia({ folio: 1, receptor: { rut: '11111111-1', razonSocial: 'C', giro: 'G', direccion: 'D', comuna: 'S' }, items: [{ nombre: 'x', cantidad: 1, precioUnitario: 1 }], motivoTraslado: 1 }), /SII_CAF_52_BASE64/);
+  await assert.rejects(sii.emitirGuia({ folio: 1, receptor: { rut: '11111111-1', razonSocial: 'C', giro: 'G', direccion: 'D', comuna: 'S' }, items: [{ nombre: 'x', cantidad: 1, precioUnitario: 1 }], motivoTraslado: 1 }), /no hay CAF para emitir el tipo 52/);
 });
 
 test('emitirFacturas sube N facturas en un solo sobre, con un SubTotDTE y una sola subida', async () => {

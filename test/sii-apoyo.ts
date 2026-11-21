@@ -71,3 +71,9 @@ export function verificarFirma(firma: Element, referido: Element): void {
   const valor = Buffer.from(firma.getElementsByTagName('SignatureValue').item(0)?.textContent ?? '', 'base64');
   assert.ok(verify('sha1', Buffer.from(signedInfo, 'utf8'), certificado.publicKey, valor), 'firma RSA');
 }
+
+/** Consulta de RUT como la del portal real (no simulada): cualquier RUT tiene ficha, así su factura se puede emitir. */
+export const consultaConFicha = async (rut: string) => ({
+  razonSocial: `Comercial ${rut.slice(0, 2)} SpA`, giro: 'Comercio al por menor', direccion: 'Calle 1', comuna: 'Santiago',
+  actividades: [{ codigo: '471100', glosa: 'Comercio al por menor' }],
+});

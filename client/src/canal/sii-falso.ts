@@ -4,14 +4,16 @@
 // entregar (como el portal de certificación hoy) para mostrar el camino manual.
 
 import { validarRut } from '../../../shared/rut.ts';
+import { TIPOS_DOCUMENTO } from '../../../shared/documentos.ts';
+import { demandaManual, minimoDeFolios, POLITICA_FOLIOS } from '../../../shared/folios.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
-import type { CafSii, EstadoConexionSii, PasoSii } from './tipos.ts';
+import type { CafSii, EstadoConexionSii, FoliosSii, PasoSii } from './tipos.ts';
 
-type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiDesconectar'>;
+type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiTraerFolios' | 'siiDesconectar'>;
 
 const vacia = (): EstadoConexionSii => ({
-  conectado: false, respaldoVariables: false, puedeGuardar: true, titular: null, venceEl: null,
-  rutEmisor: null, empresa: null, origenEmpresa: null, resolucion: null, cafs: [], automatico: null, sesionPersistente: false,
+  conectado: false, puedeGuardar: true, titular: null, venceEl: null,
+  rutEmisor: null, empresa: null, origenEmpresa: null, resolucion: null, cafs: [], folios: [], automatico: null, sesionPersistente: false,
 });
 
 const espera = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -19,8 +21,18 @@ const exigir = (cumple: boolean, mensaje: string) => { if (!cumple) throw new Er
 
 export function crearConexionSiiFalsa(verificar: (token: string) => void): MetodosSii {
   let c = vacia();
+  const reponiendo = new Set<number>();
+  /** Folios por tipo con la misma política que el servidor (shared/folios.ts). */
+  const folios = (): FoliosSii[] => TIPOS_DOCUMENTO.map(tipo => {
+    const delTipo = c.cafs.filter(f => f.tipo === tipo);
+    const libres = delTipo.reduce((n, f) => n + (f.libres ?? 0), 0);
+    const minimo = minimoDeFolios(tipo, 0);
+    const estado = reponiendo.has(tipo) ? 'reponiendo' : POLITICA_FOLIOS[tipo].soloConCaf && delTipo.length === 0 ? 'sin_caf' : libres >= minimo ? 'suficiente' : 'bajo';
+    return { tipo, libres, minimo, estado, repuestos: 0, esperaHasta: null, detalle: null, mensajeSii: null };
+  });
   const copia = () => {
     c.conectado = !!(c.titular && c.empresa && c.resolucion && c.cafs.some(f => f.tipo === 33 && f.primerLibre !== null));
+    c.folios = c.titular ? folios() : [];
     return structuredClone(c);
   };
 
@@ -157,6 +169,22 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
       const minimo = Math.max(caf!.desde, caf!.primerLibre ?? 0);
       exigir(Number.isInteger(folio) && folio >= minimo && folio <= caf!.hasta, `El folio debe estar entre ${minimo} y ${caf!.hasta}: nunca se vuelve a un folio anterior.`);
       Object.assign(caf!, { escaneando: false, progreso: null, primerLibre: folio, libres: caf!.hasta - folio + 1 });
+      return copia();
+    },
+
+    // Simula una reobtención: un rango nuevo con lo que falta, al rato.
+    async siiTraerFolios(token, tipo) {
+      verificar(token);
+      exigir(!!c.rutEmisor, 'Primero conecta tu certificado y tu empresa.');
+      const actual = folios().find(f => f.tipo === tipo)!;
+      const faltan = minimoDeFolios(tipo, demandaManual(tipo, actual.libres)) - actual.libres;
+      reponiendo.add(tipo);
+      setTimeout(() => {
+        const desde = Math.max(900, ...c.cafs.filter(f => f.tipo === tipo).map(f => f.hasta)) + 1;
+        const caf: CafSii = { tipo, desde, hasta: desde + faltan - 1, fa: new Date().toISOString().slice(0, 10), primerLibre: desde, libres: faltan, escaneando: false, progreso: null, error: null };
+        c.cafs = [...c.cafs, caf].sort((a, b) => a.tipo - b.tipo || a.desde - b.desde);
+        reponiendo.delete(tipo);
+      }, 1500);
       return copia();
     },
 

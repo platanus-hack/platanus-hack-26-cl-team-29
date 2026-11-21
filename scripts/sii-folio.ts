@@ -1,6 +1,7 @@
 // Revisa en el SII de CERTIFICACIÓN (QueryEstDte) un documento que la red emitió, típicamente uno que quedó
 // `incierto` por un corte de red al subir. Lee el folio de la tabla sii_folios (DATABASE_URL) y guarda la respuesta.
 // Nunca reenvía ni anula: con FAU (no recibido) el folio queda `no_recibido` para que una persona decida.
+// Credenciales del SII desde un .env local (variables SII_* del certificado y la empresa), solo para este script.
 //
 //   node --env-file=.env scripts/sii-folio.ts --tipo 33 --folio 12
 import pg from 'pg';
@@ -17,7 +18,7 @@ if (!process.env.DATABASE_URL || !Number.isSafeInteger(tipo) || !Number.isSafeIn
 }
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 try {
-  const sii = crearSiiReal({ sii: crearSii(), folios: await crearAlmacenFoliosPostgres(db), seguirEnvios: false });
+  const sii = crearSiiReal({ sii: crearSii(), folios: await crearAlmacenFoliosPostgres(db), rangos: () => [], seguirEnvios: false });
   const { registro, estado } = await sii.consultarDocumento(tipo, folio);
   console.log(JSON.stringify({ ...registro, detalle: undefined }, null, 2));
   console.log(`\n${estado.codigo} ${estado.glosa ?? ''} ${estado.glosaError ?? ''}\n${estado.respuesta}`);

@@ -20,4 +20,6 @@ export type TipoEventoRed =
   | 'licitacion.cerrada'
   | 'licitacion.precio_bajo'
   | 'licitacion.facturada'
-  | 'red.reiniciada';
+  | 'red.reiniciada'
+  // Folios del SII del proveedor conectado: bajos, reponiéndose o repuestos (`AvisoFolios`, sin secretos).
+  | 'sii.folios';

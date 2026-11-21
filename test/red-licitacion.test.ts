@@ -7,14 +7,14 @@ import {
 } from '../server/red/index.ts';
 import type { DatosEmision, EventoRed, Licitacion, PuertoSii } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
-import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
+import { consultaConFicha, RUT_EMPRESA } from './sii-apoyo.ts';
 
 const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099' };
 
 async function redDePrueba(sii: PuertoSii = crearSiiFalso()) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), ENV);
-  const red = await crearRed({ repo, sii, env: ENV });
+  const red = await crearRed({ repo, sii, env: ENV, consultarContribuyente: consultaConFicha });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));
   return { red, eventos, repo };
@@ -118,19 +118,18 @@ test('el sí del proveedor confirma todo y emite todas las facturas en un solo e
 });
 
 test('con el SII real: folios consecutivos del CAF en un sobre y un reinicio de la demo no los reusa', async () => {
-  const env = {
-    SII_RUT_EMISOR: RUT_EMPRESA, SII_CAF_33_BASE64: generarCaf(33, { desde: 10, hasta: 99 }).bytes.toString('base64'),
-    SII_RUT_RECEPTOR: '11111111-1', SII_RECEPTOR_RAZON_SOCIAL: 'Receptor de Prueba', SII_RECEPTOR_GIRO: 'Comercio',
-    SII_RECEPTOR_DIRECCION: 'Calle 1', SII_RECEPTOR_COMUNA: 'Santiago',
-  };
   const silencioso = { info() {}, warn() {}, error() {} };
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   let subidas = 0;
   const sii = { ...base, emitirFacturas: (e: Parameters<typeof base.emitirFacturas>[0]) => { subidas++; return base.emitirFacturas(e); } };
   const folios = crearAlmacenFoliosMemoria();
-  const { red } = await redDePrueba(crearSiiReal({ sii, folios, env, log: silencioso, seguirEnvios: false }));
+  const { red } = await redDePrueba(crearSiiReal({ sii, folios, rangos: () => [{ desde: 10, hasta: 99 }], log: silencioso, seguirEnvios: false }));
 
-  for (const nombre of ['Ana', 'Beto', 'Carla']) await red.unirseALicitacion('L-1', { nombre, cantidad: 2 });
+  // Con el SII real cada comprador factura a su RUT verificado.
+  const unir = (nombre: string, n: number) => red.actualizarCarrito('L-1', {
+    telefono: `+56 9 0000 00${n}0`, nombre, rut: `${String(n).repeat(8)}-${n}`, items: [{ productoId: red.licitacionAbierta()!.productos[0]!.id, cantidad: 2 }],
+  });
+  for (const [i, nombre] of ['Ana', 'Beto', 'Carla'].entries()) await unir(nombre, i + 1);
   await red.cerrarLicitacion('L-1');
   const primeras = await red.confirmarOrdenesDeLicitacion('L-1');
   assert.equal(subidas, 1);
@@ -138,7 +137,7 @@ test('con el SII real: folios consecutivos del CAF en un sobre y un reinicio de 
   assert.equal(new Set(primeras.map(f => f.trackId)).size, 1);
 
   await red.reiniciarDemo();
-  await red.unirseALicitacion('L-1', { nombre: 'Dani', cantidad: 1 });
+  await unir('Dani', 4);
   await red.cerrarLicitacion('L-1');
   assert.deepEqual((await red.confirmarOrdenesDeLicitacion('L-1')).map(f => f.folio), [13]);
   assert.equal((await folios.buscar(33, 10))?.estado, 'recibido', 'el reinicio no toca los folios');

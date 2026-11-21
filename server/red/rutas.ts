@@ -20,6 +20,7 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
   transicion_invalida: 409,
   ocupado: 409,
   sii_no_disponible: 503,
+  sin_folios: 409,
 };
 
 export interface OpcionesRutas {

@@ -3,28 +3,22 @@ import assert from 'node:assert/strict';
 import { crearSii } from '../server/sii/index.ts';
 import type { EntradaFactura, EntradaGuia, EntradaNotaCredito, Sii } from '../server/sii/index.ts';
 import { aDte, calcularTotales } from '../server/sii/dte.ts';
-import { crearAlmacenFoliosMemoria, crearSiiReal } from '../server/red/index.ts';
+import { crearAlmacenFoliosMemoria, crearSiiReal, foliosLibres, siguienteFolio } from '../server/red/index.ts';
 import { veredictoDelSobre } from '../server/red/sii-real.ts';
 import type { AlmacenFolios, DatosEmision, Documento, Negocio, OrdenCompra } from '../server/red/index.ts';
-import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
+import { RUT_EMPRESA } from './sii-apoyo.ts';
 
 const silencioso = { info() {}, warn() {}, error() {} };
-const caf = (tipo: number, desde: number, hasta: number) => generarCaf(tipo, { desde, hasta }).bytes.toString('base64');
-const env = {
-  SII_RUT_EMISOR: RUT_EMPRESA,
-  SII_CAF_33_BASE64: caf(33, 10, 12),
-  SII_CAF_33_LOTE: caf(33, 100, 199),
-  SII_CAF_52_BASE64: caf(52, 1, 50),
-  SII_CAF_61_BASE64: caf(61, 1, 50),
-  SII_RUT_RECEPTOR: '11111111-1',
-  SII_RECEPTOR_RAZON_SOCIAL: 'Comprador de Prueba',
-  SII_RECEPTOR_GIRO: 'Comercio',
-  SII_RECEPTOR_DIRECCION: 'Calle 1',
-  SII_RECEPTOR_COMUNA: 'Santiago',
-};
+/** Rangos de folios de la conexión, por tipo (los CAF no importan: el SII del módulo es el falso). */
+const RANGOS: Record<number, { desde: number; hasta: number }[]> = { 33: [{ desde: 10, hasta: 12 }], 52: [{ desde: 1, hasta: 50 }], 61: [{ desde: 1, hasta: 50 }] };
+const LOTE: Record<number, { desde: number; hasta: number }[]> = { ...RANGOS, 33: [{ desde: 100, hasta: 199 }] };
+const rangosDe = (r: Record<number, { desde: number; hasta: number }[]>) => (tipo: number) => r[tipo] ?? [];
 
 const proveedor: Negocio = { id: 'p', nombre: 'Proveedor', comuna: 'Ñuñoa', rol: 'proveedor', telefono: '' };
-const comprador: Negocio = { id: 'c', nombre: 'Comprador', comuna: 'Ñuñoa', rol: 'comprador', telefono: '' };
+const comprador: Negocio = {
+  id: 'c', nombre: 'Comprador', comuna: 'Ñuñoa', rol: 'comprador', telefono: '', rut: '11111111-1',
+  contribuyente: { razonSocial: 'Comprador de Prueba', giro: 'Comercio', direccion: 'Calle 1', comuna: 'Santiago', actividades: [] },
+};
 const orden = (id: string): OrdenCompra => ({
   id, compradorId: 'c', proveedorId: 'p', estado: 'confirmada', creadaEn: '2026-11-21T15:00:00.000Z',
   items: [{ producto: 'Harina 25 kg', cantidad: 4, precioUnitario: 20000, cantidadDespachada: 2 }],
@@ -45,7 +39,7 @@ function siiEspia(sobrescribir: Partial<Sii> = {}) {
   return { sii, facturas, notas };
 }
 
-const adaptador = (sii: Sii, folios: AlmacenFolios) => crearSiiReal({ sii, folios, env, log: silencioso, seguirEnvios: false });
+const adaptador = (sii: Sii, folios: AlmacenFolios) => crearSiiReal({ sii, folios, rangos: rangosDe(RANGOS), log: silencioso, seguirEnvios: false });
 
 test('los folios avanzan por tipo desde el CAF, no se reusan tras un reinicio y se agotan con el rango', async () => {
   const folios = crearAlmacenFoliosMemoria();
@@ -56,7 +50,7 @@ test('los folios avanzan por tipo desde el CAF, no se reusan tras un reinicio y 
 
   const trasReinicio = adaptador(siiEspia().sii, folios);
   assert.equal((await trasReinicio.emitirFactura(datos('OC-3'))).folio, 12);
-  await assert.rejects(trasReinicio.emitirFactura(datos('OC-4')), /no tiene folios libres/);
+  await assert.rejects(trasReinicio.emitirFactura(datos('OC-4')), /no tienen folios libres/);
 });
 
 test('un folio que falla antes de subir queda usado: el reintento toma el siguiente', async () => {
@@ -137,13 +131,13 @@ test('el lote de facturas va en una sola subida, con folios consecutivos y sin r
   const { sii } = siiEspia();
   const lotes: EntradaFactura[][] = [];
   const espia: Sii = { ...sii, emitirFacturas: e => { lotes.push([...e]); return sii.emitirFacturas(e); } };
-  const adapt = crearSiiReal({ sii: espia, folios, env: { ...env, SII_CAF_33_BASE64: env.SII_CAF_33_LOTE }, log: silencioso, seguirEnvios: false });
+  const adapt = crearSiiReal({ sii: espia, folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false });
 
   const suelta = await adapt.emitirFactura(datos('OC-2'));
   const r = await adapt.emitirFacturas(['OC-1', 'OC-2', 'OC-3', 'OC-4'].map(datos));
   assert.equal(lotes.length, 1, 'una sola subida');
   assert.deepEqual(lotes[0]!.map(e => e.folio), [101, 102, 103], 'OC-2 ya tenía su factura y no va en el sobre');
-  assert.ok(lotes[0]!.every(e => e.receptor.rut === '11111111-1'), 'en certificación todas van al receptor del entorno');
+  assert.ok(lotes[0]!.every(e => e.receptor.rut === '11111111-1'), 'cada factura va al RUT de su comprador');
   assert.deepEqual(r.map(x => x.folio), [101, suelta.folio, 102, 103]);
   assert.equal(new Set([r[0]!.trackId, r[2]!.trackId, r[3]!.trackId]).size, 1, 'mismo track id para el sobre');
   assert.equal((await folios.buscar(33, 103))?.estado, 'recibido');
@@ -153,12 +147,12 @@ test('un lote que falla antes de subir deja todos sus folios usados y el reinten
   const folios = crearAlmacenFoliosMemoria();
   const falla = crearSiiReal({
     sii: siiEspia({ emitirFacturas: async () => { throw new Error('token rechazado'); } }).sii,
-    folios, env: { ...env, SII_CAF_33_BASE64: env.SII_CAF_33_LOTE }, log: silencioso, seguirEnvios: false,
+    folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false,
   });
   await assert.rejects(falla.emitirFacturas([datos('OC-1'), datos('OC-2')]), /token rechazado/);
   assert.equal((await folios.buscar(33, 100))?.estado, 'fallido');
   assert.equal((await folios.buscar(33, 101))?.estado, 'fallido');
-  const ok = crearSiiReal({ sii: siiEspia().sii, folios, env: { ...env, SII_CAF_33_BASE64: env.SII_CAF_33_LOTE }, log: silencioso, seguirEnvios: false });
+  const ok = crearSiiReal({ sii: siiEspia().sii, folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false });
   assert.deepEqual((await ok.emitirFacturas([datos('OC-1'), datos('OC-2')])).map(x => x.folio), [102, 103]);
 });
 
@@ -169,4 +163,36 @@ test('el veredicto de un sobre con varios documentos es común solo si todos coi
   assert.equal(veredictoDelSobre(estado(0, 3, 0), 33, 3), 'rechazado');
   assert.equal(veredictoDelSobre(estado(0, 0, 3), 33, 3), 'reparo');
   assert.equal(veredictoDelSobre(estado(2, 1, 0), 33, 3), undefined);
+});
+
+test('con varios CAF del tipo los folios salen en orden, rango por rango, y un hueco bajo lo tomado no se reusa', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const rangos = [{ desde: 500, hasta: 501 }, { desde: 20, hasta: 21 }, { desde: 7, hasta: 7 }];
+  const adapt = crearSiiReal({ sii: siiEspia().sii, folios, rangos: () => rangos, log: silencioso, seguirEnvios: false });
+  const r = await adapt.emitirFacturas(['OC-1', 'OC-2', 'OC-3', 'OC-4', 'OC-5'].map(datos));
+  assert.deepEqual(r.map(x => x.folio), [7, 20, 21, 500, 501], 'el rango más bajo primero, sin repetir');
+  assert.equal(foliosLibres(rangos, await folios.tomados(33)), 0);
+  assert.equal(siguienteFolio([{ desde: 1, hasta: 10 }], [5]), 6, 'dentro de un rango, después del mayor tomado');
+});
+
+test('si los folios no alcanzan para todo el lote no se reserva ninguno ni se sube nada', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const { sii } = siiEspia();
+  let subidas = 0;
+  const espia: Sii = { ...sii, emitirFacturas: e => { subidas++; return sii.emitirFacturas(e); } };
+  const adapt = crearSiiReal({ sii: espia, folios, rangos: () => [{ desde: 10, hasta: 11 }], log: silencioso, seguirEnvios: false });
+  await assert.rejects(adapt.emitirFacturas(['OC-1', 'OC-2', 'OC-3'].map(datos)), (e: Error & { codigo?: string }) =>
+    e.codigo === 'sin_folios' && /se necesitan 3 folios y quedan 2/.test(e.message));
+  assert.equal(subidas, 0);
+  assert.deepEqual(await folios.tomados(33), [], 'ningún folio quedó tomado');
+});
+
+test('un comprador sin RUT verificado no se factura: se rechaza antes de tomar folio', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const adapt = crearSiiReal({ sii: siiEspia().sii, folios, rangos: rangosDe(RANGOS), log: silencioso, seguirEnvios: false });
+  const sinRut: DatosEmision = { ...datos('OC-9'), receptor: { ...comprador, nombre: 'Caro', rut: undefined, contribuyente: undefined } };
+  await assert.rejects(adapt.emitirFacturas([datos('OC-1'), sinRut]), /Caro no tiene su RUT verificado/);
+  await assert.rejects(adapt.emitirGuia(sinRut), /Caro no tiene su RUT verificado/);
+  assert.deepEqual(await folios.tomados(33), []);
+  assert.deepEqual(await folios.tomados(52), []);
 });

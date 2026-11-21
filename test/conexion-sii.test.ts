@@ -90,13 +90,33 @@ test('el primer folio libre es el inicio de la primera racha de 3 FAU, y nunca b
   assert.equal(estado.cafs[0]?.primerLibre, 7);
   assert.equal(estado.cafs[0]?.libres, 14);
   assert.equal(estado.conectado, true);
-  const env = await conexion.entorno({ SII_CAF_52_BASE64: 'de-otra-empresa', SII_EMISOR_GIRO: 'otro' });
-  assert.equal(env?.SII_FOLIO_DESDE_33, '7');
-  assert.equal(env?.SII_RUT_EMISOR, RUT_EMPRESA);
-  assert.equal(env?.SII_CAF_52_BASE64, undefined, 'no mezcla el CAF de las variables con la conexión de la app');
-  assert.equal(env?.SII_EMISOR_GIRO, empresa.giro);
+  const config = await conexion.configuracion();
+  assert.deepEqual(config?.rangos[33], [{ desde: 7, hasta: 20 }], 'la red nunca toma un folio antes del primer libre');
+  assert.equal(config?.sii.emisor.rut, RUT_EMPRESA);
+  assert.equal(config?.sii.emisor.giro, empresa.giro);
+  assert.deepEqual(config?.rangos[52], []);
   await assert.rejects(conexion.fijarFolio(33, 5), /nunca se vuelve/);
   assert.equal((await conexion.fijarFolio(33, 12)).cafs[0]?.primerLibre, 12);
+});
+
+test('un tipo guarda varios CAF: cada uno con su primer libre, y una conexión guardada con un solo CAF por tipo se sigue leyendo', async () => {
+  const almacen = crearAlmacenConexionMemoria();
+  const conexion = conexionDePrueba({ almacen });
+  await conexion.subirCertificado(pfxBase64, CLAVE_PFX);
+  await conexion.esperarBusquedas();
+  await conexion.guardarEmpresa(empresa);
+  await conexion.subirCaf(generarCaf(33, { desde: 1, hasta: 5 }).bytes.toString('base64'));
+  await conexion.subirCaf(generarCaf(33, { desde: 40, hasta: 44 }).bytes.toString('base64'));
+  await conexion.esperarBusquedas();
+  const config = await conexion.configuracion();
+  assert.deepEqual(config?.rangos[33], [{ desde: 1, hasta: 5 }, { desde: 40, hasta: 44 }]);
+  assert.equal(config?.sii.cafs[33]?.length, 2, 'cada rango con su CAF para timbrar');
+  assert.equal((await conexion.estado()).folios.find(f => f.tipo === 33)?.libres, 10);
+
+  // Forma anterior: `cafs[33]` era un objeto, no una lista.
+  const guardada = (await almacen.leer())!;
+  await almacen.guardar({ ...guardada, cafs: { 33: guardada.cafs[33]![1] } as unknown as typeof guardada.cafs });
+  assert.deepEqual((await conexion.configuracion())?.rangos[33], [{ desde: 40, hasta: 44 }]);
 });
 
 test('la búsqueda acepta una racha al final del rango y se detiene ante una respuesta desconocida', async () => {
@@ -127,7 +147,7 @@ test('con la conexión completa la red emite con el SII de la app; sin ella, con
     emitirFactura: async () => { usados.push(nombre); return { folio: 1, trackId: '', estadoSii: nombre }; },
   });
   const sii = crearSiiConmutable({
-    falso: marcar('falso'), conexion, env: {}, crearReal: env => ({ ...marcar(`real ${env.SII_RUT_EMISOR}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
+    falso: marcar('falso'), conexion, crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
   });
   const datos = {} as Parameters<PuertoSii['emitirFactura']>[0];
   await sii.emitirFactura(datos);

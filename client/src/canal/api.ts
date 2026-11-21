@@ -6,6 +6,7 @@ import type { Negocio, OrdenCompra } from '../red/tipos.ts';
 import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
+import type { TipoDocumento } from '../../../shared/documentos.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
@@ -43,6 +44,8 @@ export interface CanalApi {
   siiGuardarEmpresa(token: string, datos: DatosEmpresaSii): Promise<EstadoConexionSii>;
   siiCaf(token: string, xmlBase64: string): Promise<{ estado: EstadoConexionSii; avisos: string[] }>;
   siiFolio(token: string, tipo: number, folio: number): Promise<EstadoConexionSii>;
+  /** "Traer más folios": la reposición automática del servidor, en segundo plano. */
+  siiTraerFolios(token: string, tipo: TipoDocumento): Promise<EstadoConexionSii>;
   siiDesconectar(token: string): Promise<EstadoConexionSii>;
   /** Avisa cada vez que algo cambia en la red. Devuelve cómo dejar de escuchar. */
   escuchar(alCambiar: (e?: EventoRed) => void): () => void;
@@ -135,6 +138,7 @@ export function crearApiReal(): CanalApi {
     siiGuardarEmpresa: (token, datos) => llamar('/proveedor/sii/empresa', { token, cuerpo: datos, metodo: 'PUT' }),
     siiCaf: (token, xmlBase64) => llamar('/proveedor/sii/caf', { token, cuerpo: { xmlBase64 } }),
     siiFolio: (token, tipo, folio) => llamar(`/proveedor/sii/caf/${tipo}/folio`, { token, cuerpo: { folio } }),
+    siiTraerFolios: (token, tipo) => llamar(`/proveedor/sii/folios/${tipo}`, { token, cuerpo: {} }),
     siiDesconectar: token => llamar('/proveedor/sii', { token, metodo: 'DELETE' }),
     escuchar(alCambiar) {
       const socket = io();

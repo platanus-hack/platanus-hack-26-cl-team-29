@@ -1,8 +1,9 @@
 import type pg from 'pg';
 
-// Folios de los documentos que la red manda al SII real. Un folio se toma del rango del CAF, se guarda
-// antes de armar el documento y nunca vuelve a usarse, aunque el envío falle: el siguiente es siempre
-// el mayor ya tomado + 1. Aquí también queda lo que respondió el SII, para consultarlo después.
+// Folios de los documentos que la red manda al SII real. Un folio se toma de los rangos de los CAF del tipo (puede
+// haber varios: la reposición de folios suma rangos reobtenidos o pedidos), se guarda antes de armar el documento y
+// nunca vuelve a usarse, aunque el envío falle: dentro de cada rango, el siguiente es siempre el mayor ya tomado + 1.
+// Aquí también queda lo que respondió el SII, para consultarlo después.
 
 /**
  * - `reservado`: tomado, el documento se está armando o subiendo (si queda así tras un reinicio, es incierto).
@@ -37,17 +38,49 @@ export interface RangoFolios {
 }
 
 export interface AlmacenFolios {
-  /** Toma el siguiente folio del tipo (mayor tomado + 1, nunca menor que `desde`) y lo guarda `reservado`. */
-  reservar(tipo: number, rango: RangoFolios, ordenId: string): Promise<RegistroFolio>;
+  /**
+   * Toma el siguiente folio del tipo dentro de `rangos` (ver `siguienteFolio`) y lo guarda `reservado`. Falla si
+   * ningún rango tiene folios.
+   */
+  reservar(tipo: number, rangos: readonly RangoFolios[], ordenId: string): Promise<RegistroFolio>;
   guardar(registro: RegistroFolio): Promise<void>;
   buscar(tipo: number, folio: number): Promise<RegistroFolio | undefined>;
   deOrden(ordenId: string, tipo: number): Promise<RegistroFolio[]>;
-  /** Mayor folio ya tomado del tipo, o 0 si no hay ninguno. */
-  ultimo(tipo: number): Promise<number>;
+  /** Folios ya tomados del tipo (en cualquier estado): ninguno vuelve a usarse. */
+  tomados(tipo: number): Promise<number[]>;
 }
 
-const agotado = (tipo: number, rango: RangoFolios) =>
-  new Error(`[sii] el CAF del tipo ${tipo} no tiene folios libres (rango ${rango.desde} a ${rango.hasta}): hay que pedir uno nuevo`);
+/**
+ * Siguiente folio de un rango: el que sigue al mayor ya tomado DENTRO del rango, nunca antes de `desde`. null si el
+ * rango se agotó. Un hueco bajo el mayor tomado no se rellena: un folio que la red alcanzó a reservar pudo llegar al SII.
+ */
+export function siguienteEnRango(rango: RangoFolios, tomados: readonly number[]): number | null {
+  const mayor = tomados.reduce((m, f) => (f >= rango.desde && f <= rango.hasta && f > m ? f : m), rango.desde - 1);
+  return mayor < rango.hasta ? mayor + 1 : null;
+}
+
+/** Rangos en el orden en que se gastan: el de folios más bajos primero (suele ser el más antiguo, el que vence antes). */
+const enOrden = (rangos: readonly RangoFolios[]) => [...rangos].sort((a, b) => a.desde - b.desde);
+
+/** Siguiente folio entre varios rangos (varios CAF del mismo tipo), en orden; null si todos se agotaron. */
+export function siguienteFolio(rangos: readonly RangoFolios[], tomados: readonly number[]): number | null {
+  for (const r of enOrden(rangos)) {
+    const folio = siguienteEnRango(r, tomados);
+    if (folio !== null) return folio;
+  }
+  return null;
+}
+
+/** Folios que quedan por tomar en los rangos, con la misma regla que `siguienteFolio`. */
+export function foliosLibres(rangos: readonly RangoFolios[], tomados: readonly number[]): number {
+  return rangos.reduce((total, r) => {
+    const folio = siguienteEnRango(r, tomados);
+    return total + (folio === null ? 0 : r.hasta - folio + 1);
+  }, 0);
+}
+
+const agotado = (tipo: number, rangos: readonly RangoFolios[]) =>
+  new Error(`[sii] los CAF del tipo ${tipo} no tienen folios libres (${rangos.map(r => `${r.desde} a ${r.hasta}`).join(', ') || 'sin CAF'}): hay que reponer folios`);
 
 const nuevo = (tipo: number, folio: number, ordenId: string): RegistroFolio =>
   ({ tipo, folio, ordenId, estado: 'reservado', trackId: '', actualizadoEn: new Date().toISOString() });
@@ -56,11 +89,11 @@ const nuevo = (tipo: number, folio: number, ordenId: string): RegistroFolio =>
 export function crearAlmacenFoliosMemoria(): AlmacenFolios {
   const registros = new Map<string, RegistroFolio>();
   const clave = (tipo: number, folio: number) => `${tipo}:${folio}`;
+  const tomados = (tipo: number) => [...registros.values()].filter(r => r.tipo === tipo).map(r => r.folio);
   return {
-    async reservar(tipo, rango, ordenId) {
-      const usados = [...registros.values()].filter(r => r.tipo === tipo).map(r => r.folio);
-      const folio = Math.max(rango.desde, Math.max(0, ...usados) + 1);
-      if (folio > rango.hasta) throw agotado(tipo, rango);
+    async reservar(tipo, rangos, ordenId) {
+      const folio = siguienteFolio(rangos, tomados(tipo));
+      if (folio === null) throw agotado(tipo, rangos);
       const registro = nuevo(tipo, folio, ordenId);
       registros.set(clave(tipo, folio), structuredClone(registro));
       return registro;
@@ -75,8 +108,8 @@ export function crearAlmacenFoliosMemoria(): AlmacenFolios {
     async deOrden(ordenId, tipo) {
       return [...registros.values()].filter(r => r.ordenId === ordenId && r.tipo === tipo).map(r => structuredClone(r));
     },
-    async ultimo(tipo) {
-      return Math.max(0, ...[...registros.values()].filter(r => r.tipo === tipo).map(r => r.folio));
+    async tomados(tipo) {
+      return tomados(tipo);
     },
   };
 }
@@ -90,20 +123,22 @@ export async function crearAlmacenFoliosPostgres(db: pg.Pool): Promise<AlmacenFo
     datos jsonb not null,
     primary key (tipo, folio)
   )`);
+  const tomados = async (tipo: number): Promise<number[]> =>
+    (await db.query(`select folio from sii_folios where tipo = $1`, [tipo])).rows.map(r => Number(r.folio));
   return {
-    async reservar(tipo, rango, ordenId) {
-      const registro = nuevo(tipo, 0, ordenId);
-      const { rows } = await db.query(
-        `with siguiente as (
-           select greatest(coalesce(max(folio), 0) + 1, $2::int) as folio from sii_folios where tipo = $1
-         )
-         insert into sii_folios (tipo, folio, orden_id, datos)
-         select $1, folio, $4, $5::jsonb || jsonb_build_object('folio', folio) from siguiente where folio <= $3
-         returning folio`,
-        [tipo, rango.desde, rango.hasta, ordenId, JSON.stringify(registro)],
-      );
-      if (rows.length === 0) throw agotado(tipo, rango);
-      return { ...registro, folio: Number(rows[0].folio) };
+    async reservar(tipo, rangos, ordenId) {
+      // La llave (tipo, folio) decide si otra instancia lo tomó primero: entonces se calcula el siguiente otra vez.
+      for (let intento = 0; intento < 5; intento++) {
+        const folio = siguienteFolio(rangos, await tomados(tipo));
+        if (folio === null) throw agotado(tipo, rangos);
+        const registro = nuevo(tipo, folio, ordenId);
+        const { rowCount } = await db.query(
+          `insert into sii_folios (tipo, folio, orden_id, datos) values ($1, $2, $3, $4::jsonb) on conflict do nothing`,
+          [tipo, folio, ordenId, JSON.stringify(registro)],
+        );
+        if (rowCount === 1) return registro;
+      }
+      throw new Error(`[sii] no se pudo reservar un folio del tipo ${tipo}: otra emisión los tomó al mismo tiempo`);
     },
     async guardar(registro) {
       await db.query(
@@ -121,9 +156,6 @@ export async function crearAlmacenFoliosPostgres(db: pg.Pool): Promise<AlmacenFo
       );
       return rows.map(r => r.datos);
     },
-    async ultimo(tipo) {
-      const { rows } = await db.query(`select coalesce(max(folio), 0) as folio from sii_folios where tipo = $1`, [tipo]);
-      return Number(rows[0]?.folio ?? 0);
-    },
+    tomados,
   };
 }

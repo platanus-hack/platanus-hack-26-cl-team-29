@@ -11,7 +11,7 @@ import {
 import type { EventoRed, LicitacionVista, PuertoSii } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { precioPorVolumen } from '../shared/precios.ts';
-import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
+import { consultaConFicha, RUT_EMPRESA } from './sii-apoyo.ts';
 
 const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };
 const ANA = '+56 9 1111 2222';
@@ -20,7 +20,7 @@ const BETO = '+56 9 3333 4444';
 async function redDePrueba(sii: PuertoSii = crearSiiFalso(), env: NodeJS.ProcessEnv = ENV) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), env);
-  const red = await crearRed({ repo, sii, env });
+  const red = await crearRed({ repo, sii, env, consultarContribuyente: consultaConFicha });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));
   return { red, eventos };
@@ -139,19 +139,14 @@ test('al cerrar, una orden por comprador con todos sus ítems al precio de cada 
 });
 
 test('una factura 33 por comprador con una línea por producto, todas en un sobre con folios consecutivos', async () => {
-  const env = {
-    ...ENV, SII_RUT_EMISOR: RUT_EMPRESA, SII_CAF_33_BASE64: generarCaf(33, { desde: 40, hasta: 99 }).bytes.toString('base64'),
-    SII_RUT_RECEPTOR: '11111111-1', SII_RECEPTOR_RAZON_SOCIAL: 'Receptor de Prueba', SII_RECEPTOR_GIRO: 'Comercio',
-    SII_RECEPTOR_DIRECCION: 'Calle 1', SII_RECEPTOR_COMUNA: 'Santiago',
-  };
   const silencioso = { info() {}, warn() {}, error() {} };
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   const sobres: EntradaFactura[][] = [];
   const sii = { ...base, emitirFacturas: (e: readonly EntradaFactura[]) => { sobres.push([...e]); return base.emitirFacturas(e); } };
-  const { red, eventos } = await redDePrueba(crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), env, log: silencioso, seguirEnvios: false }), env);
+  const { red, eventos } = await redDePrueba(crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), rangos: () => [{ desde: 40, hasta: 99 }], log: silencioso, seguirEnvios: false }));
 
-  await red.actualizarCarrito('L-1', { telefono: ANA, nombre: 'Ana', items: [{ productoId: 'rollos', cantidad: 2 }, { productoId: 'etiquetas', cantidad: 3 }, { productoId: 'guantes', cantidad: 1 }] });
-  await red.actualizarCarrito('L-1', { telefono: BETO, nombre: 'Beto', items: [{ productoId: 'bolsas', cantidad: 5 }] });
+  await red.actualizarCarrito('L-1', { telefono: ANA, nombre: 'Ana', rut: '11111111-1', items: [{ productoId: 'rollos', cantidad: 2 }, { productoId: 'etiquetas', cantidad: 3 }, { productoId: 'guantes', cantidad: 1 }] });
+  await red.actualizarCarrito('L-1', { telefono: BETO, nombre: 'Beto', rut: '33333333-3', items: [{ productoId: 'bolsas', cantidad: 5 }] });
   await red.cerrarLicitacion('L-1');
   const facturas = await red.confirmarOrdenesDeLicitacion('L-1');
 
@@ -167,7 +162,7 @@ test('una factura 33 por comprador con una línea por producto, todas en un sobr
   // El reinicio vuelve a sembrar la canasta y no reusa folios.
   await red.reiniciarDemo();
   assert.equal(red.licitacionAbierta()!.productos.length, 4);
-  await red.agregarAlCarrito('L-1', { telefono: ANA, nombre: 'Ana', productoId: 'guantes', cantidad: 1 });
+  await red.agregarAlCarrito('L-1', { telefono: ANA, nombre: 'Ana', rut: '11111111-1', productoId: 'guantes', cantidad: 1 });
   await red.cerrarLicitacion('L-1');
   assert.deepEqual((await red.confirmarOrdenesDeLicitacion('L-1')).map(f => f.folio), [42]);
 });

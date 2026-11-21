@@ -80,7 +80,6 @@ export function ConectarSii({ api, token }: Props) {
           <h2 className="cn-producto cn-con-icono"><LogoSii tam={28} /><span>Conectar mi SII</span></h2>
           <p className="mono tenue cn-texto">
             Sube tu certificado digital y el RUT de tu empresa. Traemos del SII tus datos y tus folios (CAF), sin anular nada. Así tus facturas, guías y notas de crédito salen a tu nombre.
-            {estado.respaldoVariables && ' Mientras no termines, la red usa el SII configurado en el servidor.'}
           </p>
         </>
       )}
