@@ -1,0 +1,108 @@
+{
+  "Cantidad": 1,
+  "FechaCreacion": "2026-11-21T10:00:00.000",
+  "Version": "v1",
+  "Listado": [
+    {
+      "Codigo": "1234-56-SE26",
+      "Nombre": "Compra de abarrotes para casino (ejemplo)",
+      "CodigoEstado": 6,
+      "CodigoLicitacion": "",
+      "Descripcion": "Abarrotes para el casino del liceo",
+      "CodigoTipo": "8",
+      "Tipo": "SE",
+      "TipoMoneda": "CLP",
+      "CodigoEstadoProveedor": 4,
+      "EstadoProveedor": "Aceptada",
+      "Fechas": {
+        "FechaCreacion": "2026-11-19T09:12:31.477",
+        "FechaEnvio": "2026-11-19T09:40:02.000",
+        "FechaAceptacion": "2026-11-19T15:03:44.000",
+        "FechaCancelacion": null,
+        "FechaUltimaModificacion": "2026-11-19T15:03:44.000"
+      },
+      "TieneItems": "1",
+      "PromedioCalificacion": 0,
+      "CantidadEvaluacion": 0,
+      "Descuentos": 0,
+      "Cargos": 0,
+      "TotalNeto": 45600,
+      "PorcentajeIva": 19,
+      "Impuestos": 8664,
+      "Total": 54264,
+      "Financiamiento": "",
+      "Pais": "CL",
+      "TipoDespacho": "7",
+      "FormaPago": "2",
+      "Comprador": {
+        "CodigoOrganismo": "000000",
+        "NombreOrganismo": "Liceo de Ejemplo N° 1",
+        "RutUnidad": "61.000.000-0",
+        "CodigoUnidad": "0000",
+        "NombreUnidad": "Liceo de Ejemplo N° 1",
+        "Actividad": "Educación",
+        "DireccionUnidad": "Calle de Ejemplo 123",
+        "ComunaUnidad": "Ñuñoa",
+        "RegionUnidad": "Región Metropolitana de Santiago",
+        "Pais": "CL",
+        "NombreContacto": "",
+        "CargoContacto": "",
+        "FonoContacto": "",
+        "MailContacto": ""
+      },
+      "Proveedor": {
+        "Codigo": "000001",
+        "Nombre": "Distribuidora de Ejemplo SpA",
+        "Actividad": "Venta al por mayor de alimentos",
+        "CodigoSucursal": "000001",
+        "NombreSucursal": "Casa matriz",
+        "RutSucursal": "76.543.210-3",
+        "Direccion": "Avenida de Ejemplo 456",
+        "Comuna": "San Bernardo",
+        "Region": "Región Metropolitana de Santiago",
+        "Pais": "CL",
+        "NombreContacto": "",
+        "CargoContacto": "",
+        "FonoContacto": "",
+        "MailContacto": ""
+      },
+      "Items": {
+        "Cantidad": 2,
+        "Listado": [
+          {
+            "Correlativo": 1,
+            "CodigoCategoria": 50221100,
+            "Categoria": "Alimentos, bebidas y tabaco / Productos de cereales y legumbres / Cereales / Arroz",
+            "CodigoProducto": 50221101,
+            "EspecificacionComprador": "Arroz grado 2",
+            "EspecificacionProveedor": "  Arroz grado 2,\n bolsa 1 kg ",
+            "Cantidad": 30,
+            "Unidad": "Unidad",
+            "Moneda": "CLP",
+            "PrecioNeto": 1090.4,
+            "TotalCargos": 0,
+            "TotalDescuentos": 0,
+            "TotalImpuestos": 6215,
+            "Total": 32712
+          },
+          {
+            "Correlativo": 2,
+            "CodigoCategoria": 50151500,
+            "Categoria": "Alimentos, bebidas y tabaco / Aceites y grasas comestibles / Aceites vegetales comestibles",
+            "CodigoProducto": 50151513,
+            "EspecificacionComprador": "Aceite vegetal 1 L",
+            "EspecificacionProveedor": "",
+            "Cantidad": 0,
+            "Unidad": "Unidad",
+            "Moneda": "CLP",
+            "PrecioNeto": 1890,
+            "TotalCargos": 0,
+            "TotalDescuentos": 0,
+            "TotalImpuestos": 0,
+            "Total": 0
+          }
+        ]
+      }
+    }
+  ]
+}

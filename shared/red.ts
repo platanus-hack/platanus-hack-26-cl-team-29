@@ -22,4 +22,6 @@ export type TipoEventoRed =
   | 'licitacion.facturada'
   | 'red.reiniciada'
   // Folios del SII del proveedor conectado: bajos, reponiéndose o repuestos (`AvisoFolios`, sin secretos).
-  | 'sii.folios';
+  | 'sii.folios'
+  // Llegaron proveedores y precios de referencia nuevos de Mercado Público (server/mercado-publico/).
+  | 'mercado_publico.actualizado';
