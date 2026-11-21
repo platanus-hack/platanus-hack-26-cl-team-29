@@ -1,8 +1,11 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
-import { licitacionActual, resumenLicitacion } from '../red/derivar.ts';
-import { cantidadCon, contar, cuentaRegresiva, dinero, unidadDe } from '../red/formato.ts';
+import { licitacionActual, resumenLicitacion, unidadDeLicitacion } from '../red/derivar.ts';
+import { contar, cuentaRegresiva, dinero } from '../red/formato.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
+
+/** Cuánto puede pedir un negocio en la compra conjunta. */
+const MAXIMO = 20;
 
 const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'Santiago', 'San Joaquín', 'La Florida', 'Las Condes', 'Maipú'];
 
@@ -29,8 +32,9 @@ export function Unirse() {
     return <main className="unirse"><p className="vacio">No hay una compra conjunta abierta en este momento.</p></main>;
   }
   const r = resumenLicitacion(lic, estado);
-  const unidad = unidadDe(lic.producto);
-  const precio = r.mejor?.precioUnitario;
+  const unidad = unidadDeLicitacion(lic);
+  const precio = r.precioActual;
+  const cuantas = (n: number) => contar(n, unidad.singular, unidad.plural);
   const cerrada = lic.estado === 'cerrada' || Date.parse(lic.cierraEn) <= ahora;
 
   const enviar = async (e: FormEvent) => {
@@ -75,7 +79,7 @@ export function Unirse() {
         )}
       </div>
       <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 14 }}>
-        {contar(r.compradores, 'negocio')}, {cantidadCon(r.totalUnidades, lic.producto)} en total
+        {contar(r.compradores, 'negocio')}, {cuantas(r.totalUnidades)} en total
       </p>
     </section>
   );
@@ -87,7 +91,7 @@ export function Unirse() {
         {cabecera}
         <section className="tarjeta confirmacion">
           <p className="etiqueta verde">Listo, estás en el grupo</p>
-          <h2 style={{ margin: '12px 0 0', fontSize: 26 }}>{sumado.nombre} suma {cantidadCon(sumado.cantidad, lic.producto)}</h2>
+          <h2 style={{ margin: '12px 0 0', fontSize: 26 }}>{sumado.nombre} suma {cuantas(sumado.cantidad)}</h2>
           <div className="bajada">
             <span className="numero-grande amarillo">{precio ? dinero(precio) : 'Sin ofertas'}</span>
             {bajo && <span className="mono tachado" style={{ fontSize: 22 }}>{dinero(sumado.precioAlSumarse!)}</span>}
@@ -95,7 +99,7 @@ export function Unirse() {
           <p className="mono" style={{ margin: '12px 0 0', color: bajo ? 'var(--color-green)' : 'var(--color-muted)', fontSize: 15, lineHeight: 1.5 }}>
             {bajo
               ? `Bajó ${dinero(sumado.precioAlSumarse! - precio!)} por ${unidad.singular} desde que te sumaste.`
-              : 'Mira la pantalla: con cada negocio que se suma, los proveedores bajan el precio.'}
+              : 'Mira la pantalla: con cada negocio que se suma, el precio baja para todos.'}
           </p>
           {r.ahorroPorUnidad > 0 && (
             <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 15 }}>
@@ -103,7 +107,7 @@ export function Unirse() {
             </p>
           )}
           <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 14 }}>
-            Ya son {contar(r.compradores, 'negocio')}, {cantidadCon(r.totalUnidades, lic.producto)} en total.
+            Ya son {contar(r.compradores, 'negocio')}, {cuantas(r.totalUnidades)} en total.
           </p>
         </section>
       </main>
@@ -131,8 +135,8 @@ export function Unirse() {
             <span className="etiqueta">¿Cuántos {unidad.plural}?</span>
             <div className="stepper">
               <button type="button" className="boton secundario" aria-label="Menos" onClick={() => setCantidad(c => Math.max(1, c - 1))}>-</button>
-              <input type="number" inputMode="numeric" min={1} max={500} value={cantidad} onChange={e => setCantidad(Math.max(1, Number(e.target.value) || 1))} aria-label="Cantidad" />
-              <button type="button" className="boton secundario" aria-label="Más" onClick={() => setCantidad(c => c + 1)}>+</button>
+              <input type="number" inputMode="numeric" min={1} max={MAXIMO} value={cantidad} onChange={e => setCantidad(Math.min(MAXIMO, Math.max(1, Number(e.target.value) || 1)))} aria-label="Cantidad" />
+              <button type="button" className="boton secundario" aria-label="Más" onClick={() => setCantidad(c => Math.min(MAXIMO, c + 1))}>+</button>
             </div>
           </div>
           {error && <p className="error">{error}</p>}
