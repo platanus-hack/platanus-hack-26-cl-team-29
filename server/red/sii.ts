@@ -20,7 +20,7 @@ export interface DatosEmision {
 export interface PuertoSii {
   /** Factura electrónica (33) con referencia a la orden de compra. */
   emitirFactura(datos: DatosEmision): Promise<ResultadoSii>;
-  /** Guía de despacho (52) de la misma orden. */
+  /** Guía de despacho (52) de la misma orden, por `cantidadDespachada` de cada ítem (puede ser menos que lo pedido). */
   emitirGuia(datos: DatosEmision): Promise<ResultadoSii>;
   /** Nota de crédito (61) que corrige parcialmente la factura por los ítems faltantes. */
   emitirNotaCredito(datos: DatosEmision & { factura: Documento; items: Item[] }): Promise<ResultadoSii>;

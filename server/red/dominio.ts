@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 import { calcularNota } from './reputacion.ts';
 import type { PuertoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
@@ -19,10 +20,17 @@ export class ErrorRed extends Error {
 
 export type Recepcion = { conforme: true } | { faltante: number; producto?: string };
 
+/** El producto puede venir en texto libre ("sacos de harina"); sin precio, lo pone el catálogo. */
+export interface NuevoItem {
+  producto: string;
+  cantidad: number;
+  precioUnitario?: number;
+}
+
 export interface NuevaOrden {
   compradorId: string;
   proveedorId: string;
-  items: Item[];
+  items: readonly NuevoItem[];
 }
 
 export interface NuevoParticipante {
@@ -34,6 +42,8 @@ export interface NuevoParticipante {
 
 export interface Red {
   crearOrden(nueva: NuevaOrden): Promise<OrdenCompra>;
+  /** Antes de confirmar: cuántas unidades dirá la guía de despacho (52), si son menos que las pedidas. */
+  fijarDespacho(ordenId: string, cantidad: number, producto?: string): Promise<OrdenCompra>;
   confirmarOrden(ordenId: string): Promise<OrdenCompra>;
   registrarRecepcion(ordenId: string, recepcion: Recepcion): Promise<OrdenCompra>;
   emitirNotaCredito(ordenId: string): Promise<Documento>;
@@ -42,7 +52,7 @@ export interface Red {
   ofertar(licitacionId: string, oferta: Oferta): Promise<Licitacion>;
   cerrarLicitacion(licitacionId: string): Promise<Licitacion>;
   estadoDeLaRed(): EstadoRed;
-  negocioPorTelefono(telefono: string): Negocio | undefined;
+  negocioPorTelefono(telefono: string): Negocio | null;
   /** Se llama con cada `red:evento`; devuelve la función para dejar de escuchar. */
   escuchar(oyente: (evento: EventoRed) => void): () => void;
 }
@@ -56,6 +66,7 @@ export interface OpcionesRed {
 const ZONA = 'America/Santiago';
 const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date(iso));
 const neto = (items: Item[]) => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
+const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
 // Solo dígitos y los últimos 9 (móvil chileno), para que "+56 9 1234 5678" y "56912345678" coincidan.
 const normalizarTelefono = (t: string) => t.replace(/\D/g, '').slice(-9);
 
@@ -136,14 +147,20 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
     return doc;
   }
 
-  function validarItems(items: unknown): Item[] {
+  function validarItems(proveedorId: string, items: unknown): Item[] {
     if (!Array.isArray(items) || items.length === 0) throw new ErrorRed('datos_invalidos', 'La orden necesita al menos un ítem');
-    return items.map((i: Partial<Item>) => {
-      const producto = String(i?.producto ?? '').trim();
-      const cantidad = Number(i?.cantidad), precioUnitario = Number(i?.precioUnitario);
-      if (!producto || !Number.isInteger(cantidad) || cantidad <= 0 || !(precioUnitario > 0)) {
-        throw new ErrorRed('datos_invalidos', 'Cada ítem necesita producto, cantidad entera positiva y precio positivo');
+    return items.map((i: Partial<NuevoItem>) => {
+      const texto = String(i?.producto ?? '').trim();
+      const producto = normalizarProducto(texto) ?? texto;
+      const cantidad = Number(i?.cantidad);
+      const precioUnitario = i?.precioUnitario === undefined ? precioDe(proveedorId, producto) : Number(i.precioUnitario);
+      if (!producto || !Number.isInteger(cantidad) || cantidad <= 0) {
+        throw new ErrorRed('datos_invalidos', 'Cada ítem necesita producto y cantidad entera positiva');
       }
+      if (precioUnitario === undefined) {
+        throw new ErrorRed('datos_invalidos', `No tenemos precio para "${texto}". Productos: ${PRODUCTOS_DISPONIBLES.join(', ')}`);
+      }
+      if (!(precioUnitario > 0)) throw new ErrorRed('datos_invalidos', 'El precio debe ser positivo');
       return { producto, cantidad, precioUnitario };
     });
   }
@@ -153,11 +170,27 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
     negocio(proveedorId, 'proveedor');
     const nueva: OrdenCompra = {
       id: `OC-${1001 + datos.ordenes.length}`,
-      compradorId, proveedorId, items: validarItems(items), estado: 'enviada', creadaEn: ahora(),
+      compradorId, proveedorId, items: validarItems(proveedorId, items), estado: 'enviada', creadaEn: ahora(),
     };
     await guardar('ordenes', nueva);
     emitir('orden.creada', { orden: nueva });
     return structuredClone(nueva);
+  }
+
+  // Despacho parcial: la guía 52 dirá menos unidades que la orden (y que la factura 33).
+  // Es la escena "la OC dice 4, la guía dice 2" que termina en reclamo y nota de crédito.
+  function fijarDespacho(ordenId: string, cantidad: number, producto?: string) {
+    return conCandado(ordenId, async () => {
+      const o = orden(ordenId, 'enviada');
+      const item = producto ? o.items.find(i => i.producto === (normalizarProducto(producto) ?? producto)) : o.items[0];
+      if (!item) throw new ErrorRed('datos_invalidos', `La orden no tiene ${producto}`);
+      if (!Number.isInteger(cantidad) || cantidad < 0 || cantidad > item.cantidad) {
+        throw new ErrorRed('datos_invalidos', `Lo despachado debe estar entre 0 y ${item.cantidad}`);
+      }
+      item.cantidadDespachada = cantidad;
+      await guardar('ordenes', o);
+      return structuredClone(o);
+    });
   }
 
   // El proveedor confirma: recién ahí se emiten la factura 33 (con la OC) y la guía 52.
@@ -168,12 +201,13 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
       const o = orden(ordenId, 'enviada', 'confirmada');
       const datosEmision = { orden: o, emisor: negocio(o.proveedorId, 'proveedor'), receptor: negocio(o.compradorId, 'comprador') };
       if (o.estado === 'enviada') {
+        for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
         o.estado = 'confirmada';
         await guardar('ordenes', o);
         emitir('orden.confirmada', { orden: o });
       }
       if (!documento(o.id, 33)) await guardarDocumento(o.id, 33, neto(o.items), await sii.emitirFactura(datosEmision));
-      if (!documento(o.id, 52)) await guardarDocumento(o.id, 52, neto(o.items), await sii.emitirGuia(datosEmision));
+      if (!documento(o.id, 52)) await guardarDocumento(o.id, 52, netoDespachado(o.items), await sii.emitirGuia(datosEmision));
       o.estado = 'facturada';
       await guardar('ordenes', o);
       return structuredClone(o);
@@ -192,7 +226,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
         return structuredClone(o);
       }
       const { faltante, producto } = recepcion as { faltante: number; producto?: string };
-      const item = producto ? o.items.find(i => i.producto === producto) : o.items[0];
+      const item = producto ? o.items.find(i => i.producto === (normalizarProducto(producto) ?? producto)) : o.items[0];
       if (!item) throw new ErrorRed('datos_invalidos', `La orden no tiene ${producto}`);
       if (!Number.isInteger(faltante) || faltante <= 0 || faltante > item.cantidad) {
         throw new ErrorRed('datos_invalidos', `El faltante debe estar entre 1 y ${item.cantidad}`);
@@ -312,11 +346,11 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
   function negocioPorTelefono(telefono: string) {
     const buscado = normalizarTelefono(telefono);
     const n = buscado ? datos.negocios.find(x => normalizarTelefono(x.telefono) === buscado) : undefined;
-    return n && structuredClone(n);
+    return n ? structuredClone(n) : null;
   }
 
   return {
-    crearOrden, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
+    crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
     unirseALicitacion, ofertar, cerrarLicitacion, estadoDeLaRed, negocioPorTelefono,
     escuchar(oyente) {
       oyentes.add(oyente);

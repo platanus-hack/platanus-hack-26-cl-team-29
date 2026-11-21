@@ -98,5 +98,26 @@ test('negocioPorTelefono encuentra el negocio aunque el número venga con otro f
   const { red } = await redDePrueba({ ahora: new Date() });
   assert.equal(red.negocioPorTelefono('56900000011')?.id, COMPRADOR_DEMO);
   assert.equal(red.negocioPorTelefono('+56 9 0000 0001')?.id, PROVEEDOR_DEMO);
-  assert.equal(red.negocioPorTelefono('56999999999'), undefined);
+  assert.equal(red.negocioPorTelefono('56999999999'), null);
+});
+
+test('el producto en texto libre se normaliza y el precio lo pone el proveedor', async () => {
+  const { red } = await redDePrueba({ ahora: new Date() });
+  const orden = await red.crearOrden({ compradorId: COMPRADOR_DEMO, proveedorId: 'n-molinos-del-sur', items: [{ producto: 'sacos de harina', cantidad: 4 }] });
+  assert.deepEqual(orden.items, [{ producto: 'Harina 25 kg', cantidad: 4, precioUnitario: 17100 }]);
+  await assert.rejects(
+    red.crearOrden({ compradorId: COMPRADOR_DEMO, proveedorId: PROVEEDOR_DEMO, items: [{ producto: 'bicicletas', cantidad: 1 }] }),
+    { codigo: 'datos_invalidos' },
+  );
+});
+
+test('la guía de un despacho parcial dice menos que la orden y la factura', async () => {
+  const { red } = await redDePrueba({ ahora: new Date() });
+  const orden = await red.crearOrden({ compradorId: COMPRADOR_DEMO, proveedorId: PROVEEDOR_DEMO, items: [{ producto: 'harina', cantidad: 4 }] });
+  await red.fijarDespacho(orden.id, 2);
+  const facturada = await red.confirmarOrden(orden.id);
+  assert.equal(facturada.items[0].cantidadDespachada, 2);
+  const [factura, guia] = red.estadoDeLaRed().documentos.filter(d => d.ordenId === orden.id);
+  assert.deepEqual([factura.tipo, factura.monto, guia.tipo, guia.monto], [33, 72000, 52, 36000]);
+  await assert.rejects(red.fijarDespacho(orden.id, 1), { codigo: 'transicion_invalida' });
 });

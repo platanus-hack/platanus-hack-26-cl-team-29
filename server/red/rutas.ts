@@ -27,6 +27,11 @@ export function crearRutasRed(red: Red): express.Router {
     }));
   });
 
+  rutas.post('/ordenes/:id/despacho', async (req, res) => {
+    const b = cuerpo(req);
+    res.json(await red.fijarDespacho(id(req), Number(b.cantidad), typeof b.producto === 'string' ? b.producto : undefined));
+  });
+
   rutas.post('/ordenes/:id/confirmar', async (req, res) => {
     res.json(await red.confirmarOrden(id(req)));
   });

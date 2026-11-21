@@ -9,7 +9,8 @@ import type { PuertoSii } from './sii.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
 export { crearRed, ErrorRed, precioAjustado } from './dominio.ts';
-export type { CodigoError, NuevaOrden, NuevoParticipante, Recepcion, Red } from './dominio.ts';
+export type { CodigoError, NuevaOrden, NuevoItem, NuevoParticipante, Recepcion, Red } from './dominio.ts';
+export { normalizarProducto, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
 export { crearRepositorioMemoria } from './repositorio.ts';
 export { crearSiiFalso } from './sii.ts';

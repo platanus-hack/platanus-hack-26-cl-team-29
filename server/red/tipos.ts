@@ -15,6 +15,8 @@ export interface Item {
   producto: string;
   cantidad: number;
   precioUnitario: number;
+  /** Lo que dice la guía de despacho (52). Se fija al confirmar; antes puede faltar. */
+  cantidadDespachada?: number;
 }
 
 export type EstadoOrden = 'enviada' | 'confirmada' | 'facturada' | 'recibida' | 'reclamada' | 'corregida';
