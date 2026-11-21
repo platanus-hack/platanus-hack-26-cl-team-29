@@ -70,6 +70,20 @@ Producto (dentro de `.bando-ui`): lienzo `#FFFFFF` con borde `#EDEADE`, lateral 
 texto `#000000` / `#404040` / `#6E6A5E`, **botón primario negro `#171717`**. Estados: éxito `#21C45D`, aviso `#FBBD23`,
 error `#EF4343`. El azul del SII (`#0061A0`) sigue marcando todo lo que queda registrado en el SII.
 
+### Modo oscuro
+
+La interfaz de marca (`.bando-ui`) tiene modo oscuro: carbón y crema, como el logo sobre oscuro. Por defecto sigue al
+sistema; el botón sol/luna (`<BotonTema />`, en el marco y en la entrada) lo fija en el dispositivo
+([`client/src/marca/tema.ts`](client/src/marca/tema.ts) pone `data-tema` en `<html>` antes de dibujar).
+
+- Los valores viven solo en `tokens.css` (`[data-tema='oscuro'] .bando-ui`): una vista que usa los tokens ya funciona en
+  los dos modos. Nada de colores escritos a mano en los estilos de una vista.
+- Lienzo `#1F201D`, lateral `#161714`, bordes `#3A3B35`, texto crema `#F3EEE0`. El botón primario pasa a crema con texto
+  tinta. La miel no cambia; miel texto y oliva texto se aclaran (`#E8BE52`, `#B9BE74`) para leerse sobre oscuro.
+- El logo va con `<Logo />` (`fondo="tema"`): cambia solo a la versión sobre oscuro.
+- Ilustraciones, abejas e íconos de flujo llevan la clase `ilustracion`: en oscuro van sobre una baldosa crema, porque su
+  trazo es negro y la marca los pide sobre blanco o crema.
+
 ## Tipografía
 
 Una sola familia: **Inter** (400, 500, 600, 700; ya cargada en `client/index.html`). Titulares grandes, en bold y

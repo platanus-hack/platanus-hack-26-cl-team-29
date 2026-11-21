@@ -18,6 +18,7 @@
   --bando-fondo-crema: #FCF4DC;   /* fondo de ilustraciones, imagen para compartir, ícono de app */
   --bando-carbon: #343532;        /* trazo de ilustración, fondo oscuro de marca */
   --bando-tinta: #1D1D1F;         /* texto sobre miel */
+  --bando-fondo-ilustracion: #FCF4DC; /* detrás de ilustraciones e íconos de flujo en modo oscuro: siempre claro */
 }
 
 .bando-ui {
@@ -82,3 +83,38 @@
   --font-mono: var(--font-sans);
   color: var(--color-text);
 }
+
+/* Modo oscuro (DESIGN.md): carbón y crema, como el logo sobre oscuro. `data-tema` lo pone marca/tema.ts en <html>
+   (sigue al sistema o lo que eligió la persona). La miel no cambia; los textos de marca se aclaran para leerse. */
+[data-tema='oscuro'] .bando-ui {
+  color-scheme: dark;
+  --color-background: #1F201D;
+  --color-foreground: #F3EEE0;
+  --color-muted: #161714;
+  --color-secondary: #2A2B27;
+  --color-border: #3A3B35;
+  --color-muted-foreground: #CFC9B8;
+  --color-faint-fg: #A39D8C;
+  --color-primary: #F3E9D0;
+  --color-primary-foreground: #1D1D1F;
+  --color-destructive: #F27171;
+  --bando-miel-texto: #E8BE52;
+  --bando-oliva-texto: #B9BE74;
+  --bando-miel-50: #3A311C;
+  --bando-crema: #2E2C25;
+  --bando-fondo-crema: #2A2822;
+}
+[data-tema='oscuro'] .bando-ui .puente-legado {
+  --color-background: #1F201D;
+  --color-surface: #1F201D;
+  --color-text: #F3EEE0;
+  --color-muted: #CFC9B8;
+  --color-tenue: #A39D8C;
+}
+
+/* El logo sigue al modo (<Logo fondo="tema" />): cada modo solo esconde la versión que no usa, así el `display`
+   propio del logo (por ejemplo, oculto en el teléfono) sigue mandando. */
+:root:not([data-tema='oscuro']) .bando-ui .logo-oscuro, [data-tema='oscuro'] .bando-ui .logo-claro { display: none; }
+
+/* Ilustraciones e íconos de flujo van sobre blanco o crema (DESIGN.md): en modo oscuro, sobre una baldosa crema. */
+[data-tema='oscuro'] .bando-ui .ilustracion { background: var(--bando-fondo-ilustracion); border-radius: var(--radius-xl); padding: 6px; }
