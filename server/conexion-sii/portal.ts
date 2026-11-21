@@ -2,11 +2,12 @@
 // Cada operación toma la sesión del certificado (sin login si ya hay una guardada) y la suelta al terminar.
 import {
   consultarFicha, consultarResolucion, consultarTope, INTERVALO_FOLIOS_MS, listarReobtenibles, pedirCaf, reobtenerCaf,
-  type CertificadoPortal, type FichaEmpresa, type PortalSii, type RangoFolios, type Resolucion, type TopeFolios,
+  type CertificadoPortal, type PortalSii, type RangoFolios, type Resolucion, type TopeFolios,
 } from '../sii-portal/index.ts';
+import type { FichaSii } from '../../shared/conexion-sii.ts';
 
 export interface PortalConexion {
-  ficha(certificado: CertificadoPortal, rutEmpresa: string): Promise<FichaEmpresa>;
+  ficha(certificado: CertificadoPortal, rutEmpresa: string): Promise<FichaSii>;
   resolucion(certificado: CertificadoPortal, rutEmpresa: string): Promise<Resolucion>;
   /** Rangos ya autorizados que se pueden volver a descargar, los más recientes primero. Solo lectura. */
   reobtenibles(certificado: CertificadoPortal, rutEmpresa: string, tipo: number): Promise<RangoFolios[]>;

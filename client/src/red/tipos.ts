@@ -1,6 +1,7 @@
 // Tipos de la red, copia local del contrato (docs/decisiones/20261121-1130-contrato-red.md).
 // El front no importa código del backend: si el contrato cambia, se actualiza aquí. Lo que es igual en los
 // dos lados (tramos, precios) viene de shared/.
+import type { TipoDocumento } from '../../../shared/documentos.ts';
 import type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
 
 export type Rol = 'comprador' | 'proveedor';
@@ -37,7 +38,7 @@ export interface OrdenCompra {
   reclamo?: { producto: string; faltante: number; en: string; estadoSii: string };
 }
 
-export type TipoDocumento = 33 | 52 | 61;
+export type { TipoDocumento } from '../../../shared/documentos.ts';
 
 export interface Documento {
   id: string;

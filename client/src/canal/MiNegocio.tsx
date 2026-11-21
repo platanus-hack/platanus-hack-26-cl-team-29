@@ -7,7 +7,7 @@ import { dinero, nota } from '../../../shared/formato.ts';
 import { contar, cuantos } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
-import type { Negocio } from '../red/tipos.ts';
+import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import {
   cicloDelPedido, estaAbierta, licitacionVigente, totalOrden, unidadPara, montoNotaCredito,
@@ -15,7 +15,7 @@ import {
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
-import { BotonWhatsapp, Cantidad, Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
+import { BotonWhatsapp, Cantidad, Confirmar, EstadoSii, ListaDocumentos, Marca, useConfirmacion, Vacio } from './piezas.tsx';
 import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
 import './canal.css';
@@ -362,36 +362,18 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
 
 // ---------- Mis facturas ----------
 
-const NOMBRE_DOC: Record<number, string> = { 33: 'Factura', 61: 'Nota de crédito' };
-
 function MisFacturas({ foto, yo }: { foto: FotoRed; yo: YoComprador }) {
-  const docs = yo.documentos
-    .filter(d => d.tipo === 33 || d.tipo === 61)
-    .sort((a, b) => Date.parse(b.emitidoEn ?? '') - Date.parse(a.emitidoEn ?? '') || (b.folio ?? 0) - (a.folio ?? 0));
+  const docs = yo.documentos.filter(d => d.tipo === 33 || d.tipo === 61);
   if (!docs.length) {
     return <Vacio titulo="Todavía no tienes facturas" texto="Cuando un proveedor confirme tu pedido, su factura del SII aparece aquí con su estado." />;
   }
+  const proveedorDe = (d: Documento) => {
+    const orden = yo.ordenes.find(o => o.id === d.ordenId);
+    return foto.negocios.find(n => n.id === orden?.proveedorId)?.nombre ?? 'Proveedor';
+  };
   return (
     <section className="cn-seccion">
-      <ul className="tarjeta cn-documentos">
-        {docs.map(d => {
-          const orden = yo.ordenes.find(o => o.id === d.ordenId);
-          const proveedor = foto.negocios.find(n => n.id === orden?.proveedorId)?.nombre;
-          return (
-            <li key={d.id}>
-              <Icono nombre="documento" />
-              <div className="cn-doc-izq">
-                <strong>{NOMBRE_DOC[d.tipo]} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
-                <span className="mono tenue nombre">{proveedor ?? 'Proveedor'}</span>
-              </div>
-              <div className="cn-doc-der">
-                <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
-                <EstadoSii estado={d.estadoSii} />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <ListaDocumentos documentos={docs} contraparte={proveedorDe} />
       <p className="mono tenue cn-nota-pie">Montos netos. Cada documento queda registrado en el SII.</p>
     </section>
   );

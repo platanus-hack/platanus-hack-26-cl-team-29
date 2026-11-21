@@ -15,7 +15,7 @@ import { crearRutasConexionSii } from './rutas.ts';
 import { crearSiiConmutable } from './sii-conmutable.ts';
 
 export { crearConexionSii, ErrorConexion } from './conexion.ts';
-export type { ConexionSii, EstadoConexion, EstadoCaf, OpcionesConexion } from './conexion.ts';
+export type { ConexionSii, OpcionesConexion } from './conexion.ts';
 export { crearAlmacenConexionMemoria } from './almacen.ts';
 export { crearRutasConexionSii } from './rutas.ts';
 export { crearSiiConmutable } from './sii-conmutable.ts';

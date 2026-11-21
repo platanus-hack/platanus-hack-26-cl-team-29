@@ -1,28 +1,13 @@
 // Ficha del contribuyente en el portal de certificación (maullin, `ce_consulta_muestra_e`), solo lectura: razón
 // social, dirección y actividades, tal como el SII las tiene inscritas. Solo existe en maullin. La resolución se lee
 // de la app nueva de www2c (mantenedor.ts).
+import type { FichaSii } from '../../shared/conexion-sii.ts';
 import { partirRut } from '../../shared/rut.ts';
 import { ErrorPortal } from './errores.ts';
 import { filasDeTabla, normalizar, textoVisible } from './html.ts';
 import type { SesionPortal } from './portal.ts';
 
 const PORTAL = 'https://maullin.sii.cl/cvc_cgi/dte';
-
-export interface Empresa {
-  razonSocial: string;
-  giro: string;
-  acteco: number;
-  direccion: string;
-  comuna: string;
-  ciudad?: string;
-}
-
-export interface FichaEmpresa extends Empresa {
-  rut: string;
-  /** Todas las actividades inscritas, por si el proveedor quiere elegir otra como giro. */
-  actividades: { codigo: number; descripcion: string }[];
-}
-
 
 /**
  * La dirección viene en una celda ("CALLE 123, Villa/Pob. X, Ciudad Y, Comuna Z"). Las etiquetas son texto del SII, no
@@ -48,9 +33,9 @@ export function separarDomicilio(celda: string): { direccion: string; comuna: st
 }
 
 /** Lee la página `ce_consulta_muestra_e`. Falla con el texto de la página si no trae la ficha. */
-export function leerFicha(html: string): FichaEmpresa {
+export function leerFicha(html: string): FichaSii {
   const datos = new Map<string, string>();
-  const actividades: FichaEmpresa['actividades'] = [];
+  const actividades: FichaSii['actividades'] = [];
   for (const celdas of filasDeTabla(html)) {
     if (celdas.length === 2 && celdas[0]) datos.set(normalizar(celdas[0]), celdas[1] ?? '');
     else if (celdas.length === 3 && /^\d{6}$/.test((celdas[0] ?? '').replace(/\s/g, ''))) {
@@ -68,7 +53,7 @@ export function leerFicha(html: string): FichaEmpresa {
 }
 
 /** Ficha del contribuyente para armar los DTE. */
-export async function consultarFicha(sesion: SesionPortal, rutEmpresa: string): Promise<FichaEmpresa> {
+export async function consultarFicha(sesion: SesionPortal, rutEmpresa: string): Promise<FichaSii> {
   const [rut, dv] = partirRut(rutEmpresa);
   const r = await sesion.pedir({
     paso: 'ce_consulta_muestra_e',

@@ -1,5 +1,6 @@
 // Entidades de la red de compras. Contrato: docs/decisiones/20261121-1130-contrato-red.md
 // Las fechas van como texto ISO para que viajen igual por HTTP, Socket.io y jsonb.
+import type { TipoDocumento } from '../../shared/documentos.ts';
 import type { SiguienteTramo, Tramo } from '../../shared/precios.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
 import type { DatosContribuyente } from './contribuyente.ts';
@@ -58,7 +59,7 @@ export interface OrdenCompra {
   reclamo?: Reclamo;
 }
 
-export type TipoDocumento = 33 | 52 | 61;
+export type { TipoDocumento } from '../../shared/documentos.ts';
 
 export interface Documento {
   id: string;

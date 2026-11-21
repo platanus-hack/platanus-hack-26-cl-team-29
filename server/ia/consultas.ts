@@ -1,5 +1,6 @@
 // Lo que la IA puede consultar de la red. Solo lectura, acotado al negocio que pregunta y
 // sin teléfonos: todo sale de la foto pública (`estadoPublico`) y de la compra conjunta abierta.
+import { nombreEnFrase } from '../../shared/documentos.ts';
 import type { Red } from '../red/index.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from '../red/index.ts';
 
@@ -12,7 +13,6 @@ export interface Consultas {
   compraConjunta(negocioId: string): unknown;
 }
 
-const NOMBRE_DOCUMENTO = { 33: 'factura', 52: 'guía de despacho', 61: 'nota de crédito' } as const;
 const MAX_PEDIDOS = 10;
 
 export function crearConsultasRed(red: RedConsultable): Consultas {
@@ -34,7 +34,7 @@ export function crearConsultasRed(red: RedConsultable): Consultas {
           creadaEn: o.creadaEn,
           documentos: documentos
             .filter(d => d.ordenId === o.id)
-            .map(d => ({ tipo: NOMBRE_DOCUMENTO[d.tipo], folio: d.folio, estadoSii: d.estadoSii })),
+            .map(d => ({ tipo: nombreEnFrase(d.tipo), folio: d.folio, estadoSii: d.estadoSii })),
           ...(o.reclamo ? { reclamo: { faltante: o.reclamo.faltante, estadoSii: o.reclamo.estadoSii } } : {}),
         }));
     },

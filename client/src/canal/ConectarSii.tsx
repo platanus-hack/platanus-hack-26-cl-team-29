@@ -4,13 +4,12 @@
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../shared/documentos.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
 import { LogoSii } from './iconos.tsx';
-import type { CafSii, ConexionSii, DatosEmpresaSii, PasoSii } from './tipos.ts';
+import type { CafSii, EstadoConexionSii, DatosEmpresaSii, PasoSii } from './tipos.ts';
 
-const NOMBRE_CAF: Record<CafSii['tipo'], string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
-const TIPOS: CafSii['tipo'][] = [33, 52, 61];
 const POLEO_MS = 1500;
 const NOMBRE_PASO: Record<PasoSii['id'], string> = {
   empresa: 'Datos de la empresa', resolucion: 'Resolución', caf_33: 'Folios de factura', caf_52: 'Folios de guía', caf_61: 'Folios de nota de crédito',
@@ -39,7 +38,7 @@ interface Props {
 
 /** Tarjeta del panel: el estado de la conexión y, al abrirla, los tres pasos. */
 export function ConectarSii({ api, token }: Props) {
-  const [estado, setEstado] = useState<ConexionSii | null>(null);
+  const [estado, setEstado] = useState<EstadoConexionSii | null>(null);
   const [abierta, setAbierta] = useState(false);
   const [error, setError] = useState('');
 
@@ -99,7 +98,7 @@ export function ConectarSii({ api, token }: Props) {
   );
 }
 
-function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: ConexionSii; alCambiar: (e: ConexionSii) => void; onCerrar: () => void }) {
+function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: EstadoConexionSii; alCambiar: (e: EstadoConexionSii) => void; onCerrar: () => void }) {
   const [editar, setEditar] = useState<'certificado' | 'empresa' | null>(null);
   const [desconectando, setDesconectando] = useState(false);
   const [error, setError] = useState('');
@@ -107,7 +106,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
   // Mientras se trae todo del SII, los pasos manuales esperan: se muestran con lo que haya faltado.
   const enCurso = !!estado.automatico?.activo;
   const pasoEmpresa = !pasoCert && !enCurso && (!estado.empresa || !estado.resolucion || estado.resolucion.rechazada || editar === 'empresa');
-  const hecho = (e: ConexionSii) => { alCambiar(e); setEditar(null); };
+  const hecho = (e: EstadoConexionSii) => { alCambiar(e); setEditar(null); };
 
   const desconectar = async () => {
     setError('');
@@ -152,7 +151,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
           <p className="mono tenue cn-texto">
             Los traemos solos del SII. Si falta alguno, sube el XML del CAF. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
           </p>
-          {TIPOS.map(tipo => (
+          {TIPOS_DOCUMENTO.map(tipo => (
             <FilaCaf key={tipo} api={api} token={token} tipo={tipo} caf={estado.cafs.find(c => c.tipo === tipo)} alCambiar={alCambiar} />
           ))}
         </article>
@@ -188,7 +187,7 @@ function Resumen({ texto, onCambiar }: { texto: string; onCambiar: () => void })
   );
 }
 
-function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo: (e: ConexionSii) => void; onCancelar?: () => void }) {
+function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo: (e: EstadoConexionSii) => void; onCancelar?: () => void }) {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [clave, setClave] = useState('');
   const [rut, setRut] = useState('');
@@ -234,7 +233,7 @@ function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo:
 
 const SIN_EMPRESA = { razonSocial: '', giro: '', acteco: '', direccion: '', comuna: '', ciudad: '' };
 
-function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { estado: ConexionSii; alListo: (e: ConexionSii) => void; onCancelar?: () => void }) {
+function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { estado: EstadoConexionSii; alListo: (e: EstadoConexionSii) => void; onCancelar?: () => void }) {
   const [rut, setRut] = useState(estado.rutEmisor ?? '');
   const [datos, setDatos] = useState(() => estado.empresa
     ? { ...SIN_EMPRESA, ...estado.empresa, acteco: String(estado.empresa.acteco), ciudad: estado.empresa.ciudad ?? '' }
@@ -333,7 +332,7 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
   );
 }
 
-function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: CafSii['tipo']; caf?: CafSii; alCambiar: (e: ConexionSii) => void }) {
+function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocumento; caf?: CafSii; alCambiar: (e: EstadoConexionSii) => void }) {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [avisos, setAvisos] = useState<string[]>([]);
@@ -374,7 +373,7 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: CafSii['t
     <div className="cn-caf">
       <div className="cn-caf-cabecera">
         <div>
-          <strong>{NOMBRE_CAF[tipo]} ({tipo})</strong>
+          <strong>{nombreDocumento(tipo)} ({tipo})</strong>
           <p className="mono tenue">
             {!caf ? 'Sin CAF' : `Folios ${caf.desde} a ${caf.hasta} · autorizado el ${dia(caf.fa)}`}
           </p>
@@ -412,7 +411,7 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: CafSii['t
 }
 
 /** Avance de la conexión automática: un paso por línea, con el texto del SII cuando algo falta. */
-function Automatico({ api, token, estado, alCambiar }: Props & { estado: ConexionSii; alCambiar: (e: ConexionSii) => void }) {
+function Automatico({ api, token, estado, alCambiar }: Props & { estado: EstadoConexionSii; alCambiar: (e: EstadoConexionSii) => void }) {
   const [error, setError] = useState('');
   const auto = estado.automatico!;
   const reintentar = async () => {

@@ -4,6 +4,7 @@
 // El logo del SII no forma parte de la representación impresa.
 import bwipjs from 'bwip-js';
 import PDFDocument from 'pdfkit';
+import { esTipoDocumento, nombreElectronico } from '../../shared/documentos.ts';
 import { dinero } from '../../shared/formato.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { DocumentoImpreso, LineaImpresa, ReferenciaImpresa } from './tipos.ts';
@@ -16,19 +17,6 @@ const FONDO = '#F2F2F2';
 const MARGEN = 40;
 const NORMAL = 'Helvetica';
 const NEGRITA = 'Helvetica-Bold';
-
-const TITULOS: Record<number, string> = {
-  33: 'FACTURA ELECTRÓNICA',
-  52: 'GUÍA DE DESPACHO ELECTRÓNICA',
-  61: 'NOTA DE CRÉDITO ELECTRÓNICA',
-};
-
-const REFERIDOS: Record<string, string> = {
-  801: 'Orden de compra',
-  33: 'Factura electrónica',
-  52: 'Guía de despacho electrónica',
-  61: 'Nota de crédito electrónica',
-};
 
 const CODIGOS_REFERENCIA: Record<number, string> = { 1: 'anula documento', 2: 'corrige texto', 3: 'corrige montos' };
 
@@ -47,7 +35,8 @@ const TRASLADOS: Record<number, string> = {
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 /** "FACTURA ELECTRÓNICA", "GUÍA DE DESPACHO ELECTRÓNICA" o "NOTA DE CRÉDITO ELECTRÓNICA". */
-export const nombreDelTipo = (tipo: number): string => TITULOS[tipo] ?? `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
+export const nombreDelTipo = (tipo: number): string =>
+  esTipoDocumento(tipo) ? nombreElectronico(tipo).toUpperCase() : `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
 
 const decimales = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 6 });
 
@@ -58,7 +47,7 @@ function fechaLarga(iso: string): string {
 }
 
 function textoReferencia(r: ReferenciaImpresa): string {
-  const nombre = REFERIDOS[String(r.tipoDocumento)] ?? `Documento tipo ${r.tipoDocumento}`;
+  const nombre = nombreElectronico(Number(r.tipoDocumento));
   const motivo = [r.codigo ? CODIGOS_REFERENCIA[r.codigo] : undefined, r.razon].filter(Boolean).join(': ');
   return `${nombre} N° ${r.folio} del ${fechaLarga(r.fecha)}${motivo ? ` (${motivo})` : ''}`;
 }

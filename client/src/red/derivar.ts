@@ -1,6 +1,7 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
 import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
+import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { ordenarTramos, precioAjustado, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { contar, mayuscula, pluralDe } from '../../../shared/texto.ts';
@@ -726,8 +727,6 @@ function idDeOrden(e: EventoRed): string | undefined {
   return texto(objeto(e.datos.orden).id) ?? texto(objeto(e.datos.documento).ordenId) ?? texto(e.datos.ordenId);
 }
 
-const NOMBRE_DOC: Record<number, string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
-
 /** Una línea legible para cada evento. Lee `datos` con cuidado: si falta algo, cae a un texto genérico. */
 export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   // La orden puede venir en el evento antes de que llegue la foto nueva.
@@ -752,7 +751,7 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const doc = objeto(e.datos.documento);
       const tipo = numero(doc.tipo);
       const folio = numero(doc.folio);
-      const nombre = tipo ? NOMBRE_DOC[tipo] : undefined;
+      const nombre = esTipoDocumento(tipo) ? nombreDocumento(tipo) : undefined;
       const titulo = `${nombre ?? 'Documento'}${folio ? ` folio ${folio}` : ''}`;
       if (e.tipo === 'documento.emitido') return `${titulo} ${nombre ? 'emitida' : 'emitido'} en el SII`;
       const estadoSii = textoEstadoSii(texto(doc.estadoSii));

@@ -1,3 +1,4 @@
+import { nombreEnFrase } from '../../shared/documentos.ts';
 import { ErrorSii } from '../sii/index.ts';
 import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
@@ -42,7 +43,8 @@ const EN_PROCESO = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD', 'LSO']);
 export const ESPERAS_SEGUIMIENTO_MS: readonly number[] = [2_000, 3_000, 3_000, 4_000, 5_000, 8_000, ...Array<number>(26).fill(10_000)];
 /** Con un folio en estos estados no se toma otro para la misma orden y tipo: el documento ya existe o pudo llegar. */
 const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'incierto', 'recibido', 'aceptado', 'reparo', 'no_recibido', 'no_coincide'];
-const NOMBRE: Record<number, string> = { 33: 'factura 33', 52: 'guía 52', 61: 'nota de crédito 61' };
+/** "factura 33", para los logs. */
+const nombreConTipo = (tipo: number) => `${nombreEnFrase(tipo)} ${tipo}`;
 
 const fechaEnChile = (fecha: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(fecha);
 const detalleDe = (error: unknown) =>
@@ -55,7 +57,7 @@ const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
  */
 export function rangoDelCaf(env: NodeJS.ProcessEnv, tipo: number): RangoFolios {
   const base64 = env[`SII_CAF_${tipo}_BASE64`];
-  if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir la ${NOMBRE[tipo] ?? tipo}`);
+  if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir la ${nombreConTipo(tipo)}`);
   const xml = Buffer.from(base64, 'base64').toString('latin1');
   const td = /<TD>\s*(\d+)\s*<\/TD>/.exec(xml)?.[1];
   const rango = /<RNG>\s*<D>\s*(\d+)\s*<\/D>\s*<H>\s*(\d+)\s*<\/H>\s*<\/RNG>/.exec(xml);
@@ -129,7 +131,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     if (!previo) return undefined;
     // Quedó a medias (por ejemplo, un reinicio entre la subida y guardar el documento): no se reenvía.
     if (previo.estado === 'reservado') await guardar(previo, { estado: 'incierto', detalle: 'Reservado sin resultado de subida (reinicio)' });
-    log.warn(`[sii] ${NOMBRE[tipo]} de ${ordenId} ya tiene el folio ${previo.folio} (${previo.estado}): no se vuelve a enviar`);
+    log.warn(`[sii] ${nombreConTipo(tipo)} de ${ordenId} ya tiene el folio ${previo.folio} (${previo.estado}): no se vuelve a enviar`);
     return previo;
   }
 
@@ -200,7 +202,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
 
   function emitir(tipo: 33 | 52 | 61, ordenId: string, armar: (folio: number) => Promise<ResultadoEmision>) {
     return enCola(async () => {
-      const nombre = `${NOMBRE[tipo]} de ${ordenId}`;
+      const nombre = `${nombreConTipo(tipo)} de ${ordenId}`;
       const previo = await folioVivo(tipo, ordenId);
       if (previo) return resultado(previo);
       const registro = await folios.reservar(tipo, rangoDelCaf(env, tipo), ordenId);

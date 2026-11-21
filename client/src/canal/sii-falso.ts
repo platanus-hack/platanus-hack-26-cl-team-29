@@ -5,11 +5,11 @@
 
 import { validarRut } from '../../../shared/rut.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
-import type { CafSii, ConexionSii, PasoSii } from './tipos.ts';
+import type { CafSii, EstadoConexionSii, PasoSii } from './tipos.ts';
 
 type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiDesconectar'>;
 
-const vacia = (): ConexionSii => ({
+const vacia = (): EstadoConexionSii => ({
   conectado: false, respaldoVariables: false, puedeGuardar: true, titular: null, venceEl: null,
   rutEmisor: null, empresa: null, origenEmpresa: null, resolucion: null, cafs: [], automatico: null, sesionPersistente: false,
 });

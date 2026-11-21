@@ -1,9 +1,11 @@
 // Tipos del canal web (/app y /proveedor). Copia local del contrato de la red
 // (docs/decisiones/20261121-1130-contrato-red.md) más las rutas con sesión: el front no importa código del backend.
 
+import type { EmpresaSii } from '../../../shared/conexion-sii.ts';
 import type { Documento, EstadoRed, Licitacion, Negocio, OrdenCompra, Tramo } from '../red/tipos.ts';
 
 export type { Tramo };
+export type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, PasoSii } from '../../../shared/conexion-sii.ts';
 
 /** `GET /api/red/config`. El producto y sus unidades salen de aquí, nunca escritos a mano. */
 export interface ConfigRed {
@@ -87,59 +89,6 @@ export interface FotoRed extends Omit<EstadoRed, 'licitaciones' | 'ordenes'> {
 }
 
 export type Modo = 'real' | 'falso';
-
-/** Datos tributarios de la empresa del proveedor, tal como van en sus documentos. */
-export interface EmpresaSii {
-  razonSocial: string;
-  giro: string;
-  acteco: number;
-  direccion: string;
-  comuna: string;
-  ciudad?: string;
-}
-
-/** `POST /api/red/proveedor/sii/empresa/consultar`: la ficha que el SII tiene inscrita. */
-export interface FichaSii extends EmpresaSii {
-  rut: string;
-  actividades: { codigo: number; descripcion: string }[];
-}
-
-export interface CafSii {
-  tipo: 33 | 52 | 61;
-  desde: number;
-  hasta: number;
-  fa: string;
-  primerLibre: number | null;
-  libres: number | null;
-  escaneando: boolean;
-  progreso: { revisados: number; folio: number; total: number } | null;
-  error: string | null;
-}
-
-/** `GET /api/red/proveedor/sii`. Nunca trae el certificado, su clave ni el CAF. */
-export interface ConexionSii {
-  conectado: boolean;
-  respaldoVariables: boolean;
-  puedeGuardar: boolean;
-  titular: string | null;
-  venceEl: string | null;
-  rutEmisor: string | null;
-  empresa: EmpresaSii | null;
-  origenEmpresa: 'sii' | 'manual' | null;
-  resolucion: { fecha: string; numero: number; origen: 'sii' | 'manual'; rechazada: boolean } | null;
-  cafs: CafSii[];
-  /** Conexión automática con el portal del SII: en curso o su último resultado. */
-  automatico: { activo: boolean; pasos: PasoSii[] } | null;
-  sesionPersistente: boolean;
-}
-
-export interface PasoSii {
-  id: 'empresa' | 'resolucion' | 'caf_33' | 'caf_52' | 'caf_61';
-  estado: 'pendiente' | 'en_curso' | 'listo' | 'omitido' | 'error';
-  detalle: string | null;
-  /** Texto literal del SII. */
-  mensajeSii: string | null;
-}
 
 export interface DatosEmpresaSii extends Omit<EmpresaSii, 'acteco'> {
   rutEmisor: string;

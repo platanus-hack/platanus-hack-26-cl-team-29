@@ -1,8 +1,11 @@
 // Piezas comunes de /app y /proveedor: el paso de confirmación, el estado en el SII y el selector de cantidad.
 
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
+import { nombreDocumento } from '../../../shared/documentos.ts';
+import { dinero } from '../../../shared/formato.ts';
 import { textoEstadoSii } from '../red/formato.ts';
-import { GlifoWhatsapp, LogoSii } from './iconos.tsx';
+import type { Documento } from '../red/tipos.ts';
+import { GlifoWhatsapp, Icono, LogoSii } from './iconos.tsx';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { confirmacion, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
 
@@ -72,6 +75,28 @@ export function EstadoSii({ estado }: { estado: string | null | undefined }) {
   const texto = textoEstadoSii(estado);
   if (!texto) return null;
   return <span className={`cn-sii ${CLASE_SII[estado ?? ''] ?? 'en-curso'}`}><LogoSii tam={12} />{texto}</span>;
+}
+
+/** Documentos del SII, el más nuevo primero: tipo y folio, la contraparte, el monto (la nota de crédito resta) y su estado. */
+export function ListaDocumentos({ documentos, contraparte }: { documentos: readonly Documento[]; contraparte: (d: Documento) => string }) {
+  const docs = [...documentos].sort((a, b) => Date.parse(b.emitidoEn ?? '') - Date.parse(a.emitidoEn ?? '') || (b.folio ?? 0) - (a.folio ?? 0));
+  return (
+    <ul className="tarjeta cn-documentos">
+      {docs.map(d => (
+        <li key={d.id}>
+          <Icono nombre="documento" />
+          <div className="cn-doc-izq">
+            <strong>{nombreDocumento(d.tipo)} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
+            <span className="mono tenue nombre">{contraparte(d)}</span>
+          </div>
+          <div className="cn-doc-der">
+            <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
+            <EstadoSii estado={d.estadoSii} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function Cantidad({ valor, min = 1, max, onCambio, etiqueta }: {

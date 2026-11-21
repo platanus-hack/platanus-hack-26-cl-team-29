@@ -1,19 +1,9 @@
 import type pg from 'pg';
+import type { EmpresaSii } from '../../shared/conexion-sii.ts';
+import type { TipoDocumento } from '../../shared/documentos.ts';
 
 // Lo que el proveedor conectó desde la web. Los secretos (el .pfx con su clave y el XML del CAF, que trae la
 // llave privada del rango) van cifrados; el resto son datos públicos de la empresa y del rango de folios.
-
-export type TipoCaf = 33 | 52 | 61;
-export const TIPOS_CAF: readonly TipoCaf[] = [33, 52, 61];
-
-export interface Empresa {
-  razonSocial: string;
-  giro: string;
-  acteco: number;
-  direccion: string;
-  comuna: string;
-  ciudad?: string;
-}
 
 export interface CafGuardado {
   /** XML del CAF en base64, cifrado. */
@@ -34,7 +24,7 @@ export interface ConexionGuardada {
     venceEl: string;
   };
   rutEmisor?: string;
-  empresa?: Empresa;
+  empresa?: EmpresaSii;
   /** Datos de la empresa leídos del portal del SII o escritos por el proveedor. */
   origenEmpresa?: 'sii' | 'manual';
   resolucion?: {
@@ -45,7 +35,7 @@ export interface ConexionGuardada {
     /** El SII rechazó la carátula de un envío con esta resolución (RCT): no se emite con ella hasta corregirla. */
     rechazadaEn?: string;
   };
-  cafs: Partial<Record<`${TipoCaf}`, CafGuardado>>;
+  cafs: Partial<Record<`${TipoDocumento}`, CafGuardado>>;
   actualizadoEn: string;
 }
 

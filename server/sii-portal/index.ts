@@ -15,7 +15,6 @@ export { crearLimitador, INTERVALO_FOLIOS_MS } from './ritmo.ts';
 export { ErrorPortal, esErrorPortal } from './errores.ts';
 export type { CodigoPortal } from './errores.ts';
 export { consultarFicha, leerFicha, separarDomicilio } from './empresa.ts';
-export type { Empresa, FichaEmpresa } from './empresa.ts';
 export { consultarResolucion, leerResolucion } from './mantenedor.ts';
 export type { Resolucion } from './mantenedor.ts';
 export { consultarTope, listarReobtenibles, pedirCaf, reobtenerCaf, leerRangos } from './folios.ts';
