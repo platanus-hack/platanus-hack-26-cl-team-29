@@ -88,10 +88,11 @@ test('una nota de voz expone su transcripción como texto', () => {
   assert.equal(messages[0]!.content.kind, 'media');
 });
 
-test('apretar un botón llega como texto con su título', () => {
-  const { messages } = parseDelivery(
-    item({ type: 'interactive', interactive: { button_reply: { id: 'si', title: 'Sí' } }, kapso: inbound }),
-    'whatsapp.message.received',
+test('un evento de error trae el wamid y el motivo', () => {
+  const { statuses, messages } = parseDelivery(
+    item({ id: 'wamid.out', errors: [{ code: 131026, message: 'Message undeliverable' }], kapso: { direction: 'outbound' } }),
+    'whatsapp.message.failed',
   );
-  assert.equal(messages[0]!.text, 'Sí');
+  assert.deepEqual(statuses, [{ wamid: 'wamid.out', status: 'failed', error: 'Message undeliverable' }]);
+  assert.equal(messages.length, 0);
 });

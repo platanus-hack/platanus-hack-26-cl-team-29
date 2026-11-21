@@ -1,4 +1,4 @@
-import type { InboundMessage, MediaType, MessageContent } from '../types.ts';
+import type { InboundMessage, MediaType, MessageContent, MessageStatus } from '../types.ts';
 
 /**
  * Body de un webhook de Kapso (v2) → mensajes de dominio.
@@ -16,9 +16,25 @@ import type { InboundMessage, MediaType, MessageContent } from '../types.ts';
 
 export const MESSAGE_RECEIVED = 'whatsapp.message.received';
 
+/** Cambio de estado de un mensaje que nosotros mandamos. */
+export interface StatusUpdate {
+  readonly wamid: string;
+  readonly status: MessageStatus;
+  readonly error: string | null;
+}
+
+/** Eventos de estado → nuestro estado. Hay que suscribirlos en el webhook de Kapso. */
+const STATUS_EVENTS: Record<string, MessageStatus> = {
+  'whatsapp.message.sent': 'sent',
+  'whatsapp.message.delivered': 'delivered',
+  'whatsapp.message.read': 'read',
+  'whatsapp.message.failed': 'failed',
+};
+
 export interface ParsedDelivery {
   readonly event: string;
   readonly messages: InboundMessage[];
+  readonly statuses: StatusUpdate[];
   /** Una línea por ítem ilegible. Nunca el payload crudo. */
   readonly failures: string[];
 }
@@ -32,11 +48,11 @@ const ID_PATHS = ['message.id'];
 const TYPE_PATHS = ['message.type', 'message.kapso.message_type'];
 const DIRECTION_PATHS = ['message.kapso.direction', 'message.direction'];
 const SENT_AT_PATHS = ['message.timestamp', 'message.created_at'];
+const REPLY_ID_PATHS = ['message.interactive.button_reply.id', 'message.interactive.list_reply.id', 'message.button.payload'];
+const REPLY_TITLE_PATHS = ['message.interactive.button_reply.title', 'message.interactive.list_reply.title', 'message.button.text'];
+const ERROR_PATHS = ['message.errors.0.message', 'message.errors.0.title', 'message.kapso.error', 'error.message'];
 const TEXT_PATHS = [
   'message.text.body',
-  'message.interactive.button_reply.title',
-  'message.interactive.list_reply.title',
-  'message.button.text',
   'message.kapso.content',
   'message.content',
 ];
@@ -60,8 +76,18 @@ const LABEL_PATHS = [
 export function parseDelivery(body: unknown, eventHeader?: string): ParsedDelivery {
   const event = resolveEvent(body, eventHeader);
   const messages: InboundMessage[] = [];
+  const statuses: StatusUpdate[] = [];
   const failures: string[] = [];
-  if (event !== MESSAGE_RECEIVED) return { event, messages, failures };
+  const status = Object.hasOwn(STATUS_EVENTS, event) ? STATUS_EVENTS[event] : undefined;
+  if (status) {
+    for (const item of unwrapItems(body)) {
+      const wamid = firstString(item, ID_PATHS);
+      if (wamid) statuses.push({ wamid, status, error: status === 'failed' ? firstString(item, ERROR_PATHS) : null });
+      else failures.push('evento de estado sin message.id');
+    }
+    return { event, messages, statuses, failures };
+  }
+  if (event !== MESSAGE_RECEIVED) return { event, messages, statuses, failures };
 
   for (const [index, item] of unwrapItems(body).entries()) {
     try {
@@ -71,7 +97,7 @@ export function parseDelivery(body: unknown, eventHeader?: string): ParsedDelive
       failures.push(`item ${index + 1}: ${error instanceof Error ? error.message : 'ilegible'}`);
     }
   }
-  return { event, messages, failures };
+  return { event, messages, statuses, failures };
 }
 
 /** El header es la fuente autoritativa; el `type` del body solo existe en batches. */
@@ -120,6 +146,10 @@ function parseContent(item: unknown): MessageContent {
   if (location) return location;
   if (type === 'location') return { kind: 'unsupported', type };
 
+  const replyId = firstString(item, REPLY_ID_PATHS);
+  const replyTitle = firstString(item, REPLY_TITLE_PATHS);
+  if (replyId && replyTitle) return { kind: 'reply', id: replyId, title: replyTitle };
+
   const mediaType = MEDIA_TYPES.find(t => t === type);
   if (mediaType) {
     return {
@@ -138,6 +168,7 @@ function parseContent(item: unknown): MessageContent {
 function readableText(item: unknown, content: MessageContent): string {
   switch (content.kind) {
     case 'text': return content.text;
+    case 'reply': return content.title;
     case 'media': return content.caption ?? content.transcript ?? '';
     case 'location': return '';
     case 'unsupported': return content.type === 'location' ? '' : (firstString(item, TEXT_PATHS) ?? '');
@@ -170,8 +201,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function at(root: unknown, path: string): unknown {
   let current = root;
   for (const key of path.split('.')) {
-    if (!isRecord(current)) return undefined;
-    current = current[key];
+    if (Array.isArray(current) && /^\d+$/.test(key)) current = current[Number(key)];
+    else if (isRecord(current)) current = current[key];
+    else return undefined;
   }
   return current;
 }

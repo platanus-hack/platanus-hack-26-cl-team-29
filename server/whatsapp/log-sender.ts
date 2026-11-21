@@ -1,4 +1,4 @@
-import type { Log, SendResult, WhatsAppSender } from './types.ts';
+import type { Log, OutboundMessage, TemplateRef, TransportResult, WhatsAppSender } from './types.ts';
 
 /**
  * Sender de desarrollo: cuando no hay credenciales de Kapso, los mensajes se
@@ -13,12 +13,18 @@ export class LogSender implements WhatsAppSender {
     this.#log = log;
   }
 
-  async sendText(to: string, body: string): Promise<SendResult> {
-    this.#log.info(`[whatsapp:dev] → ${to}: ${body}`);
+  async send(to: string, message: OutboundMessage): Promise<TransportResult> {
+    const buttons = message.buttons?.length ? ` [${message.buttons.map(b => b.title).join(' | ')}]` : '';
+    this.#log.info(`[whatsapp:dev] → ${to}: ${message.body}${buttons}`);
     return { ok: true, messageIds: [`dev.${++this.#count}`] };
   }
 
-  async markRead(messageId: string, options?: { readonly typing?: boolean }): Promise<SendResult> {
+  async sendTemplate(to: string, template: TemplateRef): Promise<TransportResult> {
+    this.#log.info(`[whatsapp:dev] → ${to}: plantilla ${template.name}`);
+    return { ok: true, messageIds: [`dev.${++this.#count}`] };
+  }
+
+  async markRead(messageId: string, options?: { readonly typing?: boolean }): Promise<TransportResult> {
     this.#log.info(`[whatsapp:dev] leído ${messageId}${options?.typing ? ' (escribiendo…)' : ''}`);
     return { ok: true, messageIds: [] };
   }
