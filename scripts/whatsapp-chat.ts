@@ -23,7 +23,7 @@ const flag = (nombre: string) => {
 const SECRETO = 'chat-local';
 const silencio = { info() {}, warn() {}, error: console.error };
 // Sin credenciales de Kapso: el módulo usa su sender de desarrollo y nada sale por WhatsApp.
-const env = { ...process.env, KAPSO_API_KEY: '', KAPSO_PHONE_NUMBER_ID: '', KAPSO_WEBHOOK_SECRET: SECRETO };
+const env: NodeJS.ProcessEnv = { ...process.env, KAPSO_API_KEY: '', KAPSO_PHONE_NUMBER_ID: '', KAPSO_WEBHOOK_SECRET: SECRETO };
 
 const whatsapp = await createWhatsApp({ env, log: silencio });
 const red = await iniciarRed(null);
