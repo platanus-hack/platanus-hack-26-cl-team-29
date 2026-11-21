@@ -24,6 +24,17 @@ Cuando haya dudas sobre qué hacer primero:
 - Antes de empezar, revisa qué está en curso (`gh pr list` y `agents/*.md`) para no pisar el trabajo de otro.
 - Render deploya desde un repo espejo que copia `main` de este repo cada ~5 min. Se trabaja solo aquí; no configures el espejo. Todo lo que entra a `main` sale a producción en minutos: **nunca dejes `main` roto**.
 
+## Trabajo con varios agentes en paralelo
+
+Para avanzar rápido, cada persona corre tantos agentes en paralelo como pueda. Para que no choquen:
+
+- **Un agente, una tarea vertical, un worktree, una rama, un PR.** Cada agente trabaja en su propio `git worktree` (`git worktree add ../<carpeta> -b <rama> origin/main`), nunca en el checkout de otro.
+- **Dueño por carpeta.** Cada agente declara en su `agents/<nombre>.md` las carpetas que toca y no edita las de otro. Los archivos compartidos (`server/index.ts`, `package.json`) se tocan lo mínimo y se avisa en el PR.
+- **Contrato antes que código.** Los nombres, eventos y rutas entre partes están en `docs/decisiones/` (ver el contrato de la red). Si un agente necesita cambiarlo, lo cambia ahí en su PR y lo avisa en `Pedidos a otros`.
+- **Implementaciones falsas para no esperar.** Toda dependencia lenta o con credenciales (SII, WhatsApp, Claude) tiene una implementación falsa que se activa sin variables de entorno, así nadie queda bloqueado.
+- **PR chico y seguido.** Draft apenas parte, mergeado apenas pasa `npm run build` y `npm test`. Mejor cinco PR de una hora que uno de cinco horas.
+- **Al terminar, se limpia:** worktree y rama local se borran después del merge.
+
 ## Documenta todo
 
 Cada decisión y cada hallazgo queda escrito en `docs/`, en el mismo PR del trabajo que lo produjo:
