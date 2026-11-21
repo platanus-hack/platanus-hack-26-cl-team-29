@@ -20,6 +20,11 @@ export interface DatosEmision {
 export interface PuertoSii {
   /** Factura electrónica (33) con referencia a la orden de compra. */
   emitirFactura(datos: DatosEmision): Promise<ResultadoSii>;
+  /**
+   * Facturas (33) de varias órdenes en UN sobre (una sola subida), en el mismo orden de la entrada.
+   * Es el cierre de la compra conjunta: una factura por participante.
+   */
+  emitirFacturas(datos: readonly DatosEmision[]): Promise<ResultadoSii[]>;
   /** Guía de despacho (52) de la misma orden, por `cantidadDespachada` de cada ítem (puede ser menos que lo pedido). */
   emitirGuia(datos: DatosEmision): Promise<ResultadoSii>;
   /** Nota de crédito (61) que corrige parcialmente la factura por los ítems faltantes. */
@@ -49,6 +54,11 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
   };
   return {
     emitirFactura: async () => resultado(33),
+    // Un sobre: el mismo track id para todas.
+    emitirFacturas: async datos => {
+      const lote = datos.map(() => resultado(33));
+      return lote.map(r => ({ ...r, trackId: `SIM-LOTE-${lote[0]!.folio}` }));
+    },
     emitirGuia: async () => resultado(52),
     emitirNotaCredito: async () => resultado(61),
     registrarReclamo: async () => ({ estadoSii: 'simulado' }),

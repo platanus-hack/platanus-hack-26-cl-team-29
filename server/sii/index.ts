@@ -23,6 +23,7 @@ import type {
   Log,
   RespuestaReclamo,
   ResultadoEmision,
+  ResultadoLote,
 } from './tipos.ts';
 
 export type * from './tipos.ts';
@@ -34,6 +35,11 @@ export interface Sii {
   readonly rutEmisor: string;
   /** Factura electrónica (33). */
   emitirFactura(entrada: EntradaFactura): Promise<ResultadoEmision>;
+  /**
+   * Varias facturas (33) en UN sobre: una sola subida. El resultado del envío vale para todas; el veredicto de
+   * cada una sale de `estadoEnvio` (por tipo) o de `estadoDocumento` (por folio). Los folios los pone quien llama.
+   */
+  emitirFacturas(entradas: readonly EntradaFactura[]): Promise<ResultadoLote>;
   /** Guía de despacho (52). */
   emitirGuia(entrada: EntradaGuia): Promise<ResultadoEmision>;
   /** Nota de crédito (61) que corrige montos de una factura 33. */
@@ -94,25 +100,32 @@ function crearSiiCertificacion(env: NodeJS.ProcessEnv, http: Http): Sii {
     return leido;
   };
 
-  /** Un documento por sobre: así un rechazo o un corte afecta a un solo folio. */
-  async function emitir(entrada: Omit<EntradaDte, 'emisor'>): Promise<ResultadoEmision> {
+  /** Arma, firma y sube un sobre con los documentos dados. Una sola subida, nunca se reintenta. */
+  async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]): Promise<ResultadoLote> {
     const ahora = new Date();
-    const dte = armarDte({ ...entrada, emisor }, caf(entrada.tipo), certificado, ahora);
+    const dtes = entradas.map(entrada => armarDte({ ...entrada, emisor }, caf(entrada.tipo), certificado, ahora));
     const sobreXml = armarSobre({
       rutEmisor: emisor.rut,
       fchResol: env.SII_FCH_RESOL ?? '',
-      documentos: [{ tipo: entrada.tipo, xml: dte.xml }],
+      documentos: dtes.map((dte, i) => ({ tipo: entradas[i]!.tipo, xml: dte.xml })),
       certificado,
       ahora,
     });
     const envio = await subirSobre(http, autenticador, { sobreXml, rutEmisor: emisor.rut, rutEnvia: certificado.rut });
-    return { documento: dte.documento, envio, sobreXml };
+    return { documentos: dtes.map(d => d.documento), envio, sobreXml };
+  }
+
+  /** Un documento por sobre: así un rechazo o un corte afecta a un solo folio. */
+  async function emitir(entrada: Omit<EntradaDte, 'emisor'>): Promise<ResultadoEmision> {
+    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
+    return { documento: documentos[0]!, envio, sobreXml };
   }
 
   return {
     modo: 'certificacion',
     rutEmisor: emisor.rut,
     emitirFactura: e => emitir(aDte.factura(e)),
+    emitirFacturas: entradas => emitirLote(entradas.map(aDte.factura)),
     emitirGuia: e => emitir(aDte.guia(e)),
     emitirNotaCredito: e => emitir(aDte.notaCredito(e)),
     estadoEnvio: trackId => estadoEnvio(http, autenticador, emisor.rut, trackId),

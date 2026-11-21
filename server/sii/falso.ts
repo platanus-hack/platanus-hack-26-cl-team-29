@@ -12,7 +12,7 @@ const RECLAMOS: readonly AccionReceptor[] = ['RCD', 'RFP', 'RFT'];
 
 export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
   const emisor = normalizarRut(rutEmisor);
-  const porTrack = new Map<string, DocumentoEmitido>();
+  const porTrack = new Map<string, DocumentoEmitido[]>();
   const porFolio = new Map<string, DocumentoEmitido>();
   const eventos = new Map<string, EventoReceptor[]>();
   let ultimoTrack = 1000;
@@ -21,36 +21,50 @@ export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
     codigo, descripcion, resultado: resultadoDe(codigo),
   });
 
-  async function emitir(entrada: Omit<EntradaDte, 'emisor'>) {
-    const totales = calcularTotales(entrada.items);
-    const documento: DocumentoEmitido = {
-      tipo: entrada.tipo,
-      folio: entrada.folio,
-      fechaEmision: entrada.fechaEmision,
-      rutEmisor: emisor,
-      rutReceptor: normalizarRut(entrada.receptor.rut),
-      montoNeto: totales.neto,
-      iva: totales.iva,
-      montoTotal: totales.total,
-    };
+  /** Un sobre con uno o más documentos: un track id para todos. */
+  async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]) {
+    if (entradas.length === 0) throw new Error('El sobre necesita al menos un DTE.');
+    const documentos = entradas.map((entrada): DocumentoEmitido => {
+      const totales = calcularTotales(entrada.items);
+      return {
+        tipo: entrada.tipo,
+        folio: entrada.folio,
+        fechaEmision: entrada.fechaEmision,
+        rutEmisor: emisor,
+        rutReceptor: normalizarRut(entrada.receptor.rut),
+        montoNeto: totales.neto,
+        iva: totales.iva,
+        montoTotal: totales.total,
+      };
+    });
     const trackId = String(++ultimoTrack);
-    porTrack.set(trackId, documento);
-    porFolio.set(clave(emisor, documento.tipo, documento.folio), documento);
+    porTrack.set(trackId, documentos);
+    for (const d of documentos) porFolio.set(clave(emisor, d.tipo, d.folio), d);
     const texto = `<RECEPCIONDTE><STATUS>0</STATUS><TRACKID>${trackId}</TRACKID></RECEPCIONDTE>`;
-    return { documento, envio: { estado: 'recibido' as const, trackId, respuesta: texto }, sobreXml: '' };
+    return { documentos, envio: { estado: 'recibido' as const, trackId, respuesta: texto }, sobreXml: '' };
+  }
+
+  async function emitir(entrada: Omit<EntradaDte, 'emisor'>) {
+    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
+    return { documento: documentos[0]!, envio, sobreXml };
   }
 
   return {
     modo: 'falso',
     rutEmisor: emisor,
     emitirFactura: e => emitir(aDte.factura(e)),
+    emitirFacturas: entradas => emitirLote(entradas.map(aDte.factura)),
     emitirGuia: e => emitir(aDte.guia(e)),
     emitirNotaCredito: e => emitir(aDte.notaCredito(e)),
 
     async estadoEnvio(trackId) {
-      const d = porTrack.get(trackId);
-      if (!d) return { trackId, codigo: '-11', glosa: 'TrackId desconocido (implementacion falsa)', porTipo: [], respuesta: '' };
-      const porTipo = [{ tipo: d.tipo, informados: 1, aceptados: 1, rechazados: 0, reparos: 0 }];
+      const lote = porTrack.get(trackId);
+      if (!lote) return { trackId, codigo: '-11', glosa: 'TrackId desconocido (implementacion falsa)', porTipo: [], respuesta: '' };
+      const tipos = [...new Set(lote.map(d => d.tipo))];
+      const porTipo = tipos.map(tipo => {
+        const n = lote.filter(d => d.tipo === tipo).length;
+        return { tipo, informados: n, aceptados: n, rechazados: 0, reparos: 0 };
+      });
       return { trackId, codigo: 'EPR', glosa: 'Envio Procesado', porTipo, respuesta: '' };
     },
 
