@@ -12,7 +12,7 @@ libre
 - test/agente-*.test.ts
 
 ## Hecho
-- Agente de WhatsApp en `server/agente/`: `conectarAgente(whatsapp, red)`, cola de acciones pendientes por negocio que solo se ejecutan tras un sí, avisos a la contraparte, Claude con tool use y respaldo de reglas (decisión en `docs/decisiones/20261121-1500-agente-whatsapp-confirmacion.md`)
+- Agente de WhatsApp en `server/agente/`: `conectarAgente(whatsapp, red)`, cola de acciones pendientes por negocio que solo se ejecutan tras un sí, avisos a la contraparte, Claude con tool use y respaldo de reglas (decisión en `docs/decisiones/20261121-1120-agente-whatsapp-confirmacion.md`)
 
 ## Bloqueos
 - Para cablearlo hace falta `server/red/` con las funciones de abajo
