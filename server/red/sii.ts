@@ -84,6 +84,13 @@ const RUT_RECEPTOR_SIMULADO = '22222222-2';
  * Cada documento trae su representación impresa con un timbre simulado (server/sii en memoria), con los
  * nombres de la red: así el PDF se puede mostrar en la demo, marcado como simulado.
  */
+/** Las líneas de una orden para el SII, con la cantidad que corresponda (pedida, despachada o faltante); sin las que quedan en 0. */
+export const itemsSii = (items: readonly Item[], cantidad: (i: Item) => number): ItemSii[] =>
+  items.map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' })).filter(i => i.cantidad > 0);
+
+/** La orden de compra como referencia (801) del documento. */
+export const ordenCompraSii = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(o.creadaEn) });
+
 export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
   const folios: Record<number, number> = { 33: 1000, 52: 2000, 61: 3000 };
   for (const d of ultimos) folios[d.tipo] = Math.max(folios[d.tipo], d.folio);
@@ -96,9 +103,6 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
   const receptor = (n: Negocio): Receptor => receptorDelComprador(n) ?? {
     rut: n.rut ?? RUT_RECEPTOR_SIMULADO, razonSocial: n.nombre, giro: 'Comercio', direccion: 'Sin informar', comuna: n.comuna || 'Santiago',
   };
-  const items = (lista: readonly Item[], cantidad: (i: Item) => number): ItemSii[] =>
-    lista.map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' })).filter(i => i.cantidad > 0);
-  const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(o.creadaEn) });
 
   /** El PDF es un extra: si no se puede armar, el documento se emite igual, sin representación impresa. */
   async function conImpreso(r: ResultadoSii, emisor: Negocio, armar: (folio: number) => Promise<{ documento: { impreso: DocumentoImpreso } }>) {
@@ -113,7 +117,7 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
 
   const factura = ({ orden, emisor, receptor: comprador }: DatosEmision, r: ResultadoSii) =>
     conImpreso(r, emisor, folio => memoria.emitirFactura({
-      folio, receptor: receptor(comprador), items: items(orden.items, i => i.cantidad), ordenCompra: ordenCompra(orden),
+      folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompraSii(orden),
     }));
 
   return {
@@ -124,12 +128,12 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
       return Promise.all(lote.map((r, k) => factura(datos[k]!, { ...r, trackId: `SIM-LOTE-${lote[0]!.folio}` })));
     },
     emitirGuia: async ({ orden, emisor, receptor: comprador }) => conImpreso(resultado(52), emisor, folio => memoria.emitirGuia({
-      folio, receptor: receptor(comprador), items: items(orden.items, i => i.cantidadDespachada ?? i.cantidad),
-      motivoTraslado: 1, ordenCompra: ordenCompra(orden),
+      folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidadDespachada ?? i.cantidad),
+      motivoTraslado: 1, ordenCompra: ordenCompraSii(orden),
     })),
     emitirNotaCredito: async ({ emisor, receptor: comprador, factura: f, items: faltantes }) =>
       conImpreso(resultado(61), emisor, folio => memoria.emitirNotaCredito({
-        folio, receptor: receptor(comprador), items: items(faltantes, i => i.cantidad), factura: { folio: f.folio, fecha: fechaEnChile(f.emitidoEn) },
+        folio, receptor: receptor(comprador), items: itemsSii(faltantes, i => i.cantidad), factura: { folio: f.folio, fecha: fechaEnChile(f.emitidoEn) },
       })),
     registrarReclamo: async () => ({ estadoSii: 'simulado' }),
   };

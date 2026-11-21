@@ -15,8 +15,8 @@ import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
-import { Confirmar, EstadoSii, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
-import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
+import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
+import type { ConfigRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
 import './canal.css';
 

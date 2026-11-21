@@ -7,7 +7,8 @@
 // proveedores. La compra cierra, el proveedor dice que sí, salen las facturas (una línea por producto) y el
 // SII las acepta. Después de un rato vuelve a empezar.
 
-import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, ProductoCompra, Tramo, TipoEvento } from './tipos.ts';
+import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, TipoEvento } from './tipos.ts';
+import { CANASTA_DEMO, PISO_ROLLOS_DEMO, pisoPorDefecto } from '../../../shared/canasta-demo.ts';
 import { precioDelProducto, siguienteTramo, totalesDeCanasta, unidadesDe } from '../../../shared/precios.ts';
 
 export interface RedFalsa {
@@ -18,15 +19,8 @@ export interface RedFalsa {
   confirmar(licitacionId: string): void;
 }
 
-const tramos = (...pares: Array<[number, number]>): Tramo[] => pares.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
-
-/** La canasta por defecto del contrato. `piso`: lo mínimo que ofrece el proveedor de la sala por ese producto. */
-const CANASTA: Array<Omit<ProductoCompra, 'ofertas'> & { piso: number }> = [
-  { id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32_000, tramos: tramos([1, 32_000], [10, 29_900], [25, 27_900], [50, 25_900], [100, 24_500]), piso: 23_900 },
-  { id: 'etiquetas', nombre: 'Rollo de etiquetas adhesivas 50x30 (1.000 un.)', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 6_900, tramos: tramos([1, 6_900], [10, 6_400], [25, 5_900], [50, 5_500]), piso: 5_520 },
-  { id: 'bolsas', nombre: 'Paquete de bolsas camiseta (1.000 un.)', unidad: 'paquete', unidadPlural: 'paquetes', precioSolo: 14_900, tramos: tramos([1, 14_900], [10, 13_900], [25, 12_900], [50, 11_900]), piso: 11_920 },
-  { id: 'guantes', nombre: 'Caja de guantes de nitrilo (100 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 8_900, tramos: tramos([1, 8_900], [10, 8_200], [25, 7_600], [50, 7_100]), piso: 7_120 },
-];
+/** La canasta por defecto. `piso`: lo mínimo que ofrece el proveedor de la sala por ese producto. */
+const CANASTA = CANASTA_DEMO.map(p => ({ ...structuredClone(p), piso: p.id === 'rollos' ? PISO_ROLLOS_DEMO : pisoPorDefecto(p.tramos, p.precioSolo) }));
 const PRODUCTO = CANASTA[0].nombre;
 const PROVEEDOR_SALA = 'p-austral';
 /** Proveedores rivales (agentes) y cuánto sobre el piso del de la sala pueden bajar, en la escala de los rollos. */
@@ -44,12 +38,16 @@ const PROVEEDORES: Array<[string, string, string, number]> = [
   ['p-centro', 'Comercial Centro', 'La Reina', 3.9],
 ];
 
-const COMPRADORES: Array<[string, string, string]> = [
+/** Compradores ficticios (id, nombre, comuna), también los del canal web falso. La pantalla siembra los cuatro primeros. */
+export const COMPRADORES_FALSOS: Array<[string, string, string]> = [
   ['c-esquina', 'Almacén La Esquina', 'Ñuñoa'],
   ['c-trigal', 'Panadería El Trigal', 'La Reina'],
   ['c-robles', 'Restaurante Los Robles', 'Providencia'],
   ['c-napoli', 'Pizzería Napoli', 'Macul'],
+  ['c-aromos', 'Minimarket Los Aromos', 'Macul'],
+  ['c-vecina', 'Botillería La Vecina', 'Peñalolén'],
 ];
+const COMPRADORES = COMPRADORES_FALSOS.slice(0, 4);
 
 const TIPOS = ['Almacén', 'Minimarket', 'Panadería', 'Botillería', 'Cafetería', 'Fuente de soda', 'Pizzería', 'Amasandería', 'Ferretería', 'Librería', 'Verdulería', 'Farmacia'];
 const NOMBRES = ['Don Lucho', 'La Vecina', 'El Sol', 'Santa Rosa', 'Los Aromos', 'La Pasada', 'Doña Carmen', 'El Roble', 'Las Palmas', 'San José', 'El Puente', 'La Plaza', 'Los Pinos', 'Mi Barrio', 'El Rincón', 'La Estrella', 'Los Andes', 'El Faro', 'La Casona', 'Buen Pan', 'El Paso', 'La Cruz', 'Las Rosas', 'El Molino', 'La Fuente', 'El Cerro', 'Los Olivos'];

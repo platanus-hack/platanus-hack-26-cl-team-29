@@ -171,7 +171,7 @@ body {
 }
 .paso.proveedor { --carril: var(--color-primary); }
 .paso.sii { --carril: #3fa9f5; }
-.paso .num { font-family: var(--font-mono); font-size: var(--t-etiqueta); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--carril); }
+.paso .num { color: var(--carril); }
 .paso h3 { margin: 0; font-size: clamp(16px, min(2.7vh, 1.75vw), 32px); line-height: 1.1; }
 .paso p {
   margin: 0; font-family: var(--font-mono); font-size: clamp(12px, 1.65vh, 18px); color: var(--color-muted); line-height: 1.35;

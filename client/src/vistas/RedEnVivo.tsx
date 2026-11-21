@@ -50,6 +50,18 @@ function Fila({ fila, logoUrl }: { fila: FilaRanking; logoUrl?: string }) {
 }
 
 /** `logoUrl` es el logo del proveedor de la demo (`proveedorSala`); los demás llevan monograma. */
+/** Negocios, proveedores con nota y documentos en el SII, en vivo. */
+export function Contadores({ estado }: { estado: EstadoRed }) {
+  const cuenta = contadores(estado);
+  return (
+    <div className="contadores">
+      <Contador valor={cuenta.negocios} texto={segun(cuenta.negocios, 'negocio')} color="verde" />
+      <Contador valor={cuenta.proveedoresConNota} texto={segun(cuenta.proveedoresConNota, 'proveedor con nota', 'proveedores con nota')} color="amarillo" />
+      <Contador valor={cuenta.documentosSii} texto={segun(cuenta.documentosSii, 'documento en el SII', 'documentos en el SII')} marca={<LogoSii />} />
+    </div>
+  );
+}
+
 export function Ranking({ estado, cambios, ahora, logoUrl, proveedorSala }: {
   estado: EstadoRed; cambios: CambioNota[]; ahora: number; logoUrl?: string; proveedorSala?: string;
 }) {
@@ -150,7 +162,6 @@ export function RedEnVivo() {
   const ahora = useAhora();
   if (!estado) return <Cargando />;
 
-  const cuenta = contadores(estado);
   const orden = ordenActual(estado);
   const pasos = orden ? cicloDeOrden(estado, orden, eventos) : [];
   const item = orden?.items[0];
@@ -180,7 +191,7 @@ export function RedEnVivo() {
                 <ol className="ciclo" aria-label="Ciclo de la orden">
                   {pasos.map((p, i) => (
                     <li key={p.titulo} className={`paso ${p.carril} ${p.estado}`}>
-                      <span className="num">{i + 1} · {p.carril === 'sii' ? <LogoSii /> : p.carril}</span>
+                      <span className="etiqueta num">{i + 1} · {p.carril === 'sii' ? <LogoSii /> : p.carril}</span>
                       <h3>{p.titulo}</h3>
                       <p>{p.detalle}</p>
                     </li>
@@ -196,11 +207,7 @@ export function RedEnVivo() {
         </div>
 
         <div className="columna">
-          <div className="contadores">
-            <Contador valor={cuenta.negocios} texto={segun(cuenta.negocios, 'negocio')} color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto={segun(cuenta.proveedoresConNota, 'proveedor con nota', 'proveedores con nota')} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={segun(cuenta.documentosSii, 'documento en el SII', 'documentos en el SII')} marca={<LogoSii />} />
-          </div>
+          <Contadores estado={estado} />
           <Ranking estado={estado} cambios={cambios} ahora={ahora} logoUrl={config.proveedorLogoUrl ?? negocioPorId(estado, licitacionActual(estado)?.proveedorId)?.logoUrl} proveedorSala={licitacionActual(estado)?.proveedorId} />
           <MiniLicitacion estado={estado} />
         </div>

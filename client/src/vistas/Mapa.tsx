@@ -10,15 +10,13 @@ import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapa.css';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
-import { LogoSii } from '../components/Iconos.tsx';
 import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
-import { contadores, notaDe, type CambioNota } from '../red/derivar.ts';
+import { notaDe, type CambioNota } from '../red/derivar.ts';
 import { miles, nota } from '../../../shared/formato.ts';
-import { segun } from '../../../shared/texto.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
-import { Contador, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
+import { Contadores, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
 
 setWorkerUrl(urlDelWorker);
 
@@ -191,7 +189,6 @@ export function Mapa() {
   const locales = useLocales();
   const ahora = useAhora();
   if (!estado) return <Cargando />;
-  const cuenta = contadores(estado);
 
   return (
     <main className="pagina proyeccion red">
@@ -218,11 +215,7 @@ export function Mapa() {
         </section>
 
         <div className="columna">
-          <div className="contadores">
-            <Contador valor={cuenta.negocios} texto={segun(cuenta.negocios, 'negocio')} color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto={segun(cuenta.proveedoresConNota, 'proveedor con nota', 'proveedores con nota')} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={segun(cuenta.documentosSii, 'documento en el SII', 'documentos en el SII')} marca={<LogoSii />} />
-          </div>
+          <Contadores estado={estado} />
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           <MiniLicitacion estado={estado} />
           <Feed estado={estado} eventos={eventos} ahora={ahora} />

@@ -3,9 +3,9 @@ import { fechaEnChile } from '../../shared/fecha.ts';
 import { ErrorSii } from '../sii/index.ts';
 import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
-import { receptorDelComprador } from './sii.ts';
+import { itemsSii, ordenCompraSii, receptorDelComprador } from './sii.ts';
 import type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
-import type { Item, Negocio, OrdenCompra } from './tipos.ts';
+import type { Negocio, OrdenCompra } from './tipos.ts';
 
 // Adaptador de PuertoSii sobre el módulo SII (server/sii/index.ts), solo certificación.
 // Demo: el proveedor de la red es la empresa SII_RUT_EMISOR (configurada en server/sii). Cada comprador que
@@ -80,13 +80,6 @@ export function receptorDesdeEnv(env: NodeJS.ProcessEnv): Receptor {
   };
 }
 
-const itemsSii = (items: readonly Item[], cantidad: (i: Item) => number) =>
-  items
-    .map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' }))
-    .filter(i => i.cantidad > 0);
-
-const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(o.creadaEn) });
-
 /**
  * Veredicto común de los `n` documentos de un tipo en un sobre procesado (QueryEstUp cuenta por tipo).
  * `undefined` si el lote quedó mixto (unos aceptados y otros no): entonces no se sabe cuál es cuál.
@@ -136,7 +129,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
   }
 
   const entradaFactura = ({ orden, receptor: comprador }: DatosEmision, folio: number): EntradaFactura =>
-    ({ folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompra(orden) });
+    ({ folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompraSii(orden) });
 
   // Cierre de la compra conjunta: las facturas de todas las órdenes en UN sobre y una sola subida.
   // Mismas reglas que una factura suelta, folio por folio: se reservan en orden (consecutivos) antes de
@@ -274,7 +267,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
 
     emitirGuia: ({ orden, receptor: comprador }) => emitir(52, orden.id, folio => sii.emitirGuia({
       folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidadDespachada ?? i.cantidad),
-      motivoTraslado: 1, ordenCompra: ordenCompra(orden),
+      motivoTraslado: 1, ordenCompra: ordenCompraSii(orden),
     })),
 
     // La nota de crédito va al mismo receptor que la factura que corrige.

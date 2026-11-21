@@ -2,7 +2,7 @@
 import { Autenticador } from './autenticacion.ts';
 import { leerCaf, type Caf } from './caf.ts';
 import { abrirCertificado } from './certificado.ts';
-import { aDte, armarDte, datosImpresos, type EntradaDte } from './dte.ts';
+import { armarDte, datosImpresos, emisiones, type EntradaDte } from './dte.ts';
 import { subirSobre } from './envio.ts';
 import { estadoDocumento, estadoEnvio } from './estado.ts';
 import { crearSiiFalso } from './falso.ts';
@@ -140,19 +140,10 @@ function crearSiiCertificacion(env: NodeJS.ProcessEnv, http: Http): Sii {
     return { documentos, envio, sobreXml };
   }
 
-  /** Un documento por sobre: así un rechazo o un corte afecta a un solo folio. */
-  async function emitir(entrada: Omit<EntradaDte, 'emisor'>): Promise<ResultadoEmision> {
-    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
-    return { documento: documentos[0]!, envio, sobreXml };
-  }
-
   return {
     modo: 'certificacion',
     rutEmisor: emisor.rut,
-    emitirFactura: e => emitir(aDte.factura(e)),
-    emitirFacturas: entradas => emitirLote(entradas.map(aDte.factura)),
-    emitirGuia: e => emitir(aDte.guia(e)),
-    emitirNotaCredito: e => emitir(aDte.notaCredito(e)),
+    ...emisiones(emitirLote),
     estadoEnvio: trackId => estadoEnvio(http, autenticador, emisor.rut, trackId),
     estadoDocumento: consulta => estadoDocumento(http, autenticador, emisor.rut, consulta),
     registrarAccionReceptor: (documento, accion) => registrarAccion(http, autenticador, documento, accion),

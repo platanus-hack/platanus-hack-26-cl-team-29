@@ -1,6 +1,7 @@
 import express from 'express';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { ErrorRed, FALTA_RUT } from './dominio.ts';
+import { cuerpo, nuevoComprador } from './peticion.ts';
 import type { Recepcion, Red } from './dominio.ts';
 import { sinTelefonos } from './publico.ts';
 import { PROVEEDOR_SALA } from './semilla.ts';
@@ -28,7 +29,6 @@ interface ConSesion extends Request {
 export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limitar, conexionSii }: OpcionesWeb): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
-  const cuerpo = (req: Request): Record<string, unknown> => (req.body && typeof req.body === 'object' ? req.body : {});
   const tokenDe = (req: Request) => /^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1];
 
   /** La sesión válida del pedido, o null. El negocio tiene que seguir existiendo (un reinicio borra el público). */
@@ -90,12 +90,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
       return;
     }
     if (!rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
-    const negocio = await red.registrarComprador({
-      nombre: typeof b.nombre === 'string' ? b.nombre : '',
-      comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
-      rubro: typeof b.rubro === 'string' ? b.rubro : undefined,
-      rut,
-    });
+    const negocio = await red.registrarComprador(nuevoComprador(b, rut));
     res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id, rol: 'comprador' }), negocio: sinTelefonos(negocio) });
   });
 

@@ -15,7 +15,7 @@ import {
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
-import { BotonWhatsapp, Cantidad, Confirmar, EstadoSii, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
+import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
 import './canal.css';
