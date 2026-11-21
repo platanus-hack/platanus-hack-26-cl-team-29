@@ -15,7 +15,7 @@ export const escaparXml = (texto: string): string =>
   texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const EQUIVALENTES: Readonly<Record<string, string>> = {
-  '‘': "'", '’': "'", '“': '"', '”': '"', '–': '-', '—': '-', '…': '...',
+  '\u2018': "'", '\u2019': "'", '\u201C': '"', '\u201D': '"', '\u2013': '-', '\u2014': '-', '\u2026': '...',
 };
 
 /**
@@ -26,7 +26,7 @@ const EQUIVALENTES: Readonly<Record<string, string>> = {
 export function limpiarLatin1(texto: string): string {
   return texto
     .normalize('NFC')
-    .replace(/[‘’“”–—…]/g, c => EQUIVALENTES[c] ?? '')
+    .replace(/[\u2018\u2019\u201C\u201D\u2013\u2014\u2026]/g, c => EQUIVALENTES[c] ?? '')
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, '')
     .trim();
 }

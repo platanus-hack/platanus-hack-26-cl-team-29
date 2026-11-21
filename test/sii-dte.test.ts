@@ -119,7 +119,7 @@ test('el sobre ordena SubTotDTE 33, 61, 52 y la firma del SetDTE y de cada DTE v
 });
 
 test('el texto se limpia a Latin-1 sin perder tildes ni el apóstrofe, y el TED se pliega a ASCII de 40', () => {
-  assert.equal(limpiarLatin1('Ñandú “PLC’S” — ok 😀\u0007'), 'Ñandú "PLC\'S" - ok');
+  assert.equal(limpiarLatin1('Ñandú \u201CPLC\u2019S\u201D \u2014 ok \u{1F600}\u0007'), 'Ñandú "PLC\'S" - ok');
   assert.equal(plegarTed('Ñuñoa Comercialización y Distribución Limitada'), 'Nunoa Comercializacion y Distribucion Li');
 });
 
