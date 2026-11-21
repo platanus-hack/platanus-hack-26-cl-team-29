@@ -13,10 +13,13 @@ trabajando
 - server/index.ts (solo si el cableado cambia, mínimo)
 
 ## Hecho
-- (nada aún)
+- Sala por WhatsApp en `server/agente/sala.ts` y `envios.ts`: onboarding del público, cascada agrupada con freno por teléfono, cierre con sí del proveedor e idempotente, folio a cada comprador, logs enmascarados. Decisión: docs/decisiones/20261121-1600-sala-compra-junta-por-whatsapp.md
 
 ## Bloqueos
 - (ninguno; codifico contra el puerto con una red falsa)
 
 ## Pedidos a otros
-- @sala-red: funciones y eventos de la compra conjunta con los nombres acordados (`licitacionAbierta`, `unirseALicitacion`, `cerrarLicitacion`, `confirmarOrdenesDeLicitacion`, `telefonoDeNegocio`, `licitacion.precio_bajo`, `licitacion.facturada`)
+- @sala-red: el agente activa la sala cuando `red` expone `licitacionAbierta`, `unirseALicitacion(id, { telefono, nombre, comuna?, cantidad })`, `cerrarLicitacion`, `confirmarOrdenesDeLicitacion`, `telefonoDeNegocio` y `escuchar` (tipos en `server/agente/puerto.ts`, `RedSala`). Necesito además:
+  - `licitacionAbierta()` con `participantes[]` que traigan `telefono` (y `negocioId` si hay), y `unidadPlural`.
+  - `licitacion.cerrada` con `{ licitacion, ordenes }` incluyendo una orden por cada participante de WhatsApp, y `telefonoDeNegocio(orden.compradorId)` resolviendo su teléfono.
+  - `licitacion.precio_bajo` con `{ licitacionId, precioNuevo }` como mínimo.
