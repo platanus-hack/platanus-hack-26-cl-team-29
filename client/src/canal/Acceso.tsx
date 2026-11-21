@@ -8,6 +8,7 @@ import { enlaceWhatsapp, formatearTelefono, telefonoParaWhatsapp } from '../../.
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
 import { Logo } from '../marca/Logo.tsx';
 import { ICONO_FLUJO } from '../marca/recursos.ts';
+import { BotonTema } from '../marca/BotonTema.tsx';
 import type { CanalApi } from './api.ts';
 import { TELEFONO_PROVEEDOR_FALSO } from './falso.ts';
 import { LogoSii } from './iconos.tsx';
@@ -69,7 +70,7 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
           <span>{PASO[paso]}</span>
         </header>
 
-        <img className="bm-acceso-icono" src={ICONO_FLUJO.entrar} alt="" />
+        <img className="bm-acceso-icono ilustracion" src={ICONO_FLUJO.entrar} alt="" />
         <div className="bm-acceso-textos">
           <h1>{paso === 'telefono' ? titulo : paso === 'codigo' ? 'Revisa tu WhatsApp' : 'Registra tu negocio'}</h1>
           <p>
@@ -121,6 +122,7 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
       </div>
 
       <div className="bm-acceso-notas">
+        <BotonTema className="bm-boton-icono" />
         <AvisoFuente fuente={fuente} />
         {api.modo === 'falso' && (
           <p>Con datos de prueba sirve cualquier código de 6 dígitos. Para entrar como proveedor usa el {formatearTelefono(TELEFONO_PROVEEDOR_FALSO)}.</p>

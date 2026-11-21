@@ -33,6 +33,11 @@
   color: var(--color-muted-foreground); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .bm-boton-texto:disabled { opacity: 0.5; cursor: default; }
+.bm-boton-icono {
+  appearance: none; display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; padding: 0; border: 0; border-radius: var(--radius-xl);
+  background: none; color: var(--color-muted-foreground); cursor: pointer;
+}
+.bm-boton-icono:hover { background: var(--color-secondary); color: var(--color-foreground); }
 
 .bm-lateral { display: contents; }
 .bm-logo, .bm-lateral-pie { display: none; }
@@ -86,7 +91,9 @@
   .bm-lateral-pie .bm-negocio {
     padding: 8px 10px; background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl);
   }
-  .bm-lateral-pie .bm-boton-texto { align-self: flex-start; padding-left: 10px; min-height: 36px; }
+  .bm-lateral-acciones { display: flex; align-items: center; justify-content: space-between; padding-left: 10px; }
+  .bm-lateral-acciones .bm-boton-texto { min-height: 36px; padding-left: 0; }
+  .bm-lateral-acciones .bm-boton-icono { width: 36px; height: 36px; }
   .bm-lienzo {
     margin: 8px 8px 8px 0; padding: 32px 40px; min-height: calc(100dvh - 16px); background: var(--color-background);
     border: var(--border-width) solid var(--color-border); border-radius: var(--radius-2xl);
@@ -203,18 +210,20 @@
 
 /* El frasco: ancho y bajo en el teléfono, alto como en Paper desde 720 px. */
 .bm-frasco {
-  position: relative; height: 132px; overflow: hidden; border: 2px solid var(--color-primary); border-radius: 22px; background: #FBF8F0;
+  position: relative; height: 132px; overflow: hidden; border: 2px solid var(--color-primary); border-radius: 22px; background: var(--color-secondary);
 }
 @media (min-width: 720px) { .bm-frasco { height: 420px; border-radius: 28px; } }
 .bm-miel {
-  position: absolute; left: 0; right: 0; bottom: 0; background: #E3B23C; transition: height 0.6s ease-out;
-  box-shadow: inset 0 6px 0 -2px #F1CD6E;
+  position: absolute; left: 0; right: 0; bottom: 0; background: var(--bando-miel); transition: height 0.6s ease-out;
+  box-shadow: inset 0 6px 0 -2px color-mix(in srgb, var(--bando-miel) 60%, white);
 }
-.bm-marca-tramo { position: absolute; left: 0; right: 0; border-top: 1.5px dashed rgb(0 0 0 / 0.25); }
+.bm-marca-tramo { position: absolute; left: 0; right: 0; border-top: 1.5px dashed color-mix(in srgb, var(--color-foreground) 30%, transparent); }
 .bm-frasco-cifra {
-  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-size: var(--text-sm); color: var(--bando-tinta);
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center;
+  padding: 4px 14px; border-radius: var(--radius-xl); font-size: var(--text-sm); color: var(--color-foreground); white-space: nowrap;
 }
+/* En modo oscuro la cifra cruza la miel y el vacío: va sobre una píldora para leerse en los dos. */
+[data-tema='oscuro'] .bm-frasco-cifra { background: color-mix(in srgb, var(--color-background) 85%, transparent); }
 .bm-frasco-cifra strong { font-size: 40px; line-height: 44px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 @media (min-width: 720px) { .bm-frasco-cifra strong { font-size: 48px; line-height: 52px; } }
 
@@ -228,10 +237,10 @@
 .bm-peldano-rango { font-size: var(--text-sm); }
 .bm-peldano-precio { font-size: 18px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bm-peldano.superado .bm-peldano-precio { text-decoration: line-through 1px; }
-.bm-peldano.siguiente { background: var(--bando-miel-50); border: 1.5px dashed #E3B23C; color: var(--color-foreground); }
+.bm-peldano.siguiente { background: var(--bando-miel-50); border: 1.5px dashed var(--bando-miel); color: var(--color-foreground); }
 .bm-peldano.siguiente .bm-peldano-rango { font-size: var(--text-xs); font-weight: 600; color: var(--bando-miel-texto); }
 .bm-peldano.actual { background: var(--color-primary); color: var(--color-primary-foreground); }
-.bm-peldano.actual .bm-peldano-rango { font-size: var(--text-xs); color: #BDBDBD; }
+.bm-peldano.actual .bm-peldano-rango { font-size: var(--text-xs); color: color-mix(in srgb, var(--color-primary-foreground) 70%, transparent); }
 .bm-peldano.siguiente .bm-peldano-precio, .bm-peldano.actual .bm-peldano-precio { font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.02em; }
 .bm-peldano.siguiente .bm-peldano-precio { color: var(--bando-miel-texto); }
 
@@ -281,7 +290,7 @@
 /* Secciones aún sin rediseñar (`.puente-legado`): su barra fija va sobre las secciones de este marco y con una
    sombra suave en vez de la del fondo oscuro. Se borra con el rediseño de "Pedir". */
 @media (max-width: 1023px) {
-  .bm-marco .puente-legado .cn-resumen-pedido { bottom: calc(var(--alto-barra) + 8px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 24px rgb(0 0 0 / 0.08); }
+  .bm-marco .puente-legado .cn-resumen-pedido { bottom: calc(var(--alto-barra) + 8px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 24px color-mix(in srgb, var(--color-foreground) 10%, transparent); }
 }
 
 /* ---------- Entrar (canal/Acceso.tsx): tarjeta blanca centrada sobre crema, como "Conecta tu SII" en Paper ---------- */

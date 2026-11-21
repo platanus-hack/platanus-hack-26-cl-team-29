@@ -35,7 +35,7 @@ export function ComprasEnGrupo({ api, token, foto, yo, productoId }: Props) {
   if (!lic) {
     return (
       <div className="bm-vacio">
-        <img src={ILUSTRACION.equipo} alt="" />
+        <img className="ilustracion" src={ILUSTRACION.equipo} alt="" />
         <h1>No hay una compra en grupo abierta</h1>
         <p>Cuando parta una, aparece aquí con sus precios en vivo.</p>
       </div>
@@ -167,7 +167,7 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
 
       {listo && mio > 0 && (
         <div className="bm-listo" role="status">
-          <img src={ABEJA.celebra} alt="" />
+          <img className="ilustracion" src={ABEJA.celebra} alt="" />
           <div>
             <strong>Te sumaste. Ya van {vista.unidades} de {contar(f.meta, p.unidad, p.unidadPlural)}.</strong>
             <span>{vista.siguiente ? `${pistaTramo(vista.siguiente, p)}. Te avisamos por WhatsApp.` : 'Ya tienen el mejor precio.'}</span>

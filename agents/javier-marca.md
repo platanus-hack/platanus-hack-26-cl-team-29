@@ -2,7 +2,7 @@
 Actualizado: 2026-11-21 20:52
 
 ## Estado
-trabajando
+libre
 
 ## Trabajando en
 - Modo oscuro de la marca (`.bando-ui`): sigue al sistema y se cambia a mano. Rama `feat/modo-oscuro`.
@@ -12,6 +12,7 @@ trabajando
 - client/src/canal/Acceso.tsx, client/index.html (meta theme-color), client/src/main.tsx (una línea), DESIGN.md
 
 ## Hecho
+- Modo oscuro de la marca: sigue al sistema, botón sol/luna lo fija; tokens en tokens.css, logo y ilustraciones según el modo
 - Kit de marca en el repo: assets en client/public/marca, tokens en .bando-ui, <Logo />, favicons y og, DESIGN.md
 
 ## Bloqueos

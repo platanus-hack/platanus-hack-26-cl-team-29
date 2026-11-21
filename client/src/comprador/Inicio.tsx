@@ -71,7 +71,7 @@ export function Inicio({ foto, yo, config, secciones, evento }: {
           <h1>¿Qué vas a hacer hoy?</h1>
           <div className="bm-caminos">
             <a className="bm-camino" href="#compra">
-              <img src={ICONO_FLUJO.comprarEnGrupo} alt="" />
+              <img className="ilustracion" src={ICONO_FLUJO.comprarEnGrupo} alt="" />
               <span className="bm-camino-titulo">Comprar</span>
               <span className="bm-camino-texto">
                 {abierta
@@ -80,7 +80,7 @@ export function Inicio({ foto, yo, config, secciones, evento }: {
               </span>
             </a>
             <a className="bm-camino" href={vende ? '/proveedor' : quieroVender || '/proveedor'} {...(!vende && quieroVender ? { target: '_blank', rel: 'noreferrer' } : {})}>
-              <img src={ICONO_FLUJO.comoVende} alt="" />
+              <img className="ilustracion" src={ICONO_FLUJO.comoVende} alt="" />
               <span className="bm-camino-titulo">Vender</span>
               <span className="bm-camino-texto">
                 {vende ? 'Recibe pedidos, pon tus precios por volumen y factura en el SII.' : 'Regístrate como proveedor por WhatsApp y empieza a recibir pedidos.'}

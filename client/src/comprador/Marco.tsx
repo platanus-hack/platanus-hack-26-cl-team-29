@@ -4,6 +4,7 @@
 import type { ReactNode } from 'react';
 import { Icono, Monograma, type NombreIcono } from '../canal/iconos.tsx';
 import { Logo } from '../marca/Logo.tsx';
+import { BotonTema } from '../marca/BotonTema.tsx';
 import type { Negocio } from '../red/tipos.ts';
 import './comprador.css';
 
@@ -40,6 +41,7 @@ export function Marco<S extends string>({ secciones, activa, negocio, aviso, onS
       <header className="bm-superior">
         <Logo variante="icono" className="bm-logo-icono" />
         {quien}
+        <BotonTema className="bm-boton-icono" />
         <button type="button" className="bm-boton-texto" onClick={onSalir}>Salir</button>
       </header>
 
@@ -58,7 +60,10 @@ export function Marco<S extends string>({ secciones, activa, negocio, aviso, onS
         <div className="bm-lateral-pie">
           {aviso}
           {quien}
-          <button type="button" className="bm-boton-texto" onClick={onSalir}>Salir</button>
+          <div className="bm-lateral-acciones">
+            <button type="button" className="bm-boton-texto" onClick={onSalir}>Salir</button>
+            <BotonTema className="bm-boton-icono" />
+          </div>
         </div>
       </aside>
 

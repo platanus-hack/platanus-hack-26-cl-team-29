@@ -4,6 +4,7 @@ import './estilos.css';
 import { MiNegocio } from './canal/MiNegocio.tsx';
 import { Proveedor } from './canal/Proveedor.tsx';
 import { Navegador } from './components/Navegador.tsx';
+import { iniciarTema } from './marca/tema.ts';
 import { Licitacion } from './vistas/Licitacion.tsx';
 import { Proveedores } from './vistas/Proveedores.tsx';
 import { RedEnVivo } from './vistas/RedEnVivo.tsx';
@@ -26,6 +27,8 @@ const VISTAS: Record<string, ComponentType> = {
   '/proveedor': Proveedor,
   '/proveedores': Proveedores,
 };
+
+iniciarTema(); // modo claro u oscuro de la marca, antes de dibujar para que no parpadee
 
 const Vista = VISTAS[location.pathname.replace(/\/+$/, '')] ?? RedEnVivo;
 
