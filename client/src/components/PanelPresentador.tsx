@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { AccionDemo } from '../red/useRed.ts';
 import { useEnvio } from '../canal/piezas.tsx';
+import { contar } from '../../../shared/texto.ts';
 
 /** El token vive solo en la pestaña (sessionStorage): nunca en el código ni en localStorage. */
 const CLAVE_TOKEN = 'sala.tokenDemo';
@@ -21,15 +22,23 @@ function guardarToken(token: string) {
   }
 }
 
-const ACCIONES: Array<[AccionDemo, string, string]> = [
-  ['reiniciar', 'Reiniciar demo', 'La demo volvió al inicio.'],
-  ['cerrar', 'Cerrar ahora', 'Pedido cerrado.'],
-  ['confirmar', 'Confirmar facturas', 'Facturas en camino al SII.'],
+/** Resultado de `POST /api/pagos/demo/cobrar`. */
+const cobro = (r: unknown) => {
+  const { cobrados = 0, fallidos = 0 } = (r ?? {}) as { cobrados?: number; fallidos?: number };
+  return `${contar(cobrados, 'crédito cobrado', 'créditos cobrados')} · ${contar(fallidos, 'fallido')}.`;
+};
+
+/** Acción, texto del botón, si necesita la compra en curso y qué mostrar al terminar. */
+const ACCIONES: Array<[AccionDemo, string, boolean, (r: unknown) => string]> = [
+  ['reiniciar', 'Reiniciar demo', false, () => 'La demo volvió al inicio.'],
+  ['cerrar', 'Cerrar ahora', true, () => 'Pedido cerrado.'],
+  ['confirmar', 'Confirmar facturas', true, () => 'Facturas en camino al SII.'],
+  ['cobrar', 'Cobrar vencidos', false, cobro],
 ];
 
 interface Props {
   licitacionId?: string;
-  accion: (accion: AccionDemo, token: string, licitacionId?: string) => Promise<void>;
+  accion: (accion: AccionDemo, token: string, licitacionId?: string) => Promise<unknown>;
   alCerrar: () => void;
 }
 
@@ -40,13 +49,12 @@ export function PanelPresentador({ licitacionId, accion, alCerrar }: Props) {
   const [enCurso, setEnCurso] = useState<AccionDemo | null>(null);
   const { enviando, error, enviar } = useEnvio();
 
-  const ejecutar = (a: AccionDemo, exito: string) => {
+  const ejecutar = (a: AccionDemo, exito: (r: unknown) => string) => {
     if (enviando) return;
     setMensaje('');
     setEnCurso(a);
     void enviar(async () => {
-      await accion(a, token, licitacionId);
-      setMensaje(exito);
+      setMensaje(exito(await accion(a, token, licitacionId)));
     }, 'No se pudo.');
   };
 
@@ -69,8 +77,8 @@ export function PanelPresentador({ licitacionId, accion, alCerrar }: Props) {
         />
       </label>
       <div className="panel-acciones">
-        {ACCIONES.map(([a, texto, exito]) => (
-          <button key={a} type="button" className="boton" disabled={enviando || (a !== 'reiniciar' && !licitacionId)} onClick={() => ejecutar(a, exito)}>
+        {ACCIONES.map(([a, texto, conCompra, exito]) => (
+          <button key={a} type="button" className="boton" disabled={enviando || (conCompra && !licitacionId)} onClick={() => ejecutar(a, exito)}>
             {enviando && enCurso === a ? 'Enviando...' : texto}
           </button>
         ))}

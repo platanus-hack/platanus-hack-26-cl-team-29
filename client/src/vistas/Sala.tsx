@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CierreCanasta, TableroCanasta, useProductoDestacado } from '../components/Canasta.tsx';
 import { GlifoWhatsapp, Icono, iconoProducto, LogoSii, Monograma } from '../components/Iconos.tsx';
@@ -7,11 +7,12 @@ import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
 import { bajadaDeProducto, facturaAceptada, licitacionActual, mostrarAviso, negocioPorId, resumenSala, type BajadaProducto, type FacturaSala, type ResumenSala } from '../red/derivar.ts';
 import { dinero, miles } from '../../../shared/formato.ts';
-import { contar, segun } from '../../../shared/texto.ts';
+import { contar, enumerar, segun } from '../../../shared/texto.ts';
 import { lineaInvitacion } from '../../../shared/avisos.ts';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { cuentaRegresiva, textoEstadoSii } from '../red/formato.ts';
-import type { ConfigRed, Licitacion } from '../red/tipos.ts';
+import type { ConfigRed, Fuente, Licitacion } from '../red/tipos.ts';
+import { useJson } from '../red/useJson.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 import './sala.css';
 import { Logo } from '../marca/Logo.tsx';
@@ -216,7 +217,32 @@ function Factura({ f }: { f: FacturaSala }) {
   );
 }
 
-function Facturando({ s }: { s: ResumenSala }) {
+/** `GET /api/pagos/resumen`: la plata de la ronda, sin nombres. */
+interface ResumenPagos {
+  pagadoAProveedores: number;
+  creditos: number;
+  negocios: number;
+  plazos: number[];
+  cobrado: number;
+  ambiente: 'falsa' | 'integracion' | 'produccion';
+}
+
+/** El cierre del flujo de plata: Bando paga al proveedor al facturar y los negocios pagan a plazo. Se recarga con cada `credito.*`. */
+function PlataDeLaCompra({ eventos, fuente }: { eventos: EventoVisto[]; fuente: Fuente }) {
+  const clave = eventos.find(e => e.tipo.startsWith('credito.'))?.clave;
+  const { datos: p } = useJson<ResumenPagos>(fuente === 'real' ? '/api/pagos/resumen' : null, clave);
+  if (!p?.creditos) return null;
+  return (
+    <div className="sala-plata" role="status">
+      <p>Bando le pagó <strong className="amarillo">{dinero(p.pagadoAProveedores)}</strong> a los proveedores al instante</p>
+      <p>{contar(p.negocios, 'negocio')} {p.negocios === 1 ? 'paga' : 'pagan'} {p.plazos.length ? `a ${enumerar(p.plazos.map(String))} días` : 'con su tarjeta'}</p>
+      {p.cobrado > 0 && <p className="verde">Ya cobrado en sus tarjetas: {dinero(p.cobrado)}</p>}
+      {p.ambiente !== 'produccion' && <p className="sala-demo">Pagos de prueba: no se mueve plata real.</p>}
+    </div>
+  );
+}
+
+function Facturando({ s, plata }: { s: ResumenSala; plata: ReactNode }) {
   const [ref, { caben }] = useGrillaQueCabe<HTMLUListElement>(80, s.facturas.length);
   const lista = s.fase === 'lista';
   const fuera = s.facturas.length - caben;
@@ -231,6 +257,7 @@ function Facturando({ s }: { s: ResumenSala }) {
         <ul className="muro-facturas" ref={ref}>
           {s.facturas.slice(0, caben).map(f => <Factura key={f.id} f={f} />)}
         </ul>
+        {plata}
       </section>
       <section className="sala-facturas-resumen">
         <div>
@@ -327,7 +354,7 @@ export function Sala() {
 
       {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} destellos={destellos} logoEnSala={config.proveedorLogoUrl ?? negocioPorId(estado, lic.proveedorId)?.logoUrl} />}
       {s.fase === 'cerrada' && <Cerrada s={s} lic={lic} />}
-      {(s.fase === 'facturando' || s.fase === 'lista') && <Facturando s={s} />}
+      {(s.fase === 'facturando' || s.fase === 'lista') && <Facturando s={s} plata={<PlataDeLaCompra eventos={eventos} fuente={fuente} />} />}
 
       {s.fase === 'abierta' && <Invitacion eventos={eventos} ahora={ahora} />}
       {s.fase === 'abierta' && aviso && <BajoElPrecio key={aviso.clave} aviso={aviso} />}
