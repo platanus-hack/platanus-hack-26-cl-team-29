@@ -18,7 +18,7 @@ const unidad = (producto: string) => producto.split(' de ')[0];
 
 const opciones = (...lineas: string[]) => lineas.map((l, i) => `${i + 1}. ${l}`).join('\n');
 
-export const NO_REGISTRADO = 'Hola. No encuentro tu negocio en la red. Pide que lo registren para empezar a usar Dominó.';
+export const NO_REGISTRADO = 'Hola. No encuentro tu negocio en la red. Pide que lo registren para empezar a usar Bando.';
 export const NADA_PENDIENTE = 'No tengo nada pendiente por confirmar.';
 export const CANCELADO = 'Listo, no hice nada.';
 export const AYUDA_COMPRADOR = 'Puedo pedir a tus proveedores por ti. Escribe, por ejemplo: "pide 4 sacos de harina".';

@@ -45,7 +45,7 @@ export function Navegador() {
   }, []);
 
   return (
-    <nav className={`navegador${visible || abierto ? ' navegador-visible' : ''}`} aria-label="Vistas de Dominó">
+    <nav className={`navegador${visible || abierto ? ' navegador-visible' : ''}`} aria-label="Vistas de Bando">
       <button type="button" className="navegador-boton" aria-expanded={abierto} onClick={() => setAbierto(a => !a)}>
         Vistas
       </button>

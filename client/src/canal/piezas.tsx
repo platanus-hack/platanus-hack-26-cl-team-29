@@ -82,8 +82,8 @@ export function Cantidad({ valor, min = 1, max, onCambio, etiqueta }: {
 export function Marca({ children }: { children?: ReactNode }) {
   return (
     <div className="cn-marca">
-      <span className="marca" aria-hidden="true">D</span>
-      <span>Dominó</span>
+      <span className="marca" aria-hidden="true">B</span>
+      <span>Bando</span>
       {children}
     </div>
   );
