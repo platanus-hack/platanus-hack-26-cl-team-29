@@ -12,6 +12,8 @@ export interface Negocio {
   nombre: string;
   comuna: string;
   rol: Rol;
+  /** Se registró como proveedor por WhatsApp: vende y también compra (`puedeVender`, `puedeComprar` de shared/red.ts). */
+  vende?: boolean;
   telefono: string;
   /** Rubro del comprador (`RUBROS`), para el ícono en pantalla. */
   rubro?: Rubro;
@@ -132,6 +134,10 @@ export interface ProductoCompra {
   tramos: Tramo[];
   /** Ofertas de proveedores por este producto (cada una con `productoId`). */
   ofertas: Oferta[];
+  /** Quien creó el producto por WhatsApp: sus `tramos` son su precio por volumen. Los de la canasta de la demo no tienen. */
+  proveedorId?: string;
+  /** Al cerrar, la mejor oferta por precio ajustado (sin la compra propia de cada participante, ver `cerrarLicitacion`). */
+  ganadora?: Ganadora;
 }
 
 /** Producto de la canasta con lo que se deriva de los carritos. */

@@ -11,6 +11,8 @@ export interface Negocio {
   nombre: string;
   comuna: string;
   rol: Rol;
+  /** También vende (proveedor registrado por WhatsApp). */
+  vende?: boolean;
   /** Rubro del comprador (`almacen`, `panaderia`, ...), para su ícono. */
   rubro?: string;
   /** Logo del proveedor de la sala, si está configurado. */
@@ -77,6 +79,10 @@ export interface ProductoCompra {
   tramos: Tramo[];
   /** Ofertas por este producto (cada una con su `productoId`). */
   ofertas?: Oferta[];
+  /** Quien creó el producto por WhatsApp (sus tramos son su precio por volumen). */
+  proveedorId?: string;
+  /** Al cerrar: la mejor oferta de este producto. */
+  ganadora?: Ganadora;
   totalUnidades?: number;
   precioActual?: number;
   siguienteTramo?: SiguienteTramo | null;
