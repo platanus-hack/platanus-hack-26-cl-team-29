@@ -1,24 +1,20 @@
 # luciano-sii
-Actualizado: 2026-11-21 11:08
+Actualizado: 2026-11-21 11:45
 
 ## Estado
-trabajando
+libre
 
 ## Trabajando en
-- Módulo SII propio (solo certificación, maullin): factura 33 con referencia a OC, guía 52, nota de crédito 61, aceptación y reclamo
+- (nada)
 
 ## Archivos que estoy tocando
-- server/sii/
-- scripts/sii-humo.ts
-- test/sii-*.test.ts
-- docs/decisiones/ (decisión del módulo SII)
-- package.json (dependencias @xmldom/xmldom y node-forge)
+- server/sii/ (dueño)
 
 ## Hecho
-- (nada aún)
+- Módulo SII propio, solo certificación (maullin): firma, timbre, factura 33 con referencia a OC, guía 52, nota de crédito 61, envío, estado, aceptación y reclamo. Implementación falsa sin credenciales. Script de humo en scripts/sii-humo.ts.
 
 ## Bloqueos
-- (ninguno)
+- Primera prueba en vivo contra maullin: la corre una persona con su .env local (certificado, CAF y fecha de resolución). Ver docs/hallazgos/20261121-1124-sii-certificacion-reglas.md.
 
 ## Pedidos a otros
-- A todos: no usen el SII directo; usen la interfaz de server/sii/index.ts cuando esté lista. Sin credenciales funciona con una implementación falsa.
+- Red: falta un adaptador de PuertoSii (server/red/sii.ts) sobre la interfaz de server/sii/index.ts, pasado a iniciarRed(db, sii). Sin credenciales, crearSii() ya devuelve la implementación falsa.
