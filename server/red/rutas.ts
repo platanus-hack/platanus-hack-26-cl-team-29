@@ -8,6 +8,8 @@ import { generarPdf } from '../sii/index.ts';
 import { nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import { crearRutasWeb } from './rutas-web.ts';
+import type { EnvioCodigo } from './rutas-web.ts';
+import { crearCodigosAcceso } from './acceso.ts';
 import { crearSesiones, mismoSecreto } from './sesiones.ts';
 import { limitarPor } from '../limite.ts';
 import { validarRut } from '../../shared/rut.ts';
@@ -27,6 +29,8 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
 
 export interface OpcionesRutas {
   sesiones?: Sesiones;
+  /** Manda el código de acceso por WhatsApp. Sin él (tests), ningún código sale y nadie entra a la web. */
+  enviarCodigo?: (telefono: string, texto: string) => Promise<EnvioCodigo>;
   /** Pedidos por minuto de un mismo RUT al entrar o sumarse desde la página pública (nunca por IP: la sala comparte el wifi). */
   limitePorMinuto?: number;
   /** Rutas "Conectar mi SII" del proveedor (server/conexion-sii). */
@@ -153,7 +157,9 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
   if (opciones.catalogo) rutas.use('/operacion/catalogo', exigirTokenDemo, limitarDemo, opciones.catalogo.operacion);
 
   rutas.use(crearRutasWeb(red, env, {
-    sesiones: opciones.sesiones ?? crearSesiones(), porRut, conexionSii: opciones.conexionSii, catalogo: opciones.catalogo?.proveedor,
+    sesiones: opciones.sesiones ?? crearSesiones(), codigos: crearCodigosAcceso(),
+    enviarCodigo: opciones.enviarCodigo ?? (async () => 'fallido'),
+    conexionSii: opciones.conexionSii, catalogo: opciones.catalogo?.proveedor,
   }));
 
   rutas.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

@@ -16,12 +16,13 @@ import {
   type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
-import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
+import { CarritoCompra, FacturaANombre, GrupoEnVivo } from './Carrito.tsx';
+import { Acceso } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { Invitar } from './Invitar.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
-import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
-import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
+import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
+import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import './canal.css';
 
 /** Copia del catálogo de la red (server/red/catalogo.ts). El producto de la compra conjunta se compra en su sección. */
@@ -41,7 +42,7 @@ const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 
 export function MiNegocio() {
   const { api, config, foto, cambio, fuente } = useCanal();
-  const { token, entrar, alVencer, salir } = useSesionComprador(api);
+  const { token, entrar, vencer, salir } = useSesion(api);
   const [seccion, setSeccion] = useState<Seccion>(seccionDelHash);
 
   useEffect(() => {
@@ -50,10 +51,18 @@ export function MiNegocio() {
     return () => removeEventListener('hashchange', alCambiar);
   }, []);
 
-  const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), alVencer);
+  const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
-  if (!token) return <Bienvenida fuente={fuente} config={config} onEntrar={entrar} />;
+  if (!token) {
+    return (
+      <>
+        <Acceso api={api} config={config} fuente={fuente} titulo="Compra junto a otros negocios y paga menos"
+          bajada="Tus compras conjuntas, pedidos y facturas del SII en un solo lugar. Entra con tu WhatsApp." onEntrar={entrar} />
+        <BotonWhatsapp numero={config?.whatsappNumero} />
+      </>
+    );
+  }
   if (!yo) return <main className="cn-pagina"><p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu negocio...'}</p></main>;
 
   const irA = (s: Seccion) => { location.hash = s; };
@@ -93,23 +102,6 @@ export function MiNegocio() {
         <BotonWhatsapp numero={config?.whatsappNumero} />
       </main>
     </div>
-  );
-}
-
-// ---------- Bienvenida ----------
-
-function Bienvenida({ fuente, config, onEntrar }: {
-  fuente: ReturnType<typeof useCanal>['fuente']; config: ConfigRed | null; onEntrar: (datos: DatosEntrada) => Promise<void>;
-}) {
-  return (
-    <main className="cn-pagina cn-bienvenida">
-      <Marca><AvisoFuente fuente={fuente} /></Marca>
-      <h1>Compra junto a otros negocios y paga menos</h1>
-      <p className="cn-bajada">Tus compras conjuntas, pedidos y facturas del SII en un solo lugar.</p>
-      <FormularioNegocio boton="Entrar" onEntrar={onEntrar} />
-      <BotonWhatsapp numero={config?.whatsappNumero} />
-      <p className="nota-demo">Modo demo: te sumas solo con tu RUT, sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>
-    </main>
   );
 }
 

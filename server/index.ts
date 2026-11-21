@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import pg from 'pg';
 import { createWhatsApp } from './whatsapp/index.ts';
-import { crearRutasRed, crearSesiones, iniciarRed } from './red/index.ts';
+import { crearRutasRed, crearSesiones, crearSesionesPostgres, iniciarRed } from './red/index.ts';
 import { iniciarConexionSii, resumenDeConexion } from './conexion-sii/index.ts';
 import { conectarAgente, crearAlmacenBorradores } from './agente/index.ts';
 
@@ -71,11 +71,13 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/locales', locales.rutas);
 app.use('/api/fuentes/mercado-publico', mercadoPublico.rutas);
 app.use('/api/proveedores', proveedores.rutas);
-// Una sola sesión web del comprador para /api/red y /api/avisos (su invitación de "Trae a tu vecino").
-const sesiones = crearSesiones();
+// Una sola sesión web para /api/red y /api/avisos: se entra con el teléfono y un código por WhatsApp, y dura 90 días.
+const sesiones = dbRed ? await crearSesionesPostgres(dbRed) : crearSesiones();
+const ENVIO_CODIGO = { sent: 'enviado', held: 'retenido', failed: 'fallido' } as const;
 app.use('/api/avisos', crearRutasAvisos(avisos, red, sesiones));
 app.use('/api/red', crearRutasRed(red, process.env, {
   conexionSii: conexionSii.rutas, sesiones,
+  enviarCodigo: async (telefono, texto) => ENVIO_CODIGO[(await whatsapp.send(telefono, { body: texto }, { source: 'acceso' })).status],
   catalogo: { proveedor: crearRutasCatalogo(catalogos, red), operacion: crearRutasOperacionCatalogo(catalogos, red) },
 }));
 app.use(express.static('dist'));

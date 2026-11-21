@@ -25,3 +25,15 @@ export function enlaceWhatsapp(numero: string | null | undefined, texto = 'Hola'
   const digitos = (numero ?? '').replace(/\D/g, '');
   return digitos ? `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}` : '';
 }
+
+/**
+ * El número para WhatsApp (solo dígitos, con código de país) desde lo que escribe la persona, o null si no lo es.
+ * Sin código de país se asume Chile: "9 1234 5678" o "1234 5678" → "56912345678".
+ */
+export function telefonoParaWhatsapp(texto: string): string | null {
+  const d = texto.replace(/\D/g, '');
+  if (/^9\d{8}$/.test(d)) return `56${d}`;
+  if (/^\d{8}$/.test(d) && !texto.trim().startsWith('+')) return `569${d}`;
+  if (/^56/.test(d)) return /^569\d{8}$/.test(d) ? d : null;
+  return /^[1-9]\d{9,14}$/.test(d) ? d : null;
+}

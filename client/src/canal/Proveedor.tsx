@@ -22,21 +22,22 @@ import {
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo, YoProveedor } from './tipos.ts';
-import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
+import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
+import { Acceso } from './Acceso.tsx';
 import './canal.css';
 
 const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 
 export function Proveedor() {
   const { api, config, foto, cambio, fuente } = useCanal();
-  // Solo en sessionStorage: el código del proveedor no queda guardado en el equipo al cerrar la pestaña.
-  const [token, guardar] = useGuardado('domino.proveedor.token', 'sesion');
-  const salir = useCallback(() => guardar(null), [guardar]);
-  const tokenValido = token && api && token.startsWith('falso-') === (api.modo === 'falso') ? token : null;
-  const { datos: yo, error, recargar } = useDatosConSesion(api, tokenValido, cambio, (a, t) => a.yoProveedor(t), salir);
+  const { token: tokenValido, entrar, vencer, salir } = useSesion(api);
+  const { datos: yo, error, recargar } = useDatosConSesion(api, tokenValido, cambio, (a, t) => a.yoProveedor(t), vencer);
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
-  if (!tokenValido) return <Acceso api={api} fuente={fuente} onEntrar={guardar} />;
+  if (!tokenValido) {
+    return <Acceso api={api} config={config} fuente={fuente} titulo="Panel del proveedor" onEntrar={entrar}
+      bajada="Confirma pedidos, factura en el SII y resuelve reclamos, igual que por WhatsApp. Entra con el WhatsApp de tu empresa." />;
+  }
   if (!yo) return <main className="cn-pagina"><p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu panel...'}</p></main>;
 
   const lics = yo.licitaciones ?? foto.licitaciones;
@@ -94,34 +95,6 @@ export function Proveedor() {
         </div>
       </main>
     </div>
-  );
-}
-
-// ---------- Acceso ----------
-
-function Acceso({ api, fuente, onEntrar }: { api: CanalApi; fuente: ReturnType<typeof useCanal>['fuente']; onEntrar: (token: string) => void }) {
-  const [codigo, setCodigo] = useState('');
-  const { enviando, error, setError, enviar: enviarA } = useEnvio();
-  const enviar = (e: FormEvent) => {
-    e.preventDefault();
-    if (!codigo.trim()) return setError('Escribe tu código de acceso.');
-    void enviarA(async () => onEntrar((await api.sesionProveedor(codigo.trim())).token), 'No pudimos entrar. Revisa el código.');
-  };
-  return (
-    <main className="cn-pagina cn-bienvenida">
-      <Marca><AvisoFuente fuente={fuente} /></Marca>
-      <h1>Panel del proveedor</h1>
-      <p className="cn-bajada">Confirma pedidos, factura en el SII y resuelve reclamos, igual que por WhatsApp.</p>
-      <form className="formulario tarjeta" onSubmit={enviar}>
-        <label className="campo">
-          <span className="etiqueta">Código de acceso</span>
-          <input value={codigo} onChange={e => setCodigo(e.target.value)} autoComplete="one-time-code" autoCapitalize="characters" maxLength={40} required />
-        </label>
-        {api.modo === 'falso' && <p className="mono tenue">Con datos de prueba sirve cualquier código.</p>}
-        {error && <p className="error">{error}</p>}
-        <button className="boton" disabled={enviando}>{enviando ? 'Entrando...' : 'Entrar'}</button>
-      </form>
-    </main>
   );
 }
 

@@ -6,7 +6,7 @@ import type { Fuente } from '../red/tipos.ts';
 import { crearApiReal, ErrorCanal, hayBackend, type CanalApi } from './api.ts';
 import { crearApiFalsa } from './falso.ts';
 import { mensajeDeError } from './logica.ts';
-import type { ConfigRed, DatosEntrada, FotoRed } from './tipos.ts';
+import type { ConfigRed, FotoRed } from './tipos.ts';
 
 let apiElegida: Promise<CanalApi> | undefined;
 
@@ -113,7 +113,7 @@ export function useDatosConSesion<T>(
   return { datos, error, recargar };
 }
 
-interface SesionGuardada extends DatosEntrada {
+interface SesionGuardada {
   token: string;
   modo: string;
 }
@@ -128,29 +128,26 @@ function leerSesion(texto: string | null): SesionGuardada | null {
 }
 
 /**
- * Sesión web del comprador, compartida por `/unirse` y `/app` en el mismo teléfono (localStorage).
- * Si vence (reinicio del servidor o de la red falsa), se vuelve a entrar sola con el mismo nombre.
+ * La sesión web de este dispositivo (localStorage), una sola para `/unirse`, `/app` y `/proveedor`: se entra con el
+ * teléfono y un código por WhatsApp, y dura 90 días desde el último uso. Es del negocio, no de un rol: el mismo negocio
+ * compra y vende. Si el servidor la rechaza, se vuelve a entrar.
  */
-export function useSesionComprador(api: CanalApi | null) {
-  const [guardada, guardar] = useGuardado('domino.app.sesion', 'local');
+export function useSesion(api: CanalApi | null) {
+  const [guardada, guardar] = useGuardado('bando.sesion', 'local');
   const sesion = leerSesion(guardada);
-  // Una sesión de la red falsa no sirve contra el backend real, ni al revés; una sin RUT (anterior a pedirlo) tampoco.
-  const token = api && sesion?.modo === api.modo && sesion.rut ? sesion.token : null;
+  // Una sesión de la red falsa no sirve contra el backend real, ni al revés.
+  const vigente = api && sesion?.modo === api.modo ? sesion : null;
 
-  const entrar = useCallback(async (datos: DatosEntrada) => {
-    if (!api) return;
-    const r = await api.sesion(datos);
-    guardar(JSON.stringify({ ...datos, token: r.token, modo: api.modo } satisfies SesionGuardada));
+  const entrar = useCallback((token: string) => {
+    if (api) guardar(JSON.stringify({ token, modo: api.modo } satisfies SesionGuardada));
   }, [api, guardar]);
+  const vencer = useCallback(() => guardar(null), [guardar]);
+  const salir = useCallback(() => {
+    if (api && vigente) void api.cerrarSesion(vigente.token).catch(() => {});
+    guardar(null);
+  }, [api, vigente?.token, guardar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Vuelve a entrar sola con lo guardado; una sesión guardada sin RUT (anterior a pedirlo) vuelve al formulario.
-  const alVencer = useCallback(() => {
-    if (sesion?.rut) void entrar({ nombre: sesion.nombre, comuna: sesion.comuna, rut: sesion.rut, ...(sesion.rubro ? { rubro: sesion.rubro } : {}) }).catch(() => guardar(null));
-    else guardar(null);
-  }, [sesion?.token, entrar, guardar]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const salir = useCallback(() => guardar(null), [guardar]);
-  return { token, nombre: sesion?.nombre, entrar, alVencer, salir };
+  return { token: vigente?.token ?? null, entrar, vencer, salir };
 }
 
 /**

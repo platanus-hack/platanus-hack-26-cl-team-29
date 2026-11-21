@@ -12,6 +12,8 @@ import type { CatalogoProveedor } from '../../../shared/catalogo.ts';
 import type { RutaReparto } from '../../../shared/ruta.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
+export type Entrada = { registro: true } | { token: string; negocio: Negocio };
+
 export interface ItemPedido {
   producto: string;
   cantidad: number;
@@ -21,8 +23,15 @@ export interface CanalApi {
   modo: Modo;
   config(): Promise<ConfigRed>;
   estado(): Promise<FotoRed>;
-  /** Entra como comprador. El servidor valida el RUT y lo consulta en el SII (puede tardar un par de segundos). */
-  sesion(datos: DatosEntrada): Promise<{ token: string; negocio: Negocio }>;
+  /** Manda un código por WhatsApp. `retenido`: la ventana de 24 h está cerrada; llega cuando la persona escriba al número. */
+  pedirCodigo(telefono: string): Promise<{ retenido: boolean }>;
+  /**
+   * Entra con el código: la sesión del negocio de ese teléfono. Si el teléfono no es de la red responde `registro` y
+   * se vuelve con el mismo código y los datos del negocio (el servidor consulta el RUT en el SII: tarda un par de segundos).
+   */
+  entrar(telefono: string, codigo: string, datos?: DatosEntrada): Promise<Entrada>;
+  /** Revoca la sesión de este dispositivo. */
+  cerrarSesion(token: string): Promise<void>;
   yo(token: string): Promise<YoComprador>;
   unirse(token: string, licitacionId: string, cantidad: number): Promise<void>;
   /** Reemplaza el carrito completo de la canasta (cantidad 0 quita; vacío = sale). */
@@ -31,7 +40,6 @@ export interface CanalApi {
   salir(token: string, licitacionId: string): Promise<void>;
   pedir(token: string, proveedorId: string, items: ItemPedido[]): Promise<OrdenCompra>;
   recepcion(token: string, ordenId: string, r: Recepcion): Promise<void>;
-  sesionProveedor(codigo: string): Promise<{ token: string }>;
   yoProveedor(token: string): Promise<YoProveedor>;
   cerrar(token: string, licitacionId: string): Promise<void>;
   facturar(token: string, licitacionId: string): Promise<void>;
@@ -129,7 +137,11 @@ export function crearApiReal(): CanalApi {
     modo: 'real',
     config: () => llamar('/config'),
     estado: async () => normalizarEstado(await llamar('/estado')) as FotoRed,
-    sesion: ({ nombre, comuna, rubro, rut }) => llamar('/sesion', { cuerpo: { nombre, rut, ...(comuna ? { comuna } : {}), ...(rubro ? { rubro } : {}) } }),
+    pedirCodigo: telefono => llamar('/acceso/codigo', { cuerpo: { telefono } }),
+    entrar: (telefono, codigo, datos) => llamar('/acceso/entrar', { cuerpo: {
+      telefono, codigo, ...(datos ? { nombre: datos.nombre, rut: datos.rut, ...(datos.comuna ? { comuna: datos.comuna } : {}), ...(datos.rubro ? { rubro: datos.rubro } : {}) } : {}),
+    } }),
+    cerrarSesion: async token => { await llamar('/acceso/salir', { token, cuerpo: {} }); },
     yo: async token => {
       const r = await llamar<Partial<YoComprador>>('/yo', { token });
       return { negocio: r.negocio!, facturaA: r.facturaA ?? null, ordenes: lista(r.ordenes), documentos: lista(r.documentos), participaciones: lista(r.participaciones) };
@@ -139,7 +151,6 @@ export function crearApiReal(): CanalApi {
     salir: async (token, licitacionId) => { await llamar(`/yo/carrito/${encodeURIComponent(licitacionId)}`, { token, metodo: 'DELETE' }); },
     pedir: (token, proveedorId, items) => llamar('/yo/ordenes', { token, cuerpo: { proveedorId, items } }),
     recepcion: async (token, ordenId, r) => { await llamar(`/yo/ordenes/${encodeURIComponent(ordenId)}/recepcion`, { token, cuerpo: r }); },
-    sesionProveedor: codigo => llamar('/proveedor/sesion', { cuerpo: { codigo } }),
     yoProveedor: async token => normalizarYoProveedor(await llamar('/proveedor/yo', { token })),
     cerrar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },

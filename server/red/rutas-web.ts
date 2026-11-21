@@ -1,26 +1,33 @@
 import express from 'express';
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { limitarPor } from '../limite.ts';
 import { crearReparto, opcionesDesdeEnv, type Reparto } from '../reparto/index.ts';
 import { ErrorRed, FALTA_RUT } from './dominio.ts';
-import { cuerpo, nuevoComprador } from './peticion.ts';
+import { cuerpo, nuevoComprador, texto } from './peticion.ts';
 import type { Recepcion, Red } from './dominio.ts';
 import { sinTelefonos } from './publico.ts';
-import { PROVEEDOR_SALA } from './semilla.ts';
 import { formatearRut } from '../../shared/rut.ts';
-import { mismoSecreto } from './sesiones.ts';
+import { telefonoParaWhatsapp } from '../../shared/telefono.ts';
+import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { mensajeDeCodigo } from './acceso.ts';
+import type { CodigosAcceso } from './acceso.ts';
 import type { Sesion, Sesiones } from './sesiones.ts';
 import type { Negocio, OrdenCompra, Tramo } from './tipos.ts';
 
 // Canal web, paralelo a WhatsApp: las mismas acciones y las mismas funciones del dominio.
-// Comprador: sesión con su nombre y su RUT (sin teléfono); su factura sale a ese RUT. Proveedor de la sala: sesión con PROVEEDOR_CODIGO.
+// Se entra con el teléfono y un código por WhatsApp (`/acceso/*`): la sesión es del negocio de ese teléfono, que puede
+// comprar, vender o ambas. Un teléfono nuevo se registra como comprador con su nombre y su RUT; su factura sale a ese RUT.
 // Toda acción con efecto legal en el SII exige `confirmado: true` (la web muestra antes un paso de
 // confirmación), igual que WhatsApp exige un sí.
 
+/** Resultado de mandar el código: `retenido` si la ventana de 24 h de WhatsApp está cerrada (llega cuando la persona escriba). */
+export type EnvioCodigo = 'enviado' | 'retenido' | 'fallido';
+
 export interface OpcionesWeb {
   sesiones: Sesiones;
-  /** Límite por RUT para entrar sin sesión (la sala comparte la IP del wifi, así que nunca por IP). */
-  porRut: RequestHandler;
+  codigos: CodigosAcceso;
+  /** Manda el texto con el código al WhatsApp del teléfono (solo dígitos, con código de país). */
+  enviarCodigo: (telefono: string, texto: string) => Promise<EnvioCodigo>;
   /** Rutas "Conectar mi SII" (server/conexion-sii), montadas en /proveedor/sii detrás de la sesión del proveedor. */
   conexionSii?: express.Router;
   /** Catálogo desde sus facturas (server/catalogo), en /proveedor/catalogo: recibe su id y RUT en `res.locals.proveedor`. */
@@ -33,7 +40,7 @@ interface ConSesion extends Request {
   sesion?: Sesion & { negocio: Negocio };
 }
 
-export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porRut, conexionSii, catalogo, reparto }: OpcionesWeb): express.Router {
+export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codigos, enviarCodigo, conexionSii, catalogo, reparto }: OpcionesWeb): express.Router {
   const rutas = express.Router();
   const rutaDeReparto = reparto ?? crearReparto(red, opcionesDesdeEnv(env));
   const id = (req: Request) => String(req.params.id);
@@ -46,9 +53,15 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
     return s && negocio ? { ...s, negocio } : null;
   }
 
-  const exigir = (rol: Negocio['rol']) => (req: ConSesion, _res: Response, next: NextFunction) => {
+  // Un mismo negocio puede comprar y vender: cada ruta pide lo que hace (`puedeComprar` / `puedeVender`), no un rol.
+  const PUEDE = {
+    comprador: { puede: puedeComprar, falta: 'Tu negocio no compra en la red.' },
+    proveedor: { puede: puedeVender, falta: 'Tu negocio no vende en la red. Regístralo como proveedor por WhatsApp.' },
+  };
+  const exigir = (accion: keyof typeof PUEDE) => (req: ConSesion, _res: Response, next: NextFunction) => {
     const s = sesionDe(req);
-    if (!s || s.rol !== rol) return next(new ErrorRed('no_autorizado', 'Necesitas iniciar sesión'));
+    if (!s) return next(new ErrorRed('no_autorizado', 'Necesitas iniciar sesión'));
+    if (!PUEDE[accion].puede(s.negocio)) return next(new ErrorRed('prohibido', PUEDE[accion].falta));
     req.sesion = s;
     next();
   };
@@ -62,8 +75,12 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
   const limitarProveedor = porNegocio(30);
   const limitarRuta = porNegocio(120);
   const limitarSii = limitarPor(30, MINUTO, (req: ConSesion) => (req.method === 'GET' ? null : req.sesion?.negocio.id));
-  // El ingreso del proveedor es la única ruta por IP: frena que se adivine el código y no la usa el público.
-  const porIp = limitarPor(20, MINUTO, req => req.ip ?? 'sin-ip');
+  // El acceso limita por teléfono (cuántos códigos y cuántos intentos) y, holgado, por IP: el equipo comparte el wifi.
+  const HORA = 60 * MINUTO;
+  const telefonoDe = (req: Request) => telefonoParaWhatsapp(texto(cuerpo(req).telefono) ?? '');
+  const codigosPorTelefono = limitarPor(5, HORA, telefonoDe);
+  const entradasPorTelefono = limitarPor(30, HORA, telefonoDe);
+  const porIp = limitarPor(30, MINUTO, req => req.ip ?? 'sin-ip');
 
   const exigirConfirmado = (req: Request) => {
     if (cuerpo(req).confirmado !== true) {
@@ -89,29 +106,58 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
       });
   };
 
+  // ---- Acceso: el teléfono y un código por WhatsApp ----
+
+  const exigirTelefono = (req: Request) => {
+    const telefono = telefonoDe(req);
+    if (!telefono) throw new ErrorRed('datos_invalidos', 'Escribe tu número de WhatsApp, por ejemplo 9 1234 5678.');
+    return telefono;
+  };
+
+  // Se manda a cualquier teléfono válido, registrado o no: la respuesta no dice si el número es de la red.
+  rutas.post('/acceso/codigo', porIp, codigosPorTelefono, async (req, res) => {
+    const telefono = exigirTelefono(req);
+    const envio = await enviarCodigo(telefono, mensajeDeCodigo(codigos.generar(telefono)));
+    if (envio === 'fallido') {
+      res.status(503).json({ error: 'whatsapp_no_disponible', mensaje: 'No pudimos mandarte el código por WhatsApp. Inténtalo de nuevo en un rato.' });
+      return;
+    }
+    res.json({ retenido: envio === 'retenido' });
+  });
+
+  // Con el código correcto entra el negocio de ese teléfono. Si no hay ninguno, responde `registro: true` sin gastar
+  // el código, y la persona vuelve con el mismo código, su nombre y su RUT para registrarse como comprador.
+  rutas.post('/acceso/entrar', porIp, entradasPorTelefono, async (req, res) => {
+    const telefono = exigirTelefono(req);
+    const b = cuerpo(req);
+    const verificacion = codigos.verificar(telefono, (texto(b.codigo) ?? '').replace(/\D/g, ''));
+    if (verificacion !== 'ok') {
+      throw new ErrorRed('no_autorizado', verificacion === 'vencido' ? 'El código venció. Pide uno nuevo.' : 'El código no coincide. Revisa el último que te llegó.');
+    }
+    let negocio = red.negocioPorTelefono(telefono);
+    if (!negocio) {
+      const rut = texto(b.rut)?.trim();
+      if (!rut || !texto(b.nombre)?.trim()) {
+        res.json({ registro: true });
+        return;
+      }
+      negocio = await red.registrarComprador({ ...nuevoComprador(b, rut), telefono });
+    }
+    codigos.consumir(telefono);
+    res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id }), negocio: sinTelefonos(negocio) });
+  });
+
+  rutas.post('/acceso/salir', (req, res) => {
+    sesiones.revocar(tokenDe(req));
+    res.status(204).end();
+  });
+
   // ---- Comprador ----
 
-  // Comprar exige RUT: sin él (sesión anterior a este cambio) no se arma carrito; se vuelve a entrar con /sesion.
+  // Comprar exige RUT: un negocio registrado por WhatsApp sin RUT todavía no arma carrito en la web.
   const exigirRut = (n: Negocio) => {
     if (!n.rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
   };
-
-  // Crea un negocio comprador con su nombre y su RUT (consultado en el SII); si el pedido ya trae una sesión
-  // válida de comprador, la reusa (y si trae un RUT, se lo deja).
-  rutas.post('/sesion', porRut, async (req, res) => {
-    const b = cuerpo(req);
-    const rut = typeof b.rut === 'string' && b.rut.trim() ? b.rut : undefined;
-    const actual = sesionDe(req);
-    if (actual?.rol === 'comprador') {
-      if (!rut && !actual.negocio.rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
-      const negocio = rut ? await red.registrarComprador({ negocioId: actual.negocio.id, nombre: actual.negocio.nombre, rut }) : actual.negocio;
-      res.json({ token: tokenDe(req), negocio: sinTelefonos(negocio) });
-      return;
-    }
-    if (!rut) throw new ErrorRed('datos_invalidos', FALTA_RUT);
-    const negocio = await red.registrarComprador(nuevoComprador(b, rut));
-    res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id, rol: 'comprador' }), negocio: sinTelefonos(negocio) });
-  });
 
   rutas.get('/yo', exigir('comprador'), (req: ConSesion, res) => {
     const negocio = yo(req);
@@ -172,18 +218,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
     res.json(await red.registrarRecepcion(id(req), recepcion));
   });
 
-  // ---- Proveedor de la sala ----
-
-  rutas.post('/proveedor/sesion', porIp, (req, res) => {
-    if (!env.PROVEEDOR_CODIGO) {
-      res.status(404).json({ error: 'no_encontrado', mensaje: 'Ruta no disponible' });
-      return;
-    }
-    if (!mismoSecreto(cuerpo(req).codigo, env.PROVEEDOR_CODIGO)) throw new ErrorRed('no_autorizado', 'Código incorrecto');
-    const negocio = red.negocioPorId(PROVEEDOR_SALA);
-    if (!negocio) throw new ErrorRed('no_encontrado', 'No existe el proveedor de la demo');
-    res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id, rol: 'proveedor' }), negocio: sinTelefonos(negocio) });
-  });
+  // ---- Proveedor ----
 
   rutas.get('/proveedor/yo', exigir('proveedor'), (req: ConSesion, res) => {
     const negocio = yo(req);
