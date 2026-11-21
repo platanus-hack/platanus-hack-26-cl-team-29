@@ -98,3 +98,29 @@ test('una lista con más de 10 opciones o títulos largos se rechaza sin llamar 
   assert.equal((await outbox.send('561', { body: 'elige', list: { button: 'Ver', rows: [{ id: 'a', title: 'Un título de opción demasiado largo' }] } }, null)).status, 'failed');
   assert.equal(sent.length, 0);
 });
+
+const factura = { link: 'https://demo.invalid/pdf/doc-5190', filename: 'factura-5190.pdf' };
+
+test('un documento inválido se rechaza sin llamar al proveedor', async () => {
+  const { outbox, sent } = setup();
+  const invalid = [
+    { body: 'x'.repeat(1025), document: factura },
+    { body: '', document: { ...factura, link: '/api/red/documentos/1/pdf' } },
+    { body: '', document: { ...factura, filename: ' ' } },
+    { body: 'elige', document: factura, buttons: [{ id: 'a', title: 'A' }] },
+  ];
+  for (const message of invalid) assert.equal((await outbox.send('561', message, null)).status, 'failed');
+  assert.equal(sent.length, 0);
+});
+
+test('fuera de la ventana el documento queda retenido y sale con su adjunto, en orden, cuando la persona escribe', async () => {
+  const { dispatcher, outbox, closed, sent, store } = setup();
+  closed.add('561');
+  await outbox.send('561', 'Tu factura folio 5190 fue emitida', 'agente');
+  assert.equal((await outbox.send('561', { body: '', document: factura }, 'agente')).status, 'held');
+  assert.equal((await store.heldFor('561'))[1]!.text, 'factura-5190.pdf', 'el historial muestra el nombre si no hay leyenda');
+
+  closed.delete('561');
+  await dispatcher.dispatch([inbound('w1', '561', 'hola')]);
+  assert.deepEqual(sent.map(s => [s.body, s.document]), [['Tu factura folio 5190 fue emitida', undefined], ['', factura]]);
+});

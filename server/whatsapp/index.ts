@@ -2,7 +2,7 @@
 import type { Router } from 'express';
 import type pg from 'pg';
 import type {
-  Log, MessageHandler, OutboundMessage, SendOutcome, SendResult, StoredMessage, TemplateRef, WhatsAppSender,
+  Log, MessageHandler, OutboundDocument, OutboundMessage, SendOutcome, SendResult, StoredMessage, TemplateRef, WhatsAppSender,
 } from './types.ts';
 import { createMemoryStore, type WhatsAppStore } from './store.ts';
 import { createPostgresStore } from './store-postgres.ts';
@@ -22,6 +22,7 @@ export type {
   MessageContext,
   MessageHandler,
   MessageStatus,
+  OutboundDocument,
   OutboundMessage,
   SendOutcome,
   SendResult,
@@ -34,13 +35,18 @@ export interface WhatsApp {
   readonly router: Router;
   onMessage(handler: MessageHandler): () => void;
   /**
-   * Manda un mensaje (texto o con hasta 3 botones). Nunca lanza. Si la persona lleva
+   * Manda un mensaje (texto, con botones, con lista o con un documento). Nunca lanza. Si la persona lleva
    * más de 24 h sin escribir, queda `held` y sale solo cuando vuelva a escribir.
    * `source` identifica al módulo que lo manda (queda guardado), p. ej. `'agente'`.
    */
   send(to: string, message: string | OutboundMessage, options?: { readonly source?: string }): Promise<SendOutcome>;
   /** Atajo de `send` con texto y resultado corto; un mensaje `held` cuenta como aceptado. */
   sendText(to: string, body: string): Promise<SendResult>;
+  /**
+   * Atajo de `send` con un documento adjunto (p. ej. el PDF de una factura) descargado desde `link`,
+   * que debe ser una URL pública. Mismo resultado corto que `sendText`.
+   */
+  sendDocument(to: string, document: OutboundDocument & { readonly caption?: string }, options?: { readonly source?: string }): Promise<SendResult>;
   /** Los últimos mensajes con ese teléfono (entrantes y salientes), del más antiguo al más nuevo. */
   history(phone: string, options?: { readonly limit?: number }): Promise<StoredMessage[]>;
 }
@@ -77,6 +83,8 @@ export async function createWhatsApp(options: WhatsAppOptions = {}): Promise<Wha
     onMessage: handler => dispatcher.onMessage(handler),
     send: (to, message, sendOptions) => outbox.send(to, message, sendOptions?.source ?? null),
     sendText: async (to, body) => toSendResult(await outbox.send(to, body, null)),
+    sendDocument: async (to, { link, filename, caption }, sendOptions) =>
+      toSendResult(await outbox.send(to, { body: caption ?? '', document: { link, filename } }, sendOptions?.source ?? null)),
     history: (phone, historyOptions) => store.history(phone.replace(/\D/g, ''), historyOptions?.limit ?? 20),
   };
 }

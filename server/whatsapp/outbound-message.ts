@@ -8,9 +8,11 @@ export const MAX_LIST_ROWS = 10;
 export const LIST_BUTTON_MAX = 20;
 export const ROW_TITLE_MAX = 24;
 export const ROW_DESCRIPTION_MAX = 72;
+export const DOCUMENT_CAPTION_MAX = 1024;
 
 /** `null` si el mensaje es válido; si no, por qué. Se valida antes de guardar o enviar nada. */
 export function invalidReason(message: OutboundMessage): string | null {
+  if (message.document) return invalidDocumentReason(message);
   if (message.body.trim() === '') return 'El mensaje está vacío.';
   if (message.list) return invalidListReason(message);
   const buttons = message.buttons ?? [];
@@ -37,6 +39,15 @@ function invalidListReason(message: OutboundMessage): string | null {
     if ((r.description?.length ?? 0) > ROW_DESCRIPTION_MAX) return `La descripción de "${r.title}" pasa los ${ROW_DESCRIPTION_MAX} caracteres.`;
   }
   if (new Set(list.rows.map(r => r.id)).size !== list.rows.length) return 'Los ids de la lista se repiten.';
+  return null;
+}
+
+function invalidDocumentReason(message: OutboundMessage): string | null {
+  const document = message.document!;
+  if (message.buttons?.length || message.list) return 'Un documento no lleva botones ni lista.';
+  if (message.body.length > DOCUMENT_CAPTION_MAX) return `La leyenda de un documento admite máximo ${DOCUMENT_CAPTION_MAX} caracteres.`;
+  if (!document.filename.trim()) return 'El documento necesita nombre de archivo.';
+  if (!/^https?:\/\/\S+$/i.test(document.link)) return `WhatsApp descarga el documento desde una URL pública; "${document.link}" no lo es.`;
   return null;
 }
 

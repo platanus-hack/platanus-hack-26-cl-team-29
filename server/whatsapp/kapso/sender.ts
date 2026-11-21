@@ -35,9 +35,13 @@ export class KapsoSender implements WhatsAppSender {
     this.#retryDelayMs = options.retryDelayMs ?? 500;
   }
 
-  /** Texto largo se parte en varios mensajes; con botones va en uno solo (ya validado). */
+  /** Texto largo se parte en varios mensajes; con botones, lista o documento va en uno solo (ya validado). */
   async send(to: string, message: OutboundMessage): Promise<TransportResult> {
     const recipient = { messaging_product: 'whatsapp', recipient_type: 'individual', to: to.replace(/\D/g, '') };
+    if (message.document) {
+      const { link, filename } = message.document;
+      return this.#post({ ...recipient, type: 'document', document: { link, filename, ...(message.body ? { caption: message.body } : {}) } });
+    }
     if (message.list) {
       return this.#post({
         ...recipient,

@@ -25,13 +25,22 @@ await whatsapp.send('56912345678', {
 }, { source: 'agente' });
 // → { status: 'sent' | 'held' | 'failed', messageId, … }
 
+// Documento adjunto (p. ej. el PDF de la factura): WhatsApp lo descarga desde el enlace
+await whatsapp.sendDocument('56912345678', {
+  link: 'https://…/factura-5190.pdf', filename: 'factura-5190.pdf', caption: 'Tu factura folio 5190',
+}, { source: 'agente' });
+// → { ok: true, messageIds } | { ok: false, error }   (igual que sendText; `held` cuenta como aceptado)
+
 // Contexto para un LLM
 const ultimos = await whatsapp.history('56912345678', { limit: 20 });
 ```
 - `message.text`: texto legible (cuerpo, caption, transcripción, o el título del botón apretado).
 - `message.content`: `text | reply | media | location | unsupported`.
 - Botones: máximo 3, título de máximo 20 caracteres. Si no cumple, `send` devuelve `failed` sin llamar a Kapso.
-- `send`, `sendText`, `reply` y `markRead` **nunca lanzan**.
+- Documento: `link` debe ser una URL pública `http(s)` (WhatsApp la descarga; un enlace relativo no sirve),
+  `filename` no vacío y la leyenda (`caption`, o `body` en `send`) de máximo 1024 caracteres. No lleva botones
+  ni lista. Si no cumple, devuelve `failed` sin llamar a Kapso. Fuera de la ventana queda `held` como cualquier otro.
+- `send`, `sendText`, `sendDocument`, `reply` y `markRead` **nunca lanzan**.
 
 ## La ventana de 24 h
 Meta solo deja mandar texto libre hasta 24 h después del último mensaje de la persona. No se puede saltar.
@@ -79,13 +88,13 @@ DATABASE_URL=postgres://… node --test test/whatsapp-store-postgres.test.ts   #
 
 ## Estructura
 ```
-index.ts             API pública: createWhatsApp → { router, onMessage, send, sendText, history }
+index.ts             API pública: createWhatsApp → { router, onMessage, send, sendText, sendDocument, history }
 types.ts             tipos de dominio (sin nada de Kapso)
 outbox.ts            todo envío: guarda, manda, retiene por la ventana de 24 h, plantilla, flush
 dispatcher.ts        dedupe, retenidos primero, orden por persona, aislamiento de errores
 store.ts             puerto de persistencia + implementación en memoria
 store-postgres.ts    tablas whatsapp_* en Postgres
-outbound-message.ts  validación de botones (límites de WhatsApp)
+outbound-message.ts  validación de botones, listas y documentos (límites de WhatsApp)
 text-chunks.ts       parte textos largos en mensajes válidos
 log-sender.ts        sender de desarrollo
 kapso/               adaptador: webhook, firma HMAC, parser del payload, cliente HTTP

@@ -32,7 +32,7 @@ export class Outbox {
 
     const phone = to.replace(/\D/g, '');
     if (!phone) return { status: 'failed', messageId: null, error: 'Falta el teléfono del destinatario.' };
-    const row = await this.#store.createOutbound({ phone, text: message.body, payload: message, source, status: 'sending' });
+    const row = await this.#store.createOutbound({ phone, text: message.body || (message.document?.filename ?? ''), payload: message, source, status: 'sending' });
     return this.#deliver(row, message);
   }
 

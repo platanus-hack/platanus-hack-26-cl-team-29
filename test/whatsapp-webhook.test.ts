@@ -91,3 +91,20 @@ test('sin secreto configurado el webhook responde 503', async () => {
   assert.equal((await post(url, text('w1', 'hola'))).status, 503);
   close();
 });
+
+test('sendDocument manda el adjunto con la leyenda, lo guarda con su source y no lanza si es inválido', async () => {
+  const { whatsapp, sent, close } = await start();
+  try {
+    const document = { link: 'https://demo.invalid/pdf/doc-5190', filename: 'factura-5190.pdf' };
+    const result = await whatsapp.sendDocument('+56 9 1111 2222', { ...document, caption: 'Tu factura folio 5190' }, { source: 'agente' });
+    assert.equal(result.ok, true);
+    assert.deepEqual(sent, [{ to: '56911112222', body: 'Tu factura folio 5190', document }]);
+    const [stored] = await whatsapp.history('56911112222');
+    assert.deepEqual([stored!.source, stored!.payload], ['agente', { body: 'Tu factura folio 5190', document }]);
+
+    assert.equal((await whatsapp.sendDocument('569', { link: '/relativo.pdf', filename: 'f.pdf' })).ok, false);
+    assert.equal(sent.length, 1);
+  } finally {
+    close();
+  }
+});

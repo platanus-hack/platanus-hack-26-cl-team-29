@@ -57,14 +57,23 @@ export interface ListMenu {
   readonly rows: readonly ListRow[];
 }
 
+/** Un archivo que WhatsApp descarga desde `link` (URL pública https) y entrega como adjunto. */
+export interface OutboundDocument {
+  readonly link: string;
+  /** Nombre con el que lo ve la persona, p. ej. `factura-5190.pdf`. */
+  readonly filename: string;
+}
+
 /**
- * Un mensaje saliente: texto, opcionalmente con hasta 3 botones de respuesta o con una lista desplegable
- * (hasta 10 opciones). No ambos.
+ * Un mensaje saliente: texto, opcionalmente con hasta 3 botones de respuesta, con una lista desplegable
+ * (hasta 10 opciones) o con un documento adjunto (y entonces `body` es su leyenda, que puede ir vacía).
+ * Solo una de las tres cosas.
  */
 export interface OutboundMessage {
   readonly body: string;
   readonly buttons?: readonly Button[];
   readonly list?: ListMenu;
+  readonly document?: OutboundDocument;
 }
 
 /**
