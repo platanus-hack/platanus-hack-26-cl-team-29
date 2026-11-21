@@ -2,10 +2,10 @@
 Actualizado: 2026-11-21 16:00
 
 ## Estado
-trabajando
+libre (PR #20 listo para revisión)
 
 ## Trabajando en
-- "La sala compra junta" por WhatsApp: onboarding del público, cascada de bajas de precio, cierre con sí del proveedor y aviso de folio a cada comprador
+- (nada)
 
 ## Archivos que estoy tocando
 - server/agente/
