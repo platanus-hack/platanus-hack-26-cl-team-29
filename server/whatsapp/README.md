@@ -65,6 +65,12 @@ Webhook en Kapso: `https://<deploy>/api/whatsapp/webhook`, con los eventos `what
 `whatsapp.message.sent`, `whatsapp.message.delivered`, `whatsapp.message.read` y `whatsapp.message.failed`.
 
 ## Probar en local
+Chatear con Bando desde la terminal (sin WhatsApp; con `ANTHROPIC_API_KEY` responde Claude):
+```sh
+node --env-file=.env scripts/whatsapp-chat.ts                  # como el comprador de la demo
+node --env-file=.env scripts/whatsapp-chat.ts --como proveedor
+```
+Probar el webhook contra el server corriendo:
 ```sh
 KAPSO_WEBHOOK_SECRET=dev npm start
 KAPSO_WEBHOOK_SECRET=dev node scripts/whatsapp-simulate.ts "hola"
