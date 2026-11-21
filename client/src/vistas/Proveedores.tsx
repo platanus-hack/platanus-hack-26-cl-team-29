@@ -1,12 +1,14 @@
 // /proveedores: el buscador donde viven todos los proveedores, los de la red (registrados en Bando) y los de Mercado
 // Público, en una sola lista unida por RUT. Clic en uno → su ficha (?p=<clave>): categoría, giros del SII, antigüedad y
-// precios de referencia con la fuente y fecha de cada dato. Se actualiza sola con cada `red:evento` (useRed).
+// precios de referencia con la fuente y fecha de cada dato, y su contacto (teléfono, WhatsApp o correo) con la página de donde salió.
+// Solo aparecen proveedores a los que se les puede escribir: los de la red y los que tienen contacto. Se actualiza sola con cada `red:evento` (useRed).
 // Nunca muestra compradores de la red ni organismos públicos por nombre: solo conteos.
 
 import { useEffect, useState } from 'react';
 import { CATEGORIAS, nombreCategoria } from '../../../shared/categorias.ts';
 import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
+import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { contar, segun } from '../../../shared/texto.ts';
 import { LogoSii, Monograma } from '../canal/iconos.tsx';
 import { useJson } from '../red/useJson.ts';
@@ -30,7 +32,10 @@ interface Resumen {
   destacados: string[];
 }
 interface Precio { producto: string; unidad: string; datos: number; minimo: number; mediana: number; maximo: number; fecha: string | null; fuente: 'bando' | 'mercado_publico' }
+interface Contacto { telefono: string | null; email: string | null; web: string | null; fuente: string }
+
 interface Ficha extends Resumen {
+  contacto: Contacto | null;
   sii: { inicioActividades: string | null; giros: { codigo: string; descripcion: string }[]; consultado: string } | null;
   productos: Precio[];
 }
@@ -51,6 +56,22 @@ function antiguedad(inicio: string | null): string | null {
   if (!anio) return null;
   const anos = new Date().getFullYear() - anio;
   return `Desde ${anio} · ${contar(anos, 'año')}`;
+}
+
+const dominio = (url: string) => new URL(url).hostname.replace(/^www\./, '');
+
+/** Teléfono (y WhatsApp si es celular), correo y sitio, con la página de donde salió. */
+function ContactoProveedor({ c, nombre }: { c: Contacto; nombre: string }) {
+  const saludo = `Hola, los encontré en Bando. Quiero cotizar con ${nombre}.`;
+  return (
+    <section className="pv-contacto" aria-label="Contacto">
+      {c.telefono?.startsWith('569') && <a className="pv-contacto-boton" href={enlaceWhatsapp(c.telefono, saludo)} target="_blank" rel="noreferrer">WhatsApp</a>}
+      {c.telefono && <a className="pv-contacto-boton" href={`tel:+${c.telefono}`}>{formatearTelefono(c.telefono)}</a>}
+      {c.email && <a className="pv-contacto-boton" href={`mailto:${c.email}?subject=${encodeURIComponent('Cotización')}`}>{c.email}</a>}
+      {c.web && <a className="pv-contacto-boton" href={c.web} target="_blank" rel="noreferrer">{dominio(c.web)}</a>}
+      <p className="pv-contacto-fuente mono tenue">Encontrado en <a href={c.fuente} target="_blank" rel="noreferrer">{dominio(c.fuente)}</a></p>
+    </section>
+  );
 }
 
 function ChipsFuente({ fuentes }: { fuentes: Resumen['fuentes'] }) {
@@ -180,6 +201,7 @@ function FichaProveedor({ clave, evento, volver }: { clave: string; evento: numb
           {lugar(p) && <p className="pv-fila-detalle mono tenue">{lugar(p)}</p>}
         </div>
       </header>
+      {p.contacto && <ContactoProveedor c={p.contacto} nombre={p.nombre} />}
 
       <section className="pv-dicen">
         <article className={`pv-dice${bando ? ' pv-dice-bando' : ''}`}>

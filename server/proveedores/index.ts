@@ -6,20 +6,22 @@
 // Socket.io `red:evento` tipo `proveedores.actualizado` → { proveedores } cuando llegan giros del SII o clasificaciones.
 //
 // En segundo plano consulta los giros de cada RUT en la consulta pública del SII (`PROVEEDORES_SII=0` lo apaga) y
-// clasifica con la IA los que siguen sin categoría. Todo queda en caché por RUT (Postgres si hay base).
+// clasifica con la IA los que siguen sin categoría. Con ANTHROPIC_API_KEY, además busca en la web el teléfono o correo
+// de los de Mercado Público. Todo queda en caché por RUT (Postgres si hay base).
+// Solo se publican los proveedores a los que se les puede escribir: los de la red y los que tienen contacto.
 import express from 'express';
 import type pg from 'pg';
 import { esCategoria } from '../../shared/categorias.ts';
 import { formatearRut, validarRut } from '../../shared/rut.ts';
-import { crearClasificadorDesdeEnv } from '../ia/index.ts';
+import { crearBuscadorContactoDesdeEnv, crearClasificadorDesdeEnv } from '../ia/index.ts';
 import type { MercadoPublicoDelServidor } from '../mercado-publico/index.ts';
 import type { EventoRed, Red } from '../red/index.ts';
 import { consultarContribuyentePublico, ErrorStc } from '../sii-portal/index.ts';
 import {
   crearAlmacenEnriquecidosMemoria, crearAlmacenEnriquecidosPostgres, crearEnriquecedor,
-  type AlmacenEnriquecidos, type Clasificar, type ConsultarSii,
+  type AlmacenEnriquecidos, type BuscarContacto, type Clasificar, type ConsultarSii,
 } from './enriquecer.ts';
-import { ambiguos, armarFichas, buscar, indexar, paraElMapa, type Indice } from './fichas.ts';
+import { ambiguos, armarFichas, buscar, contactable, indexar, paraElMapa, sinContactoBuscado, type Indice } from './fichas.ts';
 
 export type { FichaProveedor, ResumenProveedor } from './fichas.ts';
 
@@ -45,6 +47,7 @@ export interface OpcionesProveedores {
   env?: NodeJS.ProcessEnv;
   consultarSii?: ConsultarSii;
   clasificar?: Clasificar;
+  buscarContacto?: BuscarContacto | null;
   esperaMs?: number;
 }
 
@@ -66,6 +69,7 @@ export async function iniciarProveedores(o: OpcionesProveedores) {
     almacen: almacen ?? crearAlmacenEnriquecidosMemoria(),
     consultarSii: o.consultarSii ?? consultarStc,
     clasificar: o.clasificar ?? (e => clasificarIa(e)),
+    buscarContacto: o.buscarContacto !== undefined ? o.buscarContacto : crearBuscadorContactoDesdeEnv(env),
     esperaMs: o.esperaMs,
     alCambiar: () => {
       version++;
@@ -87,12 +91,13 @@ export async function iniciarProveedores(o: OpcionesProveedores) {
     const foto = o.mercadoPublico.foto();
     if (ultimo?.foto === foto && ultimo.version === version) return ultimo.indice;
     const fichas = armarFichas(o.red.estadoDeLaRed(), foto, rut => enriquecedor.de(rut));
-    ultimo = { foto, version, indice: indexar(fichas) };
+    ultimo = { foto, version, indice: indexar(fichas.filter(contactable)) };
     // Los que más venden primero: son los que más se buscan.
     // Las órdenes de ejemplo traen RUT ficticios: no se consultan (podrían ser de una empresa real).
     const consultables = fichas.filter(f => f.rut && (foto.fuente !== 'ejemplo' || f.fuentes.some(x => x.tipo === 'bando')));
     if (conSii) enriquecedor.pedirSii(consultables.sort((a, b) => b.organismos - a.organismos).map(f => f.rut!));
     enriquecedor.pedirClasificacion(ambiguos(fichas, rut => enriquecedor.de(rut)));
+    enriquecedor.pedirContacto(sinContactoBuscado(consultables, rut => enriquecedor.de(rut)));
     return ultimo.indice;
   }
 

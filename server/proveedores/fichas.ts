@@ -9,7 +9,7 @@ import type { FotoMercadoPublico, OrdenLimpia } from '../mercado-publico/index.t
 import { rangoDe } from '../mercado-publico/index.ts';
 import { rutDeEmpresa } from '../mercado-publico/normalizar.ts';
 import type { EstadoRed } from '../red/index.ts';
-import type { EntradaClasificacion, Enriquecido } from './enriquecer.ts';
+import type { Contacto, EntradaClasificacion, EntradaContacto, Enriquecido } from './enriquecer.ts';
 
 export type Fuente = 'bando' | 'mercado_publico' | 'sii' | 'ia' | 'reglas';
 
@@ -56,6 +56,8 @@ export interface ResumenProveedor {
   /** Organismos públicos distintos que le compraron (contados, nunca nombrados). */
   organismos: number;
   destacados: string[];
+  /** Teléfono o correo encontrado en la web, con la página de donde salió; null si no se tiene. */
+  contacto: Contacto | null;
 }
 
 export interface FichaProveedor extends ResumenProveedor {
@@ -142,10 +144,11 @@ function completar(b: Base, e: Enriquecido | undefined): FichaProveedor {
   const productos = b.productos.sort((x, y) => y.datos - x.datos || x.producto.localeCompare(y.producto));
   const { categoria, secundarias } = categorizar(productos, e, b.fuentes.some(f => f.tipo === 'bando') && !b.organismos, categoriaDeTexto(b.nombre));
   const sii = e?.sii ? { inicioActividades: e.sii.inicioActividades, giros: e.sii.giros, consultado: e.sii.consultado } : null;
+  const contacto = e?.contacto ? { telefono: e.contacto.telefono, email: e.contacto.email, web: e.contacto.web, fuente: e.contacto.fuente } : null;
   return {
     ...b,
     fuentes: sii ? [...b.fuentes, { tipo: 'sii', fecha: dia(sii.consultado) }] : b.fuentes,
-    categoria, secundarias, sii,
+    categoria, secundarias, sii, contacto,
     destacados: productos.slice(0, 3).map(p => p.producto),
     productos: productos.slice(0, MAX_PRODUCTOS),
   };
@@ -182,6 +185,17 @@ export const ambiguos = (fichas: FichaProveedor[], enriquecido: (rut: string) =>
     rut: f.rut!, nombre: f.nombre, giros: f.sii?.giros.map(g => g.descripcion) ?? [], productos: f.productos.map(p => p.producto),
   }));
 
+const enBando = (f: FichaProveedor) => f.fuentes.some(x => x.tipo === 'bando');
+
+/** Lo que se publica (buscador y mapas): solo proveedores a los que se les puede escribir, por Bando o por su contacto. */
+export const contactable = (f: FichaProveedor): boolean => enBando(f) || !!f.contacto;
+
+/** Proveedores con RUT a los que todavía no se les buscó contacto, con lo que la búsqueda necesita. */
+export const sinContactoBuscado = (fichas: FichaProveedor[], enriquecido: (rut: string) => Enriquecido | undefined): EntradaContacto[] =>
+  fichas.filter(f => f.rut && !enBando(f) && enriquecido(f.rut)?.contacto === undefined).map(f => ({
+    rut: f.rut!, nombre: f.nombre, region: f.region, comuna: f.comuna, giros: f.sii?.giros.map(g => g.descripcion) ?? [],
+  }));
+
 /** Texto en que se busca: nombre, RUT (con y sin puntos), categorías, giros y productos, sin tildes. */
 export const textoDeBusqueda = (f: FichaProveedor): string => sinTildes([
   f.nombre, f.rut ?? '', (f.rut ?? '').replace(/[.-]/g, ''), f.region, f.comuna,
@@ -205,8 +219,7 @@ export function buscar(indice: Indice, o: { q?: string; categoria?: string; pagi
   const conteos: Record<string, number> = {};
   for (const f of calzan) for (const c of [f.categoria?.id, ...f.secundarias]) if (c) conteos[c] = (conteos[c] ?? 0) + 1;
   const filtradas = o.categoria ? calzan.filter(f => f.categoria?.id === o.categoria || f.secundarias.includes(o.categoria as IdCategoria)) : calzan;
-  const enBando = (f: FichaProveedor) => (f.fuentes.some(x => x.tipo === 'bando') ? 1 : 0);
-  filtradas.sort((a, b) => enBando(b) - enBando(a) || b.organismos - a.organismos || a.nombre.localeCompare(b.nombre));
+  filtradas.sort((a, b) => Number(enBando(b)) - Number(enBando(a)) || b.organismos - a.organismos || a.nombre.localeCompare(b.nombre));
   const paginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
   const pagina = Math.min(Math.max(1, Math.floor(o.pagina ?? 1)), paginas);
   return {
@@ -225,7 +238,7 @@ export function paraElMapa(fichas: FichaProveedor[]): ProveedorMapa[] {
     if (!donde) return [];
     return [{
       clave: f.clave, nombre: f.nombre, categoria: f.categoria?.nombre ?? null, region: f.region, comuna: f.comuna,
-      organismos: f.organismos, enBando: f.fuentes.some(x => x.tipo === 'bando'), nota: f.nota, ...donde,
+      organismos: f.organismos, enBando: enBando(f), nota: f.nota, ...donde,
     }];
   }).sort((a, b) => b.organismos - a.organismos).slice(0, MAX_MAPA);
 }

@@ -5,7 +5,8 @@ import { limpiarOrdenes } from '../server/mercado-publico/index.ts';
 import type { OrdenMP, PrecioMP } from '../server/mercado-publico/normalizar.ts';
 import type { EstadoRed } from '../server/red/index.ts';
 import { crearAlmacenEnriquecidosMemoria, crearEnriquecedor } from '../server/proveedores/enriquecer.ts';
-import { armarFichas, buscar, indexar, paraElMapa } from '../server/proveedores/fichas.ts';
+import { armarFichas, buscar, contactable, indexar, paraElMapa, sinContactoBuscado } from '../server/proveedores/fichas.ts';
+import { telefonoChileno, validarContacto } from '../server/ia/index.ts';
 
 const precio = (p: Partial<PrecioMP>): PrecioMP => ({
   orden: 'o', producto: 'Arroz grado 2, bolsa 1 kg', codigoProducto: 50221101, rubro: '', categoria: '', unidad: 'unidad',
@@ -91,4 +92,39 @@ test('el enriquecimiento usa la caché: un RUT ya consultado en el SII no se vue
   assert.deepEqual(consultados, ['77.000.000-9']);
   assert.deepEqual(clasificados, ['77.000.000-9']);
   assert.equal((await almacen.todos()).find(x => x.rut === '77.000.000-9')?.sii?.giros[0]?.codigo, '463011', 'queda guardado');
+});
+
+test('el contacto encontrado en la web solo vale con fuente y con teléfono chileno o correo válidos', () => {
+  const fuente = 'https://www.ejemplo.cl/contacto';
+  assert.deepEqual([telefonoChileno('+56 9 8765 4321'), telefonoChileno('(2) 2345 6789'), telefonoChileno('600 123 4567'), telefonoChileno('12345')],
+    ['56987654321', '56223456789', null, null]);
+  assert.deepEqual(validarContacto({ telefono: '9 8765 4321', email: 'Ventas@Ejemplo.cl', web: 'nada', fuente }),
+    { telefono: '56987654321', email: 'ventas@ejemplo.cl', web: null, fuente });
+  assert.equal(validarContacto({ telefono: '9 8765 4321', email: '', web: '', fuente: '' }), null, 'sin fuente no se cree');
+  assert.equal(validarContacto({ telefono: 'no encontrado', email: 'sin correo', web: 'https://ejemplo.cl', fuente }), null, 'solo un sitio no alcanza');
+});
+
+test('solo se publican los proveedores a los que se les puede escribir; se busca contacto una sola vez por RUT', async () => {
+  const estado = {
+    negocios: [{ id: 'n-p-1', nombre: 'Molinos del Sur', comuna: 'Puente Alto', rol: 'proveedor', telefono: '', rut: '76000000-0' }],
+    ordenes: [], documentos: [], licitaciones: [], notas: {},
+  } as unknown as EstadoRed;
+  const ordenes = limpiarOrdenes([
+    orden('2', '77.000.000-9', 'CON CONTACTO', [precio({})]),
+    orden('3', '78.000.000-7', 'SIN CONTACTO', [precio({})]),
+  ]);
+  const almacen = crearAlmacenEnriquecidosMemoria();
+  const buscados: string[] = [];
+  const e = await crearEnriquecedor({
+    almacen, esperaMs: 0, alCambiar: () => {}, consultarSii: async () => null, clasificar: async () => null,
+    buscarContacto: async x => (buscados.push(x.rut),
+      x.rut === '77.000.000-9' ? { telefono: '56987654321', email: null, web: null, fuente: 'https://ejemplo.cl' } : null),
+  });
+  const fichas = () => armarFichas(estado, { ordenes, fuente: 'mercado_publico', hasta: '2026-11-01' }, rut => e.de(rut));
+  e.pedirContacto(sinContactoBuscado(fichas(), rut => e.de(rut)));
+  await e.enCalma();
+  e.pedirContacto(sinContactoBuscado(fichas(), rut => e.de(rut)));
+  await e.enCalma();
+  assert.deepEqual(buscados, ['77.000.000-9', '78.000.000-7'], 'el de la red no se busca y nadie se busca dos veces');
+  assert.deepEqual(fichas().filter(contactable).map(f => f.nombre).sort(), ['CON CONTACTO', 'Molinos del Sur']);
 });

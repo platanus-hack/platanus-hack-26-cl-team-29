@@ -1,5 +1,5 @@
 # buscador-proveedores
-Actualizado: 2026-11-21 16:20
+Actualizado: 2026-11-21 19:34
 
 ## Estado
 libre (PR de la vista /proveedores abierto, para revisión del humano)
@@ -8,11 +8,12 @@ libre (PR de la vista /proveedores abierto, para revisión del humano)
 - (nada)
 
 ## Archivos que estoy tocando
-- server/proveedores/ (dueño), shared/categorias.ts, server/mercado-publico/limpieza.ts, server/ia/clasificar.ts
+- server/proveedores/ (dueño), shared/categorias.ts, server/mercado-publico/limpieza.ts, server/ia/clasificar.ts, server/ia/contacto.ts
 - client/src/vistas/Proveedores.tsx y proveedores.css (dueño); main.tsx y Navegador.tsx (una línea cada uno)
 
 ## Hecho
 - Backend del buscador en main (#80): fichas unidas por RUT, limpieza de Mercado Público, taxonomía, giros del SII con caché, IA para lo ambiguo.
+- Contacto por proveedor (búsqueda web con Claude, validado y con fuente); solo se publican los contactables.
 - Vista /proveedores: buscador con chips de categoría y ficha del proveedor (Paper "10 · Ficha del proveedor").
 
 ## Pendientes

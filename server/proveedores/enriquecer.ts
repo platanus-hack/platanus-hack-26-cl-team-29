@@ -1,8 +1,12 @@
 // Enriquecimiento de proveedores en segundo plano: giros e inicio de actividades desde la consulta pública del SII
-// (STC, sin certificado) y, solo para los que siguen sin categoría, una clasificación de la IA. De a uno, con pausa,
+// (STC, sin certificado), solo para los que siguen sin categoría una clasificación de la IA y, para los de Mercado Público,
+// su canal de contacto buscado en la web. De a uno, con pausa,
 // y con caché persistente por RUT: un RUT ya consultado no se vuelve a consultar. Nunca bloquea el arranque ni la búsqueda.
 import type pg from 'pg';
 import type { IdCategoria } from '../../shared/categorias.ts';
+import type { Contacto, EntradaContacto } from '../ia/index.ts';
+
+export type { Contacto, EntradaContacto } from '../ia/index.ts';
 
 export interface GiroSii {
   codigo: string;
@@ -31,6 +35,8 @@ export interface Enriquecido {
   /** null: el SII dice que el RUT no está registrado. */
   sii?: DatosSii | null;
   clasificacion?: Clasificacion;
+  /** null: se buscó y no se encontró un teléfono o correo seguro. */
+  contacto?: (Contacto & { en: string }) | null;
 }
 
 /** Lo que la IA recibe para clasificar un proveedor ambiguo. */
@@ -43,6 +49,7 @@ export interface EntradaClasificacion {
 
 export type ConsultarSii = (rut: string) => Promise<Omit<DatosSii, 'consultado'> | null>;
 export type Clasificar = (e: EntradaClasificacion) => Promise<Omit<Clasificacion, 'en'> | null>;
+export type BuscarContacto = (e: EntradaContacto) => Promise<Contacto | null>;
 
 export interface AlmacenEnriquecidos {
   todos(): Promise<Enriquecido[]>;
@@ -80,6 +87,8 @@ export interface OpcionesEnriquecedor {
   almacen: AlmacenEnriquecidos;
   consultarSii: ConsultarSii;
   clasificar: Clasificar;
+  /** Sin buscador (sin clave de la IA) no se busca contacto. */
+  buscarContacto?: BuscarContacto | null;
   /** Se llama cada vez que hay un dato nuevo (para avisar por `red:evento`). */
   alCambiar: (e: Enriquecido) => void;
   esperaMs?: number;
@@ -93,6 +102,8 @@ export interface Enriquecedor {
   pedirSii(ruts: string[]): void;
   /** Pide clasificar estos proveedores (los ya clasificados se saltan). */
   pedirClasificacion(entradas: EntradaClasificacion[]): void;
+  /** Pide buscar el contacto de estos proveedores (los ya buscados se saltan). */
+  pedirContacto(entradas: EntradaContacto[]): void;
   /** Se resuelve cuando la fila queda vacía (para los tests). */
   enCalma(): Promise<void>;
   detener(): void;
@@ -104,7 +115,8 @@ export async function crearEnriquecedor(o: OpcionesEnriquecedor): Promise<Enriqu
   const esperaMs = o.esperaMs ?? ESPERA_SII_MS;
   const datos = new Map((await o.almacen.todos()).map(e => [e.rut, e]));
   const filaSii: string[] = [];
-  const filaIa: EntradaClasificacion[] = [];
+  /** Tareas de la IA (clasificar, buscar contacto), de a una, después de las del SII. */
+  const filaIa: { clave: string; correr: () => Promise<void> }[] = [];
   const enFila = new Set<string>();
   // ponytail: un RUT que falló no se reintenta hasta el próximo arranque; con muchos fallidos, reintentar por hora.
   const fallidos = new Set<string>();
@@ -131,13 +143,22 @@ export async function crearEnriquecedor(o: OpcionesEnriquecedor): Promise<Enriqu
     }
   }
 
-  async function unaClasificacion(e: EntradaClasificacion) {
-    try {
-      const c = await o.clasificar(e);
-      if (c) await guardar({ ...datos.get(e.rut), rut: e.rut, clasificacion: { ...c, en: ahora() } });
-    } catch (error) {
-      log.warn('[proveedores] no se pudo clasificar', e.rut, error);
-    }
+  /** Encola una tarea de la IA sobre un RUT; `hecha` dice si ya está en caché. Un error no se guarda: se reintenta al arrancar. */
+  function encolarIa(tipo: string, rut: string, hecha: (e: Enriquecido | undefined) => boolean, correr: () => Promise<Partial<Enriquecido> | null>) {
+    const clave = `${tipo}:${rut}`;
+    if (hecha(datos.get(rut)) || enFila.has(clave)) return;
+    enFila.add(clave);
+    filaIa.push({
+      clave,
+      correr: async () => {
+        try {
+          const cambio = await correr();
+          if (cambio) await guardar({ ...datos.get(rut), rut, ...cambio });
+        } catch (error) {
+          log.warn(`[proveedores] falló ${tipo}`, rut, error);
+        }
+      },
+    });
   }
 
   async function vaciar() {
@@ -149,10 +170,10 @@ export async function crearEnriquecedor(o: OpcionesEnriquecedor): Promise<Enriqu
         if (filaSii.length) await new Promise(r => setTimeout(r, esperaMs));
         continue;
       }
-      const entrada = filaIa.shift();
-      if (!entrada) break;
-      await unaClasificacion(entrada);
-      enFila.delete(`ia:${entrada.rut}`);
+      const tarea = filaIa.shift();
+      if (!tarea) break;
+      await tarea.correr();
+      enFila.delete(tarea.clave);
     }
   }
 
@@ -175,9 +196,21 @@ export async function crearEnriquecedor(o: OpcionesEnriquecedor): Promise<Enriqu
     },
     pedirClasificacion(entradas) {
       for (const e of entradas) {
-        if (datos.get(e.rut)?.clasificacion || enFila.has(`ia:${e.rut}`)) continue;
-        enFila.add(`ia:${e.rut}`);
-        filaIa.push(e);
+        encolarIa('clasificar', e.rut, d => !!d?.clasificacion, async () => {
+          const c = await o.clasificar(e);
+          return c && { clasificacion: { ...c, en: ahora() } };
+        });
+      }
+      despertar();
+    },
+    pedirContacto(entradas) {
+      const buscar = o.buscarContacto;
+      if (!buscar) return;
+      for (const e of entradas) {
+        encolarIa('contacto', e.rut, d => d?.contacto !== undefined, async () => {
+          const c = await buscar(e);
+          return { contacto: c && { ...c, en: ahora() } };
+        });
       }
       despertar();
     },
