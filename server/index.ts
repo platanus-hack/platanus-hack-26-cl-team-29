@@ -18,7 +18,7 @@ export const whatsapp = await createWhatsApp({ db: dbRed });
 // SII de certificación: la conexión hecha por el proveedor desde el panel; si no está completa, las variables SII_*;
 // sin ninguna de las dos, el SII falso de la red.
 const conexionSii = await iniciarConexionSii(dbRed);
-export const red = await iniciarRed(dbRed, conexionSii.sii);
+export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente });
 red.escuchar(evento => io.emit('red:evento', evento));
 export const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env, red) });
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.

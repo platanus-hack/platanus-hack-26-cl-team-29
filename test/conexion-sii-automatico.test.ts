@@ -136,3 +136,13 @@ test('la ficha se lee con la forma real de la página: tablas anidadas y una fil
   const f = leerFicha(html);
   assert.deepEqual([f.razonSocial, f.direccion, f.comuna, f.acteco], ['COMERCIAL DE PRUEBA SPA', 'CALLE FALSA 123 , Bloque G', 'MACUL', 620100]);
 });
+
+test('el RUT de un comprador se consulta en el SII con la misma sesión del certificado conectado', async () => {
+  const { sii, conexion } = montar({});
+  assert.equal(await conexion.consultarContribuyente('33333333-3'), undefined, 'sin certificado: la red usa la consulta falsa');
+  await conexion.subirCertificado(pfxBase64, CLAVE_PFX, RUT_EMPRESA);
+  await conexion.esperarBusquedas();
+  const ficha = await conexion.consultarContribuyente('33333333-3');
+  assert.equal(ficha?.razonSocial, 'Comercial de Prueba SpA');
+  assert.equal(sii.logins(), 1, 'sin login nuevo');
+});

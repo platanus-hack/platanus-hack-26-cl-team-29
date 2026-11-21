@@ -104,7 +104,9 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
   const [desconectando, setDesconectando] = useState(false);
   const [error, setError] = useState('');
   const pasoCert = !estado.titular || editar === 'certificado';
-  const pasoEmpresa = !pasoCert && !estado.automatico?.activo && (!estado.empresa || !estado.resolucion || estado.resolucion.rechazada || editar === 'empresa');
+  // Mientras se trae todo del SII, los pasos manuales esperan: se muestran con lo que haya faltado.
+  const enCurso = !!estado.automatico?.activo;
+  const pasoEmpresa = !pasoCert && !enCurso && (!estado.empresa || !estado.resolucion || estado.resolucion.rechazada || editar === 'empresa');
   const hecho = (e: ConexionSii) => { alCambiar(e); setEditar(null); };
 
   const desconectar = async () => {
@@ -132,7 +134,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
 
       {!pasoCert && estado.automatico && <Automatico api={api} token={token} estado={estado} alCambiar={alCambiar} />}
 
-      {!pasoCert && (
+      {!pasoCert && !enCurso && (
         <article className="cn-paso">
           <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 2 · Tu empresa</p>
           {pasoEmpresa ? <PasoEmpresa api={api} token={token} estado={estado} alListo={hecho} onCancelar={estado.empresa ? () => setEditar(null) : undefined} /> : (
@@ -144,7 +146,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
         </article>
       )}
 
-      {!pasoCert && !pasoEmpresa && (
+      {!pasoCert && !pasoEmpresa && !enCurso && (
         <article className="cn-paso">
           <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 3 · Folios (CAF)</p>
           <p className="mono tenue cn-texto">

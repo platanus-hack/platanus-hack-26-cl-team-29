@@ -1,7 +1,8 @@
 // "Conectar mi SII": API pública del módulo. Fuera de server/conexion-sii/ se importa solo este archivo.
 import type express from 'express';
 import type pg from 'pg';
-import { crearAlmacenFolios, crearSiiReal } from '../red/index.ts';
+import { crearAlmacenFolios, crearConsultaContribuyenteFalsa, crearSiiReal } from '../red/index.ts';
+import type { ConsultarContribuyente } from '../red/contribuyente.ts';
 import type { PuertoSii } from '../red/index.ts';
 import { crearConsultaDocumentos, crearSii } from '../sii/index.ts';
 import { crearAlmacenConexionMemoria, crearAlmacenConexionPostgres } from './almacen.ts';
@@ -30,6 +31,11 @@ export interface ConexionSiiDelServidor {
   rutas: express.Router;
   /** Para `iniciarRed`: envuelve el SII falso de la red con el que corresponda en cada emisión. */
   sii: (falso: PuertoSii) => PuertoSii;
+  /**
+   * Para `iniciarRed`: datos de un comprador por su RUT, leídos del portal del SII con el certificado conectado y la
+   * misma sesión única (server/sii-portal). Sin certificado conectado, la consulta falsa de la red.
+   */
+  consultarContribuyente: ConsultarContribuyente;
 }
 
 /**
@@ -61,8 +67,18 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     ultimoUsado: tipo => folios.ultimo(tipo),
   });
   const respaldo = env.SII_PFX_BASE64 ? crearSiiReal({ sii: crearSii({ env }), folios, env }) : undefined;
+  const falsa = crearConsultaContribuyenteFalsa();
+  const consultarContribuyente: ConsultarContribuyente = async rut => {
+    const ficha = await conexion.consultarContribuyente(rut);
+    if (ficha === undefined) return falsa(rut);
+    return ficha && {
+      razonSocial: ficha.razonSocial, giro: ficha.giro, direccion: ficha.direccion, comuna: ficha.comuna,
+      actividades: ficha.actividades.map(a => ({ codigo: String(a.codigo), glosa: a.descripcion })),
+    };
+  };
   return {
     conexion,
+    consultarContribuyente,
     rutas: crearRutasConexionSii(conexion),
     sii: falso => crearSiiConmutable({
       falso, respaldo, conexion, env,

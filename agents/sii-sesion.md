@@ -1,24 +1,24 @@
 # sii-sesion
-Actualizado: 2026-11-21 21:30
+Actualizado: 2026-11-21 23:45
 
 ## Estado
-trabajando
+libre (PR listo para revisión)
 
 ## Trabajando en
-- Sesión única del portal del SII (persistida, un login por certificado, cola en serie, límite de sesiones) y "Conectar mi SII" automático: ficha, resolución y CAF (reobtener antes de pedir, nunca anular).
+- (nada)
 
 ## Archivos que estoy tocando
-- server/sii-portal/ (nuevo, dueño)
-- server/conexion-sii/ (portal.ts, conexion.ts, index.ts, rutas.ts)
-- client/src/canal/ConectarSii.tsx, client/src/canal/api.ts (mínimo, pasos del onboarding)
-- test/sii-portal*.test.ts, test/conexion-sii.test.ts
-- docs/hallazgos, docs/decisiones (SII)
+- server/sii-portal/ (dueño, nuevo): sesión única del portal del SII
+- server/conexion-sii/ (conexión automática, consulta de contribuyente)
+- client/src/canal/ConectarSii.tsx, api.ts, tipos.ts, sii-falso.ts
 
 ## Hecho
-- (nada aún)
+- `server/sii-portal/`: un solo componente para el portal web del SII (sesión persistida y cifrada por huella de certificado, un login aunque haya concurrencia, solicitudes en serie, límite de sesiones 720 sin reintento y con espera compartida, cabeceras de navegador, Latin-1). Hallazgo: docs/hallazgos/20261121-2330-sii-portal-sesion-reglas.md
+- "Conectar mi SII" automático: ficha, resolución y CAF 33/52/61 (reobtener primero, pedir dentro del tope, nunca anular). La resolución hoy se escribe a mano (ad_empresa1 ya no responde) y un RCT la marca para corregirla.
+- `consultarContribuyente` de la red (RUT del comprador) pasa por la misma sesión.
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- (ninguno)
+- @red-sii: agregué `detalle?` a `CambioEstadoSii` y lo llena `sii-real.ts` (para reconocer el RCT). Nadie más abre sesiones del portal: todo pasa por server/sii-portal.
