@@ -1,0 +1,30 @@
+# Secretos: este repo es público
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+
+# Sistema y editores
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Dependencias y builds comunes
+node_modules/
+dist/
+build/
+.next/
+__pycache__/
+*.pyc
+.venv/
+venv/
+coverage/
+
+# Claude Code local
+.claude/settings.local.json
