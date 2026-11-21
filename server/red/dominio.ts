@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 import { calcularNota } from './reputacion.ts';
+import { sembrar } from './semilla.ts';
 import type { PuertoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
 import type {
@@ -40,6 +41,8 @@ export interface NuevoParticipante {
   cantidad: number;
 }
 
+export type NuevaOferta = Omit<Oferta, 'en'>;
+
 export interface Red {
   crearOrden(nueva: NuevaOrden): Promise<OrdenCompra>;
   /** Antes de confirmar: cuántas unidades dirá la guía de despacho (52), si son menos que las pedidas. */
@@ -49,10 +52,14 @@ export interface Red {
   emitirNotaCredito(ordenId: string): Promise<Documento>;
   notaDeProveedor(proveedorId: string): number;
   unirseALicitacion(licitacionId: string, participante: NuevoParticipante): Promise<Licitacion>;
-  ofertar(licitacionId: string, oferta: Oferta): Promise<Licitacion>;
+  ofertar(licitacionId: string, oferta: NuevaOferta): Promise<Licitacion>;
   cerrarLicitacion(licitacionId: string): Promise<Licitacion>;
   estadoDeLaRed(): EstadoRed;
   negocioPorTelefono(telefono: string): Negocio | null;
+  /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
+  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string): Promise<Documento | null>;
+  /** Borra órdenes, documentos y eventos y vuelve a sembrar la demo. No toca los folios del SII. */
+  reiniciarDemo(): Promise<EstadoRed>;
   /** Se llama con cada `red:evento`; devuelve la función para dejar de escuchar. */
   escuchar(oyente: (evento: EventoRed) => void): () => void;
 }
@@ -73,7 +80,7 @@ const normalizarTelefono = (t: string) => t.replace(/\D/g, '').slice(-9);
 // Puntaje de una oferta en la licitación: el precio, castigado por mala nota y por plazo largo.
 //   precioAjustado = precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * plazoDias)
 // Gana el menor. Así un proveedor 0.8 puntos peor necesita ser ~8% más barato para ganar.
-export function precioAjustado(oferta: Oferta, nota: number): number {
+export function precioAjustado(oferta: NuevaOferta, nota: number): number {
   return Math.round(oferta.precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * oferta.plazoDias));
 }
 
@@ -277,13 +284,13 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
       let participante: Participante;
       if (p.negocioId) {
         const n = negocio(p.negocioId, 'comprador');
-        participante = { negocioId: n.id, nombre: n.nombre, comuna: n.comuna, cantidad };
+        participante = { negocioId: n.id, nombre: n.nombre, comuna: n.comuna, cantidad, en: ahora() };
         l.participantes = l.participantes.filter(x => x.negocioId !== n.id);
       } else {
         const nombre = String(p.nombre ?? '').trim().slice(0, 40);
         if (!nombre) throw new ErrorRed('datos_invalidos', 'Falta el nombre');
         const comuna = String(p.comuna ?? '').trim().slice(0, 40);
-        participante = { nombre, cantidad, ...(comuna ? { comuna } : {}) };
+        participante = { nombre, cantidad, ...(comuna ? { comuna } : {}), en: ahora() };
       }
       l.participantes.push(participante);
       await guardar('licitaciones', l);
@@ -292,7 +299,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
     });
   }
 
-  function ofertar(licitacionId: string, o: Oferta) {
+  function ofertar(licitacionId: string, o: NuevaOferta) {
     return conCandado(licitacionId, async () => {
       const l = licitacionAbierta(licitacionId);
       negocio(o.proveedorId, 'proveedor');
@@ -300,7 +307,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
       if (!(precioUnitario > 0) || !Number.isInteger(plazoDias) || plazoDias < 0) {
         throw new ErrorRed('datos_invalidos', 'La oferta necesita precio positivo y plazo en días enteros');
       }
-      const oferta: Oferta = { proveedorId: o.proveedorId, precioUnitario, plazoDias };
+      const oferta: Oferta = { proveedorId: o.proveedorId, precioUnitario, plazoDias, en: ahora() };
       l.ofertas = l.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
       await guardar('licitaciones', l);
       emitir('licitacion.oferta', { licitacion: l, oferta, nota: notaDeProveedor(o.proveedorId) });
@@ -335,6 +342,31 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
     });
   }
 
+  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string) {
+    const doc = datos.documentos.find(d => d.tipo === tipo && d.folio === folio);
+    // Tras reiniciar la demo el documento ya no está en la red, pero su folio sigue usado en el SII.
+    if (!doc) return null;
+    if (doc.estadoSii !== estadoSii) {
+      doc.estadoSii = estadoSii;
+      await guardar('documentos', doc);
+      emitir('documento.actualizado', { documento: doc });
+    }
+    return structuredClone(doc);
+  }
+
+  async function reiniciarDemo() {
+    await repo.vaciar();
+    await sembrar(repo, reloj());
+    Object.assign(datos, await repo.cargar());
+    const estado = estadoDeLaRed();
+    emitir('red.reiniciada', estado);
+    return estado;
+  }
+
+  sii.alCambiarEstado?.(({ tipo, folio, estadoSii }) => {
+    actualizarEstadoDocumento(tipo, folio, estadoSii).catch(error => console.error('[red] no se pudo actualizar el documento', error));
+  });
+
   function estadoDeLaRed(): EstadoRed {
     const notas: Record<string, number> = {};
     for (const n of datos.negocios) if (n.rol === 'proveedor') notas[n.id] = notaDeProveedor(n.id);
@@ -351,7 +383,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
 
   return {
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, ofertar, cerrarLicitacion, estadoDeLaRed, negocioPorTelefono,
+    unirseALicitacion, ofertar, cerrarLicitacion, estadoDeLaRed, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

@@ -66,12 +66,16 @@ export interface Participante {
   nombre: string;
   comuna?: string;
   cantidad: number;
+  /** Cuándo se sumó (ISO). */
+  en: string;
 }
 
 export interface Oferta {
   proveedorId: string;
   precioUnitario: number;
   plazoDias: number;
+  /** Cuándo llegó (ISO). */
+  en: string;
 }
 
 export interface Ganadora extends Oferta {
@@ -84,6 +88,8 @@ export interface Licitacion {
   producto: string;
   comuna: string;
   cierraEn: string;
+  /** Precio unitario que paga cada comprador si compra solo, para mostrar el ahorro del grupo. */
+  precioSolo: number;
   participantes: Participante[];
   ofertas: Oferta[];
   estado: 'abierta' | 'cerrada';
@@ -114,13 +120,15 @@ export type TipoEventoRed =
   | 'orden.creada'
   | 'orden.confirmada'
   | 'documento.emitido'
+  | 'documento.actualizado'
   | 'recepcion.registrada'
   | 'reclamo.registrado'
   | 'nota_credito.emitida'
   | 'nota.cambiada'
   | 'licitacion.participante'
   | 'licitacion.oferta'
-  | 'licitacion.cerrada';
+  | 'licitacion.cerrada'
+  | 'red.reiniciada';
 
 /** Lo que viaja en `red:evento` por Socket.io. */
 export interface EventoRed {

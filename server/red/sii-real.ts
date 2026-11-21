@@ -1,7 +1,7 @@
 import { ErrorSii } from '../sii/index.ts';
 import type { EstadoDocumento, Log, Receptor, ResultadoEmision, Sii } from '../sii/index.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
-import type { PuertoSii, ResultadoSii } from './sii.ts';
+import type { CambioEstadoSii, PuertoSii, ResultadoSii } from './sii.ts';
 import type { Item, OrdenCompra } from './tipos.ts';
 
 // Adaptador de PuertoSii sobre el módulo SII (server/sii/index.ts), solo certificación.
@@ -88,6 +88,16 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
   const resultado = (r: RegistroFolio): ResultadoSii =>
     ({ folio: r.folio, trackId: r.trackId, estadoSii: r.estado === 'reservado' ? 'incierto' : r.estado });
 
+  // La red escucha aquí los cambios de estado posteriores a la emisión y actualiza el documento.
+  const oyentes = new Set<(cambio: CambioEstadoSii) => void>();
+  const avisar = (r: RegistroFolio) => {
+    if (r.tipo !== 33 && r.tipo !== 52 && r.tipo !== 61) return;
+    const cambio: CambioEstadoSii = { tipo: r.tipo, folio: r.folio, estadoSii: resultado(r).estadoSii };
+    for (const oyente of oyentes) {
+      try { oyente(cambio); } catch (error) { log.error('[sii] oyente de cambio de estado falló', error); }
+    }
+  };
+
   function emitir(tipo: 33 | 52 | 61, ordenId: string, armar: (folio: number) => Promise<ResultadoEmision>) {
     return enCola(async () => {
       const nombre = `${NOMBRE[tipo]} de ${ordenId}`;
@@ -128,8 +138,8 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     });
   }
 
-  // Veredicto del envío fuera del pedido HTTP. Queda en el almacén y en el log; la red no tiene
-  // un evento para cambiar el estado de un documento ya emitido, así que la pantalla sigue viendo `recibido`.
+  // Veredicto del envío fuera del pedido HTTP. Queda en el almacén y en el log, y se avisa a la red,
+  // que actualiza el documento y emite `documento.actualizado`.
   async function seguir(registro: RegistroFolio) {
     for (let intento = 1; intento <= INTENTOS_SEGUIMIENTO; intento++) {
       await esperar(ESPERA_SEGUIMIENTO_MS);
@@ -139,6 +149,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
       const conteo = estado.porTipo.find(c => c.tipo === registro.tipo);
       const veredicto: EstadoFolio = conteo?.aceptados ? 'aceptado' : conteo?.reparos ? 'reparo' : 'rechazado';
       await guardar(registro, { estado: veredicto, detalle: estado.respuesta });
+      avisar(registro);
       (veredicto === 'rechazado' ? log.error : log.info)(`[sii] tipo ${registro.tipo} folio ${registro.folio}: ${veredicto}. Respuesta:\n${estado.respuesta}`);
       return;
     }
@@ -146,6 +157,10 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
   }
 
   return {
+    alCambiarEstado(oyente) {
+      oyentes.add(oyente);
+    },
+
     emitirFactura: ({ orden }) => emitir(33, orden.id, folio => sii.emitirFactura({
       folio, receptor, items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompra(orden),
     })),
@@ -184,7 +199,9 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
       const cambio = nuevo[estado.codigo];
       // Un DOK no pisa un veredicto ya conocido (aceptado, reparo, rechazado).
       const mantener = cambio === 'recibido' && ['aceptado', 'reparo', 'rechazado'].includes(registro.estado);
+      const anterior = registro.estado;
       await guardar(registro, { ...(cambio && !mantener ? { estado: cambio } : {}), detalle: estado.respuesta });
+      if (registro.estado !== anterior) avisar(registro);
       log.info(`[sii] QueryEstDte tipo ${tipo} folio ${folio}: ${estado.codigo} ${estado.glosa ?? ''} ${estado.glosaError ?? ''}`);
       return { registro, estado };
     },
