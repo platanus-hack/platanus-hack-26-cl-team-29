@@ -1,6 +1,8 @@
 // Lectura del HTML del portal del SII (HTML 4 escrito a mano): etiquetas sin cerrar, atributos con y sin comillas
 // (`value = 1`), `value=` dentro de manejadores JavaScript y entidades HTML en los textos. Se lee por etiquetas, no por
 // expresiones sobre el cuerpo completo, y se clasifica sobre el texto visible ya decodificado.
+import { sinTildes } from '../../shared/texto.ts';
+
 
 export interface Etiqueta {
   nombre: string;
@@ -31,7 +33,7 @@ export const compactar = (texto: string): string => texto.replace(/\s+/g, ' ').t
 
 /** Mayúsculas sin tildes ni espacios repetidos: para comparar etiquetas y mensajes del SII. */
 export const normalizar = (texto: string): string =>
-  compactar(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  sinTildes(compactar(texto)).toUpperCase();
 
 const ATRIBUTO = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
 
