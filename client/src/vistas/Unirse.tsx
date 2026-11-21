@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { licitacionActual, resumenLicitacion } from '../red/derivar.ts';
-import { cantidadCon, cuentaRegresiva, dinero, unidadDe } from '../red/formato.ts';
+import { cantidadCon, contar, cuentaRegresiva, dinero, unidadDe } from '../red/formato.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 
 const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'Santiago', 'San Joaquín', 'La Florida', 'Las Condes', 'Maipú'];
@@ -75,7 +75,7 @@ export function Unirse() {
         )}
       </div>
       <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 14 }}>
-        {r.compradores} negocios, {cantidadCon(r.totalUnidades, lic.producto)} en total
+        {contar(r.compradores, 'negocio')}, {cantidadCon(r.totalUnidades, lic.producto)} en total
       </p>
     </section>
   );
@@ -103,7 +103,7 @@ export function Unirse() {
             </p>
           )}
           <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 14 }}>
-            Ya son {r.compradores} negocios, {cantidadCon(r.totalUnidades, lic.producto)} en total.
+            Ya son {contar(r.compradores, 'negocio')}, {cantidadCon(r.totalUnidades, lic.producto)} en total.
           </p>
         </section>
       </main>

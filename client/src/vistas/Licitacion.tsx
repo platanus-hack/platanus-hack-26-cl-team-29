@@ -1,14 +1,79 @@
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CurvaPrecio } from '../components/CurvaPrecio.tsx';
+import { useFilasQueCaben } from '../components/medidas.ts';
 import { Qr } from '../components/Qr.tsx';
-import { licitacionActual, resumenLicitacion, type OfertaVista } from '../red/derivar.ts';
-import { cantidadCon, cuentaRegresiva, dinero, nota, unidadDe } from '../red/formato.ts';
+import { licitacionActual, resumenLicitacion, type OfertaVista, type ResumenLicitacion } from '../red/derivar.ts';
+import { cantidadCon, contar, cuentaRegresiva, dinero, nota, unidadDe } from '../red/formato.ts';
+import type { Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 
-function detalleOferta(o: OfertaVista, cerrada: boolean): string {
-  const entrega = `entrega en ${o.plazoDias} ${o.plazoDias === 1 ? 'día' : 'días'}`;
-  if (o.riesgo) return `más barato, pero nota ${nota(o.nota)} y ${entrega}: pierde`;
-  return [`nota ${nota(o.nota)}`, entrega, o.gana ? (cerrada ? 'ganó' : 'va ganando') : ''].filter(Boolean).join(' · ');
+function detalleOferta(o: OfertaVista): string {
+  return `nota ${nota(o.nota)} · entrega en ${contar(o.plazoDias, 'día')}`;
+}
+
+function Grupo({ lic, r, cerrada }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean }) {
+  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(4, r.compradores);
+  const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
+  return (
+    <section className="tarjeta apilada">
+      <p className="etiqueta">Compradores en el grupo</p>
+      <div className="grupo-total">
+        <span className="numero-grande">{r.compradores}</span>
+        {r.delPublico > 0 && <span className="mono verde">+{r.delPublico} del público</span>}
+      </div>
+      <p className="sacos">{cantidadCon(r.totalUnidades, lic.producto)} en total</p>
+      <ul className="lista-grupo ajustable" ref={lista}>
+        {r.ultimos.slice(0, caben).map((p, i) => (
+          <li key={`${r.compradores - i}`}>
+            <span className="quien">
+              <span className="nombre">{p.nombre}</span>
+              {p.comuna && <span className="comuna">{p.comuna}</span>}
+            </span>
+            <span className="verde">+{cantidadCon(p.cantidad, lic.producto)}</span>
+          </li>
+        ))}
+      </ul>
+      {!cerrada && (
+        <div className="sumate">
+          <h3>Súmate como almacén</h3>
+          <div className="sumate-cuerpo">
+            <Qr className="qr" texto={urlUnirse} />
+            <div>
+              <p>Escanea y mira cómo baja el precio</p>
+              <p className="url">{urlUnirse.replace(/^https?:\/\//, '')}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Ofertas({ r, cerrada }: { r: ResumenLicitacion; cerrada: boolean }) {
+  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, r.ofertas.length);
+  return (
+    <section className="tarjeta apilada">
+      <p className="etiqueta">Ofertas de proveedores</p>
+      {r.ofertas.length ? (
+        <ul className="ofertas ajustable" ref={lista}>
+          {r.ofertas.slice(0, caben).map(o => (
+            <li key={o.proveedorId} className={`oferta ${o.gana ? 'gana' : ''} ${o.riesgo ? 'riesgo' : ''}`}>
+              <div className="nombre-oferta">{o.proveedor}</div>
+              <div className="linea">
+                <span className="precio">{dinero(o.precioUnitario)}</span>
+                <span className="detalle">{detalleOferta(o)}</span>
+              </div>
+              <p className="aviso">
+                {o.gana ? (cerrada ? 'Ganó la licitación' : 'Va ganando') : o.riesgo ? `Más barato, pero nota ${nota(o.nota)}: pierde` : ' '}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vacio">Esperando la primera oferta.</p>
+      )}
+    </section>
+  );
 }
 
 export function Licitacion() {
@@ -29,10 +94,9 @@ export function Licitacion() {
   const restante = Date.parse(lic.cierraEn) - ahora;
   const cerrada = lic.estado === 'cerrada' || restante <= 0;
   const unidad = unidadDe(lic.producto);
-  const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
 
   return (
-    <main className="pagina">
+    <main className="pagina proyeccion">
       <header className="lic-cabecera">
         <div>
           <div className="lic-meta">
@@ -51,35 +115,9 @@ export function Licitacion() {
       </header>
 
       <div className="lic-cuerpo">
-        <section className="tarjeta" style={{ display: 'flex', flexDirection: 'column' }}>
-          <p className="etiqueta">Compradores en el grupo</p>
-          <div className="grupo-total">
-            <span className="numero-grande">{r.compradores}</span>
-            {r.delPublico > 0 && <span className="mono verde">+{r.delPublico} del público</span>}
-          </div>
-          <p className="mono" style={{ margin: '16px 0 0', color: 'var(--color-muted)' }}>{cantidadCon(r.totalUnidades, lic.producto)} en total</p>
-          <ul className="lista-grupo">
-            {r.ultimos.map((p, i) => (
-              <li key={`${r.compradores - i}`}>
-                <span>{p.nombre}{p.comuna ? ` · ${p.comuna}` : ''}</span>
-                <span className="verde">+{cantidadCon(p.cantidad, lic.producto)}</span>
-              </li>
-            ))}
-          </ul>
-          <div style={{ flex: 1 }} />
-          {!cerrada && (
-            <div className="sumate">
-              <Qr className="qr" texto={urlUnirse} />
-              <div>
-                <h3>Súmate como almacén</h3>
-                <p>Escanea y mira cómo baja el precio</p>
-                <p className="url">{urlUnirse.replace(/^https?:\/\//, '')}</p>
-              </div>
-            </div>
-          )}
-        </section>
+        <Grupo lic={lic} r={r} cerrada={cerrada} />
 
-        <section className="tarjeta">
+        <section className="tarjeta apilada">
           <div className="mejor-oferta">
             <div>
               <p className="etiqueta">Mejor oferta por {unidad.singular}</p>
@@ -99,21 +137,7 @@ export function Licitacion() {
           <div className="leyenda"><i />cada punto es una contraoferta de un proveedor cuando el grupo crece</div>
         </section>
 
-        <section className="tarjeta">
-          <p className="etiqueta">Ofertas de proveedores</p>
-          {r.ofertas.length ? (
-            <ul className="ofertas">
-              {r.ofertas.slice(0, 5).map(o => (
-                <li key={o.proveedorId} className={`oferta ${o.gana ? 'gana' : ''} ${o.riesgo ? 'riesgo' : ''}`}>
-                  <div className="linea"><span>{o.proveedor}</span><span>{dinero(o.precioUnitario)}</span></div>
-                  <p>{detalleOferta(o, cerrada)}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="vacio">Esperando la primera oferta.</p>
-          )}
-        </section>
+        <Ofertas r={r} cerrada={cerrada} />
       </div>
     </main>
   );

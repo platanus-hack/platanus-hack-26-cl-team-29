@@ -1,7 +1,12 @@
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
-import { cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion, type FilaRanking } from '../red/derivar.ts';
-import { cantidadCon, dinero, haceCuanto, miles, nota } from '../red/formato.ts';
-import { useAhora, useRed } from '../red/useRed.ts';
+import { useFilasQueCaben } from '../components/medidas.ts';
+import {
+  cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion,
+  type CambioNota, type FilaRanking,
+} from '../red/derivar.ts';
+import { cantidadCon, contar, dinero, haceCuanto, miles, nota, unidadDe } from '../red/formato.ts';
+import type { EstadoRed } from '../red/tipos.ts';
+import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 
 function Contador({ valor, texto, color }: { valor: number; texto: string; color?: string }) {
   return (
@@ -18,12 +23,15 @@ function Fila({ fila }: { fila: FilaRanking }) {
   return (
     <li className={`fila-ranking ${c ? (baja ? 'baja' : 'sube') : ''}`}>
       <span className="puesto">{fila.puesto}</span>
-      <span>
-        {fila.proveedor.nombre}
-        {c && c.puestoAnterior !== fila.puesto && (
-          <span className="sub">{baja ? 'bajó' : 'subió'} del {c.puestoAnterior}.° al {fila.puesto}.° lugar</span>
+      <span className="quien">
+        <span className="nombre">{fila.proveedor.nombre}</span>
+        {c && (
+          <span className="sub">
+            {c.puestoAnterior !== fila.puesto
+              ? `${baja ? 'bajó' : 'subió'} del ${c.puestoAnterior}.° al ${fila.puesto}.° lugar`
+              : baja ? 'bajó su nota' : 'subió su nota'}
+          </span>
         )}
-        {c && c.puestoAnterior === fila.puesto && <span className="sub">{baja ? 'bajó su nota' : 'subió su nota'}</span>}
       </span>
       <span className="valor-nota">
         {c && <span className="tachado">{nota(c.anterior)}</span>}
@@ -33,13 +41,54 @@ function Fila({ fila }: { fila: FilaRanking }) {
   );
 }
 
+function Ranking({ estado, cambios, ahora }: { estado: EstadoRed; cambios: CambioNota[]; ahora: number }) {
+  const filas = ranking(estado, cambios);
+  const [lista, caben] = useFilasQueCaben<HTMLOListElement>(5, cambios.length);
+  // Si un proveedor que cambió queda fuera de las filas que caben, se muestra igual en la última.
+  const visibles = filas.slice(0, caben);
+  const fuera = filas.slice(caben).find(f => f.cambio);
+  if (fuera && visibles.length) visibles[visibles.length - 1] = fuera;
+  return (
+    <section className="tarjeta apilada">
+      <p className="etiqueta">
+        Mejores proveedores {cambios.length > 0 && <span className="magenta">· cambió {haceCuanto(new Date(cambios.at(-1)!.en).toISOString(), ahora)}</span>}
+      </p>
+      {filas.length ? (
+        <ol className="ranking ajustable" ref={lista}>{visibles.map(f => <Fila key={f.proveedor.id} fila={f} />)}</ol>
+      ) : (
+        <p className="vacio">Aún no hay proveedores con nota.</p>
+      )}
+    </section>
+  );
+}
+
+function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVisto[]; ahora: number }) {
+  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, eventos.length > 0);
+  return (
+    <section className="tarjeta apilada crece">
+      <p className="etiqueta">Pasando ahora</p>
+      {eventos.length ? (
+        <ul className="feed ajustable" ref={lista}>
+          {eventos.slice(0, caben).map(e => (
+            <li key={e.clave}>
+              <span className="texto">{describirEvento(e, estado)}</span>
+              <time dateTime={e.en}>{haceCuanto(e.en, ahora)}</time>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vacio">Todavía no pasa nada. Escribe por WhatsApp para empezar.</p>
+      )}
+    </section>
+  );
+}
+
 export function RedEnVivo() {
   const { estado, eventos, cambios, fuente } = useRed();
   const ahora = useAhora();
   if (!estado) return <Cargando />;
 
   const cuenta = contadores(estado);
-  const filas = ranking(estado, cambios).slice(0, 6);
   const orden = ordenActual(estado);
   const pasos = orden ? cicloDeOrden(estado, orden, eventos) : [];
   const item = orden?.items[0];
@@ -47,7 +96,7 @@ export function RedEnVivo() {
   const resumenLic = lic && resumenLicitacion(lic, estado);
 
   return (
-    <main className="pagina red">
+    <main className="pagina proyeccion red">
       <header className="red-cabecera">
         <div className="marca" aria-hidden>D</div>
         <h1 className="titulo-red">La red de compras, en vivo</h1>
@@ -63,7 +112,7 @@ export function RedEnVivo() {
               <>
                 <h2 className="orden-titulo">
                   {cantidadCon(item.cantidad, item.producto)} de {item.producto} a{' '}
-                  <span className="amarillo">{dinero(item.precioUnitario)}</span> por unidad
+                  <span className="amarillo">{dinero(item.precioUnitario)}</span> por {unidadDe(item.producto).singular}
                 </h2>
                 <p className="orden-partes">
                   {negocioPorId(estado, orden.compradorId)?.nombre ?? 'Comprador'} → {negocioPorId(estado, orden.proveedorId)?.nombre ?? 'Proveedor'} · {orden.id}
@@ -77,56 +126,28 @@ export function RedEnVivo() {
                     </li>
                   ))}
                 </ol>
-                <div className="carriles">
-                  <span><i style={{ background: 'var(--color-green)' }} />comprador</span>
-                  <span><i style={{ background: 'var(--color-primary)' }} />proveedor</span>
-                  <span><i style={{ background: 'var(--color-sii)' }} />SII, registro oficial</span>
-                </div>
               </>
             ) : (
               <p className="vacio">Esperando el primer pedido por WhatsApp.</p>
             )}
           </section>
 
-          <section className="tarjeta">
-            <p className="etiqueta">Pasando ahora</p>
-            {eventos.length ? (
-              <ul className="feed">
-                {eventos.slice(0, 7).map(e => (
-                  <li key={e.clave}>
-                    <span>{describirEvento(e, estado)}</span>
-                    <time dateTime={e.en}>{haceCuanto(e.en, ahora)}</time>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="vacio">Todavía no pasa nada. Escribe por WhatsApp para empezar.</p>
-            )}
-          </section>
+          <Feed estado={estado} eventos={eventos} ahora={ahora} />
         </div>
 
         <div className="columna">
           <div className="contadores">
-            <Contador valor={cuenta.negocios} texto="negocios" color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto="proveedores con nota" color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto="documentos en el SII" />
+            <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
+            <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
+            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} />
           </div>
-          <section className="tarjeta">
-            <p className="etiqueta">
-              Mejores proveedores {cambios.length > 0 && <span className="magenta">· cambió {haceCuanto(new Date(cambios.at(-1)!.en).toISOString(), ahora)}</span>}
-            </p>
-            {filas.length ? (
-              <ol className="ranking">{filas.map(f => <Fila key={f.proveedor.id} fila={f} />)}</ol>
-            ) : (
-              <p className="vacio">Aún no hay proveedores con nota.</p>
-            )}
-          </section>
+          <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           {lic && resumenLic && (
             <a className="tarjeta mini-lic" href="/licitacion">
               <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado === 'cerrada' && <span className="magenta">· cerrada</span>}</p>
               <div className="numero-grande">{resumenLic.mejor ? dinero(resumenLic.mejor.precioUnitario) : 'Sin ofertas'}</div>
               <p>
-                {resumenLic.compradores} negocios, {cantidadCon(resumenLic.totalUnidades, lic.producto)}
+                {contar(resumenLic.compradores, 'negocio')}, {cantidadCon(resumenLic.totalUnidades, lic.producto)}
                 {resumenLic.precioSolo !== undefined && <> · solo: <span className="tachado">{dinero(resumenLic.precioSolo)}</span></>}
               </p>
             </a>

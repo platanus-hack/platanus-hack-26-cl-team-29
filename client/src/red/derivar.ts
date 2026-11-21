@@ -1,7 +1,7 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
 import type { Documento, EstadoRed, EventoRed, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante } from './tipos.ts';
-import { cantidadCon, dinero, nota } from './formato.ts';
+import { cantidadCon, contar, dinero, nota, textoEstadoSii } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;
@@ -108,6 +108,11 @@ export function ordenActual(estado: EstadoRed): OrdenCompra | undefined {
   return [...estado.ordenes].sort((a, b) => Date.parse(b.creadaEn) - Date.parse(a.creadaEn))[0];
 }
 
+const conEstado = (texto: string, estadoSii: string | null | undefined) => {
+  const e = textoEstadoSii(estadoSii);
+  return e ? `${texto} · ${e}` : texto;
+};
+
 const AVANCE: Record<OrdenCompra['estado'], number> = {
   enviada: 0, confirmada: 1, facturada: 2, recibida: 3, reclamada: 3, corregida: 3,
 };
@@ -143,10 +148,10 @@ export function cicloDeOrden(estado: EstadoRed, orden: OrdenCompra, eventos: Eve
   const textos: Array<[string, Carril, string]> = [
     ['Pide', 'comprador', item ? `${comprador} pide ${cantidadCon(item.cantidad, item.producto)} de ${item.producto}` : comprador],
     ['Recibe la OC', 'proveedor', `${proveedor} dice "sí" por WhatsApp`],
-    ['Factura (33 con OC)', 'sii', factura?.folio ? `Folio ${factura.folio}, con la OC y la guía` : 'Emitida con la OC y la guía'],
-    ['Cuadre', 'comprador', orden.estado === 'recibida' ? 'OC vs. guía: llegó todo' : faltante ? `OC vs. guía: faltan ${faltante}` : 'OC vs. guía'],
-    ['Reclamo en el SII', 'sii', omitido(4) ? 'No hizo falta' : 'Falta parcial, en el SII'],
-    ['Nota de crédito', 'proveedor', omitido(5) ? 'No hizo falta' : nc?.folio ? `Folio ${nc.folio}, el mismo día` : 'El proveedor dice "sí" y sale'],
+    ['Factura (33 con OC)', 'sii', factura ? conEstado(`Folio ${factura.folio}`, factura.estadoSii) : 'Emitida con la OC y la guía'],
+    ['Cuadre', 'comprador', orden.estado === 'recibida' ? 'OC vs. guía: llegó todo' : faltante ? `OC vs. guía: ${faltante === 1 ? 'falta' : 'faltan'} ${faltante}` : 'OC vs. guía'],
+    ['Reclamo en el SII', 'sii', omitido(4) ? 'No hizo falta' : conEstado('Falta parcial', orden.reclamo?.estadoSii)],
+    ['Nota de crédito', 'proveedor', omitido(5) ? 'No hizo falta' : nc ? conEstado(`Folio ${nc.folio}, el mismo día`, nc.estadoSii) : 'El proveedor dice "sí" y sale'],
   ];
   return textos.map(([titulo, carril, detalle], i) => ({
     titulo,
@@ -253,7 +258,7 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
   const ganadora = evaluadas.find(o => o.proveedorId === idGanadora);
   const ofertas = evaluadas
     .map(o => ({ ...o, gana: o === ganadora, riesgo: !!ganadora && o !== ganadora && o.precioUnitario < ganadora.precioUnitario }))
-    .sort((a, b) => Number(b.gana) - Number(a.gana) || Number(a.riesgo) - Number(b.riesgo) || a.precioUnitario - b.precioUnitario);
+    .sort((a, b) => Number(b.gana) - Number(a.gana) || Number(b.riesgo) - Number(a.riesgo) || a.precioUnitario - b.precioUnitario);
   const mejor = ofertas.find(o => o.gana);
   // Sin precioSolo del backend, se usa la oferta más cara como referencia (solo si es mayor que la ganadora).
   const masCara = ofertas.length ? Math.max(...ofertas.map(o => o.precioUnitario)) : undefined;
@@ -302,12 +307,16 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
         : 'Nueva orden de compra';
     case 'orden.confirmada':
       return proveedor ? `${proveedor} confirmó la orden${comprador ? ` de ${comprador}` : ''}` : 'Orden confirmada';
-    case 'documento.emitido': {
+    case 'documento.emitido':
+    case 'documento.actualizado': {
       const doc = objeto(e.datos.documento);
       const tipo = numero(doc.tipo);
       const folio = numero(doc.folio);
       const nombre = tipo ? NOMBRE_DOC[tipo] : undefined;
-      return `${nombre ?? 'Documento'}${folio ? ` folio ${folio}` : ''} ${nombre ? 'emitida' : 'emitido'} en el SII`;
+      const titulo = `${nombre ?? 'Documento'}${folio ? ` folio ${folio}` : ''}`;
+      if (e.tipo === 'documento.emitido') return `${titulo} ${nombre ? 'emitida' : 'emitido'} en el SII`;
+      const estadoSii = textoEstadoSii(texto(doc.estadoSii));
+      return estadoSii ? `${titulo} · ${estadoSii}` : `${titulo} cambió de estado en el SII`;
     }
     case 'recepcion.registrada': {
       const faltante = numero(e.datos.faltante);
@@ -336,9 +345,12 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const precio = numero(objeto(e.datos.oferta).precioUnitario);
       return `${proveedor ?? 'Un proveedor'} ofertó${precio ? ` ${dinero(precio)} por unidad` : ''}`;
     }
-    case 'licitacion.cerrada':
+    case 'licitacion.cerrada': {
       const ganadora = negocioPorId(estado, texto(objeto(objeto(e.datos.licitacion).ganadora).proveedorId))?.nombre;
       return ganadora ? `Cerró la compra conjunta: gana ${ganadora}` : 'Cerró la compra conjunta';
+    }
+    case 'red.reiniciada':
+      return 'La red volvió al inicio de la demo';
   }
   return 'Algo cambió en la red';
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cambiosDeNota, cicloDeOrden, describirEvento, normalizarEstado, precioAjustado, ranking, resumenLicitacion } from '../client/src/red/derivar.ts';
-import { cuentaRegresiva, dinero, nota } from '../client/src/red/formato.ts';
+import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -22,6 +22,9 @@ test('formatea dinero chileno y notas con coma', () => {
   assert.equal(dinero(1234567), '$1.234.567');
   assert.equal(nota(4.2), '4,2');
   assert.equal(cuentaRegresiva(272_000), '04:32');
+  assert.equal(contar(1, 'negocio'), '1 negocio');
+  assert.equal(contar(3, 'día'), '3 días');
+  assert.equal(textoEstadoSii('aceptado'), 'aceptado por el SII');
   assert.equal(cuentaRegresiva(7_171_000), '1:59:31');
 });
 
@@ -44,10 +47,11 @@ test('una nota que baja se detecta y el ranking muestra de qué puesto cayó', (
 test('el ciclo de una orden reclamada marca el reclamo y deja la nota de crédito pendiente', () => {
   const e = base();
   e.ordenes = [{ id: 'o1', compradorId: 'x', proveedorId: 'b', estado: 'reclamada', creadaEn: '2026-11-21T12:00:00Z', items: [{ producto: 'Harina 25 kg', cantidad: 4, precioUnitario: 18500 }] }];
-  e.documentos = [{ id: 'd', ordenId: 'o1', tipo: 33, folio: 10, trackId: null, estadoSii: null }];
+  e.documentos = [{ id: 'd', ordenId: 'o1', tipo: 33, folio: 10, trackId: null, estadoSii: 'aceptado' }];
   const pasos = cicloDeOrden(e, e.ordenes[0], [{ tipo: 'recepcion.registrada', datos: { ordenId: 'o1', faltante: 2 }, en: '' }]);
   assert.deepEqual(pasos.map(p => p.estado), ['hecho', 'hecho', 'hecho', 'hecho', 'ultimo', 'pendiente']);
   assert.match(pasos[3].detalle, /faltan 2/);
+  assert.equal(pasos[2].detalle, 'Folio 10 · aceptado por el SII');
 });
 
 test('gana el menor precio ajustado por nota y plazo; la más barata con mala nota se marca', () => {
@@ -83,4 +87,9 @@ test('el feed lee los datos con la forma del contrato', () => {
   assert.equal(describirEvento({ tipo: 'orden.creada', datos: { orden }, en: '' }, e), 'Almacén Equis pidió 4 sacos a Panificadora Uno');
   assert.equal(describirEvento({ tipo: 'documento.emitido', datos: { documento: { tipo: 33, folio: 7, ordenId: 'OC-1001' } }, en: '' }, e), 'Factura folio 7 emitida en el SII');
   assert.equal(describirEvento({ tipo: 'licitacion.participante', datos: { participante: { nombre: 'Kiosco Uno', comuna: 'Macul', cantidad: 2 } }, en: '' }, e), 'Kiosco Uno en Macul se sumó a la compra conjunta');
+});
+
+test('documento.actualizado muestra el nuevo estado en el SII', () => {
+  const ev = { tipo: 'documento.actualizado' as const, datos: { documento: { tipo: 33, folio: 7, estadoSii: 'aceptado' } }, en: '' };
+  assert.equal(describirEvento(ev, base()), 'Factura folio 7 · aceptado por el SII');
 });

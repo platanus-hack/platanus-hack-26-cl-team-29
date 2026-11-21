@@ -95,21 +95,23 @@ export type TipoEvento =
   | 'orden.creada'
   | 'orden.confirmada'
   | 'documento.emitido'
+  | 'documento.actualizado'
   | 'recepcion.registrada'
   | 'reclamo.registrado'
   | 'nota_credito.emitida'
   | 'nota.cambiada'
   | 'licitacion.participante'
   | 'licitacion.oferta'
-  | 'licitacion.cerrada';
+  | 'licitacion.cerrada'
+  | 'red.reiniciada';
 
 /**
  * Evento `red:evento` de Socket.io. `datos` según el contrato (entidades completas):
- * orden.creada/confirmada { orden }, documento.emitido { documento },
+ * orden.creada/confirmada { orden }, documento.emitido { documento }, documento.actualizado { documento },
  * recepcion.registrada { orden, conforme, faltante? }, reclamo.registrado { orden, reclamo, motivo },
  * nota_credito.emitida { orden, documento }, nota.cambiada { proveedorId, anterior, nota },
  * licitacion.participante { licitacion, participante }, licitacion.oferta { licitacion, oferta, nota },
- * licitacion.cerrada { licitacion, ordenes }. Se lee con cuidado por si falta algo.
+ * licitacion.cerrada { licitacion, ordenes }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
  */
 export interface EventoRed {
   tipo: TipoEvento;
