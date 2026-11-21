@@ -377,6 +377,40 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
 
 // ---------- La sala compra junta ----------
 
+export interface OfertaSala {
+  /** Número de llegada (estable, sirve de clave). */
+  n: number;
+  proveedorId: string;
+  proveedor: string;
+  precioUnitario: number;
+  nota?: number;
+  /** Es la mejor oferta vigente. */
+  gana: boolean;
+  /** Es el proveedor real que está en el escenario. */
+  enEscenario: boolean;
+}
+
+/**
+ * Proveedores compitiendo: las ofertas de la más nueva a la más vieja. Gana la `ganadora` del backend
+ * o, si no viene, la más barata (y entre iguales, la primera que llegó).
+ */
+export function competencia(lic: Licitacion, estado: EstadoRed): OfertaSala[] {
+  const conOrden = lic.ofertas.map((o, n) => ({ o, n }));
+  const llegada = conOrden.every(x => x.o.en) ? [...conOrden].sort((a, b) => Date.parse(a.o.en!) - Date.parse(b.o.en!)) : conOrden;
+  const mejor = lic.ganadora
+    ? llegada.find(x => x.o.proveedorId === lic.ganadora!.proveedorId && x.o.precioUnitario === lic.ganadora!.precioUnitario)
+    : llegada.reduce<(typeof llegada)[number] | undefined>((m, x) => (!m || x.o.precioUnitario < m.o.precioUnitario ? x : m), undefined);
+  return llegada.map(({ o, n }) => ({
+    n,
+    proveedorId: o.proveedorId,
+    proveedor: o.proveedorNombre ?? negocioPorId(estado, o.proveedorId)?.nombre ?? 'Proveedor',
+    precioUnitario: o.precioUnitario,
+    nota: o.nota ?? notaDe(estado, o.proveedorId),
+    gana: mejor?.n === n,
+    enEscenario: !!lic.proveedorId && o.proveedorId === lic.proveedorId,
+  })).reverse();
+}
+
 /** abierta → cerrada (espera el sí del proveedor) → facturando (llegan las facturas) → lista (total y ahorro). */
 export type FaseSala = 'abierta' | 'cerrada' | 'facturando' | 'lista';
 
@@ -459,7 +493,7 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
   const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, p) })).reverse();
   return {
     fase,
-    proveedor: negocioPorId(estado, lic.proveedorId ?? lic.ganadora?.proveedorId)?.nombre ?? 'el proveedor',
+    proveedor: negocioPorId(estado, lic.ganadora?.proveedorId ?? lic.proveedorId)?.nombre ?? lic.ganadora?.proveedorNombre ?? 'el proveedor',
     unidad: unidadDeLicitacion(lic),
     tramos,
     precioSolo: lic.precioSolo,
@@ -490,7 +524,7 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   const orden = estado.ordenes.find(o => o.id === idDeOrden(e)) ?? ordenDatos;
   const comprador = negocioPorId(estado, orden?.compradorId)?.nombre;
   const proveedorId = texto(e.datos.proveedorId) ?? texto(objeto(e.datos.oferta).proveedorId) ?? orden?.proveedorId;
-  const proveedor = negocioPorId(estado, proveedorId)?.nombre;
+  const proveedor = negocioPorId(estado, proveedorId)?.nombre ?? texto(objeto(e.datos.oferta).proveedorNombre);
   const item = orden?.items?.[0];
   switch (e.tipo) {
     case 'orden.creada':

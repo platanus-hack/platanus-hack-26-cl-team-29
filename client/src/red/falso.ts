@@ -6,7 +6,7 @@
 // la compra cierra, el proveedor dice que sí, salen las facturas una por una y el SII las acepta.
 // Después de un rato vuelve a empezar.
 
-import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, OrdenCompra, Participante, Tramo, TipoEvento } from './tipos.ts';
+import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, Tramo, TipoEvento } from './tipos.ts';
 import { calcularTramos } from './derivar.ts';
 
 export interface RedFalsa {
@@ -29,6 +29,11 @@ const TRAMOS: Tramo[] = [
   { desde: 100, precioUnitario: 24_500 },
 ];
 const PROVEEDOR_SALA = 'p-austral';
+/** Proveedores (agentes) que compiten por la compra de la sala; el primero es el que está en el escenario. */
+const COMPETIDORES = ['p-austral', 'p-andes', 'p-molinos', 'p-sur'];
+/** Ningún proveedor baja de aquí. */
+const PISO_OFERTA = 22_900;
+const OFERTA_MS = 6000;
 
 /** Número de relleno, claramente ficticio. */
 export const CONFIG_FALSA: ConfigRed = { whatsappNumero: '56900000000', producto: PRODUCTO, unidad: UNIDAD, unidadPlural: UNIDAD_PLURAL };
@@ -78,9 +83,15 @@ function* nombresDeLaSala(): Generator<[string, string]> {
   for (let i = 0; ; i++) yield [combos[i % combos.length], COMUNAS[Math.floor(Math.random() * COMUNAS.length)]];
 }
 
-/** Recalcula lo que el backend deriva de los participantes y los tramos. */
+const mejorOferta = (lic: Licitacion) =>
+  lic.ofertas.reduce<Oferta | undefined>((m, o) => (!m || o.precioUnitario < m.precioUnitario ? o : m), undefined);
+
+/** Recalcula lo que el backend deriva: el precio del tramo alcanzado o, si es menor, la mejor oferta. */
 function conDerivados(lic: Licitacion): Licitacion {
-  return { ...lic, ...calcularTramos(lic.participantes, lic.tramos, lic.precioSolo) };
+  const tramos = calcularTramos(lic.participantes, lic.tramos, lic.precioSolo);
+  const mejor = mejorOferta(lic)?.precioUnitario;
+  const precioActual = mejor !== undefined && tramos.precioActual !== undefined ? Math.min(mejor, tramos.precioActual) : tramos.precioActual;
+  return { ...lic, ...tramos, precioActual };
 }
 
 function sembrarLicitacion(id: string): Licitacion {
@@ -209,18 +220,37 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     e.negocios = [...e.negocios, negocio];
     modificarLicitacion(e, id, l => conDerivados({ ...l, participantes: [...l.participantes, participante] }));
     const nueva = licitacion(e, id)!;
-    const eventos: Array<[TipoEvento, Record<string, unknown>]> = [['licitacion.participante', { licitacion: nueva, participante }]];
-    if (lic.precioActual !== undefined && nueva.precioActual !== undefined && nueva.precioActual < lic.precioActual) {
-      eventos.push(['licitacion.precio_bajo', { licitacionId: id, precioAnterior: lic.precioActual, precioNuevo: nueva.precioActual, totalUnidades: nueva.totalUnidades }]);
-    }
-    return eventos;
+    return [['licitacion.participante', { licitacion: nueva, participante }], ...bajada(lic, nueva)];
+  };
+
+  const bajada = (antes: Licitacion, despues: Licitacion): Array<[TipoEvento, Record<string, unknown>]> =>
+    antes.precioActual !== undefined && despues.precioActual !== undefined && despues.precioActual < antes.precioActual
+      ? [['licitacion.precio_bajo', { licitacionId: despues.id, precioAnterior: antes.precioActual, precioNuevo: despues.precioActual, totalUnidades: despues.totalUnidades }]]
+      : [];
+
+  /** Un proveedor mejora: ofrece algo menos que el mejor precio de hoy (el del tramo o la mejor oferta). */
+  const ofertar = (id: string): Paso => e => {
+    const lic = licitacion(e, id);
+    if (!lic || lic.estado !== 'abierta' || lic.participantes.length < 3) return [];
+    const proveedorId = aleatorio(COMPETIDORES.filter(p => p !== mejorOferta(lic)?.proveedorId));
+    const referencia = lic.precioActual ?? PRECIO_SOLO;
+    const precioUnitario = Math.max(PISO_OFERTA, referencia - aleatorio([200, 300, 400, 500, 700]));
+    if (precioUnitario >= referencia) return [];
+    const nota = e.notas.find(n => n.proveedorId === proveedorId)?.nota;
+    const proveedorNombre = e.negocios.find(n => n.id === proveedorId)?.nombre;
+    const oferta: Oferta = { proveedorId, proveedorNombre, precioUnitario, plazoDias: 1, nota, en: ahoraIso() };
+    modificarLicitacion(e, id, l => conDerivados({ ...l, ofertas: [...l.ofertas, oferta] }));
+    const nueva = licitacion(e, id)!;
+    return [['licitacion.oferta', { licitacionId: id, licitacion: nueva, oferta, mejor: mejorOferta(nueva) === oferta }], ...bajada(lic, nueva)];
   };
 
   const cerrar = (id: string) => {
     publicar(e => {
       const lic = licitacion(e, id);
       if (!lic || lic.estado !== 'abierta') return [];
-      modificarLicitacion(e, id, l => ({ ...l, estado: 'cerrada', cierraEn: l.cierraEn > ahoraIso() ? ahoraIso() : l.cierraEn }));
+      const mejor = mejorOferta(lic);
+      const ganadora = mejor ? { ...mejor, nota: mejor.nota ?? 4.5, precioAjustado: mejor.precioUnitario } : undefined;
+      modificarLicitacion(e, id, l => ({ ...l, estado: 'cerrada', ganadora, cierraEn: l.cierraEn > ahoraIso() ? ahoraIso() : l.cierraEn }));
       return [['licitacion.cerrada', { licitacion: licitacion(e, id), ordenes: [] }]];
     });
     despues(ESPERA_SI_MS, () => confirmar(id));
@@ -233,7 +263,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     confirmadas.add(id);
     const precio = lic.precioActual ?? PRECIO_SOLO;
     const ordenes: OrdenCompra[] = lic.participantes.map((p, i) => ({
-      id: `o-${id}-${i}`, compradorId: p.negocioId ?? '', proveedorId: lic.proveedorId ?? PROVEEDOR_SALA,
+      id: `o-${id}-${i}`, compradorId: p.negocioId ?? '', proveedorId: lic.ganadora?.proveedorId ?? lic.proveedorId ?? PROVEEDOR_SALA,
       estado: 'confirmada', creadaEn: ahoraIso(), items: [{ producto: PRODUCTO, cantidad: p.cantidad, precioUnitario: precio }],
     }));
     publicar(e => {
@@ -301,7 +331,11 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
   };
 
   alCambiar(estado);
-  const timers = [setInterval(avanzarOrden, 4500), setInterval(avanzarSala, LLEGADA_MS)];
+  const competir = () => {
+    const lic = estado.licitaciones.find(l => l.estado === 'abierta');
+    if (lic) publicar(ofertar(lic.id));
+  };
+  const timers = [setInterval(avanzarOrden, 4500), setInterval(avanzarSala, LLEGADA_MS), setInterval(competir, OFERTA_MS)];
 
   return {
     detener() {

@@ -61,6 +61,9 @@ export interface Oferta {
   precioUnitario: number;
   plazoDias: number;
   en?: string;
+  /** Proveedores que compiten en la sala: el nombre y la nota vienen con la oferta. */
+  proveedorNombre?: string;
+  nota?: number;
 }
 
 /** Oferta ganadora al cerrar: la de menor precio ajustado por nota y plazo. */
@@ -142,7 +145,7 @@ export type TipoEvento =
  * orden.creada/confirmada { orden }, documento.emitido { documento }, documento.actualizado { documento },
  * recepcion.registrada { orden, conforme, faltante? }, reclamo.registrado { orden, reclamo, motivo },
  * nota_credito.emitida { orden, documento }, nota.cambiada { proveedorId, anterior, nota },
- * licitacion.participante { licitacion, participante }, licitacion.oferta { licitacion, oferta, nota },
+ * licitacion.participante { licitacion, participante }, licitacion.oferta { licitacionId, oferta, mejor } (antes { licitacion, oferta, nota }),
  * licitacion.cerrada { licitacion, ordenes }, licitacion.precio_bajo { licitacionId, precioAnterior, precioNuevo, totalUnidades },
  * licitacion.facturada { licitacionId, documentos (cantidad), total, ahorroTotal }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
  */
