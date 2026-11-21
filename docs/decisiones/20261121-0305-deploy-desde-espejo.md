@@ -19,3 +19,6 @@ El Action programado del espejo se atrasaba varios minutos y a veces horas. Ahor
 
 ## Actualización (2026-11-21 14:05): deploy on demand sin espejo
 El servicio de Render ahora construye directo desde el repo público de la organización, sin auto-deploy. El workflow `.github/workflows/desplegar.yml` le pide a Render desplegar el commit exacto de cada push a `main` (y se puede correr a mano). Usa los secretos `RENDER_API_KEY` y `RENDER_SERVICE_ID`. El espejo personal deja de ser necesario. Para volver atrás basta con apuntar el servicio de nuevo al espejo y reactivar su auto-deploy.
+
+## Actualización (2026-11-21 14:20): de vuelta al espejo
+Seguimos la recomendación de la organización: Render despliega desde el espejo personal, con auto-deploy. El workflow `.github/workflows/espejo.yml` empuja `main` al espejo en cada push, con el secreto `ESPEJO_TOKEN` (token de un integrante con permiso de escritura en el espejo). Se descarta construir desde el repo público de la organización: funcionaba, pero se rompe si el repo pasa a privado.
