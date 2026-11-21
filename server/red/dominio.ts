@@ -587,7 +587,7 @@ export async function crearRed({
     const tel = normalizarTelefono(telefono ?? '');
     if (!tel) throw new ErrorRed('datos_invalidos', 'Falta el teléfono del proveedor');
     // Sin respuesta del SII, el registro sigue con el nombre que dio: sus facturas salen con la ficha de su conexión al SII.
-    const delSii = await rutParaFactura({ rut, nombre }, false);
+    const delSii = await rutParaFactura({ rut, nombre, telefono }, false);
     return enFila('compradores', async () => {
       const existente = datos.negocios.find(n => normalizarTelefono(n.telefono) === tel);
       const n: Negocio = existente ?? {
@@ -630,7 +630,7 @@ export async function crearRed({
    * RUT que no son de empresas en certificación) y la persona dio su dirección, los que declaró: su factura igual sale a
    * su RUT, con el nombre de su negocio. Un RUT inválido o que el SII dice que no existe sigue fallando.
    */
-  async function rutParaFactura(q: Pick<DuenoCarrito, 'rut' | 'nombre' | 'direccionFactura'>, exigirDireccion = true): Promise<ContribuyenteDeRut> {
+  async function rutParaFactura(q: Pick<DuenoCarrito, 'rut' | 'nombre' | 'telefono' | 'direccionFactura'>, exigirDireccion = true): Promise<ContribuyenteDeRut> {
     try {
       return await consultarRut(q.rut!, q.telefono);
     } catch (error) {
