@@ -1,4 +1,4 @@
-# Bando: la red de compras de las pymes
+# Bando: la red de compras de negocios y empresas
 
 Un almacén, una panadería o un restaurante compra solo, caro y a ciegas: no sabe cuánto pagan los demás, no sabe qué proveedor cumple y pierde horas en órdenes de compra, facturas y reclamos en el SII. Bando junta a esos negocios en una red que compra mejor que cualquiera de ellos por separado.
 
