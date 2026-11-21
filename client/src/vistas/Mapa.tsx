@@ -174,7 +174,7 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
 /** Por dónde va el explorador de locales: cuántos lleva y a qué distancia del MUT. */
 function AvisoExploracion({ locales }: { locales: Locales }) {
   const { avance } = locales;
-  const que = avance.terminado ? 'Muestra lista' : avance.fase === 'reparto' ? 'Repartiendo la muestra' : 'Sumando locales hacia afuera';
+  const que = avance.terminado ? 'Todo Chile' : avance.fase === 'reparto' ? 'Repartiendo por Chile' : 'Sumando locales hacia afuera';
   return (
     <p className="mapa-exploracion" aria-live="polite">
       <i className={avance.terminado ? '' : 'activo'} />

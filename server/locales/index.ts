@@ -1,30 +1,39 @@
-// Locales alrededor del MUT: API pública del módulo. Fuera de server/locales/ se importa solo este archivo.
+// Locales de Chile, mostrados desde el MUT hacia afuera: API pública del módulo.
+// Fuera de server/locales/ se importa solo este archivo.
 //
-// GET /api/locales → { locales, avance }   (la foto completa)
-// Socket.io `locales:evento` → { nuevos, avance }   (cada celda recorrida, con los locales que no estaban)
+// GET /api/locales → { locales, avance, totalChile }   (la foto: lo que el explorador ya mostró)
+// Socket.io `locales:evento` → { nuevos, avance }   (cada celda recorrida, con sus locales)
+import { readFile } from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
 import express from 'express';
 import type pg from 'pg';
-import { crearAlmacenLocalesMemoria, crearAlmacenLocalesPostgres, sembrarDesdeArchivo, type AlmacenLocales } from './almacen.ts';
+import { crearAlmacenLocalesMemoria, crearAlmacenLocalesPostgres, type AlmacenLocales } from './almacen.ts';
 import { crearExplorador, type Hallazgo } from './explorador.ts';
-import { buscarEnOsm, MUT, recorrido } from './osm.ts';
+import { buscarEnCatalogo, recorrido, type Local } from './osm.ts';
 
-export { crearAlmacenLocalesArchivo } from './almacen.ts';
-export { crearExplorador } from './explorador.ts';
-export { buscarEnOsm } from './osm.ts';
 export type { Local } from './osm.ts';
 export type { Avance, Hallazgo } from './explorador.ts';
 
-export const RADIO_KM = 30;
+/** Catálogo de Chile versionado en el repo (lo arma `scripts/importar-locales-chile.ts`). */
+export const ARCHIVO_CATALOGO = 'data/locales-chile.json.gz';
 /**
- * Siempre una muestra, nunca el catastro completo:
- * reparto: cada 6 km se busca en un cuadrado de 1,5 km y se toman 8 locales (~100 celdas, la zona entera en ~25 min);
- * acumulando: celdas de 2 km con 12 locales cada una, del MUT hacia afuera (~780 celdas, unas 3 horas).
+ * reparto: celdas de 25 km con 6 locales cada una, por todo Chile;
+ * acumulando: celdas de 2 km con todos sus locales, del MUT hacia afuera.
  */
-const RECORRIDO = { reparto: { ladoKm: 6, cajaKm: 1.5, porCelda: 8 }, acumulando: { ladoKm: 2, porCelda: 12 } };
-const ESPERA_MS = 15_000;
-/** Muestra ya recorrida, versionada en el repo (la arma `scripts/explorar-locales.ts`). */
-export const ARCHIVO_LOCALES = 'data/locales-mut.json';
-export const CELDAS = recorrido(MUT, RADIO_KM, RECORRIDO);
+export const RECORRIDO = { reparto: { ladoKm: 25, porCelda: 6 }, acumulando: { ladoKm: 2 } };
+/** Pausa entre celdas: lo justo para que el mapa se vea crecer. */
+const ESPERA_MS = 1500;
+
+export async function leerCatalogo(ruta = ARCHIVO_CATALOGO): Promise<Local[]> {
+  try {
+    return JSON.parse(gunzipSync(await readFile(ruta)).toString('utf8')) as Local[];
+  } catch {
+    return [];
+  }
+}
+
+/** Lo que viaja al mapa: lo mínimo para dibujar cada punto. */
+const paraMapa = ({ id, nombre, tipo, lat, lng }: Local) => ({ id, nombre, tipo, lat, lng });
 
 export interface LocalesDelServidor {
   rutas: express.Router;
@@ -52,24 +61,24 @@ export async function iniciarLocales(
     console.warn('[locales] locales en memoria: tras un reinicio el recorrido vuelve al MUT. Configura DATABASE_URL.');
     almacen = crearAlmacenLocalesMemoria();
   }
-  const sembrados = await sembrarDesdeArchivo(almacen, ARCHIVO_LOCALES);
-  if (sembrados) console.warn(`[locales] ${sembrados} locales cargados desde ${ARCHIVO_LOCALES}`);
 
+  const catalogo = await leerCatalogo();
+  if (!catalogo.length) console.warn(`[locales] sin catálogo en ${ARCHIVO_CATALOGO}: el mapa no muestra locales`);
   const explorador = crearExplorador({
     almacen,
-    celdas: CELDAS,
-    buscar: buscarEnOsm,
+    celdas: recorrido(catalogo, RECORRIDO),
+    buscar: buscarEnCatalogo(catalogo),
     esperaMs: Number(env.LOCALES_ESPERA_MS) || ESPERA_MS,
-    alAvanzar: emitir,
+    alAvanzar: h => emitir({ ...h, nuevos: h.nuevos.map(paraMapa) as Local[] }),
     registrar: m => console.warn(m),
   });
-  if (env.LOCALES_EXPLORAR !== '0') {
+  if (env.LOCALES_EXPLORAR !== '0' && catalogo.length) {
     explorador.iniciar().catch(error => console.error('[locales] el explorador se detuvo', error));
   }
 
   const rutas = express.Router();
   rutas.get('/', async (_req, res) => {
-    res.json({ locales: await almacen.todos(), avance: await explorador.avance(), centro: MUT, radioKm: RADIO_KM });
+    res.json({ locales: (await almacen.todos()).map(paraMapa), avance: await explorador.avance(), totalChile: catalogo.length });
   });
   return { rutas, detener: () => explorador.detener() };
 }

@@ -1,9 +1,9 @@
-// Locales desde OpenStreetMap (Overpass API): qué se busca, en qué celdas y cómo se lee la respuesta.
-// Lógica pura salvo `buscarEnOsm`, para probarla sin red. Datos © OpenStreetMap (ODbL): la atribución va en el mapa.
+// Catálogo de locales de Chile desde OpenStreetMap: cómo se lee el extracto, en qué celdas se recorre y qué
+// muestra se toma de cada una. Lógica pura, sin red. Datos © OpenStreetMap (ODbL): la atribución va en el mapa.
 
 export type Punto = [lng: number, lat: number];
 
-/** Centro de la exploración: el MUT (Mercado Urbano Tobalaba). Coordenada aproximada. */
+/** Centro del recorrido: el MUT (Mercado Urbano Tobalaba). Coordenada aproximada. */
 export const MUT: Punto = [-70.601, -33.4178];
 
 /** Lo que compra y vende la red: dónde se cocina, se vende comida o se surte a otros negocios. */
@@ -12,8 +12,12 @@ const TIPOS: Record<string, string> = {
   convenience: 'almacén', supermarket: 'supermercado', bakery: 'panadería', butcher: 'carnicería', greengrocer: 'verdulería',
   deli: 'rotisería', alcohol: 'botillería', beverages: 'botillería', wholesale: 'mayorista',
 };
-const AMENITY = ['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'ice_cream'];
-const SHOP = ['convenience', 'supermarket', 'bakery', 'butcher', 'greengrocer', 'deli', 'alcohol', 'beverages', 'wholesale'];
+
+/** Filtro de `osmium tags-filter` que deja solo esos tipos (lo usa el importador). */
+export const FILTRO_OSMIUM = [
+  'nwr/amenity=restaurant,cafe,fast_food,bar,pub,ice_cream',
+  'nwr/shop=convenience,supermarket,bakery,butcher,greengrocer,deli,alcohol,beverages,wholesale',
+];
 
 export interface Local {
   /** Id de OpenStreetMap, por ejemplo "node/123". */
@@ -26,10 +30,14 @@ export interface Local {
   comuna?: string;
   web?: string;
   distanciaKm: number;
+  /** Cuándo lo mostró el explorador; vacío en el catálogo. */
   encontradoEn: string;
 }
 
-/** Un cuadrado del recorrido. `i` es su orden: primero la muestra repartida, después de adentro hacia afuera. */
+/** `reparto`: pocos locales repartidos por todo Chile. `acumulando`: todos, de adentro hacia afuera. */
+export type Fase = 'reparto' | 'acumulando';
+
+/** Una celda del recorrido. `i` es su orden: primero el reparto, después de adentro hacia afuera. */
 export interface Celda {
   i: number;
   sur: number;
@@ -38,12 +46,9 @@ export interface Celda {
   este: number;
   distanciaKm: number;
   fase: Fase;
-  /** Máximo de locales que se traen de esta celda: siempre es una muestra, nunca el catastro completo. */
+  /** Máximo de locales que se toman de esta celda. */
   limite: number;
 }
-
-/** `reparto`: pocos locales repartidos por toda la zona. `acumulando`: más muestra, de adentro hacia afuera. */
-export type Fase = 'reparto' | 'acumulando';
 
 const KM_POR_GRADO = 111.19;
 
@@ -52,88 +57,57 @@ export function distanciaKm(a: Punto, b: Punto): number {
   return Math.hypot(dx, a[1] - b[1]) * KM_POR_GRADO;
 }
 
-/**
- * Cuadrícula de `ladoKm` que cubre `radioKm` alrededor de `centro`, ordenada de adentro hacia afuera.
- * `cajaKm` es lo que se busca en cada celda, centrado en ella: menor que `ladoKm` deja huecos a propósito (muestra liviana).
- */
-export function celdas(centro: Punto, radioKm: number, ladoKm: number, fase: Fase, limite: number, cajaKm = ladoKm): Celda[] {
-  const dLat = ladoKm / KM_POR_GRADO;
-  const dLng = dLat / Math.cos(centro[1] * (Math.PI / 180));
-  const mLat = cajaKm / KM_POR_GRADO / 2;
-  const mLng = mLat / Math.cos(centro[1] * (Math.PI / 180));
-  const n = Math.ceil(radioKm / ladoKm);
-  const lista: Omit<Celda, 'i'>[] = [];
-  for (let fila = -n; fila <= n; fila++) {
-    for (let col = -n; col <= n; col++) {
-      const lng = centro[0] + col * dLng;
-      const lat = centro[1] + fila * dLat;
-      const distancia = distanciaKm(centro, [lng, lat]);
-      if (distancia - ladoKm * Math.SQRT1_2 > radioKm) continue; // ni una esquina toca el círculo
-      lista.push({ sur: lat - mLat, norte: lat + mLat, oeste: lng - mLng, este: lng + mLng, distanciaKm: distancia, fase, limite });
-    }
-  }
-  return lista.sort((a, b) => a.distanciaKm - b.distanciaKm).map((c, i) => ({ ...c, i }));
+/** Arma un local desde las etiquetas de OpenStreetMap. Sin nombre, posición o tipo conocido, no sirve. */
+export function localDesdeTags(id: string, lng: number, lat: number, t: Record<string, string | undefined>): Local | null {
+  const tipo = TIPOS[t.shop ?? ''] ?? TIPOS[t.amenity ?? ''];
+  const nombre = t.name?.trim();
+  if (!tipo || !nombre || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const local: Local = {
+    id,
+    nombre,
+    tipo,
+    lat: Number(lat.toFixed(6)),
+    lng: Number(lng.toFixed(6)),
+    distanciaKm: Number(distanciaKm(MUT, [lng, lat]).toFixed(1)),
+    encontradoEn: '',
+  };
+  const calle = t['addr:street'];
+  if (calle) local.direccion = t['addr:housenumber'] ? `${calle} ${t['addr:housenumber']}` : calle;
+  const comuna = t['addr:city'] ?? t['addr:suburb'];
+  if (comuna) local.comuna = comuna;
+  const web = t.website ?? t['contact:website'];
+  if (web) local.web = web;
+  // No se guardan teléfonos: el repo es público y algunos son números personales.
+  return local;
 }
 
-/**
- * El recorrido es siempre una muestra. Primero se reparte por toda la zona (un punto de búsqueda cada pocos km),
- * así el mapa tiene puntos en todas partes pronto; después se acumula más muestra en celdas chicas, del centro hacia afuera.
- */
-export function recorrido(
-  centro: Punto,
-  radioKm: number,
-  o: { reparto: { ladoKm: number; cajaKm: number; porCelda: number }; acumulando: { ladoKm: number; porCelda: number } },
-): Celda[] {
-  const reparto = celdas(centro, radioKm, o.reparto.ladoKm, 'reparto', o.reparto.porCelda, o.reparto.cajaKm);
-  const acumulando = celdas(centro, radioKm, o.acumulando.ladoKm, 'acumulando', o.acumulando.porCelda);
-  return [...reparto, ...acumulando].map((c, i) => ({ ...c, i }));
+/** Centro aproximado de un polígono: el promedio de su anillo exterior. */
+function centro(geometria: { type: string; coordinates: unknown }): Punto | null {
+  if (geometria.type === 'Point') return geometria.coordinates as Punto;
+  const anillo = geometria.type === 'Polygon' ? (geometria.coordinates as Punto[][])[0]
+    : geometria.type === 'MultiPolygon' ? (geometria.coordinates as Punto[][][])[0]?.[0] : undefined;
+  if (!anillo?.length) return null;
+  const suma = anillo.reduce<Punto>((s, p) => [s[0] + p[0], s[1] + p[1]], [0, 0]);
+  return [suma[0] / anillo.length, suma[1] / anillo.length];
 }
 
-/** Consulta Overpass para una celda: nodos, vías y relaciones con nombre (las vías traen su centro). */
-export function consulta(c: Celda): string {
-  const caja = `${c.sur.toFixed(5)},${c.oeste.toFixed(5)},${c.norte.toFixed(5)},${c.este.toFixed(5)}`;
-  return `[out:json][timeout:180];(nwr["amenity"~"^(${AMENITY.join('|')})$"]["name"](${caja});nwr["shop"~"^(${SHOP.join('|')})$"]["name"](${caja}););out center tags;`;
-}
-
-interface Elemento {
-  type: string;
-  id: number;
-  lat?: number;
-  lon?: number;
-  center?: { lat: number; lon: number };
-  tags?: Record<string, string>;
-}
-
-/** Lee la respuesta de Overpass. Descarta lo que no tiene nombre, posición o un tipo conocido. */
-export function leerElementos(respuesta: unknown, ahora: string): Local[] {
-  const elementos = (respuesta as { elements?: Elemento[] } | null)?.elements ?? [];
-  return elementos.flatMap(e => {
-    const t = e.tags ?? {};
-    const lat = e.lat ?? e.center?.lat;
-    const lng = e.lon ?? e.center?.lon;
-    const tipo = TIPOS[t.shop ?? ''] ?? TIPOS[t.amenity ?? ''];
-    const nombre = t.name?.trim();
-    if (lat === undefined || lng === undefined || !tipo || !nombre) return [];
-    const calle = t['addr:street'];
-    const local: Local = {
-      id: `${e.type}/${e.id}`,
-      nombre,
-      tipo,
-      lat: Number(lat.toFixed(6)),
-      lng: Number(lng.toFixed(6)),
-      distanciaKm: Number(distanciaKm(MUT, [lng, lat]).toFixed(2)),
-      encontradoEn: ahora,
-    };
-    if (calle) local.direccion = t['addr:housenumber'] ? `${calle} ${t['addr:housenumber']}` : calle;
-    const comuna = t['addr:city'] ?? t['addr:suburb'];
-    if (comuna) local.comuna = comuna;
-    const web = t.website ?? t['contact:website'];
-    if (web) local.web = web;
+/** Lee la salida de `osmium export -f geojsonseq -a type,id`: un Feature por línea. */
+export function leerGeojsonseq(texto: string): Local[] {
+  const vistos = new Set<string>();
+  return texto.split('\n').flatMap(linea => {
+    const limpia = linea.replace(/^\x1e/, '').trim();
+    if (!limpia) return [];
+    const f = JSON.parse(limpia) as { geometry?: { type: string; coordinates: unknown }; properties?: Record<string, string> };
+    const p = f.properties ?? {};
+    const punto = f.geometry && centro(f.geometry);
+    const id = `${p['@type']}/${p['@id']}`;
+    if (!punto || vistos.has(id)) return [];
+    const local = localDesdeTags(id, punto[0], punto[1], p);
+    if (!local) return [];
+    vistos.add(id);
     return [local];
   });
 }
-
-const OVERPASS = 'https://overpass-api.de/api/interpreter';
 
 /** Número estable a partir del id: la misma celda da siempre la misma muestra. */
 function hash(id: string): number {
@@ -142,22 +116,39 @@ function hash(id: string): number {
   return h >>> 0;
 }
 
-/**
- * Elige `limite` locales repartidos por la celda. Overpass, con límite, devuelve los primeros de su índice espacial
- * (todos en una esquina); por eso se pide la celda entera y se elige aquí, en un orden que parece al azar pero es fijo.
- */
+/** Elige `limite` locales repartidos por la celda, en un orden que parece al azar pero es siempre el mismo. */
 export function muestrear(locales: Local[], limite: number): Local[] {
   return [...locales].sort((a, b) => hash(a.id) - hash(b.id)).slice(0, limite);
 }
 
-/** Pide una celda a Overpass y devuelve su muestra. Lanza si responde mal (429 o 504 cuando está cargado): el explorador reintenta. */
-export async function buscarEnOsm(c: Celda): Promise<Local[]> {
-  const r = await fetch(OVERPASS, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'domino-red-de-compras (Platanus Hack 26)' },
-    body: new URLSearchParams({ data: consulta(c) }),
-    signal: AbortSignal.timeout(200_000),
-  });
-  if (!r.ok) throw new Error(`Overpass respondió ${r.status}`);
-  return muestrear(leerElementos(await r.json(), new Date().toISOString()), c.limite);
+/** Celdas de `ladoKm` que tienen al menos un local, de la más cercana al MUT a la más lejana. */
+function celdasConLocales(catalogo: Local[], ladoKm: number, fase: Fase, limite: number): Omit<Celda, 'i'>[] {
+  const dLat = ladoKm / KM_POR_GRADO;
+  const dLng = dLat / Math.cos(MUT[1] * (Math.PI / 180));
+  const claves = new Set(catalogo.map(l => `${Math.floor((l.lng - MUT[0]) / dLng + 0.5)},${Math.floor((l.lat - MUT[1]) / dLat + 0.5)}`));
+  return [...claves].map(clave => {
+    const [col, fila] = clave.split(',').map(Number);
+    const lng = MUT[0] + col * dLng;
+    const lat = MUT[1] + fila * dLat;
+    return { sur: lat - dLat / 2, norte: lat + dLat / 2, oeste: lng - dLng / 2, este: lng + dLng / 2, distanciaKm: distanciaKm(MUT, [lng, lat]), fase, limite };
+  }).sort((a, b) => a.distanciaKm - b.distanciaKm);
+}
+
+/**
+ * El recorrido: primero una muestra repartida por todo Chile (celdas grandes, pocos locales cada una), así el mapa
+ * tiene puntos en todas partes pronto; después todas las celdas chicas desde el MUT hacia afuera, con todos sus locales.
+ */
+export function recorrido(catalogo: Local[], o: { reparto: { ladoKm: number; porCelda: number }; acumulando: { ladoKm: number } }): Celda[] {
+  const reparto = celdasConLocales(catalogo, o.reparto.ladoKm, 'reparto', o.reparto.porCelda);
+  const acumulando = celdasConLocales(catalogo, o.acumulando.ladoKm, 'acumulando', Number.MAX_SAFE_INTEGER);
+  return [...reparto, ...acumulando].map((c, i) => ({ ...c, i }));
+}
+
+/** Los locales de una celda (su muestra), marcados con la hora en que se encontraron. */
+export function buscarEnCatalogo(catalogo: Local[]): (c: Celda) => Promise<Local[]> {
+  return async c => {
+    const dentro = catalogo.filter(l => l.lat >= c.sur && l.lat < c.norte && l.lng >= c.oeste && l.lng < c.este);
+    const ahora = new Date().toISOString();
+    return muestrear(dentro, c.limite).map(l => ({ ...l, encontradoEn: ahora }));
+  };
 }

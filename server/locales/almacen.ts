@@ -1,5 +1,4 @@
 // Dónde quedan los locales encontrados y hasta qué celda va el recorrido. Postgres si hay base; si no, memoria.
-import { readFile, rename, writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { Local } from './osm.ts';
 
@@ -69,51 +68,4 @@ export async function crearAlmacenLocalesPostgres(db: pg.Pool): Promise<AlmacenL
       );
     },
   };
-}
-
-/** Lo que se guarda en el JSON: la muestra encontrada y hasta qué celda va el recorrido. */
-export interface ArchivoLocales {
-  siguienteCelda: number;
-  locales: Local[];
-}
-
-export async function leerArchivoLocales(ruta: string): Promise<ArchivoLocales | null> {
-  try {
-    const datos = JSON.parse(await readFile(ruta, 'utf8')) as ArchivoLocales;
-    return Array.isArray(datos.locales) && Number.isInteger(datos.siguienteCelda) ? datos : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Memoria que además vuelca todo a un JSON tras cada celda (escritura atómica). Lo usa el script del explorador. */
-export async function crearAlmacenLocalesArchivo(ruta: string): Promise<AlmacenLocales> {
-  const memoria = crearAlmacenLocalesMemoria();
-  const previo = await leerArchivoLocales(ruta);
-  if (previo) {
-    await memoria.guardar(previo.locales);
-    await memoria.marcarCelda(previo.siguienteCelda);
-  }
-  const volcar = async () => {
-    const locales = (await memoria.todos()).sort((a, b) => a.distanciaKm - b.distanciaKm);
-    const datos: ArchivoLocales = { siguienteCelda: await memoria.siguienteCelda(), locales };
-    await writeFile(`${ruta}.tmp`, `${JSON.stringify(datos, null, 1)}\n`);
-    await rename(`${ruta}.tmp`, ruta);
-  };
-  return {
-    ...memoria,
-    async marcarCelda(n) {
-      await memoria.marcarCelda(n);
-      await volcar();
-    },
-  };
-}
-
-/** Arranca desde el JSON del repo si el almacén está más atrás: producción parte con la muestra ya recorrida. */
-export async function sembrarDesdeArchivo(almacen: AlmacenLocales, ruta: string): Promise<number> {
-  const archivo = await leerArchivoLocales(ruta);
-  if (!archivo || archivo.siguienteCelda <= (await almacen.siguienteCelda())) return 0;
-  const nuevos = await almacen.guardar(archivo.locales);
-  await almacen.marcarCelda(archivo.siguienteCelda);
-  return nuevos.length;
 }

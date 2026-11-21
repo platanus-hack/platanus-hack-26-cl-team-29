@@ -9,7 +9,7 @@ export interface Avance {
   total: number;
   /** Distancia al MUT de la última celda recorrida. */
   distanciaKm: number;
-  /** `reparto` mientras se reparte por toda la zona; `acumulando` al sumar muestra de adentro hacia afuera. */
+  /** `reparto` mientras se reparte por todo Chile; `acumulando` al sumar todos los locales de adentro hacia afuera. */
   fase: Celda['fase'];
   /** La celda que se está buscando ahora, para dibujarla en el mapa. Null al terminar. */
   buscando: Celda | null;
@@ -25,7 +25,7 @@ export interface OpcionesExplorador {
   almacen: AlmacenLocales;
   celdas: Celda[];
   buscar: (c: Celda) => Promise<Local[]>;
-  /** Pausa entre celdas, para no cargar Overpass (servicio público y gratuito). */
+  /** Pausa entre celdas, para que el mapa se vea crecer. */
   esperaMs: number;
   alAvanzar: (h: Hallazgo) => void;
   registrar?: (mensaje: string) => void;
@@ -38,7 +38,7 @@ export interface Explorador {
   avance(): Promise<Avance>;
 }
 
-/** Tras un error de Overpass (cargado, sin red) se espera más antes de reintentar la misma celda. */
+/** Tras un error (por ejemplo, la base no responde) se espera más antes de reintentar la misma celda. */
 const MULTIPLICADOR_ERROR = 4;
 
 export function crearExplorador(o: OpcionesExplorador): Explorador {
