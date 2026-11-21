@@ -88,7 +88,9 @@ export async function iniciarProveedores(o: OpcionesProveedores) {
     const fichas = armarFichas(o.red.estadoDeLaRed(), foto, rut => enriquecedor.de(rut));
     ultimo = { foto, version, indice: indexar(fichas) };
     // Los que más venden primero: son los que más se buscan.
-    if (conSii) enriquecedor.pedirSii(fichas.filter(f => f.rut).sort((a, b) => b.organismos - a.organismos).map(f => f.rut!));
+    // Las órdenes de ejemplo traen RUT ficticios: no se consultan (podrían ser de una empresa real).
+    const consultables = fichas.filter(f => f.rut && (foto.fuente !== 'ejemplo' || f.fuentes.some(x => x.tipo === 'bando')));
+    if (conSii) enriquecedor.pedirSii(consultables.sort((a, b) => b.organismos - a.organismos).map(f => f.rut!));
     enriquecedor.pedirClasificacion(ambiguos(fichas, rut => enriquecedor.de(rut)));
     return ultimo.indice;
   }
