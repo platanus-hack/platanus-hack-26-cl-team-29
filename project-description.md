@@ -1,6 +1,6 @@
 # Bando: la red de compras de negocios y empresas
 
-Un almacén, una panadería o un restaurante compra solo, caro y a ciegas: no sabe cuánto pagan los demás, no sabe qué proveedor cumple y pierde horas en órdenes de compra, facturas y reclamos en el SII. Bando junta a esos negocios en una red que compra mejor que cualquiera de ellos por separado.
+Un almacén, una panadería o un restaurante pierde horas cada mes en el SII: emitir facturas, revisar las que recibe, reclamar antes de 8 días y declarar a tiempo. Si se equivoca, paga: de 10% a 30% de multa por declarar tarde y de 50% a 500% del monto si no factura, con riesgo de clausura (Código Tributario, art. 97). Además compra solo, caro y a ciegas. Bando junta a esos negocios en una red que compra mejor que cualquiera de ellos por separado y hace el trabajo del SII por ellos, desde WhatsApp.
 
 ## Cómo funciona
 
