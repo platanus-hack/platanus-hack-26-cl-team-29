@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-App web multiplayer en tiempo real para Platanus Hack 26 (track Multiplayer). **Monolito**: un solo servicio en Render. El backend (`server/`) sirve la API, Socket.io y el front compilado (`client/` → `dist/`). Front y back nunca importan código uno del otro; se hablan solo por HTTP y Socket.io.
+App web multiplayer en tiempo real para Platanus Hack 26 (track Multiplayer). **Monolito**: un solo servicio en Render. El backend (`server/`) sirve la API, Socket.io y el front compilado (`client/` → `dist/`). Front y back nunca importan código uno del otro; se hablan solo por HTTP y Socket.io. Lo que ambos necesitan (funciones puras) vive en `shared/`.
 
 Contexto del proyecto (prioridades, flujo, documentación, repo público): @AGENTS.md
 
@@ -31,13 +31,18 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - `npm test` → tests.
 
 ## Cómo escribir código
-- **Sigue el código que ya existe**: mismos patrones, nombres y estilo. Antes de crear un helper, busca si ya hay uno.
+Código prolijo, limpio y elegante, pensado para iterar rápido sin romper: que mañana otro agente lo entienda y lo cambie en un solo lugar.
+
+- **Una sola fuente de verdad.** Ninguna lógica, formato, tabla ni texto se copia en dos lugares. Antes de escribir un helper, búscalo (`grep`); si existe, úsalo; si está casi, generalízalo. Una copia "por mientras" es una deuda que nadie paga: no se mergea.
+- **`shared/` para lo que usan front y back:** funciones puras y tipos (formatos de dinero y fecha, RUT, teléfonos, tramos de precio, cálculo de notas, textos compartidos). Sin dependencias, sin E/S, sin estado; se importa desde `client/` y `server/`. Si algo tiene que vivir en los dos lados, va ahí.
+- **Helpers chicos y con nombre que dice qué hacen**, en el módulo dueño del tema (formatos en `shared/formato.ts`, RUT en `shared/rut.ts`, etc.). Nada de `utils.ts` genéricos.
+- **Sigue el código que ya existe**: mismos patrones, nombres y estilo.
 - **SOLID con criterio**: una responsabilidad por módulo/función, depender de interfaces solo donde hay más de una implementación real. Nada de abstracciones especulativas.
 - Funciones chicas, nombres claros, sin código muerto ni scaffolding "para después".
 - Las erasable-only features de TS (no `enum`, no `namespace`, no parameter properties): Node solo quita tipos.
 - El puerto siempre desde `process.env.PORT`. Secretos solo por variables de entorno, nunca en el repo.
 - UI y textos para el usuario en español.
-- **Todo monto de dinero va con separador de miles**, en formato chileno: `$1.234.567`, sin decimales. Siempre por el formateador común (`dinero()` de `client/src/red/formato.ts` en el front, `dinero()` de `server/agente/mensajes.ts` en los mensajes, el de `server/sii/pdf.ts` en el PDF); nunca un número crudo ni un `toLocaleString` suelto. Aplica a la web, las pantallas proyectadas, WhatsApp, los PDF y los logs que lee una persona. Folios, años y RUT no son montos: el folio va sin separador y el RUT con su formato (12.345.678-5).
+- **Todo monto de dinero va con separador de miles**, en formato chileno: `$1.234.567`, sin decimales. Siempre por el único formateador común (`dinero()` de `shared/formato.ts`); nunca un número crudo ni un `toLocaleString` suelto. Aplica a la web, las pantallas proyectadas, WhatsApp, los PDF y los logs que lee una persona. Folios, años y RUT no son montos: el folio va sin separador y el RUT con su formato (12.345.678-5).
 
 ## Tiempo real (regla fija)
 - **Todo lo que se ve en pantalla se actualiza solo, en vivo.** Ninguna vista depende de recargar la página ni de un botón "actualizar".
@@ -47,6 +52,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - Antes de dar por terminada una pantalla, pruébala con dos ventanas abiertas: lo que haces en una tiene que verse en la otra sin tocar nada.
 
 ## Tests
+- `npm run duplicados` detecta código copiado (jscpd) y tiene que pasar antes de cada commit, igual que `build` y `test`.
 - **Chicos y enfocados**: un test por comportamiento importante (lógica de negocio, sync en tiempo real, manejo de conflictos). Sin frameworks extra: `node:test` + `node:assert`.
 - No testear trivialidades ni mockear todo. Un test que se cae si la lógica se rompe vale más que diez de cobertura.
 - Ejemplo de referencia: `test/server.test.ts`.
