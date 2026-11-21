@@ -1,17 +1,6 @@
-// Formatos chilenos: $17.200, nota 4,7, tiempos relativos y cuenta regresiva.
-
-export function dinero(monto: number): string {
-  const entero = Math.round(Math.abs(monto)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${monto < 0 ? '-' : ''}$${entero}`;
-}
-
-export function miles(n: number): string {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-}
-
-export function nota(valor: number): string {
-  return valor.toFixed(1).replace('.', ',');
-}
+// Formatos de las pantallas: tiempos relativos, cuenta regresiva y cómo se cuenta cada producto.
+// Dinero, miles y notas están en shared/formato.ts.
+import { miles } from '../../../shared/formato.ts';
 
 export function haceCuanto(en: string, ahora: number): string {
   const segundos = Math.max(0, Math.round((ahora - Date.parse(en)) / 1000));

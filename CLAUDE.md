@@ -16,6 +16,7 @@ Contexto del proyecto (prioridades, flujo, documentación, repo público): @AGEN
 server/            # BACKEND: index.ts = Express + Socket.io + pg; sirve dist/
 server/whatsapp/   # módulo de WhatsApp (Kapso), con dueño: se usa vía index.ts, no se edita (ver su README)
 client/            # FRONTEND: index.html + src/ (React; componentes en client/src/components/)
+shared/            # funciones puras y tipos que usan front y back (dinero, RUT, teléfonos, tramos): sin dependencias ni E/S
 test/              # tests con node:test (*.test.ts)
 agents/            # estado de cada agente (ver agents/README.md)
 docs/              # decisiones y hallazgos, un archivo por entrada (ver docs/README.md)
@@ -29,6 +30,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - `npm start` + `npm run dev` → desarrollo (front en :5173, backend en :3000).
 - `npm run build` → typecheck (`tsc`) + build de Vite. Tiene que pasar antes de cada commit.
 - `npm test` → tests.
+- `npm run duplicados` → busca código copiado (jscpd, config en `.jscpd.json`). Tiene que pasar antes de cada commit.
 
 ## Cómo escribir código
 Código prolijo, limpio y elegante, pensado para iterar rápido sin romper: que mañana otro agente lo entienda y lo cambie en un solo lugar.

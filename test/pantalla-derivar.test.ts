@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
-import { contar, cuentaRegresiva, dinero, formatearTelefono, nota, textoEstadoSii } from '../client/src/red/formato.ts';
+import { contar, cuentaRegresiva, formatearTelefono, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -17,10 +17,7 @@ const base = (): EstadoRed => ({
   licitaciones: [],
 });
 
-test('formatea dinero chileno y notas con coma', () => {
-  assert.equal(dinero(17200), '$17.200');
-  assert.equal(dinero(1234567), '$1.234.567');
-  assert.equal(nota(4.2), '4,2');
+test('formatea cuenta regresiva, conteos y estados del SII', () => {
   assert.equal(cuentaRegresiva(272_000), '04:32');
   assert.equal(contar(1, 'negocio'), '1 negocio');
   assert.equal(contar(3, 'día'), '3 días');

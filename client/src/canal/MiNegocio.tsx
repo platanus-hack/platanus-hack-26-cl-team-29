@@ -3,7 +3,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { contar, cuantos, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { contar, cuantos, cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';

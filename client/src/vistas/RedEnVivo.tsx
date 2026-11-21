@@ -6,7 +6,8 @@ import {
   cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, totalesCanasta, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
-import { contar, dinero, haceCuanto, miles, nota, pedidoDe, unidadDe } from '../red/formato.ts';
+import { dinero, miles, nota } from '../../../shared/formato.ts';
+import { contar, haceCuanto, pedidoDe, unidadDe } from '../red/formato.ts';
 import type { EstadoRed, EventoRed, TipoEvento } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 

@@ -4,7 +4,8 @@
 
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { contar, cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';

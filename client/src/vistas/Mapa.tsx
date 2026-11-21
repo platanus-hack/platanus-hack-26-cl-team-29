@@ -14,7 +14,7 @@ import { LogoSii } from '../components/Iconos.tsx';
 import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
 import { contadores, notaDe, type CambioNota } from '../red/derivar.ts';
-import { miles, nota } from '../red/formato.ts';
+import { miles, nota } from '../../../shared/formato.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';

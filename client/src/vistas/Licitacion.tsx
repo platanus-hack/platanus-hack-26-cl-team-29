@@ -9,7 +9,8 @@ import {
   estadoTramos, licitacionActual, licitacionDeProducto, negocioPorId, productosDeCanasta, resumenLicitacion, tieneTramos, totalesCanasta,
   unidadDeLicitacion, type OfertaVista, type ProductoSala, type ResumenLicitacion, type TotalesCanasta,
 } from '../red/derivar.ts';
-import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { contar, cuentaRegresiva } from '../red/formato.ts';
 import type { EstadoRed, Fuente, Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 

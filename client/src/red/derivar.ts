@@ -1,7 +1,8 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
 import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
-import { cantidadCon, contar, dinero, nota, pedidoDe, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { cantidadCon, contar, pedidoDe, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;

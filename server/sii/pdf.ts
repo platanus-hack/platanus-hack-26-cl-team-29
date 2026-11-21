@@ -4,6 +4,7 @@
 // El logo del SII no forma parte de la representación impresa.
 import bwipjs from 'bwip-js';
 import PDFDocument from 'pdfkit';
+import { dinero } from '../../shared/formato.ts';
 import type { DocumentoImpreso, LineaImpresa, ReferenciaImpresa } from './tipos.ts';
 
 const ROJO = '#C8102E';
@@ -47,9 +48,7 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 /** "FACTURA ELECTRÓNICA", "GUÍA DE DESPACHO ELECTRÓNICA" o "NOTA DE CRÉDITO ELECTRÓNICA". */
 export const nombreDelTipo = (tipo: number): string => TITULOS[tipo] ?? `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
 
-const enteros = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
 const decimales = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 6 });
-const pesos = (n: number): string => `$ ${enteros.format(n)}`;
 
 /** `76123456-7` → `76.123.456-7`. */
 function rutConPuntos(rut: string): string {
@@ -225,8 +224,8 @@ function detalle(doc: Doc, lineas: readonly LineaImpresa[], ancho: number, y: nu
     doc.fillColor(TEXTO);
     doc.text(l.nombre, x.descripcion + relleno, yf + relleno, { width: anchoDescripcion - 2 * relleno });
     doc.text(cantidad, x.cantidad, yf + relleno, { width: columnas.cantidad - relleno, align: 'right' });
-    doc.text(pesos(l.precioUnitario), x.precio, yf + relleno, { width: columnas.precio - relleno, align: 'right' });
-    doc.text(pesos(l.monto), x.total, yf + relleno, { width: columnas.total - relleno, align: 'right' });
+    doc.text(dinero(l.precioUnitario), x.precio, yf + relleno, { width: columnas.precio - relleno, align: 'right' });
+    doc.text(dinero(l.monto), x.total, yf + relleno, { width: columnas.total - relleno, align: 'right' });
     yf += alto;
     doc.save().lineWidth(0.5).strokeColor(BORDE).moveTo(MARGEN, yf).lineTo(MARGEN + ancho, yf).stroke().restore();
   }
@@ -246,9 +245,9 @@ function pie(doc: Doc, d: DocumentoImpreso, ancho: number, y: number, timbre: Bu
   const anchoTotales = 220;
   const xTotales = MARGEN + ancho - anchoTotales;
   const filas: [string, string, boolean][] = [
-    ['Monto neto', pesos(d.neto), false],
-    [`IVA ${d.tasaIva}%`, pesos(d.iva), false],
-    ['Total', pesos(d.total), true],
+    ['Monto neto', dinero(d.neto), false],
+    [`IVA ${d.tasaIva}%`, dinero(d.iva), false],
+    ['Total', dinero(d.total), true],
   ];
   let yt = y;
   for (const [etiqueta, valor, fuerte] of filas) {

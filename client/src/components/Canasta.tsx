@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { avanceAlSiguiente } from './Escalera.tsx';
 import { Icono, iconoProducto, Monograma } from './Iconos.tsx';
 import { firmasDeCanasta, productoQueCambio, type ProductoSala } from '../red/derivar.ts';
-import { contar, dinero } from '../red/formato.ts';
+import { dinero } from '../../../shared/formato.ts';
+import { contar } from '../red/formato.ts';
 import '../vistas/canasta.css';
 
 /** Avance de un producto en dos partes: las unidades ("32 cajas") y lo que falta ("faltan 18 para $25.900"). */

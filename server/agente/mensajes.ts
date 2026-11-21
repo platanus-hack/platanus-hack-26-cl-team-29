@@ -1,11 +1,7 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
+import { dinero, nota } from '../../shared/formato.ts';
 import { cortoDe, pluralDe, productosDe } from './canasta.ts';
-
-const pesos = new Intl.NumberFormat('es-CL');
-
-export const dinero = (monto: number) => `$${pesos.format(Math.round(monto))}`;
-export const nota = (valor: number) => valor.toFixed(1).replace('.', ',');
 
 export const totalOrden = (orden: OrdenCompra) =>
   orden.items.reduce((suma, item) => suma + item.cantidad * item.precioUnitario, 0);

@@ -2,7 +2,8 @@
 // totales, ahorro, la pista del próximo tramo y el envío diferido (debounce) del carrito completo.
 // Sin React ni red, para poder probarla con node:test.
 
-import { contar, dinero } from '../red/formato.ts';
+import { dinero } from '../../../shared/formato.ts';
+import { contar } from '../red/formato.ts';
 import type { Participante, SiguienteTramo } from '../red/tipos.ts';
 import { normalizarTramos } from './logica.ts';
 import type { LicitacionCanal, Tramo } from './tipos.ts';
