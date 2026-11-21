@@ -136,7 +136,7 @@ export const cantidadFueraDeRango = (maximo: number, l: LicitacionSala) =>
 /** "Hoy va en $X (solo pagarías $Y). Faltan N cajas para bajar a $Z: invita a otro." */
 function precioYFaltante(l: LicitacionSala): string {
   const siguiente = l.siguienteTramo
-    ? `Faltan ${l.siguienteTramo.faltan} ${unidadDe(l, l.siguienteTramo.faltan)} para bajar a ${dinero(l.siguienteTramo.precioUnitario)}: invita a otro.`
+    ? `${l.siguienteTramo.faltan === 1 ? 'Falta' : 'Faltan'} ${l.siguienteTramo.faltan} ${unidadDe(l, l.siguienteTramo.faltan)} para bajar a ${dinero(l.siguienteTramo.precioUnitario)}: invita a otro.`
     : 'Ya está en el mejor precio.';
   return `Hoy va en ${dinero(l.precioActual)}${versusSolo(l)}. ${siguiente}`;
 }
