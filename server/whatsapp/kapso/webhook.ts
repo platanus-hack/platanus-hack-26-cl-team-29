@@ -1,6 +1,6 @@
 import express, { type Router } from 'express';
-import type { InboundMessage, Log } from '../types.ts';
-import { parseDelivery } from './payload.ts';
+import type { Log } from '../types.ts';
+import { parseDelivery, type ParsedDelivery } from './payload.ts';
 import { EVENT_HEADER, SIGNATURE_HEADER, verifySignature } from './signature.ts';
 
 /**
@@ -13,10 +13,11 @@ import { EVENT_HEADER, SIGNATURE_HEADER, verifySignature } from './signature.ts'
  */
 export function createWebhookRouter(options: {
   readonly secret: string | null;
-  readonly onMessages: (messages: InboundMessage[]) => Promise<void>;
+  /** Se llama después de responder 200. No debe rechazar. */
+  readonly onDelivery: (delivery: ParsedDelivery) => Promise<void>;
   readonly log: Log;
 }): Router {
-  const { secret, onMessages, log } = options;
+  const { secret, onDelivery, log } = options;
   const router = express.Router();
 
   // Body crudo: la firma es sobre los bytes, no sobre el JSON parseado.
@@ -44,7 +45,7 @@ export function createWebhookRouter(options: {
     const delivery = parseDelivery(body, req.get(EVENT_HEADER));
     for (const failure of delivery.failures) log.warn(`[whatsapp] ${delivery.event} ${failure}`);
     res.json({ received: true });
-    if (delivery.messages.length > 0) void onMessages(delivery.messages);
+    void onDelivery(delivery);
   });
 
   return router;

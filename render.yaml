@@ -17,6 +17,8 @@ services:
         sync: false
       - key: KAPSO_WEBHOOK_SECRET
         sync: false
+      - key: KAPSO_TEMPLATE_NAME
+        sync: false
 
 databases:
   - name: db

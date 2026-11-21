@@ -10,8 +10,8 @@ const app = express();
 const http = createServer(app);
 const io = new Server(http);
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-export const whatsapp = createWhatsApp();
 const dbRed = process.env.DATABASE_URL ? db : null;
+export const whatsapp = await createWhatsApp({ db: dbRed });
 // Con certificado, la red emite en el SII de certificación; sin él, usa su SII falso.
 export const red = await iniciarRed(dbRed, process.env.SII_PFX_BASE64 ? await conectarSiiReal(dbRed) : undefined);
 red.escuchar(evento => io.emit('red:evento', evento));
