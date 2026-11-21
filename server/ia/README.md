@@ -33,7 +33,7 @@ conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env,
 | Variable | Por defecto |
 |---|---|
 | `ANTHROPIC_API_KEY` | sin ella, reglas fijas |
-| `ANTHROPIC_MODEL` | `claude-opus-5-5` (esfuerzo `low`, fallback del servidor ante rechazos) |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5-5`: responde más rápido que Opus en WhatsApp (esfuerzo `low`, fallback del servidor ante rechazos) |
 
 ## Agregar una consulta
 1. El método en `Consultas` y su implementación en `crearConsultasRed` (solo lectura, sin teléfonos).

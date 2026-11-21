@@ -21,7 +21,7 @@ export function crearInterpreteDesdeEnv(env: NodeJS.ProcessEnv, red: RedConsulta
     console.warn('[ia] sin ANTHROPIC_API_KEY: el agente interpreta con reglas fijas');
     return interpreteDeReglas;
   }
-  const modelo = env.ANTHROPIC_MODEL || 'claude-opus-5-5';
+  const modelo = env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   const { conversar } = crearAsistente({
     cliente: new Anthropic({ apiKey: claveApi }).beta.messages,
     modelo,
