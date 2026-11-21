@@ -1,6 +1,6 @@
 # Reglas del portal web del SII: sesiones, orden de solicitudes y folios
 
-Fecha: 2026-11-21 23:30
+Fecha: 2026-11-21 14:06
 Autor: sii-sesion
 
 ## Contexto

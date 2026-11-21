@@ -1,6 +1,6 @@
 # Conectar el SII desde el panel del proveedor
 
-Fecha: 2026-11-21 18:30
+Fecha: 2026-11-21 14:06
 Autor: Luciano Saavedra Reyes
 
 ## Contexto
@@ -29,7 +29,7 @@ El SII real solo se configuraba con variables de entorno (`SII_PFX_BASE64`, `SII
 - (Reemplazado, ver la actualización) La ficha del portal abría una sesión por certificado y la reusaba 45 minutos en memoria.
 
 ## Actualización (2026-11-21 23:30): conexión automática y sesión única del portal
-- **Un solo componente para el portal del SII**: `server/sii-portal/` (`PortalSii.conSesion`). Lo usan la ficha de la empresa, la resolución, los CAF y la consulta del RUT de un comprador (`consultarContribuyente` de la red). Reemplaza la sesión en memoria de 45 minutos. Reglas aplicadas y mediciones: `docs/hallazgos/20261121-2330-sii-portal-sesion-reglas.md`.
+- **Un solo componente para el portal del SII**: `server/sii-portal/` (`PortalSii.conSesion`). Lo usan la ficha de la empresa, la resolución, los CAF y la consulta del RUT de un comprador (`consultarContribuyente` de la red). Reemplaza la sesión en memoria de 45 minutos. Reglas aplicadas y mediciones: `docs/hallazgos/20261121-1406-sii-portal-sesion-reglas.md`.
 - **Sesión persistida**: tabla `sii_portal_sesion` (cookies cifradas con `SII_LLAVE_CIFRADO`, clave = huella SHA-256 del certificado), candado por advisory lock de Postgres, espera compartida tras el límite de sesiones (`720`, 45 minutos sin intentar). Sin `DATABASE_URL` o sin llave, todo queda en memoria con un aviso en el log.
 - **"Conectar mi SII" automático**: `POST /certificado` acepta `rutEmisor` (vacío: el RUT del titular) y parte en segundo plano: ficha (`ce_consulta_muestra_e`), resolución (`ad_empresa1`/`ad_empresa2`) y un CAF de 33, 52 y 61. `POST /automatico` lo vuelve a correr. `GET /` trae `automatico.pasos` con el texto literal del SII cuando algo falta.
 - **CAF**: primero reobtener (los 5 rangos vigentes más recientes cuyo último folio el SII da por libre, `FAU`); si no hay, pedir 5 folios o menos según `MAX_AUTOR`. Nunca se anula. Un tipo bloqueado queda con el mensaje del SII. El primer folio libre se sigue buscando con QueryEstDte como antes.

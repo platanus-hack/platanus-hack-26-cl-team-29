@@ -13,7 +13,7 @@ libre (PR listo para revisión)
 - client/src/canal/ConectarSii.tsx, api.ts, tipos.ts, sii-falso.ts
 
 ## Hecho
-- `server/sii-portal/`: un solo componente para el portal web del SII (sesión persistida y cifrada por huella de certificado, un login aunque haya concurrencia, solicitudes en serie, límite de sesiones 720 sin reintento y con espera compartida, cabeceras de navegador, Latin-1). Hallazgo: docs/hallazgos/20261121-2330-sii-portal-sesion-reglas.md
+- `server/sii-portal/`: un solo componente para el portal web del SII (sesión persistida y cifrada por huella de certificado, un login aunque haya concurrencia, solicitudes en serie, límite de sesiones 720 sin reintento y con espera compartida, cabeceras de navegador, Latin-1). Hallazgo: docs/hallazgos/20261121-1406-sii-portal-sesion-reglas.md
 - "Conectar mi SII" automático: ficha, resolución y CAF 33/52/61 (reobtener primero, pedir dentro del tope, nunca anular). La resolución hoy se escribe a mano (ad_empresa1 ya no responde) y un RCT la marca para corregirla.
 - `consultarContribuyente` de la red (RUT del comprador) pasa por la misma sesión.
 
