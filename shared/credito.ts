@@ -13,7 +13,7 @@ export interface NivelCredito {
 }
 
 export const NIVELES_CREDITO: readonly NivelCredito[] = [
-  { nivel: 1, nombre: 'Nuevo', cupo: 300_000, plazoDias: 30, desde: 0 },
+  { nivel: 1, nombre: 'Nuevo', cupo: 500_000, plazoDias: 30, desde: 0 },
   { nivel: 2, nombre: 'Confiable', cupo: 1_000_000, plazoDias: 45, desde: 3 },
   { nivel: 3, nombre: 'Socio', cupo: 3_000_000, plazoDias: 60, desde: 8 },
 ];
