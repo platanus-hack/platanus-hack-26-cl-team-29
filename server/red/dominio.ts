@@ -4,6 +4,7 @@ import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
@@ -174,6 +175,8 @@ export interface Red {
   /** Antes de confirmar: cuántas unidades dirá la guía de despacho (52), si son menos que las pedidas. */
   fijarDespacho(ordenId: string, cantidad: number, producto?: string): Promise<OrdenCompra>;
   confirmarOrden(ordenId: string): Promise<OrdenCompra>;
+  /** Antes de repartir: la guía de despacho (52) de cada pedido por entregar del proveedor que aún no la tiene. */
+  emitirGuiasDeReparto(proveedorId: string): Promise<Documento[]>;
   registrarRecepcion(ordenId: string, recepcion: Recepcion): Promise<OrdenCompra>;
   emitirNotaCredito(ordenId: string): Promise<Documento>;
   notaDeProveedor(proveedorId: string): number;
@@ -462,6 +465,22 @@ export async function crearRed({
       await guardar('ordenes', o);
       return structuredClone(o);
     });
+  }
+
+  // La compra conjunta factura en lote sin guía: antes de salir a repartir, el proveedor emite la guía 52 de cada
+  // pedido por entregar que no la tiene, una por una. Si el SII falla a mitad, se vuelve a llamar y sigue con las que faltan.
+  async function emitirGuiasDeReparto(proveedorId: string) {
+    const sinGuia = () => datos.ordenes.filter(o => o.proveedorId === proveedorId && POR_ENTREGAR.includes(o.estado) && !documento(o.id, 52));
+    const emitidas: Documento[] = [];
+    for (const { id } of sinGuia()) {
+      await conCandado(id, async () => {
+        const o = datos.ordenes.find(x => x.id === id);
+        if (!o || !sinGuia().includes(o)) return;
+        const r = await sii.emitirGuia({ orden: o, emisor: negocio(o.proveedorId, 'proveedor'), receptor: negocio(o.compradorId, 'comprador') });
+        emitidas.push(await guardarDocumento(o.id, 52, netoDespachado(o.items), r));
+      });
+    }
+    return structuredClone(emitidas);
   }
 
   // El comprador informa la recepción. Con faltante se registra el reclamo en el SII.
@@ -1086,7 +1105,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

@@ -10,6 +10,8 @@ import { armarCatalogo, historialDeEjemplo, lineasDeEjemplo, resumenDeFacturas, 
 import { pluralDe } from '../../../shared/texto.ts';
 import { duenoDeTramos, errorDeTramos, ordenarTramos, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
+import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
+import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
 import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
 
@@ -432,6 +434,28 @@ export function crearApiFalsa(): CanalApi {
       const despues = conDerivados(lic);
       avisar('licitacion.producto', { licitacionId: lic.id, licitacion: despues, producto: despues.productos!.find(p => p.id === productoId), proveedorNombre: proveedor.nombre, cambio: 'tramos' });
       avisarBajas(lic, antes, despues);
+    },
+
+    // Como el servidor sin OSRM ni Nominatim: cada negocio en su comuna y el orden en línea recta.
+    async rutaReparto(token) {
+      await espera(300);
+      const proveedor = quien(token);
+      const donde = (id: string) => {
+        const n = red.negocios.find(x => x.id === id);
+        return n ? { nombre: n.nombre, comuna: n.comuna, punto: ubicarEnComuna(n.id, n.comuna), aproximado: true } : null;
+      };
+      const ordenes = red.ordenes.filter(o => o.proveedorId === proveedor.id);
+      const bodega = { punto: centroDeComuna(proveedor.comuna) ?? MUT, aproximada: true };
+      return armarRuta(bodega, paradasDeOrdenes(ordenes, red.documentos, donde), null);
+    },
+
+    async emitirGuias(token) {
+      await espera(900);
+      const proveedor = quien(token);
+      const sinGuia = red.ordenes.filter(o => o.proveedorId === proveedor.id && POR_ENTREGAR.includes(o.estado)
+        && !red.documentos.some(d => d.ordenId === o.id && d.tipo === 52));
+      exigir(sinGuia.length > 0, 'Todos tus pedidos por entregar ya tienen su guía.');
+      for (const o of sinGuia) avisar('documento.emitido', { documento: emitir(o, 52, totalOrden(o)) });
     },
 
     async confirmarOrden(token, ordenId) {

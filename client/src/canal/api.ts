@@ -9,6 +9,7 @@ import type { ItemCarrito } from './carrito.ts';
 import type { TipoDocumento } from '../../../shared/documentos.ts';
 import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
 import type { CatalogoProveedor } from '../../../shared/catalogo.ts';
+import type { RutaReparto } from '../../../shared/ruta.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
@@ -37,6 +38,10 @@ export interface CanalApi {
   /** Sus tramos por volumen de un producto de la compra abierta (solo el dueño del producto). */
   fijarTramos(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
   confirmarOrden(token: string, ordenId: string): Promise<void>;
+  /** Su ruta de reparto: los negocios que esperan su pedido, en orden, con su guía de despacho. */
+  rutaReparto(token: string): Promise<RutaReparto>;
+  /** Emite en el SII la guía de despacho de cada pedido por entregar que no la tiene. */
+  emitirGuias(token: string): Promise<void>;
   notaCredito(token: string, ordenId: string): Promise<void>;
   /** "Conectar mi SII" del proveedor. Los secretos solo viajan al subirlos; nunca vuelven. */
   siiEstado(token: string): Promise<EstadoConexionSii>;
@@ -141,6 +146,8 @@ export function crearApiReal(): CanalApi {
     fijarTramos: async (token, id, productoId, tramos) => {
       await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/tramos`, { token, cuerpo: { tramos }, metodo: 'PUT' });
     },
+    rutaReparto: token => llamar('/proveedor/ruta', { token }),
+    emitirGuias: async token => { await llamar('/proveedor/ruta/guias', { token, cuerpo: { confirmado: true } }); },
     confirmarOrden: async (token, id) => { await llamar(`/proveedor/ordenes/${encodeURIComponent(id)}/confirmar`, { token, cuerpo: { confirmado: true } }); },
     notaCredito: async (token, id) => { await llamar(`/proveedor/ordenes/${encodeURIComponent(id)}/nota-credito`, { token, cuerpo: { confirmado: true } }); },
     siiEstado: token => llamar('/proveedor/sii', { token }),
