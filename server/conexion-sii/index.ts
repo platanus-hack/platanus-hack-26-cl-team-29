@@ -95,6 +95,8 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     if (!c) {
       c = (async () => crear(await almacenDe(db, `rut:${rut}`), await crearAlmacenFolios(db, rut)))();
       porRut.set(rut, c);
+      // Si falla (por ejemplo, la base), no queda guardado el fallo: el próximo pedido lo intenta de nuevo.
+      c.catch(() => { if (porRut.get(rut) === c) porRut.delete(rut); });
     }
     return c;
   }
@@ -117,7 +119,14 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     consultarContribuyente,
     rutas: crearRutasConexionSii(conexion),
     async conectarProveedor(rutEmpresa, { pfx, clave }) {
-      return (await conexionDeRut(rutEmpresa)).subirCertificado(pfx.toString('base64'), clave, rutEmpresa);
+      const c = await conexionDeRut(rutEmpresa);
+      // La empresa ya conectada desde el panel no se vuelve a conectar: reemplazar su certificado repetiría la
+      // conexión automática (ficha, resolución y folios) en el SII sin necesidad.
+      if (c === conexion) {
+        const estado = await c.estado();
+        if (estado.conectado) return estado;
+      }
+      return c.subirCertificado(pfx.toString('base64'), clave, rutEmpresa);
     },
     estadoDeProveedor: async rutEmpresa => (await conexionDeRut(rutEmpresa)).estado(),
     sii: falso => crearSiiConmutable({
