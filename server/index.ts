@@ -27,7 +27,9 @@ export const whatsapp = await createWhatsApp({ db: dbRed });
 // SII de certificación: la conexión hecha por el proveedor desde el panel; si no está completa, las variables SII_*;
 // sin ninguna de las dos, el SII falso de la red.
 const conexionSii = await iniciarConexionSii(dbRed);
-export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente });
+// Crédito Bando exige la tarjeta inscrita para entrar a una compra; se enlaza al crear los pagos, más abajo.
+let antesDeEntrar: (n: Negocio) => void | Promise<void> = () => {};
+export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n) });
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
@@ -58,7 +60,11 @@ const proveedores = await iniciarProveedores({ db: dbRed, red, mercadoPublico, e
 // Catálogo de cada proveedor desde sus facturas: se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
 const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
 // Crédito Bando: Bando le paga al proveedor al facturar y cobra al comprador a plazo en su tarjeta inscrita (docs/decisiones/20261121-2018-credito-bando.md).
-const pagos = await iniciarPagos({ db: dbRed, red, emitir: evento => io.emit('red:evento', evento) });
+const pagos = await iniciarPagos({
+  db: dbRed, red, emitir: evento => io.emit('red:evento', evento),
+  enviar: (telefono, texto) => whatsapp.send(telefono, texto, { source: 'pagos' }),
+});
+antesDeEntrar = pagos.exigirTarjeta;
 red.escuchar(e => {
   const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
   if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });

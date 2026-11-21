@@ -30,6 +30,8 @@ export interface Credito {
   pagadoAlProveedorEn: string;
   estado: 'vigente' | 'pagado' | 'atrasado';
   cobro?: { en: string; autorizacion: string };
+  /** Se le recordó por WhatsApp que se viene el cobro. */
+  recordadoEn?: string;
   ultimoError?: { en: string; mensaje: string };
 }
 
@@ -75,7 +77,7 @@ export interface NuevoCredito {
 
 export type AvisoCredito =
   | { tipo: 'credito.otorgado'; credito: Credito }
-  | { tipo: 'credito.cobrado'; credito: Credito; ok: boolean }
+  | { tipo: 'credito.cobrado'; credito: Credito; ok: boolean; /** El nivel al que subió con este pago, o null. */ subioA: string | null }
   | { tipo: 'tarjeta.inscrita'; rut: string; tarjeta: Tarjeta };
 
 export interface ResumenComprador {
@@ -131,6 +133,7 @@ export async function crearLibro(o: {
   }
 
   async function cobrarUno(c: Credito): Promise<boolean> {
+    const antes = lineaDeCredito(historialDe(delRut(c.rut))).nivel;
     const t = tarjetas.get(c.rut);
     const en = ahora();
     try {
@@ -143,7 +146,8 @@ export async function crearLibro(o: {
       if (en.slice(0, 10) > c.venceEn) c.estado = 'atrasado';
     }
     await guardar(c);
-    o.avisar({ tipo: 'credito.cobrado', credito: c, ok: c.estado === 'pagado' });
+    const despues = lineaDeCredito(historialDe(delRut(c.rut)));
+    o.avisar({ tipo: 'credito.cobrado', credito: c, ok: c.estado === 'pagado', subioA: despues.nivel > antes ? despues.nombre : null });
     return c.estado === 'pagado';
   }
 
@@ -159,6 +163,18 @@ export async function crearLibro(o: {
     return { cobrados, fallidos: pendientes.length - cobrados };
   }
 
+  /** Créditos por vencer en `dias` días o menos que no se han recordado; quedan marcados como recordados. */
+  async function porRecordar(dias = 3): Promise<Credito[]> {
+    const hoy = ahora().slice(0, 10);
+    const limite = vencimiento(ahora(), dias);
+    const lista = creditos.filter(c => c.estado === 'vigente' && !c.recordadoEn && c.venceEn > hoy && c.venceEn <= limite);
+    for (const c of lista) {
+      c.recordadoEn = ahora();
+      await guardar(c);
+    }
+    return lista;
+  }
+
   /** Inscripciones abiertas: token de Transbank → RUT y usuario. */
   const inscribiendo = new Map<string, { rut: string; usuario: string }>();
 
@@ -166,6 +182,8 @@ export async function crearLibro(o: {
     resumen,
     otorgar,
     cobrarVencidos,
+    porRecordar,
+    tieneTarjeta: (rut: string) => tarjetas.has(rut),
     async iniciarInscripcion(rut: string, volverA: string) {
       const usuario = `bando-${rut.replace(/\W/g, '')}`;
       const r = await o.pasarela.iniciarInscripcion({ usuario, email: `${usuario}@bando.cl`, volverA });

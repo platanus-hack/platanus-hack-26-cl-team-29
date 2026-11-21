@@ -185,6 +185,8 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       r = await guardarEnRed(telefono, nombre, items, l, rut, direccion);
     } catch (error) {
       if (!(await abierta())) return m.SIN_COMPRA_ABIERTA;
+      // Crédito Bando: sin tarjeta inscrita no entra; el mensaje trae el enlace para inscribirla.
+      if ((error as { codigo?: unknown }).codigo === 'falta_tarjeta') return (error as Error).message;
       throw error;
     }
     participantes.set(clave, { telefono, nombre, items, licitacionId: l.id });

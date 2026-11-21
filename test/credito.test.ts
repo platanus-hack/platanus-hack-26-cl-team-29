@@ -65,3 +65,57 @@ test('Oneclick: inscribe y cobra con los encabezados y el cuerpo que pide Transb
   const cuerpo = JSON.parse(String(llamadas[2]!.init.body));
   assert.deepEqual(cuerpo.details, [{ commerce_code: '597055555542', buy_order: 'oc1-1', amount: 59_500, installments_number: 1 }]);
 });
+
+test('sin tarjeta inscrita no se entra a una compra: el mensaje trae el enlace firmado; con tarjeta, entra', async () => {
+  const { crearRed, crearRepositorioMemoria, crearSiiFalso, LICITACION_SALA } = await import('../server/red/index.ts');
+  const { sembrarSiVacio } = await import('../server/red/semilla.ts');
+  const { iniciarPagos } = await import('../server/pagos/index.ts');
+  const { consultaConFicha } = await import('./sii-apoyo.ts');
+  const { digitoVerificador } = await import('../shared/rut.ts');
+  const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', PUBLIC_URL: 'https://bando.test' };
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo, new Date('2026-11-21T15:00:00Z'), ENV);
+  let antes: (n: Parameters<NonNullable<Parameters<typeof crearRed>[0]['antesDeEntrar']>>[0]) => void = () => {};
+  const red = await crearRed({ repo, sii: crearSiiFalso(), env: ENV, consultarContribuyente: consultaConFicha, antesDeEntrar: n => antes(n) });
+  const enviados: string[] = [];
+  const pagos = await iniciarPagos({ db: null, red, emitir: () => {}, env: ENV, pasarela: crearPasarelaFalsa(), enviar: async (_t, texto) => void enviados.push(texto) });
+  antes = pagos.exigirTarjeta;
+  // Datos ficticios: RUT generado, teléfono de prueba.
+  const uno = { telefono: '56911110001', nombre: 'Almacén Uno', rut: `30111001-${digitoVerificador('30111001')}` };
+  await assert.rejects(red.actualizarCarrito(LICITACION_SALA, { ...uno, items: [{ productoId: 'rollos', cantidad: 2 }] }),
+    (e: Error & { codigo?: string }) => e.codigo === 'falta_tarjeta' && e.message.includes('https://bando.test/api/pagos/inscribir/'));
+  const n = red.estadoDeLaRed().negocios.find(x => x.telefono === uno.telefono)!;
+  const { token } = await pagos.libro.iniciarInscripcion(n.rut!, 'http://x/vuelta');
+  await pagos.libro.terminarInscripcion(token);
+  const r = await red.actualizarCarrito(LICITACION_SALA, { ...uno, items: [{ productoId: 'rollos', cantidad: 2 }] });
+  assert.equal(r.participante?.nombre, 'Almacén Uno');
+  assert.ok(enviados.some(t => t.startsWith('Tarjeta inscrita: Visa terminada en 6623')), 'se le avisa por WhatsApp');
+  pagos.detener();
+});
+
+test('se recuerda una sola vez 3 días antes, y el cobro avisa cuando sube de nivel', async () => {
+  let ahora = Date.parse('2026-11-21T15:00:00Z');
+  const cobrados: (string | null)[] = [];
+  const libro = await crearLibro({
+    tarjetas: tablaMemoria<Tarjeta>(), creditos: tablaMemoria<Credito>(), pasarela: crearPasarelaFalsa(),
+    avisar: a => { if (a.tipo === 'credito.cobrado') cobrados.push(a.subioA); }, ahora: () => new Date(ahora),
+  });
+  const rut = '76000000-0';
+  for (const n of [1, 2, 3]) await libro.otorgar({ rut, negocioId: 'n', proveedorId: 'p', ordenId: `o${n}`, documentoId: `d${n}`, monto: 10_000 });
+  assert.equal((await libro.porRecordar()).length, 0, 'faltan 30 días');
+  ahora += 27 * 86_400_000;
+  assert.equal((await libro.porRecordar()).length, 3);
+  assert.equal((await libro.porRecordar()).length, 0, 'una sola vez');
+  const { token } = await libro.iniciarInscripcion(rut, 'x');
+  await libro.terminarInscripcion(token);
+  await libro.cobrarVencidos(true);
+  assert.deepEqual(cobrados, [null, null, 'Confiable']);
+});
+
+test('los avisos de WhatsApp dicen monto, proveedor, fecha y tarjeta', async () => {
+  const a = await import('../server/pagos/avisos.ts');
+  const d = { monto: 114_240, proveedor: 'Distribuidora Sur', venceEn: '2026-12-21', plazoDias: 30, tarjeta: 'Visa terminada en 6623' };
+  assert.equal(a.creditoOtorgado(d), 'Bando ya le pagó $114.240 a Distribuidora Sur. Tú pagas el 21-12-2026, solo, con tu Visa terminada en 6623.');
+  assert.match(a.cobrado({ ...d, disponible: 300_000, subioA: 'Confiable' }), /Cupo disponible: \$300\.000\. Subiste a Confiable/);
+  assert.match(a.pagoAlProveedor({ monto: 114_240, folio: 1234 }), /^Bando te pagó \$114\.240 por la factura folio 1234/);
+});
