@@ -65,8 +65,11 @@ async function enviar(texto: string) {
     if (historial.length > vistos) {
       for (const m of historial.slice(vistos)) {
         if (m.direction !== 'out') continue;
-        const botones = (m.payload as { buttons?: { id: string; title: string }[] } | null)?.buttons ?? [];
-        const pie = botones.length ? `\n        ${botones.map(x => `[${x.id}: ${x.title}]`).join('  ')}  ← escribe el número` : '';
+        const payload = m.payload as { buttons?: { id: string; title: string }[]; list?: { rows: { title: string; description?: string }[] } } | null;
+        const botones = payload?.buttons ?? [];
+        const filas = payload?.list?.rows ?? [];
+        const pie = botones.length ? `\n        ${botones.map(x => `[${x.id}: ${x.title}]`).join('  ')}  ← escribe el número`
+          : filas.length ? `\n        Lista: ${filas.map(f => `[${f.title}${f.description ? ` · ${f.description}` : ''}]`).join('  ')}  ← escribe el título` : '';
         console.log(`\n${m.source === 'reply' ? 'Bando' : 'Aviso'} › ${m.text}${pie}`);
         respondio ||= m.source === 'reply';
       }

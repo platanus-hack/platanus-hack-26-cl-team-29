@@ -38,6 +38,20 @@ export class KapsoSender implements WhatsAppSender {
   /** Texto largo se parte en varios mensajes; con botones va en uno solo (ya validado). */
   async send(to: string, message: OutboundMessage): Promise<TransportResult> {
     const recipient = { messaging_product: 'whatsapp', recipient_type: 'individual', to: to.replace(/\D/g, '') };
+    if (message.list) {
+      return this.#post({
+        ...recipient,
+        type: 'interactive',
+        interactive: {
+          type: 'list',
+          body: { text: message.body },
+          action: {
+            button: message.list.button,
+            sections: [{ title: message.list.button, rows: message.list.rows.map(r => ({ id: r.id, title: r.title, ...(r.description ? { description: r.description } : {}) })) }],
+          },
+        },
+      });
+    }
     if (message.buttons?.length) {
       return this.#post({
         ...recipient,

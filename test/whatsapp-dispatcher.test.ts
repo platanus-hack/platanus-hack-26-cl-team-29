@@ -90,3 +90,11 @@ test('sin teléfono no se guarda ni se llama al proveedor', async () => {
   assert.equal(result.status, 'failed');
   assert.equal(sent.length, 0);
 });
+
+test('una lista con más de 10 opciones o títulos largos se rechaza sin llamar al proveedor', async () => {
+  const { outbox, sent } = setup();
+  const rows = Array.from({ length: 11 }, (_, i) => ({ id: `r${i}`, title: `Opción ${i}` }));
+  assert.equal((await outbox.send('561', { body: 'elige', list: { button: 'Ver', rows } }, null)).status, 'failed');
+  assert.equal((await outbox.send('561', { body: 'elige', list: { button: 'Ver', rows: [{ id: 'a', title: 'Un título de opción demasiado largo' }] } }, null)).status, 'failed');
+  assert.equal(sent.length, 0);
+});

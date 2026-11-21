@@ -15,6 +15,8 @@ import { createWebhookRouter } from './kapso/webhook.ts';
 export type {
   Button,
   InboundMessage,
+  ListMenu,
+  ListRow,
   MediaType,
   MessageContent,
   MessageContext,
