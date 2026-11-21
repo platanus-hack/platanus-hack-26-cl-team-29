@@ -4,7 +4,7 @@
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { contar } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
 import { LogoSii } from './iconos.tsx';
 import type { CafSii, ConexionSii, DatosEmpresaSii, PasoSii } from './tipos.ts';

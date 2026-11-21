@@ -2,9 +2,6 @@
 // Dinero, miles, notas y conteos están en shared/.
 import { contar } from '../../../shared/texto.ts';
 
-// ConectarSii.tsx todavía importa `contar` desde aquí (ver agents/sin-copias.md, Pedidos a otros).
-export { contar };
-
 export function haceCuanto(en: string, ahora: number): string {
   const segundos = Math.max(0, Math.round((ahora - Date.parse(en)) / 1000));
   if (segundos < 60) return `hace ${segundos} s`;
