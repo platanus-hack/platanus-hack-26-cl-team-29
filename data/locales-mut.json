@@ -1,5 +1,5 @@
 {
- "siguienteCelda": 6,
+ "siguienteCelda": 7,
  "locales": [
   {
    "id": "node/13930198538",
@@ -326,6 +326,36 @@
    "direccion": "Avenida Macul"
   },
   {
+   "id": "way/454107413",
+   "nombre": "Carnes Lucero",
+   "tipo": "carnicería",
+   "lat": -33.47143,
+   "lng": -70.541337,
+   "distanciaKm": 8.14,
+   "encontradoEn": "2026-11-21T16:07:14.791Z",
+   "direccion": "Avenida Consistorial",
+   "comuna": "Peñalolén"
+  },
+  {
+   "id": "node/4504736630",
+   "nombre": "Shan Bao",
+   "tipo": "restaurante",
+   "lat": -33.471931,
+   "lng": -70.539749,
+   "distanciaKm": 8.28,
+   "encontradoEn": "2026-11-21T16:07:14.791Z",
+   "direccion": "Avenida Las Parcelas"
+  },
+  {
+   "id": "node/4474296883",
+   "nombre": "Comida China Para Llevar",
+   "tipo": "restaurante",
+   "lat": -33.475566,
+   "lng": -70.543423,
+   "distanciaKm": 8.35,
+   "encontradoEn": "2026-11-21T16:07:14.791Z"
+  },
+  {
    "id": "node/4466700961",
    "nombre": "Pollos Asados Peruanos",
    "tipo": "restaurante",
@@ -354,6 +384,17 @@
    "direccion": "San Alfonso 1380"
   },
   {
+   "id": "way/453785459",
+   "nombre": "Completeria Las Parcelas",
+   "tipo": "restaurante",
+   "lat": -33.472815,
+   "lng": -70.535058,
+   "distanciaKm": 8.65,
+   "encontradoEn": "2026-11-21T16:07:14.791Z",
+   "direccion": "Avenida Las Parcelas",
+   "comuna": "Peñalolén"
+  },
+  {
    "id": "node/8387161117",
    "nombre": "Tío Rodi",
    "tipo": "almacén",
@@ -374,6 +415,26 @@
    "direccion": "Bascuñán Guerrero 1702"
   },
   {
+   "id": "node/4494746194",
+   "nombre": "Nueva Shang Hai",
+   "tipo": "restaurante",
+   "lat": -33.473174,
+   "lng": -70.533347,
+   "distanciaKm": 8.79,
+   "encontradoEn": "2026-11-21T16:07:14.791Z",
+   "direccion": "Río Claro",
+   "comuna": "Peñalolén"
+  },
+  {
+   "id": "node/4494746199",
+   "nombre": "Pollos a Las Briasa",
+   "tipo": "comida rápida",
+   "lat": -33.473402,
+   "lng": -70.533348,
+   "distanciaKm": 8.81,
+   "encontradoEn": "2026-11-21T16:07:14.791Z"
+  },
+  {
    "id": "node/5762551253",
    "nombre": "Yong Xing",
    "tipo": "restaurante",
@@ -382,6 +443,28 @@
    "distanciaKm": 8.87,
    "encontradoEn": "2026-11-21T16:05:54.769Z",
    "direccion": "Bascuñán Guerrero 1898"
+  },
+  {
+   "id": "node/4504719189",
+   "nombre": "Distribuidora Peñalolen",
+   "tipo": "almacén",
+   "lat": -33.473408,
+   "lng": -70.532305,
+   "distanciaKm": 8.88,
+   "encontradoEn": "2026-11-21T16:07:14.791Z",
+   "direccion": "Los Baqueanos",
+   "comuna": "Peñalolén"
+  },
+  {
+   "id": "way/453783069",
+   "nombre": "Almacen",
+   "tipo": "almacén",
+   "lat": -33.474088,
+   "lng": -70.529849,
+   "distanciaKm": 9.1,
+   "encontradoEn": "2026-11-21T16:07:14.791Z",
+   "direccion": "Los Baquearos",
+   "comuna": "Peñalolén"
   },
   {
    "id": "way/445738042",
