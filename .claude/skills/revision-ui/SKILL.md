@@ -14,7 +14,7 @@ Objetivo: pantallas ambiciosas pero no sobrecargadas, bien distribuidas, sin fri
 3. **Distribución intencional.** Espacio generoso alrededor de lo principal y apretado dentro de los grupos. Sin huecos grandes vacíos por accidente ni bloques pegados al borde.
 4. **Mínima fricción.** La acción principal está a la vista sin hacer scroll y se hace en un toque. No se pide nada que el sistema ya sabe. Cada clic extra hay que justificarlo. Los formularios piden lo mínimo y recuerdan lo ya ingresado.
 5. **Confirmación solo donde hay efecto legal o irreversible** (emitir, reclamar, nota de crédito): un paso de confirmación dentro de la página que dice qué va a pasar, nunca `alert` ni `confirm` del navegador.
-6. **Lenguaje natural y conciso.** Frases cortas, como hablaría una persona: "Faltan 7 cajas para bajar a $29.900", no "Umbral del siguiente tramo: 7 unidades". Español neutro, sin emojis, sin guiones largos, montos en formato chileno ($17.200) y decimales con coma (4,7). Singular y plural correctos.
+6. **Lenguaje natural y conciso.** Frases cortas, como hablaría una persona: "Faltan 7 cajas para bajar a $29.900", no "Umbral del siguiente tramo: 7 unidades". Español neutro, sin emojis, sin guiones largos, **todo monto con separador de miles** en formato chileno ($6.900, $17.200, $1.234.567, nunca $6900) y decimales con coma (4,7). Los folios van sin separador. Singular y plural correctos.
 7. **Contexto mínimo suficiente.** Cada número con su etiqueta corta. Sin párrafos explicativos en pantallas que se proyectan.
 8. **Vivo.** Respeta la regla de tiempo real de `CLAUDE.md`: los cambios llegan solos y se notan con una animación breve, sin tapar lo demás. Respeta `prefers-reduced-motion`.
 9. **Iconografía que se reconoce al instante.** Ver la sección de abajo.
@@ -83,7 +83,7 @@ En pantallas que se proyectan, `scrollVertical` tiene que decir `no`. Los elemen
 - [ ] El detector no reporta problemas en ningún tamaño obligatorio.
 - [ ] Lo más importante de cada pantalla se entiende en tres segundos.
 - [ ] La acción principal está a la vista y se hace en el menor número de toques.
-- [ ] Textos cortos, naturales, en español neutro, con montos y plurales correctos.
+- [ ] Textos cortos, naturales, en español neutro, con plurales correctos y todo monto con separador de miles.
 - [ ] Estados vacío, cargando y error revisados.
 - [ ] Los cambios en vivo se notan sin tapar contenido.
 - [ ] Logo del SII en cada acción del SII; logos o monogramas en proveedores y comercios; íconos de un solo set.
