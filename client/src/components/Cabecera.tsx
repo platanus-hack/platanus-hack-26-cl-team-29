@@ -9,3 +9,15 @@ export function AvisoFuente({ fuente }: { fuente: Fuente }) {
 export function Cargando() {
   return <main className="pagina"><p className="vacio">Conectando con la red...</p></main>;
 }
+
+/** Cabecera de las pantallas proyectadas de la red: marca, título, "En vivo" y el aviso de datos de prueba. */
+export function CabeceraRed({ titulo, fuente }: { titulo: string; fuente: Fuente }) {
+  return (
+    <header className="red-cabecera">
+      <div className="marca" aria-hidden>B</div>
+      <h1 className="titulo-red">{titulo}</h1>
+      <span className="en-vivo contorno">En vivo</span>
+      <AvisoFuente fuente={fuente} />
+    </header>
+  );
+}

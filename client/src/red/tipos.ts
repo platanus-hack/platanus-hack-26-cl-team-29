@@ -3,8 +3,8 @@
 // dos lados (tramos, precios) viene de shared/.
 import type { TipoDocumento } from '../../../shared/documentos.ts';
 import type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
+import type { EstadoOrden, Rol, TipoEventoRed } from '../../../shared/red.ts';
 
-export type Rol = 'comprador' | 'proveedor';
 
 export interface Negocio {
   id: string;
@@ -25,7 +25,6 @@ export interface ItemOrden {
   precioUnitario: number;
 }
 
-export type EstadoOrden = 'enviada' | 'confirmada' | 'facturada' | 'recibida' | 'reclamada' | 'corregida';
 
 export interface OrdenCompra {
   id: string;
@@ -102,6 +101,7 @@ export interface Ganadora extends Oferta {
 }
 
 export type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
+export type { EstadoOrden, Rol, TipoEventoRed } from '../../../shared/red.ts';
 
 export interface Licitacion {
   id: string;
@@ -157,21 +157,6 @@ export interface EstadoRed {
   licitaciones: Licitacion[];
 }
 
-export type TipoEvento =
-  | 'orden.creada'
-  | 'orden.confirmada'
-  | 'documento.emitido'
-  | 'documento.actualizado'
-  | 'recepcion.registrada'
-  | 'reclamo.registrado'
-  | 'nota_credito.emitida'
-  | 'nota.cambiada'
-  | 'licitacion.participante'
-  | 'licitacion.oferta'
-  | 'licitacion.cerrada'
-  | 'licitacion.precio_bajo'
-  | 'licitacion.facturada'
-  | 'red.reiniciada';
 
 /**
  * Evento `red:evento` de Socket.io. `datos` según el contrato (entidades completas):
@@ -183,7 +168,7 @@ export type TipoEvento =
  * licitacion.facturada { licitacionId, documentos (cantidad), total, ahorroTotal }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
  */
 export interface EventoRed {
-  tipo: TipoEvento;
+  tipo: TipoEventoRed;
   datos: Record<string, unknown>;
   en: string;
 }

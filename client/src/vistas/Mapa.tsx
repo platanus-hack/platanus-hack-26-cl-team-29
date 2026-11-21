@@ -9,7 +9,7 @@ import { AttributionControl, Map as MapaLibre, Marker, setWorkerUrl, type GeoJSO
 import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapa.css';
-import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
+import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
 import { notaDe, type CambioNota } from '../red/derivar.ts';
@@ -192,12 +192,7 @@ export function Mapa() {
 
   return (
     <main className="pagina proyeccion red">
-      <header className="red-cabecera">
-        <div className="marca" aria-hidden>B</div>
-        <h1 className="titulo-red">La red en el mapa, en vivo</h1>
-        <span className="en-vivo contorno">En vivo</span>
-        <AvisoFuente fuente={fuente} />
-      </header>
+      <CabeceraRed titulo="La red en el mapa, en vivo" fuente={fuente} />
 
       <div className="red-cuerpo">
         <section className="mapa-caja">

@@ -2,7 +2,7 @@
 // no tiene las rutas con sesión (o con `?prueba`). Todos los nombres son ficticios.
 // Simula a la contraparte: el proveedor confirma y factura solo, y emite la nota de crédito tras un reclamo.
 
-import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoDocumento, TipoEvento } from '../red/tipos.ts';
+import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoDocumento, TipoEventoRed } from '../red/tipos.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import { CANASTA_DEMO } from '../../../shared/canasta-demo.ts';
@@ -130,7 +130,7 @@ export function crearApiFalsa(): CanalApi {
   const oyentes = new Set<(e?: EventoRed) => void>();
   let contador = 0;
 
-  const avisar = (tipo: TipoEvento, datos: Record<string, unknown> = {}) => {
+  const avisar = (tipo: TipoEventoRed, datos: Record<string, unknown> = {}) => {
     const e = { tipo, datos, en: ahoraIso() };
     oyentes.forEach(o => o(e));
   };
@@ -399,7 +399,7 @@ export function crearApiFalsa(): CanalApi {
       const lic = licitacion(licitacionId);
       exigir(lic.estado === 'cerrada' && ordenesDe(lic).some(o => o.estado === 'enviada'), 'Esta compra conjunta no está lista para facturar.');
       ordenesDe(lic).forEach(o => facturar(o, false));
-      avisar('licitacion.facturada' as TipoEvento, { licitacion: lic });
+      avisar('licitacion.facturada' as TipoEventoRed, { licitacion: lic });
     },
 
     async confirmarOrden(token, ordenId) {

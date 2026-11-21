@@ -7,7 +7,7 @@
 // proveedores. La compra cierra, el proveedor dice que sí, salen las facturas (una línea por producto) y el
 // SII las acepta. Después de un rato vuelve a empezar.
 
-import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, TipoEvento } from './tipos.ts';
+import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, TipoEventoRed } from './tipos.ts';
 import { CANASTA_DEMO, PISO_ROLLOS_DEMO, pisoPorDefecto } from '../../../shared/canasta-demo.ts';
 import { precioDelProducto, siguienteTramo, totalesDeCanasta, totalOrden, unidadesDe } from '../../../shared/precios.ts';
 
@@ -146,7 +146,7 @@ function sembrarEstado(): EstadoRed {
 }
 
 /** Un paso del guion: cambia la foto y devuelve el evento que lo anuncia. */
-type Paso = (e: EstadoRed) => Array<[TipoEvento, Record<string, unknown>]>;
+type Paso = (e: EstadoRed) => Array<[TipoEventoRed, Record<string, unknown>]>;
 
 /** Ciclo de una orden suelta para la pantalla /red (con o sin reclamo). */
 function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
@@ -160,9 +160,9 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
   const emitir = (e: EstadoRed, tipo: 33 | 52 | 61, f: number) => {
     const documento = { id: `d-${ordenId}-${tipo}`, ordenId, tipo, folio: f, trackId: null, estadoSii: 'recibido', monto: tipo === 61 ? 59_800 : 119_600, emitidoEn: ahoraIso() };
     e.documentos = [...e.documentos, documento];
-    return ['documento.emitido', { documento }] as [TipoEvento, Record<string, unknown>];
+    return ['documento.emitido', { documento }] as [TipoEventoRed, Record<string, unknown>];
   };
-  const cambiarNota = (e: EstadoRed, nueva: number): [TipoEvento, Record<string, unknown>] => {
+  const cambiarNota = (e: EstadoRed, nueva: number): [TipoEventoRed, Record<string, unknown>] => {
     const anterior = e.notas.find(x => x.proveedorId === 'p-molinos')!.nota;
     e.notas = e.notas.map(x => (x.proveedorId === 'p-molinos' ? { ...x, nota: nueva } : x));
     return ['nota.cambiada', { proveedorId: 'p-molinos', anterior, nota: nueva }];
@@ -231,7 +231,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     e.licitaciones = e.licitaciones.map(l => (l.id === id ? cambio(l) : l));
   };
 
-  type Evento = [TipoEvento, Record<string, unknown>];
+  type Evento = [TipoEventoRed, Record<string, unknown>];
 
   /** Un `licitacion.precio_bajo` por cada producto cuyo precio bajó, con las unidades de ese producto. */
   const bajadas = (antes: Licitacion, despues: Licitacion): Evento[] =>

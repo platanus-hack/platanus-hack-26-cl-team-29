@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
+import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { Icono, LogoSii, Monograma, type NombreIcono } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
@@ -9,7 +9,7 @@ import {
 import { dinero, miles, nota } from '../../../shared/formato.ts';
 import { contar, segun } from '../../../shared/texto.ts';
 import { haceCuanto, pedidoDe, unidadDe } from '../red/formato.ts';
-import type { EstadoRed, EventoRed, TipoEvento } from '../red/tipos.ts';
+import type { EstadoRed, EventoRed, TipoEventoRed } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 
 export function Contador({ valor, texto, color, marca }: { valor: number; texto: string; color?: string; marca?: ReactNode }) {
@@ -85,7 +85,7 @@ export function Ranking({ estado, cambios, ahora, logoUrl, proveedorSala }: {
   );
 }
 
-const ICONO_EVENTO: Partial<Record<TipoEvento, NombreIcono>> = {
+const ICONO_EVENTO: Partial<Record<TipoEventoRed, NombreIcono>> = {
   'orden.creada': 'pedido',
   'orden.confirmada': 'check',
   'recepcion.registrada': 'caja',
@@ -93,7 +93,7 @@ const ICONO_EVENTO: Partial<Record<TipoEvento, NombreIcono>> = {
   'licitacion.precio_bajo': 'baja',
   'licitacion.cerrada': 'cerrada',
 };
-const EVENTO_SII = new Set<TipoEvento>(['documento.emitido', 'documento.actualizado', 'reclamo.registrado', 'nota_credito.emitida', 'licitacion.facturada']);
+const EVENTO_SII = new Set<TipoEventoRed>(['documento.emitido', 'documento.actualizado', 'reclamo.registrado', 'nota_credito.emitida', 'licitacion.facturada']);
 
 /** Lo del SII lleva su logo; quien se suma o oferta, su monograma; el resto, un ícono de línea. */
 function IconoEvento({ e, estado }: { e: EventoRed; estado: EstadoRed }) {
@@ -168,12 +168,7 @@ export function RedEnVivo() {
 
   return (
     <main className="pagina proyeccion red">
-      <header className="red-cabecera">
-        <div className="marca" aria-hidden>B</div>
-        <h1 className="titulo-red">La red de compras, en vivo</h1>
-        <span className="en-vivo contorno">En vivo</span>
-        <AvisoFuente fuente={fuente} />
-      </header>
+      <CabeceraRed titulo="La red de compras, en vivo" fuente={fuente} />
 
       <div className="red-cuerpo">
         <div className="columna">
