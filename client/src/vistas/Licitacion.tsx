@@ -114,7 +114,9 @@ export function Licitacion() {
             <AvisoFuente fuente={fuente} />
           </div>
           <h1 className="lic-titulo">
-            Los agentes armaron el pedido. <span className="amarillo">Los proveedores compiten.</span>
+            {r.curvaPorTramos
+              ? <>La sala compra junta. <span className="amarillo">El precio baja para todos.</span></>
+              : <>Los agentes armaron el pedido. <span className="amarillo">Los proveedores compiten.</span></>}
           </h1>
         </div>
         <div className={`cuenta ${cerrada ? 'cerrada' : ''}`}>
