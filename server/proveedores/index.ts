@@ -1,6 +1,7 @@
 // Buscador de proveedores: API pública del módulo. Fuera de server/proveedores/ se importa solo este archivo.
 //
 // GET /api/proveedores?q=&categoria=&pagina=  → { total, pagina, paginas, conteos, resultados, mercadoPublico }
+// GET /api/proveedores/mapa                 → { proveedores: ProveedorMapa[], total, mercadoPublico } (todos, sin paginar; tope MAX_MAPA)
 // GET /api/proveedores/:clave                → { proveedor: FichaProveedor, mercadoPublico } (clave = RUT o id de la red)
 // Socket.io `red:evento` tipo `proveedores.actualizado` → { proveedores } cuando llegan giros del SII o clasificaciones.
 //
@@ -18,7 +19,7 @@ import {
   crearAlmacenEnriquecidosMemoria, crearAlmacenEnriquecidosPostgres, crearEnriquecedor,
   type AlmacenEnriquecidos, type Clasificar, type ConsultarSii,
 } from './enriquecer.ts';
-import { ambiguos, armarFichas, buscar, indexar, type Indice } from './fichas.ts';
+import { ambiguos, armarFichas, buscar, indexar, paraElMapa, type Indice } from './fichas.ts';
 
 export type { FichaProveedor, ResumenProveedor } from './fichas.ts';
 
@@ -107,6 +108,10 @@ export async function iniciarProveedores(o: OpcionesProveedores) {
       ...buscar(indice(), { q: String(req.query.q ?? '').slice(0, 100), categoria: esCategoria(categoria) ? categoria : undefined, pagina: Number(req.query.pagina) || 1 }),
       ...meta(),
     });
+  });
+  rutas.get('/mapa', (_req, res) => {
+    const { fichas } = indice();
+    res.json({ proveedores: paraElMapa(fichas), total: fichas.length, ...meta() });
   });
   rutas.get('/:clave', (req, res) => {
     const rut = validarRut(req.params.clave);

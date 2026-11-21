@@ -1,12 +1,13 @@
 // /mapa: la red sobre un mapa real de Santiago, 30 km alrededor del MUT.
 // Los datos son los mismos de /red (useRed): cada `red:evento` mueve el mapa y el panel a la vez.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Marker, type GeoJSONSource, type Map as MapaLibre } from 'maplibre-gl';
 import './mapa.css';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { AMARILLO, AZUL_LOCAL, crear, crearMapa, MAGENTA, VERDE } from '../mapa/base.ts';
 import { capas, circulo, MUT, pulsosNuevos, RADIO_KM, ubicar } from '../mapa/geo.ts';
+import { FichaMercadoPublico, radioProveedorMp, useProveedoresMapa, type ProveedorMapa } from '../mapa/ProveedoresMapa.tsx';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
 import { notaDe, type CambioNota } from '../red/derivar.ts';
 import { miles, nota } from '../../../shared/formato.ts';
@@ -23,10 +24,19 @@ function agregarCapas(m: MapaLibre) {
   m.addSource('negocios', { type: 'geojson', data: vacio });
   m.addSource('locales', { type: 'geojson', data: vacio });
   m.addSource('buscando', { type: 'geojson', data: vacio });
+  m.addSource('mercado-publico', { type: 'geojson', data: vacio });
   m.addLayer({ id: 'radio', type: 'line', source: 'radio', paint: { 'line-color': AMARILLO, 'line-width': 1.5, 'line-opacity': 0.7, 'line-dasharray': [3, 3] } });
   // Locales que encontró el explorador: debajo de la red, tenues, para que la red mande.
   m.addLayer({ id: 'locales', type: 'circle', source: 'locales', paint: { 'circle-radius': 2.5, 'circle-color': AZUL_LOCAL, 'circle-opacity': 0.55 } });
   m.addLayer({ id: 'buscando', type: 'line', source: 'buscando', paint: { 'line-color': AZUL_LOCAL, 'line-width': 1.5, 'line-dasharray': [1, 1] } });
+  // Proveedores de Mercado Público que no están en Bando: volt atenuado con contorno, bajo la red.
+  m.addLayer({
+    id: 'mercado-publico', type: 'circle', source: 'mercado-publico',
+    paint: {
+      'circle-radius': ['get', 'radio'], 'circle-color': AMARILLO, 'circle-opacity': 0.18,
+      'circle-stroke-color': AMARILLO, 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.75,
+    },
+  });
   m.addLayer({
     id: 'lineas', type: 'line', source: 'lineas', filter: ['!=', ['get', 'tipo'], 'reclamo'],
     paint: {
@@ -50,13 +60,24 @@ function agregarCapas(m: MapaLibre) {
   });
 }
 
-function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; cambios: CambioNota[]; eventos: EventoVisto[]; locales: Locales | null }) {
+/** Un punto por proveedor de Mercado Público, con su radio según los organismos que le compran. */
+const puntosMp = (mp: ProveedorMapa[]): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
+  type: 'FeatureCollection',
+  features: mp.map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p.punto }, properties: { clave: p.clave, radio: radioProveedorMp(p.organismos) } })),
+});
+
+function Lienzo({ estado, cambios, eventos, locales, mp, alElegirMp }: {
+  estado: EstadoRed; cambios: CambioNota[]; eventos: EventoVisto[]; locales: Locales | null; mp: ProveedorMapa[]; alElegirMp: (clave: string) => void;
+}) {
   const caja = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaLibre | null>(null);
   const etiquetas = useRef(new Map<string, Marker>());
   const vistos = useRef(new Set<number>());
   const datos = useRef(capas(estado, cambios));
   const exploracion = useRef(locales);
+  const mercadoPublico = useRef(mp);
+  const elegirMp = useRef(alElegirMp);
+  elegirMp.current = alElegirMp;
 
   const pintar = () => {
     const m = mapa.current;
@@ -65,6 +86,7 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
     (m.getSource('lineas') as GeoJSONSource).setData(datos.current.lineas);
     (m.getSource('locales') as GeoJSONSource).setData(puntosDeLocales(exploracion.current?.locales ?? []));
     (m.getSource('buscando') as GeoJSONSource).setData(contornoDeCelda(exploracion.current?.avance.buscando ?? null));
+    (m.getSource('mercado-publico') as GeoJSONSource).setData(puntosMp(mercadoPublico.current));
   };
 
   useEffect(() => {
@@ -73,6 +95,12 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
       pintar();
     });
     mapa.current = m;
+    m.on('click', 'mercado-publico', e => {
+      const clave = e.features?.[0]?.properties?.clave;
+      if (typeof clave === 'string') elegirMp.current(clave);
+    });
+    m.on('mouseenter', 'mercado-publico', () => { m.getCanvas().style.cursor = 'pointer'; });
+    m.on('mouseleave', 'mercado-publico', () => { m.getCanvas().style.cursor = ''; });
     new Marker({ element: crear('mapa-mut', '<i></i><span>MUT</span>'), anchor: 'left' }).setLngLat(MUT).addTo(m);
     return () => {
       etiquetas.current.clear();
@@ -116,6 +144,12 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
     pintar();
   }, [locales]);
 
+  // Proveedores de Mercado Público: se repintan cuando llega la lista nueva (cada `red:evento`).
+  useEffect(() => {
+    mercadoPublico.current = mp;
+    pintar();
+  }, [mp]);
+
   // Cada evento nuevo late una vez en el negocio donde pasó.
   useEffect(() => {
     const m = mapa.current;
@@ -145,7 +179,10 @@ export function Mapa() {
   const { estado, eventos, cambios, fuente } = useRed();
   const locales = useLocales();
   const ahora = useAhora();
+  const mp = useProveedoresMapa(eventos[0]?.clave);
+  const [elegido, setElegido] = useState<string | null>(null);
   if (!estado) return <Cargando />;
+  const proveedorMp = mp.find(p => p.clave === elegido);
 
   return (
     <main className="pagina proyeccion red">
@@ -153,11 +190,13 @@ export function Mapa() {
 
       <div className="red-cuerpo">
         <section className="mapa-caja">
-          <Lienzo estado={estado} cambios={cambios} eventos={eventos} locales={locales} />
+          <Lienzo estado={estado} cambios={cambios} eventos={eventos} locales={locales} mp={mp} alElegirMp={setElegido} />
+          {proveedorMp && <FichaMercadoPublico proveedor={proveedorMp} alCerrar={() => setElegido(null)} />}
           {locales && <AvisoExploracion locales={locales} />}
           <ul className="mapa-leyenda" aria-label="Leyenda">
             <li><i className="punto verde" /> negocio</li>
-            <li><i className="punto amarillo" /> proveedor</li>
+            <li><i className="punto amarillo" /> proveedor en Bando</li>
+            {mp.length > 0 && <li><i className="punto mp" /> proveedor de Mercado Público</li>}
             {locales && <li><i className="punto local" /> local cercano</li>}
             <li><i className="raya amarillo" /> último pedido</li>
             <li><i className="raya magenta" /> reclamo</li>

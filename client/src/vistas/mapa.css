@@ -69,3 +69,7 @@
 @media (prefers-reduced-motion: reduce) {
   .mapa-pulso::before { animation: none; opacity: 0.8; transform: scale(2); }
 }
+
+/* Proveedor de Mercado Público: volt atenuado con contorno, como en el mapa. */
+.mapa-leyenda .punto.mp { color: var(--color-primary); background: rgb(242 255 0 / 0.18); border: 1px solid currentColor; }
+.mapa-caja .mapa-ficha { top: auto; bottom: 12px; right: 12px; }

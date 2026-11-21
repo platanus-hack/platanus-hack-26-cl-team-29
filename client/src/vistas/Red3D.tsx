@@ -21,6 +21,7 @@ import {
   type NodoHistoria, type PasoGuion, type Tarjeta,
 } from '../mapa/crece.ts';
 import { pulsosNuevos, ubicar, type ClasePulso, type Punto } from '../mapa/geo.ts';
+import { FichaMercadoPublico, radioProveedorMp, useProveedoresMapa, type ProveedorMapa } from '../mapa/ProveedoresMapa.tsx';
 import { useLocales, type LocalMapa } from '../mapa/useLocales.ts';
 import { describirEventoCorto, notaDe } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed } from '../red/tipos.ts';
@@ -84,13 +85,20 @@ const mismo = (a: Punto, b: Punto) => a[0] === b[0] && a[1] === b[1];
 /** Si la nota de un proveedor se está moviendo ahora: 'baja', 'sube' o nada. */
 const notaMoviendose = (p: Punto, animaciones: Animacion[]) => animaciones.find(a => (a.tipo === 'baja' || a.tipo === 'sube') && mismo(a.desde, p))?.tipo;
 
-function capasDeck(escena: Escena, locales: LocalMapa[], animaciones: Animacion[], t: number, ahora: number, alElegir: (id: string) => void): Layer[] {
+function capasDeck(escena: Escena, locales: LocalMapa[], mp: ProveedorMapa[], animaciones: Animacion[], t: number, ahora: number, alElegir: (id: string) => void, alElegirMp: (clave: string) => void): Layer[] {
   const edad = (a: Animacion) => (ahora - a.inicio) / DURACION[a.tipo];
   const viajan = (tipo: ClasePulso) => animaciones.filter(a => a.tipo === tipo && a.hasta);
   return [
     new ScatterplotLayer<LocalMapa>({
       id: 'locales', data: locales, getPosition: l => [l.lng, l.lat], getFillColor: C_LOCAL,
       radiusUnits: 'pixels', getRadius: 1.3, opacity: 0.12 + 0.3 * entre(t, INICIO_LOCALES - 1000, INICIO_LOCALES + 1500),
+    }),
+    // Proveedores de Mercado Público que no están en Bando: volt atenuado con contorno; aparecen junto con los locales.
+    new ScatterplotLayer<ProveedorMapa>({
+      id: 'mercado-publico', data: mp, getPosition: p => p.punto, getRadius: p => radioProveedorMp(p.organismos), radiusUnits: 'pixels', billboard: true,
+      getFillColor: conAlfa(C_AMARILLO, 0.18), stroked: true, getLineColor: conAlfa(C_AMARILLO, 0.75), lineWidthUnits: 'pixels', getLineWidth: 1,
+      opacity: entre(t, INICIO_LOCALES, INICIO_LOCALES + 1500),
+      pickable: true, onClick: ({ object }) => { if (object) alElegirMp(object.clave); },
     }),
     // La red de fondo: arcos finos y tenues. Solo el que tiene un evento se enciende (capas de abajo).
     new ArcLayer<Arco>({
@@ -144,6 +152,7 @@ function capasDeck(escena: Escena, locales: LocalMapa[], animaciones: Animacion[
 interface Datos {
   estado: EstadoRed;
   locales: LocalMapa[];
+  mp: ProveedorMapa[];
   cuento: NodoHistoria[];
   pasos: PasoGuion[];
   /** performance.now() en que partió la secuencia; null mientras espera el mapa y los datos. */
@@ -155,9 +164,9 @@ interface Datos {
   notasGuion: Map<string, number>;
 }
 
-function Lienzo({ estado, eventos, locales, recorrido, alElegir, alAvanzar }: {
-  estado: EstadoRed; eventos: EventoVisto[]; locales: LocalMapa[] | null; recorrido: boolean;
-  alElegir: (id: string) => void; alAvanzar: (t: number, vistos: number) => void;
+function Lienzo({ estado, eventos, locales, mp, recorrido, alElegir, alElegirMp, alAvanzar }: {
+  estado: EstadoRed; eventos: EventoVisto[]; locales: LocalMapa[] | null; mp: ProveedorMapa[]; recorrido: boolean;
+  alElegir: (id: string) => void; alElegirMp: (clave: string) => void; alAvanzar: (t: number, vistos: number) => void;
 }) {
   const caja = useRef<HTMLDivElement>(null);
   const sobre = useRef<HTMLDivElement>(null);
@@ -168,9 +177,11 @@ function Lienzo({ estado, eventos, locales, recorrido, alElegir, alAvanzar }: {
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([]);
   const vistos = useRef(new Set<number>());
   const claves = useRef(0);
-  const datos = useRef<Datos>({ estado, locales: [], cuento: [], pasos: [], inicio: null, apariciones: new Map(), escena: { nodos: [], arcos: [], proveedores: [] }, animaciones: [], notasGuion: new Map() });
+  const datos = useRef<Datos>({ estado, locales: [], mp: [], cuento: [], pasos: [], inicio: null, apariciones: new Map(), escena: { nodos: [], arcos: [], proveedores: [] }, animaciones: [], notasGuion: new Map() });
   const elegir = useRef(alElegir);
   const avanzar = useRef(alAvanzar);
+  const elegirMp = useRef(alElegirMp);
+  elegirMp.current = alElegirMp;
   elegir.current = alElegir;
   avanzar.current = alAvanzar;
 
@@ -224,7 +235,7 @@ function Lienzo({ estado, eventos, locales, recorrido, alElegir, alAvanzar }: {
       while (d.inicio !== null && d.pasos.length && d.pasos[0].t <= tt) pasoDelGuion(d.pasos.shift()!);
       if (tt >= DURACION_HISTORIA) d.notasGuion.clear();
       d.animaciones = d.animaciones.filter(a => ahora - a.inicio < DURACION[a.tipo]);
-      overlay.setProps({ layers: capasDeck(d.escena, d.locales, d.animaciones, tt, ahora, id => elegir.current(id)) });
+      overlay.setProps({ layers: capasDeck(d.escena, d.locales, d.mp, d.animaciones, tt, ahora, id => elegir.current(id), clave => elegirMp.current(clave)) });
       // Tarjetas y etiquetas siguen a su punto del mapa en cada cuadro.
       anclarAlMapa(m, sobre.current);
       if (ahora - ultimoAviso > 200) {
@@ -263,6 +274,10 @@ function Lienzo({ estado, eventos, locales, recorrido, alElegir, alAvanzar }: {
   useEffect(() => {
     datos.current.locales = locales ?? [];
   }, [locales]);
+
+  useEffect(() => {
+    datos.current.mp = mp;
+  }, [mp]);
 
   // Cada evento nuevo de la red se anima una vez donde pasó, con su tarjeta ("se sumó" solo al entrar, no al cambiar el carrito).
   useEffect(() => {
@@ -319,10 +334,10 @@ function FichaProveedor({ estado, id, alCerrar }: { estado: EstadoRed; id: strin
   const porComuna = [...cuenta].sort((a, b) => b[1] - a[1]);
   const valor = notaDe(estado, id);
   return (
-    <aside className="r3d-ficha tarjeta" aria-label={`Proveedor ${proveedor.nombre}`}>
-      <button type="button" className="r3d-cerrar" onClick={alCerrar} aria-label="Cerrar">×</button>
+    <aside className="mapa-ficha tarjeta" aria-label={`Proveedor ${proveedor.nombre}`}>
+      <button type="button" className="mapa-ficha-cerrar" onClick={alCerrar} aria-label="Cerrar">×</button>
       <h2><Monograma nombre={proveedor.nombre} logoUrl={proveedor.logoUrl} />{proveedor.nombre}</h2>
-      <p className="r3d-nota"><b>{valor === undefined ? 'sin nota' : nota(valor)}</b> nota de la red</p>
+      <p className="mapa-ficha-nota"><b>{valor === undefined ? 'sin nota' : nota(valor)}</b> nota de la red</p>
       <p>{miles(compradores.length)} {compradores.length === 1 ? 'comprador' : 'compradores'} en la red</p>
       {porComuna.length > 0 && (
         <ul>{porComuna.slice(0, 5).map(([comuna, n]) => <li key={comuna}><span>{comuna}</span><b>{miles(n)}</b></li>)}</ul>
@@ -341,8 +356,11 @@ function Red3DRed() {
   const locales = useLocales();
   const [recorrido] = useState(() => location.hash === '#recorrido');
   const [elegido, setElegido] = useState<string | null>(null);
+  const mp = useProveedoresMapa(eventos[0]?.clave);
+  const [elegidoMp, setElegidoMp] = useState<string | null>(null);
   const [avance, setAvance] = useState({ t: 0, vistos: 0 });
   if (!estado) return <Cargando />;
+  const proveedorMp = mp.find(p => p.clave === elegidoMp);
 
   const totalLocales = locales?.locales.length ?? 0;
   const enVivo = estado.negocios.filter(n => n.rol === 'comprador').length;
@@ -351,16 +369,17 @@ function Red3DRed() {
   return (
     <main className="r3d">
       <Lienzo
-        estado={estado} eventos={eventos} locales={locales?.locales ?? null} recorrido={recorrido}
-        alElegir={setElegido} alAvanzar={(t, vistos) => setAvance(a => (a.vistos === vistos && Math.abs(a.t - t) < 150 ? a : { t, vistos }))}
+        estado={estado} eventos={eventos} locales={locales?.locales ?? null} mp={mp} recorrido={recorrido}
+        alElegir={id => { setElegido(id); setElegidoMp(null); }} alElegirMp={c => { setElegidoMp(c); setElegido(null); }} alAvanzar={(t, vistos) => setAvance(a => (a.vistos === vistos && Math.abs(a.t - t) < 150 ? a : { t, vistos }))}
       />
       <div className="r3d-arriba">
         <CabeceraRed titulo="La red crece" fuente={fuente} />
         {!recorrido && <p className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</p>}
       </div>
       <div className="r3d-cifra" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} color="verde" /></div>
-      <LeyendaRed3D />
+      <LeyendaRed3D mercadoPublico={mp.length > 0} />
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
+      {proveedorMp && <FichaMercadoPublico proveedor={proveedorMp} alCerrar={() => setElegidoMp(null)} />}
     </main>
   );
 }
