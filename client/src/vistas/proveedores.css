@@ -88,3 +88,13 @@
   .pv-pagina { padding: 56px 96px 80px; }
   .pv-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Contacto: lo primero que se busca en una ficha. */
+.pv-contacto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.pv-contacto-boton {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 10px;
+  font-family: var(--font-mono); font-size: 14px; color: var(--color-text); text-decoration: none; overflow-wrap: anywhere;
+}
+.pv-contacto-boton:first-child { background: var(--color-primary); color: var(--color-primary-foreground); border-color: transparent; font-weight: 700; }
+.pv-contacto-fuente { flex-basis: 100%; margin: 0; font-size: 12px; }
+.pv-contacto-fuente a { color: inherit; }

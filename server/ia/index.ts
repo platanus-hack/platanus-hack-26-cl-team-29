@@ -6,6 +6,7 @@ import { crearInterpreteClaude } from '../agente/claude.ts';
 import { crearAsistente } from './asistente.ts';
 import { crearConsultasRed, type RedConsultable } from './consultas.ts';
 import { clasificarConReglas, crearClasificador, type EntradaProveedor, type ResultadoClasificacion } from './clasificar.ts';
+import { crearBuscadorContacto, type Contacto, type EntradaContacto } from './contacto.ts';
 
 export { crearAsistente } from './asistente.ts';
 export type { ClienteClaude, OpcionesAsistente } from './asistente.ts';
@@ -13,6 +14,8 @@ export { crearConsultasRed } from './consultas.ts';
 export type { Consultas, RedConsultable } from './consultas.ts';
 export { clasificarConReglas, crearClasificador } from './clasificar.ts';
 export type { EntradaProveedor, ResultadoClasificacion } from './clasificar.ts';
+export { telefonoChileno, validarContacto } from './contacto.ts';
+export type { Contacto, EntradaContacto } from './contacto.ts';
 
 const modeloDe = (env: NodeJS.ProcessEnv) => env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
 
@@ -20,6 +23,12 @@ const modeloDe = (env: NodeJS.ProcessEnv) => env.ANTHROPIC_MODEL || 'claude-sonn
 export function crearClasificadorDesdeEnv(env: NodeJS.ProcessEnv): (e: EntradaProveedor) => Promise<ResultadoClasificacion | null> {
   if (!env.ANTHROPIC_API_KEY) return async e => clasificarConReglas(e);
   return crearClasificador({ cliente: new Anthropic({ apiKey: env.ANTHROPIC_API_KEY }).beta.messages, modelo: modeloDe(env) });
+}
+
+/** Buscador del contacto de un proveedor en la web. Sin ANTHROPIC_API_KEY no hay cómo buscarlo: null. */
+export function crearBuscadorContactoDesdeEnv(env: NodeJS.ProcessEnv): ((e: EntradaContacto) => Promise<Contacto | null>) | null {
+  if (!env.ANTHROPIC_API_KEY) return null;
+  return crearBuscadorContacto({ cliente: new Anthropic({ apiKey: env.ANTHROPIC_API_KEY }).beta.messages, modelo: modeloDe(env) });
 }
 
 /**
