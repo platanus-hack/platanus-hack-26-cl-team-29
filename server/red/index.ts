@@ -6,6 +6,11 @@ import type { Repositorio } from './repositorio.ts';
 import { aplicarTelefonosDemo, sembrarSiVacio } from './semilla.ts';
 import { crearSiiFalso } from './sii.ts';
 import type { PuertoSii } from './sii.ts';
+import { crearSii } from '../sii/index.ts';
+import { crearAlmacenFoliosMemoria, crearAlmacenFoliosPostgres } from './folios.ts';
+import type { AlmacenFolios } from './folios.ts';
+import { crearSiiReal } from './sii-real.ts';
+import type { SiiReal } from './sii-real.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
 export { crearRed, ErrorRed, precioAjustado } from './dominio.ts';
@@ -15,6 +20,10 @@ export { crearRutasRed } from './rutas.ts';
 export { crearRepositorioMemoria } from './repositorio.ts';
 export { crearSiiFalso } from './sii.ts';
 export type { DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
+export { crearSiiReal } from './sii-real.ts';
+export type { SiiReal } from './sii-real.ts';
+export { crearAlmacenFoliosMemoria } from './folios.ts';
+export type { AlmacenFolios, EstadoFolio, RegistroFolio } from './folios.ts';
 export { COMPRADOR_DEMO, PROVEEDOR_DEMO } from './semilla.ts';
 export type * from './tipos.ts';
 
@@ -34,4 +43,24 @@ export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<R
   await sembrarSiVacio(repo);
   await aplicarTelefonosDemo(repo);
   return crearRed({ repo, sii: sii ?? crearSiiFalso((await repo.cargar()).documentos) });
+}
+
+/**
+ * SII real (certificación) para la red, con los folios en Postgres si hay base (si falla, memoria).
+ * Se usa solo cuando hay SII_PFX_BASE64; sin él la red sigue con su SII falso.
+ */
+export async function conectarSiiReal(db: pg.Pool | null): Promise<SiiReal> {
+  let folios: AlmacenFolios | null = null;
+  if (db) {
+    try {
+      folios = await crearAlmacenFoliosPostgres(db);
+    } catch (error) {
+      console.error('[red] no se pudo usar Postgres para los folios', error);
+    }
+  }
+  if (!folios) {
+    console.warn('[red] folios del SII en memoria: tras un reinicio vuelven al inicio del CAF y el SII rechazará los repetidos. Configura DATABASE_URL.');
+    folios = crearAlmacenFoliosMemoria();
+  }
+  return crearSiiReal({ sii: crearSii(), folios });
 }
