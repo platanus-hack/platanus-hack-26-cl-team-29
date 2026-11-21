@@ -76,6 +76,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
     const negocio = await red.registrarComprador({
       nombre: typeof b.nombre === 'string' ? b.nombre : '',
       comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
+      rubro: typeof b.rubro === 'string' ? b.rubro : undefined,
     });
     res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id, rol: 'comprador' }), negocio: sinTelefonos(negocio) });
   });
@@ -89,13 +90,34 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
       .map(p => ({
         licitacionId: l.id, producto: l.producto, unidad: l.unidad, unidadPlural: l.unidadPlural, cantidad: p.cantidad,
         precioActual: l.precioActual, precioSolo: l.precioSolo, estado: l.estado, cierraEn: l.cierraEn,
+        // El carrito, con el precio vigente y el de comprar solo de cada producto.
+        items: p.items.map(i => {
+          const producto = l.productos.find(x => x.id === i.productoId);
+          return {
+            productoId: i.productoId, cantidad: i.cantidad, nombre: producto?.nombre ?? '', unidad: producto?.unidad ?? '',
+            unidadPlural: producto?.unidadPlural ?? '', precioActual: producto?.precioActual ?? 0, precioSolo: producto?.precioSolo ?? 0,
+          };
+        }),
       })));
     res.json({ negocio: sinTelefonos(negocio), ordenes, documentos: documentosDe(ordenes), participaciones });
   });
 
   rutas.post('/yo/unirse', limitar, exigir('comprador'), async (req: ConSesion, res) => {
     const b = cuerpo(req);
-    res.json(await red.unirseALicitacion(String(b.licitacionId ?? ''), { negocioId: yo(req).id, cantidad: Number(b.cantidad) }));
+    res.json(await red.unirseALicitacion(String(b.licitacionId ?? ''), {
+      negocioId: yo(req).id, cantidad: Number(b.cantidad), ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
+    }));
+  });
+
+  // El carrito completo de la compra conjunta: cantidad 0 quita un ítem y un carrito vacío sale.
+  rutas.put('/yo/carrito', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+    const b = cuerpo(req);
+    if (!Array.isArray(b.items)) throw new ErrorRed('datos_invalidos', 'items debe ser una lista de { productoId, cantidad }');
+    res.json(await red.actualizarCarrito(String(b.licitacionId ?? ''), { negocioId: yo(req).id, items: b.items as never }));
+  });
+
+  rutas.delete('/yo/carrito/:id', limitar, exigir('comprador'), async (req: ConSesion, res) => {
+    res.json(await red.salirDeLicitacion(id(req), { negocioId: yo(req).id }));
   });
 
   rutas.post('/yo/ordenes', exigir('comprador'), async (req: ConSesion, res) => {

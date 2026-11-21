@@ -15,8 +15,12 @@ import { crearSiiReal } from './sii-real.ts';
 import type { SiiReal } from './sii-real.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
-export { crearRed, ErrorRed, precioAjustado } from './dominio.ts';
-export type { CodigoError, EstadoPublico, NuevaOferta, NuevaOrden, NuevoItem, NuevoParticipante, Recepcion, Red } from './dominio.ts';
+export { crearRed, ErrorRed, normalizarRubro, precioAjustado } from './dominio.ts';
+export { RUBROS } from './tipos.ts';
+export type {
+  BajadaPrecio, CodigoError, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
+  NuevoParticipante, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
+} from './dominio.ts';
 export { normalizarProducto, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
 export { sinTelefonos } from './publico.ts';
@@ -29,11 +33,11 @@ export type { SiiReal } from './sii-real.ts';
 export { crearAlmacenFoliosMemoria } from './folios.ts';
 export type { AlmacenFolios, EstadoFolio, RegistroFolio } from './folios.ts';
 export { COMPETIDORES_SALA, COMPRADOR_DEMO, LICITACION_SALA, PROVEEDOR_DEMO, PROVEEDOR_SALA } from './semilla.ts';
-export { iniciarCompetencia, PASO_REAL } from './competencia.ts';
+export { iniciarCompetencia, PASO_REAL, pisosDeProducto } from './competencia.ts';
 export type { Competencia, OpcionesCompetencia } from './competencia.ts';
 export { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
-export type { ConfigDemo } from './config-demo.ts';
-export { precioPorVolumen, precioVigente, siguienteTramo, vistaLicitacion } from './compra.ts';
+export type { ConfigDemo, ProductoDemo } from './config-demo.ts';
+export { precioPorVolumen, precioVigente, productoDe, siguienteTramo, unidadesDe, vistaLicitacion } from './compra.ts';
 export type * from './tipos.ts';
 
 /**

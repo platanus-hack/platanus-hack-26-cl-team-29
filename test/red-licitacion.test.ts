@@ -40,7 +40,7 @@ test('el precio baja por tramos a medida que la sala se suma y avisa con licitac
   const segundo = await red.unirseALicitacion('L-1', { telefono: '+56 9 1111 2222', nombre: 'Beto', cantidad: 1 });
   assert.deepEqual([segundo.precioActual, segundo.bajoDePrecio, segundo.licitacion.totalUnidades], [29900, true, 10]);
   assert.deepEqual(eventos.map(e => e.tipo), ['licitacion.participante', 'licitacion.participante', 'licitacion.precio_bajo']);
-  assert.deepEqual(eventos.at(-1)?.datos, { licitacionId: 'L-1', precioAnterior: 32000, precioNuevo: 29900, totalUnidades: 10 });
+  assert.deepEqual(eventos.at(-1)?.datos, { licitacionId: 'L-1', productoId: 'rollos', precioAnterior: 32000, precioNuevo: 29900, totalUnidades: 10 });
 
   await assert.rejects(red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 0 }), { codigo: 'datos_invalidos' });
   await assert.rejects(red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 21 }), { codigo: 'datos_invalidos' });
@@ -146,7 +146,8 @@ test('con el SII real: folios consecutivos del CAF en un sobre y un reinicio de 
 
 test('licitación antigua sin proveedor fijo: gana el menor precio ajustado por nota y solo compran los negocios', async () => {
   const { red, repo } = await redDePrueba();
-  const antigua: Licitacion = {
+  // Guardada antes de la canasta: sin `productos` ni `items` en los participantes.
+  const antigua = {
     id: 'L-0', producto: 'Harina 25 kg', unidad: 'saco', unidadPlural: 'sacos', comuna: 'Ñuñoa', cierraEn: new Date().toISOString(),
     precioSolo: 21500, tramos: [{ desde: 1, precioUnitario: 21500 }], estado: 'abierta',
     participantes: [{ negocioId: COMPRADOR_DEMO, nombre: 'La Picá de Ñuñoa', cantidad: 3, en: new Date().toISOString() }],
@@ -154,7 +155,7 @@ test('licitación antigua sin proveedor fijo: gana el menor precio ajustado por 
       { proveedorId: 'n-molinos-del-sur', precioUnitario: 17100, plazoDias: 2, en: new Date().toISOString() },
       { proveedorId: PROVEEDOR_DEMO, precioUnitario: 17200, plazoDias: 1, en: new Date().toISOString() },
     ],
-  };
+  } as unknown as Licitacion;
   await repo.guardar('licitaciones', antigua);
   const red2 = await crearRed({ repo, sii: crearSiiFalso(), env: ENV });
   await red2.unirseALicitacion('L-0', { nombre: 'Público', cantidad: 2 });

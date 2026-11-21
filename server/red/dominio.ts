@@ -1,16 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { precioPorVolumen, precioVigente, vistaLicitacion } from './compra.ts';
+import { precioPorVolumen, precioVigente, preciosVigentes, productoDe, unidadesDe, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 import { sinTelefonos } from './publico.ts';
 import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
+import { RUBROS } from './tipos.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { PuertoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
 import type {
-  Coleccion, DatosRed, Documento, EstadoOrden, EstadoRed, EventoRed, Item, Licitacion, LicitacionVista, Negocio,
-  Oferta, OrdenCompra, Participante, TipoDocumento, TipoEventoRed, TipoEventoReputacion,
+  Coleccion, DatosRed, Documento, EstadoOrden, EstadoRed, EventoRed, Item, ItemCarrito, Licitacion, LicitacionVista, Negocio,
+  Oferta, OrdenCompra, Participante, Rubro, TipoDocumento, TipoEventoRed, TipoEventoReputacion,
 } from './tipos.ts';
 
 export type CodigoError =
@@ -30,6 +31,8 @@ export type Recepcion = { conforme: true } | { faltante: number; producto?: stri
 
 /** El producto puede venir en texto libre ("sacos de harina"); sin precio, lo pone el catálogo. */
 export interface NuevoItem {
+  /** Producto de la canasta de la compra conjunta, si viene de ahí. */
+  productoId?: string;
   producto: string;
   cantidad: number;
   precioUnitario?: number;
@@ -51,6 +54,9 @@ export interface NuevoParticipante {
   telefono?: string;
   nombre?: string;
   comuna?: string;
+  rubro?: string;
+  /** Producto de la canasta; por defecto el primero (compatibilidad con un solo producto). */
+  productoId?: string;
   cantidad: number;
 }
 
@@ -58,15 +64,55 @@ export interface NuevoParticipante {
 export interface ResultadoUnion {
   licitacion: SinTelefono<LicitacionVista>;
   participante: SinTelefono<Participante>;
+  /** Precio vigente del producto al que se sumó. */
   precioActual: number;
-  /** El total del grupo cruzó un tramo y el precio bajó para todos. */
+  /** El total del grupo en ese producto cruzó un tramo y su precio bajó para todos. */
   bajoDePrecio: boolean;
+}
+
+/** Quién edita su carrito: un negocio con sesión (`negocioId`) o alguien por WhatsApp (`telefono`). */
+export interface DuenoCarrito {
+  negocioId?: string;
+  /** Solo interno: el teléfono nunca sale en la foto pública ni en eventos. */
+  telefono?: string;
+  nombre?: string;
+  comuna?: string;
+  /** Rubro al registrarse (`RUBROS`), opcional. */
+  rubro?: string;
+}
+
+export interface NuevoCarrito extends DuenoCarrito {
+  /** El carrito completo; cantidad 0 quita el ítem y un carrito vacío sale de la compra. Cantidad por ítem 0 a 20. */
+  items: readonly ItemCarrito[];
+}
+
+export interface NuevoItemCarrito extends DuenoCarrito {
+  productoId: string;
+  /** Fija la cantidad de ese producto (0 lo quita). */
+  cantidad: number;
+}
+
+export interface BajadaPrecio {
+  productoId: string;
+  precioAnterior: number;
+  precioNuevo: number;
+}
+
+/** Lo que devuelven `actualizarCarrito` y `agregarAlCarrito`. Todo sin teléfonos. */
+export interface ResultadoCarrito {
+  licitacion: SinTelefono<LicitacionVista>;
+  /** El participante con su carrito, o null si quedó fuera (carrito vacío). */
+  participante: SinTelefono<Participante> | null;
+  /** Productos cuyo precio bajó con este cambio. */
+  bajadas: BajadaPrecio[];
 }
 
 /** Datos para registrar (o reusar) un negocio comprador. */
 export interface NuevoComprador {
   nombre: string;
   comuna?: string;
+  /** Rubro (`RUBROS`); uno desconocido queda como `otro`. */
+  rubro?: string;
   telefono?: string;
 }
 
@@ -80,21 +126,30 @@ export interface Red {
   registrarRecepcion(ordenId: string, recepcion: Recepcion): Promise<OrdenCompra>;
   emitirNotaCredito(ordenId: string): Promise<Documento>;
   notaDeProveedor(proveedorId: string): number;
-  /** Suma o actualiza (mismo negocio o mismo teléfono: cambia la cantidad, no se duplica). Cantidad 1 a 20. */
+  /**
+   * Compatibilidad: suma o actualiza un producto del carrito (por defecto el primero de la canasta). Mismo negocio
+   * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad 1 a 20. El público anónimo suma uno nuevo.
+   */
   unirseALicitacion(licitacionId: string, participante: NuevoParticipante): Promise<ResultadoUnion>;
+  /** Reemplaza el carrito completo (cantidad 0 quita el ítem; carrito vacío sale). Exige `negocioId` o `telefono`. */
+  actualizarCarrito(licitacionId: string, carrito: NuevoCarrito): Promise<ResultadoCarrito>;
+  /** Fija la cantidad de un producto del carrito sin tocar los demás (0 lo quita). Exige `negocioId` o `telefono`. */
+  agregarAlCarrito(licitacionId: string, item: NuevoItemCarrito): Promise<ResultadoCarrito>;
+  /** Saca al negocio de la compra (vacía su carrito). Si no estaba, no cambia nada. */
+  salirDeLicitacion(licitacionId: string, quien: Pick<DuenoCarrito, 'negocioId' | 'telefono'>): Promise<{ licitacion: SinTelefono<LicitacionVista> }>;
   /** La compra conjunta abierta más reciente, o null. */
   licitacionAbierta(): SinTelefono<LicitacionVista> | null;
   ofertar(licitacionId: string, oferta: NuevaOferta): Promise<LicitacionVista>;
   /**
-   * Cierra y crea una orden por participante (`enviada`), al proveedor de la compra conjunta y al precio
-   * del tramo alcanzado. Al público sin negocio le crea un negocio comprador. Sin proveedor fijo
+   * Cierra y crea una orden por participante (`enviada`) con todos los ítems de su carrito, al proveedor de la
+   * compra conjunta y al precio vigente de cada producto. Al público sin negocio le crea un negocio comprador. Sin proveedor fijo
    * (licitación antigua), gana la mejor oferta ajustada y solo compran los negocios.
    * Idempotente: si ya cerró, devuelve las mismas órdenes.
    */
   cerrarLicitacion(licitacionId: string): Promise<OrdenCompra[]>;
   /**
    * El proveedor dijo que sí: confirma todas las órdenes de la compra conjunta y emite todas sus facturas 33
-   * en UN sobre del SII. Se puede volver a llamar si el SII falló: solo emite lo que falta. Devuelve las facturas.
+   * (una por comprador, una línea de detalle por producto) en UN sobre del SII. Se puede volver a llamar si el SII falló: solo emite lo que falta. Devuelve las facturas.
    */
   confirmarOrdenesDeLicitacion(licitacionId: string): Promise<Documento[]>;
   /** Registra un negocio comprador, o reusa el del mismo teléfono. */
@@ -129,6 +184,13 @@ const ZONA = 'America/Santiago';
 const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date(iso));
 const neto = (items: Item[]) => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
+/** Rubro conocido, sin tildes ni mayúsculas; uno desconocido es `otro` y vacío, undefined. */
+export function normalizarRubro(texto: unknown): Rubro | undefined {
+  const limpio = String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  if (!limpio) return undefined;
+  return (RUBROS as readonly string[]).includes(limpio) ? limpio as Rubro : 'otro';
+}
+
 // Solo dígitos y los últimos 9 (móvil chileno), para que "+56 9 1234 5678" y "56912345678" coincidan.
 const normalizarTelefono = (t: string) => t.replace(/\D/g, '').slice(-9);
 
@@ -139,14 +201,28 @@ export function precioAjustado(oferta: NuevaOferta, nota: number): number {
   return Math.round(oferta.precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * oferta.plazoDias));
 }
 
+/** Id del único producto de una licitación guardada antes de la canasta. */
+const PRODUCTO_UNICO = 'producto';
+
+/** Licitaciones guardadas antes de los tramos o de la canasta: un producto con sus tramos y ofertas, y carritos de un ítem. */
+function migrarLicitacion(l: Licitacion) {
+  l.tramos ??= [{ desde: 1, precioUnitario: l.precioSolo }];
+  l.unidad ??= 'unidad';
+  l.unidadPlural ??= 'unidades';
+  l.ofertas ??= [];
+  if (!l.productos?.length) {
+    l.productos = [{
+      id: PRODUCTO_UNICO, nombre: l.producto, unidad: l.unidad, unidadPlural: l.unidadPlural, precioSolo: l.precioSolo,
+      tramos: l.tramos, ofertas: l.ofertas.map(o => ({ ...o, productoId: PRODUCTO_UNICO })),
+    }];
+  }
+  const primero = l.productos[0]!.id;
+  for (const p of l.participantes) p.items ??= [{ productoId: primero, cantidad: p.cantidad }];
+}
+
 export async function crearRed({ repo, sii, reloj = () => new Date(), env = process.env }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
-  // Licitaciones guardadas antes de los tramos: un solo tramo al precio de comprar solo.
-  for (const l of datos.licitaciones) {
-    l.tramos ??= [{ desde: 1, precioUnitario: l.precioSolo }];
-    l.unidad ??= 'unidad';
-    l.unidadPlural ??= 'unidades';
-  }
+  for (const l of datos.licitaciones) migrarLicitacion(l);
   const oyentes = new Set<(evento: EventoRed) => void>();
   const enCurso = new Set<string>();
   const ahora = () => reloj().toISOString();
@@ -233,6 +309,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
       const producto = normalizarProducto(texto) ?? texto;
       const cantidad = Number(i?.cantidad);
       const precioUnitario = i?.precioUnitario === undefined ? precioDe(proveedorId, producto) : Number(i.precioUnitario);
+      const productoId = typeof i?.productoId === 'string' && i.productoId ? i.productoId : undefined;
       if (!producto || !Number.isInteger(cantidad) || cantidad <= 0) {
         throw new ErrorRed('datos_invalidos', 'Cada ítem necesita producto y cantidad entera positiva');
       }
@@ -240,7 +317,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
         throw new ErrorRed('datos_invalidos', `No tenemos precio para "${texto}". Productos: ${PRODUCTOS_DISPONIBLES.join(', ')}`);
       }
       if (!(precioUnitario > 0)) throw new ErrorRed('datos_invalidos', 'El precio debe ser positivo');
-      return { producto, cantidad, precioUnitario };
+      return { ...(productoId ? { productoId } : {}), producto, cantidad, precioUnitario };
     });
   }
 
@@ -350,7 +427,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
 
   const textoCorto = (x: unknown) => String(x ?? '').trim().slice(0, 40);
 
-  function registrarComprador({ nombre, comuna, telefono }: NuevoComprador) {
+  function registrarComprador({ nombre, comuna, telefono, rubro }: NuevoComprador) {
     return enFila('compradores', async () => {
       const tel = telefono ? normalizarTelefono(telefono) : '';
       const existente = tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
@@ -360,48 +437,151 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
       }
       const limpio = textoCorto(nombre);
       if (!limpio) throw new ErrorRed('datos_invalidos', 'Falta el nombre');
-      const n: Negocio = { id: `n-c-${randomUUID().slice(0, 8)}`, nombre: limpio, comuna: textoCorto(comuna), rol: 'comprador', telefono: telefono?.trim() ?? '' };
+      const r = normalizarRubro(rubro);
+      const n: Negocio = {
+        id: `n-c-${randomUUID().slice(0, 8)}`, nombre: limpio, comuna: textoCorto(comuna), rol: 'comprador', telefono: telefono?.trim() ?? '',
+        ...(r ? { rubro: r } : {}),
+      };
       await guardar('negocios', n);
       return structuredClone(n);
     });
   }
 
+  function validarCantidad(cantidad: number, minimo: 0 | 1) {
+    if (!Number.isInteger(cantidad) || cantidad < minimo || cantidad > CANTIDAD_MAXIMA) {
+      throw new ErrorRed('datos_invalidos', `La cantidad debe ser un entero entre ${minimo} y ${CANTIDAD_MAXIMA}`);
+    }
+  }
+
+  function productoDeLicitacion(l: Licitacion, productoId?: string) {
+    const p = productoDe(l, productoId);
+    if (!p) throw new ErrorRed('datos_invalidos', `No existe el producto ${productoId}. Productos: ${l.productos.map(x => x.id).join(', ')}`);
+    return p;
+  }
+
+  /** El negocio comprador de quien edita su carrito. Con `crear`, registra el teléfono nuevo. */
+  async function compradorDe(q: DuenoCarrito, crear: boolean): Promise<Negocio | undefined> {
+    if (q.negocioId) return negocio(q.negocioId, 'comprador');
+    if (!q.telefono) return undefined;
+    const tel = normalizarTelefono(q.telefono);
+    const existente = tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
+    if (existente?.rol === 'proveedor') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
+    if (existente || !crear) return existente;
+    return registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro });
+  }
+
+  /**
+   * Cambia el carrito de un participante y avisa: `licitacion.participante` (entra, cambia o sale) y un
+   * `licitacion.precio_bajo` por cada producto cuyo precio bajó. Sin negocio (público anónimo) suma uno nuevo.
+   */
+  async function cambiarCarrito(l: Licitacion, n: Negocio | undefined, anonimo: DuenoCarrito, cambiar: (items: Map<string, number>) => void) {
+    const antes = preciosVigentes(l);
+    const actual = n ? l.participantes.find(x => x.negocioId === n.id) : undefined;
+    const items = new Map((actual?.items ?? []).map(i => [i.productoId, i.cantidad]));
+    cambiar(items);
+    const carrito = l.productos.filter(p => (items.get(p.id) ?? 0) > 0).map(p => ({ productoId: p.id, cantidad: items.get(p.id)! }));
+    const cantidad = carrito.reduce((s, i) => s + i.cantidad, 0);
+
+    let participante: Participante | null;
+    let accion: 'entra' | 'cambia' | 'sale';
+    if (carrito.length === 0) {
+      if (!actual) return { licitacion: sinTelefonos(vistaLicitacion(l)), participante: null, bajadas: [] };
+      l.participantes = l.participantes.filter(x => x !== actual);
+      participante = null;
+      accion = 'sale';
+    } else if (actual) {
+      Object.assign(actual, { items: carrito, cantidad });
+      participante = actual;
+      accion = 'cambia';
+    } else if (n) {
+      participante = {
+        negocioId: n.id, nombre: n.nombre, ...(n.comuna ? { comuna: n.comuna } : {}), ...(n.rubro ? { rubro: n.rubro } : {}),
+        ...(n.telefono ? { telefono: n.telefono } : {}),
+        items: carrito, cantidad, en: ahora(),
+      };
+      l.participantes.push(participante);
+      accion = 'entra';
+    } else {
+      const nombre = textoCorto(anonimo.nombre);
+      if (!nombre) throw new ErrorRed('datos_invalidos', 'Falta el nombre');
+      const comuna = textoCorto(anonimo.comuna);
+      const rubro = normalizarRubro(anonimo.rubro);
+      participante = { nombre, ...(comuna ? { comuna } : {}), ...(rubro ? { rubro } : {}), items: carrito, cantidad, en: ahora() };
+      l.participantes.push(participante);
+      accion = 'entra';
+    }
+    await guardar('licitaciones', l);
+    const vista = vistaLicitacion(l);
+    const evento = participante ?? { ...actual!, items: [], cantidad: 0 };
+    emitir('licitacion.participante', { licitacionId: l.id, licitacion: vista, participante: evento, accion });
+    const bajadas: BajadaPrecio[] = [];
+    for (const p of vista.productos) {
+      const precioAnterior = antes.get(p.id)!;
+      if (p.precioActual >= precioAnterior) continue;
+      bajadas.push({ productoId: p.id, precioAnterior, precioNuevo: p.precioActual });
+      emitir('licitacion.precio_bajo', {
+        licitacionId: l.id, productoId: p.id, precioAnterior, precioNuevo: p.precioActual, totalUnidades: p.totalUnidades,
+      });
+    }
+    return { licitacion: sinTelefonos(vista), participante: participante && sinTelefonos(participante), bajadas };
+  }
+
+  function exigirDueno(q: DuenoCarrito) {
+    if (!q.negocioId && !q.telefono) throw new ErrorRed('datos_invalidos', 'El carrito necesita negocioId o telefono');
+  }
+
+  function actualizarCarrito(licitacionId: string, c: NuevoCarrito) {
+    return enFila(licitacionId, async (): Promise<ResultadoCarrito> => {
+      const l = licitacionEnCurso(licitacionId);
+      exigirDueno(c);
+      if (!Array.isArray(c.items)) throw new ErrorRed('datos_invalidos', 'items debe ser una lista de { productoId, cantidad }');
+      const nuevos = c.items.map(i => {
+        const cantidad = Number(i?.cantidad);
+        validarCantidad(cantidad, 0);
+        return { productoId: productoDeLicitacion(l, String(i?.productoId ?? '')).id, cantidad };
+      });
+      const n = await compradorDe(c, nuevos.some(i => i.cantidad > 0));
+      return cambiarCarrito(l, n, c, items => {
+        items.clear();
+        for (const i of nuevos) items.set(i.productoId, i.cantidad);
+      });
+    });
+  }
+
+  function agregarAlCarrito(licitacionId: string, i: NuevoItemCarrito) {
+    return enFila(licitacionId, async (): Promise<ResultadoCarrito> => {
+      const l = licitacionEnCurso(licitacionId);
+      exigirDueno(i);
+      const productoId = productoDeLicitacion(l, String(i.productoId ?? '')).id;
+      const cantidad = Number(i.cantidad);
+      validarCantidad(cantidad, 0);
+      const n = await compradorDe(i, cantidad > 0);
+      return cambiarCarrito(l, n, i, items => { items.set(productoId, cantidad); });
+    });
+  }
+
+  function salirDeLicitacion(licitacionId: string, q: Pick<DuenoCarrito, 'negocioId' | 'telefono'>) {
+    return enFila(licitacionId, async () => {
+      const l = licitacionEnCurso(licitacionId);
+      exigirDueno(q);
+      const n = await compradorDe(q, false);
+      const { licitacion } = await cambiarCarrito(l, n, q, items => { items.clear(); });
+      return { licitacion };
+    });
+  }
+
+  // Compatibilidad con la compra de un solo producto: fija la cantidad de un producto (por defecto el primero).
   // Un mismo negocio (o teléfono) que vuelve a sumarse cambia su cantidad, no aparece dos veces.
   function unirseALicitacion(licitacionId: string, p: NuevoParticipante) {
     return enFila(licitacionId, async (): Promise<ResultadoUnion> => {
       const l = licitacionEnCurso(licitacionId);
       const cantidad = Number(p.cantidad);
-      if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA) {
-        throw new ErrorRed('datos_invalidos', `La cantidad debe ser un entero entre 1 y ${CANTIDAD_MAXIMA}`);
-      }
-      const antes = precioVigente(l);
-      let n: Negocio | undefined;
-      if (p.negocioId) n = negocio(p.negocioId, 'comprador');
-      else if (p.telefono) n = await registrarComprador({ nombre: p.nombre ?? '', comuna: p.comuna, telefono: p.telefono });
-
-      let participante = n ? l.participantes.find(x => x.negocioId === n.id) : undefined;
-      if (participante) {
-        participante.cantidad = cantidad;
-      } else if (n) {
-        participante = { negocioId: n.id, nombre: n.nombre, ...(n.comuna ? { comuna: n.comuna } : {}), ...(n.telefono ? { telefono: n.telefono } : {}), cantidad, en: ahora() };
-        l.participantes.push(participante);
-      } else {
-        const nombre = textoCorto(p.nombre);
-        if (!nombre) throw new ErrorRed('datos_invalidos', 'Falta el nombre');
-        const comuna = textoCorto(p.comuna);
-        participante = { nombre, cantidad, ...(comuna ? { comuna } : {}), en: ahora() };
-        l.participantes.push(participante);
-      }
-      await guardar('licitaciones', l);
-      const vista = vistaLicitacion(l);
-      emitir('licitacion.participante', { licitacion: vista, participante });
-      const bajoDePrecio = vista.precioActual < antes;
-      if (bajoDePrecio) {
-        emitir('licitacion.precio_bajo', {
-          licitacionId: l.id, precioAnterior: antes, precioNuevo: vista.precioActual, totalUnidades: vista.totalUnidades,
-        });
-      }
-      return { licitacion: sinTelefonos(vista), participante: sinTelefonos(participante), precioActual: vista.precioActual, bajoDePrecio };
+      validarCantidad(cantidad, 1);
+      const producto = productoDeLicitacion(l, p.productoId);
+      const n = await compradorDe(p, true);
+      const r = await cambiarCarrito(l, n, p, items => { items.set(producto.id, cantidad); });
+      const precioActual = r.licitacion.productos.find(x => x.id === producto.id)!.precioActual;
+      return { licitacion: r.licitacion, participante: r.participante!, precioActual, bajoDePrecio: r.bajadas.some(b => b.productoId === producto.id) };
     });
   }
 
@@ -410,29 +590,33 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
     return l ? sinTelefonos(vistaLicitacion(l)) : null;
   }
 
+  // Oferta por un producto de la canasta (por defecto el primero). Reemplaza la anterior del mismo proveedor en ese producto.
   function ofertar(licitacionId: string, o: NuevaOferta) {
     return enFila(licitacionId, async () => {
       const l = licitacionEnCurso(licitacionId);
       const proveedor = negocio(o.proveedorId, 'proveedor');
-      const antes = precioVigente(l);
+      const producto = productoDeLicitacion(l, o.productoId);
+      const antes = precioVigente(l, producto.id);
       const precioUnitario = Number(o.precioUnitario), plazoDias = Number(o.plazoDias);
       if (!(precioUnitario > 0) || !Number.isInteger(plazoDias) || plazoDias < 0) {
         throw new ErrorRed('datos_invalidos', 'La oferta necesita precio positivo y plazo en días enteros');
       }
-      const oferta: Oferta = { proveedorId: o.proveedorId, precioUnitario, plazoDias, en: ahora() };
-      l.ofertas = l.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
+      const oferta: Oferta = { proveedorId: o.proveedorId, productoId: producto.id, precioUnitario, plazoDias, en: ahora() };
+      producto.ofertas = producto.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
       await guardar('licitaciones', l);
       const vista = vistaLicitacion(l);
       const nota = notaDeProveedor(o.proveedorId);
-      // La mejor del momento: más barata que las demás ofertas y que el precio del tramo alcanzado.
-      const mejor = precioUnitario <= precioPorVolumen(l, vista.totalUnidades)
-        && l.ofertas.every(x => x === oferta || x.precioUnitario > precioUnitario);
+      const unidades = unidadesDe(l, producto.id);
+      // La mejor del momento en ese producto: más barata que las demás ofertas y que el precio del tramo alcanzado.
+      const mejor = precioUnitario <= precioPorVolumen(producto, unidades)
+        && producto.ofertas.every(x => x === oferta || x.precioUnitario > precioUnitario);
       emitir('licitacion.oferta', {
-        licitacionId: l.id, licitacion: vista, oferta: { ...oferta, proveedorNombre: proveedor.nombre, nota }, nota, mejor,
+        licitacionId: l.id, productoId: producto.id, licitacion: vista, oferta: { ...oferta, proveedorNombre: proveedor.nombre, nota }, nota, mejor,
       });
-      if (vista.precioActual < antes) {
+      const precioNuevo = precioVigente(l, producto.id);
+      if (precioNuevo < antes) {
         emitir('licitacion.precio_bajo', {
-          licitacionId: l.id, precioAnterior: antes, precioNuevo: vista.precioActual, totalUnidades: vista.totalUnidades,
+          licitacionId: l.id, productoId: producto.id, precioAnterior: antes, precioNuevo, totalUnidades: unidades,
         });
       }
       return vista;
@@ -449,29 +633,29 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
       const yaCerrada = datos.licitaciones.find(x => x.id === licitacionId && x.estado === 'cerrada');
       if (yaCerrada) return structuredClone(datos.ordenes.filter(o => yaCerrada.ordenIds?.includes(o.id)));
       const l = licitacionEnCurso(licitacionId);
-      const compras: { participante: Participante; proveedorId: string; precioUnitario: number }[] = [];
+      const compras: { participante: Participante; proveedorId: string; precio: (productoId: string) => number }[] = [];
       if (l.proveedorId) {
         negocio(l.proveedorId, 'proveedor');
-        const precioUnitario = precioVigente(l);
-        for (const p of l.participantes) compras.push({ participante: p, proveedorId: l.proveedorId, precioUnitario });
+        const precios = preciosVigentes(l);
+        for (const p of l.participantes) compras.push({ participante: p, proveedorId: l.proveedorId, precio: id => precios.get(id)! });
       } else {
-        const candidatas = l.ofertas.map(o => {
+        const candidatas = (l.productos[0]?.ofertas ?? []).map(o => {
           const nota = notaDeProveedor(o.proveedorId);
           return { ...o, nota, precioAjustado: precioAjustado(o, nota) };
         });
         candidatas.sort((a, b) => a.precioAjustado - b.precioAjustado);
         if (candidatas[0]) l.ganadora = candidatas[0];
         const g = l.ganadora;
-        if (g) for (const p of l.participantes.filter(x => x.negocioId)) compras.push({ participante: p, proveedorId: g.proveedorId, precioUnitario: g.precioUnitario });
+        if (g) for (const p of l.participantes.filter(x => x.negocioId)) compras.push({ participante: p, proveedorId: g.proveedorId, precio: () => g.precioUnitario });
       }
       l.estado = 'cerrada';
       await guardar('licitaciones', l);
       const ordenes: OrdenCompra[] = [];
-      for (const { participante: p, proveedorId, precioUnitario } of compras) {
-        p.negocioId ??= (await registrarComprador({ nombre: p.nombre, comuna: p.comuna, telefono: p.telefono })).id;
-        ordenes.push(await crearOrden({
-          compradorId: p.negocioId, proveedorId, items: [{ producto: l.producto, cantidad: p.cantidad, precioUnitario }],
-        }));
+      const nombres = new Map(l.productos.map(x => [x.id, x.nombre]));
+      for (const { participante: p, proveedorId, precio } of compras) {
+        p.negocioId ??= (await registrarComprador({ nombre: p.nombre, comuna: p.comuna, telefono: p.telefono, rubro: p.rubro })).id;
+        const items = p.items.map(i => ({ productoId: i.productoId, producto: nombres.get(i.productoId) ?? l.producto, cantidad: i.cantidad, precioUnitario: precio(i.productoId) }));
+        ordenes.push(await crearOrden({ compradorId: p.negocioId, proveedorId, items }));
       }
       l.ordenIds = ordenes.map(o => o.id);
       await guardar('licitaciones', l);
@@ -513,7 +697,8 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
         for (const o of ordenes) enCurso.delete(o.id);
       }
       const facturas = ordenes.map(o => documento(o.id, 33)).filter((d): d is Documento => !!d);
-      const ahorroTotal = ordenes.reduce((s, o) => s + o.items.reduce((t, i) => t + (l.precioSolo - i.precioUnitario) * i.cantidad, 0), 0);
+      const precioSolo = (i: Item) => productoDe(l, i.productoId)?.precioSolo ?? l.precioSolo;
+      const ahorroTotal = ordenes.reduce((s, o) => s + o.items.reduce((t, i) => t + (precioSolo(i) - i.precioUnitario) * i.cantidad, 0), 0);
       emitir('licitacion.facturada', {
         licitacionId: l.id, documentos: facturas.length, total: facturas.reduce((s, d) => s + d.monto, 0), ahorroTotal,
       });
@@ -578,7 +763,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
     telefonoDeNegocio,
     negocioPorId,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

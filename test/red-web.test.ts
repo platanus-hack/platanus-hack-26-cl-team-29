@@ -125,9 +125,11 @@ test('el panel del proveedor exige su código y confirmado para facturar la comp
 test('config pública, confirmación de escenario con DEMO_TOKEN y límite por IP', async () => {
   const s = await servidor(ENV, 3);
   try {
-    assert.deepEqual((await s.get('/config')).cuerpo, {
-      whatsappNumero: '56900000000', producto: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas',
+    const { productos, ...compat } = (await s.get('/config')).cuerpo;
+    assert.deepEqual(compat, {
+      whatsappNumero: '56900000000', proveedorLogoUrl: null, producto: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas',
     });
+    assert.equal(productos.length, 4);
     const union = await s.post('/licitaciones/L-1/unirse', { nombre: 'Ana', cantidad: 2, telefono: '56911112222', negocioId: 'n-pica-nunoa' });
     assert.equal(union.status, 200);
     assert.equal(union.cuerpo.participante.negocioId, undefined, 'la página pública no acepta negocioId ni teléfono');

@@ -57,7 +57,9 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
 
   rutas.get('/config', (_req, res) => {
     const c = configDemo(env);
-    res.json({ whatsappNumero: c.whatsappNumero, producto: c.producto, unidad: c.unidad, unidadPlural: c.unidadPlural });
+    // Sin pisos ni tramos: la canasta para armar el carrito. Los campos sueltos reflejan el primer producto (compatibilidad).
+    const productos = c.productos.map(({ id, nombre, unidad, unidadPlural }) => ({ id, nombre, unidad, unidadPlural }));
+    res.json({ whatsappNumero: c.whatsappNumero, proveedorLogoUrl: c.proveedorLogoUrl, productos, producto: c.producto, unidad: c.unidad, unidadPlural: c.unidadPlural });
   });
 
   rutas.post('/ordenes', async (req, res) => {
@@ -95,6 +97,8 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     res.json(await red.unirseALicitacion(id(req), {
       nombre: typeof b.nombre === 'string' ? b.nombre : undefined,
       comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
+      rubro: typeof b.rubro === 'string' ? b.rubro : undefined,
+      ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
       cantidad: Number(b.cantidad),
     }));
   });
@@ -107,6 +111,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     const b = cuerpo(req);
     res.json(sinTelefonos(await red.ofertar(id(req), {
       proveedorId: String(b.proveedorId ?? ''), precioUnitario: Number(b.precioUnitario), plazoDias: Number(b.plazoDias),
+      ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
     })));
   });
 

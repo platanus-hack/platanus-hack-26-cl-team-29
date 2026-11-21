@@ -9,9 +9,22 @@ export interface Negocio {
   comuna: string;
   rol: Rol;
   telefono: string;
+  /** Rubro del comprador (`RUBROS`), para el ícono en pantalla. */
+  rubro?: Rubro;
+  /** Logo del proveedor de la sala (DEMO_PROVEEDOR_LOGO_URL, solo si es https). */
+  logoUrl?: string;
 }
 
+/** Rubros de comprador que la pantalla sabe dibujar. Uno desconocido queda como `otro`. */
+export const RUBROS = [
+  'almacen', 'panaderia', 'restaurante', 'farmacia', 'minimarket', 'botilleria', 'ferreteria', 'cafe',
+  'verduleria', 'carniceria', 'libreria', 'otro',
+] as const;
+export type Rubro = typeof RUBROS[number];
+
 export interface Item {
+  /** En la compra conjunta, el producto de la canasta (`ProductoCompra.id`). */
+  productoId?: string;
   producto: string;
   cantidad: number;
   precioUnitario: number;
@@ -61,12 +74,22 @@ export interface EventoReputacion {
   en: string;
 }
 
+/** Una línea del carrito de un participante. */
+export interface ItemCarrito {
+  productoId: string;
+  cantidad: number;
+}
+
 export interface Participante {
   negocioId?: string;
   /** Solo interno (WhatsApp): nunca sale en la foto pública ni en eventos. */
   telefono?: string;
   nombre: string;
   comuna?: string;
+  rubro?: Rubro;
+  /** Su carrito: cada producto de la canasta que compra, con cantidad de 1 a 20. */
+  items: ItemCarrito[];
+  /** Suma de `items` (compatibilidad con la compra de un solo producto). */
   cantidad: number;
   /** Cuándo se sumó (ISO). */
   en: string;
@@ -74,6 +97,8 @@ export interface Participante {
 
 export interface Oferta {
   proveedorId: string;
+  /** Producto de la canasta al que se oferta. Falta solo en licitaciones guardadas antes de la canasta. */
+  productoId?: string;
   precioUnitario: number;
   plazoDias: number;
   /** Cuándo llegó (ISO). */
@@ -96,8 +121,31 @@ export interface SiguienteTramo extends Tramo {
   faltan: number;
 }
 
+/** Un producto de la canasta de la compra conjunta, con sus propios tramos y ofertas. */
+export interface ProductoCompra {
+  id: string;
+  nombre: string;
+  unidad: string;
+  unidadPlural: string;
+  /** Precio unitario si se compra solo. */
+  precioSolo: number;
+  /** Precio por volumen total del grupo en este producto, de menor a mayor `desde`. */
+  tramos: Tramo[];
+  /** Ofertas de proveedores por este producto (cada una con `productoId`). */
+  ofertas: Oferta[];
+}
+
+/** Producto de la canasta con lo que se deriva de los carritos. */
+export interface ProductoCompraVista extends ProductoCompra {
+  totalUnidades: number;
+  precioActual: number;
+  siguienteTramo: SiguienteTramo | null;
+}
+
 export interface Licitacion {
   id: string;
+  /** La canasta. Los campos de un solo producto (`producto`, `unidad`, `precioSolo`, `tramos`, `ofertas`) reflejan `productos[0]`. */
+  productos: ProductoCompra[];
   producto: string;
   /** Unidad de venta, singular y plural ("caja", "cajas"). */
   unidad: string;
@@ -118,9 +166,19 @@ export interface Licitacion {
   ordenIds?: string[];
 }
 
-/** Licitación con lo que se deriva de sus participantes y tramos. */
-export interface LicitacionVista extends Licitacion {
+/**
+ * Licitación con lo que se deriva de los carritos. `totalUnidades`, `montoTotal` y `ahorroTotal` son de toda
+ * la canasta; `precioActual` y `siguienteTramo` son los de `productos[0]` (compatibilidad).
+ */
+export interface LicitacionVista extends Omit<Licitacion, 'productos'> {
+  productos: ProductoCompraVista[];
+  /** Negocios (participantes) con algo en su carrito. */
+  totalNegocios: number;
   totalUnidades: number;
+  /** Lo que paga el grupo hoy: suma de unidades por `precioActual` de cada producto (neto). */
+  montoTotal: number;
+  /** Lo que ahorra el grupo contra `precioSolo` de cada producto (neto). */
+  ahorroTotal: number;
   precioActual: number;
   siguienteTramo: SiguienteTramo | null;
 }

@@ -62,7 +62,7 @@ test('el precio de la sala nunca sube y cada baja, por tramo o por oferta, avisa
     .map(e => (e.datos as { licitacion: { precioActual: number } }).licitacion.precioActual);
   for (const [k, p] of precios.entries()) if (k > 0) assert.ok(p <= precios[k - 1]!, 'el precio subió');
   const ultima = eventos.filter(e => e.tipo === 'licitacion.oferta').at(-1)!.datos as Record<string, unknown>;
-  assert.deepEqual(Object.keys(ultima).sort(), ['licitacion', 'licitacionId', 'mejor', 'nota', 'oferta']);
+  assert.deepEqual(Object.keys(ultima).sort(), ['licitacion', 'licitacionId', 'mejor', 'nota', 'oferta', 'productoId']);
   assert.equal(ultima.mejor, true);
 });
 
