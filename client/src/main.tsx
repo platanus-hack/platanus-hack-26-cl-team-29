@@ -1,6 +1,8 @@
 import type { JSX } from 'react';
 import { createRoot } from 'react-dom/client';
 import './estilos.css';
+import { MiNegocio } from './canal/MiNegocio.tsx';
+import { Proveedor } from './canal/Proveedor.tsx';
 import { Licitacion } from './vistas/Licitacion.tsx';
 import { RedEnVivo } from './vistas/RedEnVivo.tsx';
 import { Unirse } from './vistas/Unirse.tsx';
@@ -9,6 +11,8 @@ import { Unirse } from './vistas/Unirse.tsx';
 const VISTAS: Record<string, () => JSX.Element> = {
   '/licitacion': Licitacion,
   '/unirse': Unirse,
+  '/app': MiNegocio,
+  '/proveedor': Proveedor,
 };
 
 const Vista = VISTAS[location.pathname.replace(/\/+$/, '')] ?? RedEnVivo;
