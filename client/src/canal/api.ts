@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import type { Negocio, OrdenCompra } from '../red/tipos.ts';
 import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
-import type { ConfigRed, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
+import type { ConexionSii, ConfigRed, DatosEmpresaSii, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
   producto: string;
@@ -27,6 +27,14 @@ export interface CanalApi {
   facturar(token: string, licitacionId: string): Promise<void>;
   confirmarOrden(token: string, ordenId: string): Promise<void>;
   notaCredito(token: string, ordenId: string): Promise<void>;
+  /** "Conectar mi SII" del proveedor. Los secretos solo viajan al subirlos; nunca vuelven. */
+  siiEstado(token: string): Promise<ConexionSii>;
+  siiCertificado(token: string, pfxBase64: string, clave: string): Promise<ConexionSii>;
+  siiConsultarEmpresa(token: string, rutEmisor: string): Promise<FichaSii>;
+  siiGuardarEmpresa(token: string, datos: DatosEmpresaSii): Promise<ConexionSii>;
+  siiCaf(token: string, xmlBase64: string): Promise<{ estado: ConexionSii; avisos: string[] }>;
+  siiFolio(token: string, tipo: number, folio: number): Promise<ConexionSii>;
+  siiDesconectar(token: string): Promise<ConexionSii>;
   /** Avisa cada vez que algo cambia en la red. Devuelve cómo dejar de escuchar. */
   escuchar(alCambiar: (e?: EventoRed) => void): () => void;
 }
@@ -109,6 +117,13 @@ export function crearApiReal(): CanalApi {
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },
     confirmarOrden: async (token, id) => { await llamar(`/proveedor/ordenes/${encodeURIComponent(id)}/confirmar`, { token, cuerpo: { confirmado: true } }); },
     notaCredito: async (token, id) => { await llamar(`/proveedor/ordenes/${encodeURIComponent(id)}/nota-credito`, { token, cuerpo: { confirmado: true } }); },
+    siiEstado: token => llamar('/proveedor/sii', { token }),
+    siiCertificado: (token, pfxBase64, clave) => llamar('/proveedor/sii/certificado', { token, cuerpo: { pfxBase64, clave } }),
+    siiConsultarEmpresa: (token, rutEmisor) => llamar('/proveedor/sii/empresa/consultar', { token, cuerpo: { rutEmisor } }),
+    siiGuardarEmpresa: (token, datos) => llamar('/proveedor/sii/empresa', { token, cuerpo: datos, metodo: 'PUT' }),
+    siiCaf: (token, xmlBase64) => llamar('/proveedor/sii/caf', { token, cuerpo: { xmlBase64 } }),
+    siiFolio: (token, tipo, folio) => llamar(`/proveedor/sii/caf/${tipo}/folio`, { token, cuerpo: { folio } }),
+    siiDesconectar: token => llamar('/proveedor/sii', { token, metodo: 'DELETE' }),
     escuchar(alCambiar) {
       const socket = io();
       socket.on('red:evento', (e: EventoRed) => alCambiar(e));
