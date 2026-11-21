@@ -3,6 +3,7 @@
 // eventos `licitacion.precio_bajo` (con productoId), `licitacion.cerrada`, `documento.emitido` y `licitacion.facturada`.
 // Con `sinCanasta` imita a la red antigua: un solo producto y solo `unirseALicitacion`. Con `conPdf`, ofrece `enlacePdf`.
 // Con `ruts` (RUT -> razón social), ofrece `consultarRut` como la red real: valida el dígito verificador y solo conoce esos RUT.
+import { precioPorVolumen, siguienteTramo, unidadesDe as unidadesDelProducto } from '../../shared/precios.ts';
 import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
 import { crearRedFalsa } from './red-falsa.ts';
 import type { RedFalsa } from './red-falsa.ts';
@@ -53,17 +54,12 @@ export function crearRedSalaFalsa(
   let folio = 5190;
 
   const emitir = (tipo: string, d: unknown) => { for (const o of oyentes) o({ tipo, datos: d }); };
-  const unidadesDe = (id: string) => participantes.reduce((s, p) => s + (p.items.find(i => i.productoId === id)?.cantidad ?? 0), 0);
-  const precioPara = (p: ProductoFalso, unidades: number) =>
-    [...p.tramos].filter(t => t.desde <= Math.max(unidades, 1)).at(-1)?.precioUnitario ?? p.precioSolo;
+  const unidadesDe = (id: string) => unidadesDelProducto({ participantes }, id);
+  const precioPara = (p: ProductoFalso, unidades: number) => precioPorVolumen(p, Math.max(unidades, 1));
 
   function producto(p: ProductoFalso): ProductoCompra {
     const unidades = unidadesDe(p.id);
-    const siguiente = p.tramos.find(t => t.desde > unidades);
-    return {
-      ...p, totalUnidades: unidades, precioActual: precioPara(p, unidades),
-      siguienteTramo: siguiente ? { desde: siguiente.desde, precioUnitario: siguiente.precioUnitario, faltan: siguiente.desde - unidades } : null,
-    };
+    return { ...p, totalUnidades: unidades, precioActual: precioPara(p, unidades), siguienteTramo: siguienteTramo(p.tramos, unidades) };
   }
 
   function foto(): LicitacionSala {

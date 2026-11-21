@@ -5,6 +5,7 @@
 import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { Participante, SiguienteTramo } from '../red/tipos.ts';
+import { siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { normalizarTramos } from './logica.ts';
 import type { LicitacionCanal, Tramo } from './tipos.ts';
 
@@ -37,12 +38,8 @@ export interface ProductoCanasta {
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
-const tramoEn = (tramos: Tramo[], unidades: number) => [...tramos].reverse().find(t => t.desde <= unidades) ?? tramos[0];
-
-function siguienteEn(tramos: Tramo[], unidades: number, precio: number): SiguienteTramo | null {
-  const t = tramos.find(x => x.desde > unidades && x.precioUnitario < precio);
-  return t ? { ...t, faltan: t.desde - unidades } : null;
-}
+/** Precio del tramo con `unidades`; antes del primero, el del primero. */
+const precioDelTramo = (tramos: Tramo[], unidades: number) => (tramoAlcanzado(tramos, unidades) ?? tramos[0]!).precioUnitario;
 
 /** Ítems de un participante: los de la canasta o, si es de antes, uno del primer producto. */
 export function itemsDe(p: Participante, primerProducto: string): ItemCarrito[] {
@@ -62,14 +59,14 @@ export function productosDe(lic: LicitacionCanal): ProductoCanasta[] {
     const tramos = normalizarTramos(p.tramos);
     const total = numero(p.totalUnidades) ?? lic.participantes.reduce(
       (s, x) => s + itemsDe(x, primero).filter(i => i.productoId === p.id).reduce((a, i) => a + i.cantidad, 0), 0);
-    const precioTramo = tramos.length ? tramoEn(tramos, total).precioUnitario : undefined;
+    const precioTramo = tramos.length ? precioDelTramo(tramos, total) : undefined;
     const precioActual = numero(p.precioActual) ?? precioTramo ?? p.precioSolo;
     const precioSolo = numero(p.precioSolo) || tramos[0]?.precioUnitario || precioActual;
     return {
       id: p.id, nombre: p.nombre, unidad: p.unidad || 'unidad', unidadPlural: p.unidadPlural || 'unidades', precioSolo, tramos,
       totalUnidades: total, precioActual,
       // Solo cuenta un tramo que de verdad baja el precio (con 0 unidades, el primero cuesta lo mismo que comprar solo).
-      siguienteTramo: p.siguienteTramo && p.siguienteTramo.precioUnitario < precioActual ? p.siguienteTramo : siguienteEn(tramos, total, precioActual),
+      siguienteTramo: p.siguienteTramo && p.siguienteTramo.precioUnitario < precioActual ? p.siguienteTramo : siguienteTramo(tramos, total, precioActual),
     };
   });
 }
@@ -124,10 +121,10 @@ export interface VistaProducto {
 export function proyectar(p: ProductoCanasta, delta: number): VistaProducto {
   if (delta === 0 || !p.tramos.length) return { precio: p.precioActual, unidades: p.totalUnidades, siguiente: p.siguienteTramo };
   const unidades = Math.max(0, p.totalUnidades + delta);
-  const tramoAntes = tramoEn(p.tramos, p.totalUnidades).precioUnitario;
+  const tramoAntes = precioDelTramo(p.tramos, p.totalUnidades);
   const oferta = p.precioActual < tramoAntes ? p.precioActual : Infinity;
-  const precio = Math.min(tramoEn(p.tramos, unidades).precioUnitario, oferta);
-  return { precio, unidades, siguiente: siguienteEn(p.tramos, unidades, precio) };
+  const precio = Math.min(precioDelTramo(p.tramos, unidades), oferta);
+  return { precio, unidades, siguiente: siguienteTramo(p.tramos, unidades, precio) };
 }
 
 export interface ResumenCarrito {

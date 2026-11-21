@@ -17,7 +17,7 @@ import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.
 import type { ConsultarContribuyente } from './contribuyente.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
-export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, precioAjustado, RUT_DESCONOCIDO, SII_NO_DISPONIBLE } from './dominio.ts';
+export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, RUT_DESCONOCIDO, SII_NO_DISPONIBLE } from './dominio.ts';
 export { RUBROS } from './tipos.ts';
 export type {
   BajadaPrecio, CodigoError, ContribuyenteDeRut, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
@@ -42,7 +42,7 @@ export { iniciarCompetencia, PASO_REAL, pisosDeProducto } from './competencia.ts
 export type { Competencia, OpcionesCompetencia } from './competencia.ts';
 export { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
 export type { ConfigDemo, ProductoDemo } from './config-demo.ts';
-export { precioPorVolumen, precioVigente, productoDe, siguienteTramo, unidadesDe, vistaLicitacion } from './compra.ts';
+export { precioVigente, productoDe, vistaLicitacion } from './compra.ts';
 export type * from './tipos.ts';
 export type { DocumentoImpreso } from '../sii/index.ts';
 

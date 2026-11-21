@@ -1,7 +1,9 @@
 // Tipos del canal web (/app y /proveedor). Copia local del contrato de la red
 // (docs/decisiones/20261121-1130-contrato-red.md) más las rutas con sesión: el front no importa código del backend.
 
-import type { Documento, EstadoRed, Licitacion, Negocio, OrdenCompra } from '../red/tipos.ts';
+import type { Documento, EstadoRed, Licitacion, Negocio, OrdenCompra, Tramo } from '../red/tipos.ts';
+
+export type { Tramo };
 
 /** `GET /api/red/config`. El producto y sus unidades salen de aquí, nunca escritos a mano. */
 export interface ConfigRed {
@@ -13,12 +15,6 @@ export interface ConfigRed {
   productos?: Array<{ id: string; nombre: string; unidad: string; unidadPlural: string }>;
   /** Logo del proveedor de la compra conjunta, si se configuró. Opcional: sin él se usa su monograma. */
   proveedorLogoUrl?: string | null;
-}
-
-/** Tramo de precio por volumen: desde `desde` unidades en total, cada una cuesta `precioUnitario`. */
-export interface Tramo {
-  desde: number;
-  precioUnitario: number;
 }
 
 /** Licitación con los campos de la compra conjunta por tramos (todos opcionales: se leen con cuidado). */

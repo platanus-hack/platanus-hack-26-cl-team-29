@@ -6,10 +6,11 @@ import { crearSii } from '../server/sii/index.ts';
 import type { EntradaFactura } from '../server/sii/index.ts';
 import {
   configDemo, crearAlmacenFoliosMemoria, crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso, crearSiiReal,
-  iniciarCompetencia, pisosDeProducto, precioPorVolumen, COMPETIDORES_SALA, PROVEEDOR_SALA,
+  iniciarCompetencia, pisosDeProducto, COMPETIDORES_SALA, PROVEEDOR_SALA,
 } from '../server/red/index.ts';
 import type { EventoRed, LicitacionVista, PuertoSii } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
+import { precioPorVolumen } from '../shared/precios.ts';
 import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
 
 const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };

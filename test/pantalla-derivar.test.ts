@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
+import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
 import { cuentaRegresiva, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
@@ -70,10 +70,6 @@ test('gana el menor precio ajustado por nota y plazo; la más barata con mala no
   assert.equal(r.delPublico, 1);
   assert.deepEqual(r.curva.map(p => p.precio), [21500, 17900, 17200, 17200]);
   assert.equal(r.ofertas[0].gana, true);
-});
-
-test('el precio ajustado coincide con la fórmula del backend', () => {
-  assert.equal(precioAjustado(17900, 2, 3.9), Math.round(17900 * 1.11 * 1.02));
 });
 
 test('el feed lee los datos con la forma del contrato', () => {

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { precioPorVolumen, precioVigente, preciosVigentes, productoDe, unidadesDe, vistaLicitacion } from './compra.ts';
+import { precioAjustado, precioPorVolumen, unidadesDe } from '../../shared/precios.ts';
+import { precioVigente, preciosVigentes, productoDe, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
@@ -233,13 +234,6 @@ export function normalizarRubro(texto: unknown): Rubro | undefined {
 
 // Solo dígitos y los últimos 9 (móvil chileno), para que "+56 9 1234 5678" y "56912345678" coincidan.
 const normalizarTelefono = (t: string) => t.replace(/\D/g, '').slice(-9);
-
-// Puntaje de una oferta en la licitación: el precio, castigado por mala nota y por plazo largo.
-//   precioAjustado = precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * plazoDias)
-// Gana el menor. Así un proveedor 0.8 puntos peor necesita ser ~8% más barato para ganar.
-export function precioAjustado(oferta: NuevaOferta, nota: number): number {
-  return Math.round(oferta.precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * oferta.plazoDias));
-}
 
 /** Id del único producto de una licitación guardada antes de la canasta. */
 const PRODUCTO_UNICO = 'producto';

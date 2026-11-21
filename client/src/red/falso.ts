@@ -8,7 +8,7 @@
 // SII las acepta. Después de un rato vuelve a empezar.
 
 import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, ProductoCompra, Tramo, TipoEvento } from './tipos.ts';
-import { precioConUnidades } from './derivar.ts';
+import { precioDelProducto, siguienteTramo, totalesDeCanasta, unidadesDe } from '../../../shared/precios.ts';
 
 export interface RedFalsa {
   detener(): void;
@@ -91,9 +91,6 @@ function carritoAleatorio(): Item[] {
   return CANASTA.filter(p => productos.includes(p)).map(p => ({ productoId: p.id, cantidad: aleatorio(CANTIDADES) }));
 }
 
-const unidadesDe = (lic: Licitacion, productoId: string) =>
-  lic.participantes.reduce((s, p) => s + (p.items ?? []).filter(i => i.productoId === productoId).reduce((t, i) => t + i.cantidad, 0), 0);
-
 /**
  * Recalcula lo que deriva el backend (server/red/compra.ts): por producto, el precio del tramo alcanzado o,
  * si es menor, la oferta del proveedor de la sala; los campos de un solo producto son los del primero.
@@ -101,15 +98,7 @@ const unidadesDe = (lic: Licitacion, productoId: string) =>
 function conDerivados(lic: Licitacion): Licitacion {
   const productos = (lic.productos ?? []).map(p => {
     const total = unidadesDe(lic, p.id);
-    const tramo = precioConUnidades(p.tramos, p.precioSolo, total)!;
-    const propia = p.ofertas?.find(o => o.proveedorId === lic.proveedorId);
-    const sig = [...p.tramos].sort((a, b) => a.desde - b.desde).find(t => t.desde > total);
-    return {
-      ...p,
-      totalUnidades: total,
-      precioActual: propia && total > 0 ? Math.min(tramo, propia.precioUnitario) : tramo,
-      siguienteTramo: sig ? { ...sig, faltan: sig.desde - total } : null,
-    };
+    return { ...p, totalUnidades: total, precioActual: precioDelProducto(p, total, lic.proveedorId), siguienteTramo: siguienteTramo(p.tramos, total) };
   });
   const primero = productos[0];
   return {
@@ -118,9 +107,7 @@ function conDerivados(lic: Licitacion): Licitacion {
     producto: primero.nombre, unidad: primero.unidad, unidadPlural: primero.unidadPlural, precioSolo: primero.precioSolo,
     tramos: primero.tramos, ofertas: primero.ofertas ?? [], precioActual: primero.precioActual, siguienteTramo: primero.siguienteTramo,
     totalNegocios: lic.participantes.filter(p => p.cantidad > 0).length,
-    totalUnidades: productos.reduce((s, p) => s + p.totalUnidades, 0),
-    montoTotal: productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0),
-    ahorroTotal: productos.reduce((s, p) => s + p.totalUnidades * (p.precioSolo - p.precioActual), 0),
+    ...totalesDeCanasta(productos),
   };
 }
 

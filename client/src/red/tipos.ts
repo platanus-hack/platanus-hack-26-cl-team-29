@@ -1,5 +1,7 @@
 // Tipos de la red, copia local del contrato (docs/decisiones/20261121-1130-contrato-red.md).
-// El front no importa código del backend: si el contrato cambia, se actualiza aquí.
+// El front no importa código del backend: si el contrato cambia, se actualiza aquí. Lo que es igual en los
+// dos lados (tramos, precios) viene de shared/.
+import type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
 
 export type Rol = 'comprador' | 'proveedor';
 
@@ -98,15 +100,7 @@ export interface Ganadora extends Oferta {
   precioAjustado: number;
 }
 
-/** Desde `desde` unidades en el grupo, todos pagan `precioUnitario`. */
-export interface Tramo {
-  desde: number;
-  precioUnitario: number;
-}
-
-export interface SiguienteTramo extends Tramo {
-  faltan: number;
-}
+export type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
 
 export interface Licitacion {
   id: string;

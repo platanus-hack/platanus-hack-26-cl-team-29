@@ -1,5 +1,6 @@
 // Entidades de la red de compras. Contrato: docs/decisiones/20261121-1130-contrato-red.md
 // Las fechas van como texto ISO para que viajen igual por HTTP, Socket.io y jsonb.
+import type { SiguienteTramo, Tramo } from '../../shared/precios.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
 import type { DatosContribuyente } from './contribuyente.ts';
 
@@ -116,16 +117,7 @@ export interface Ganadora extends Oferta {
   precioAjustado: number;
 }
 
-/** Desde cuántas unidades totales del grupo rige `precioUnitario`. */
-export interface Tramo {
-  desde: number;
-  precioUnitario: number;
-}
-
-export interface SiguienteTramo extends Tramo {
-  /** Unidades que le faltan al grupo para llegar a este tramo. */
-  faltan: number;
-}
+export type { SiguienteTramo, Tramo } from '../../shared/precios.ts';
 
 /** Un producto de la canasta de la compra conjunta, con sus propios tramos y ofertas. */
 export interface ProductoCompra {

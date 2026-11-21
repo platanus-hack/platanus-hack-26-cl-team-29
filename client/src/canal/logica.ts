@@ -2,6 +2,7 @@
 // Sin React ni red, para poder probarla con node:test.
 
 import type { Documento } from '../red/tipos.ts';
+import { siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
@@ -40,13 +41,13 @@ export function precioDelGrupo(lic: LicitacionCanal): PrecioGrupo {
   const p0 = lic.productos?.[0];
   const tramos = normalizarTramos(p0?.tramos ?? lic.tramos);
   if (tramos.length) {
-    const actual = [...tramos].reverse().find(t => t.desde <= unidades) ?? tramos[0];
-    const prox = tramos.find(t => t.desde > unidades && t.precioUnitario < actual.precioUnitario);
+    const actual = tramoAlcanzado(tramos, unidades) ?? tramos[0]!;
+    const prox = siguienteTramo(tramos, unidades, actual.precioUnitario);
     return {
       unidades,
       precio: numero(p0?.precioActual) ?? numero(lic.precioActual) ?? actual.precioUnitario,
       precioSolo: p0?.precioSolo ?? lic.precioSolo ?? tramos[0].precioUnitario,
-      ...(prox ? { siguiente: { faltan: prox.desde - unidades, precio: prox.precioUnitario } } : {}),
+      ...(prox ? { siguiente: { faltan: prox.faltan, precio: prox.precioUnitario } } : {}),
     };
   }
   const ofertas = lic.ofertas.map(o => o.precioUnitario);
