@@ -21,6 +21,9 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Crédito Bando: tarjetas en el ambiente de prueba de Transbank (credenciales públicas, no cobra).
+      - key: PAGOS_TRANSBANK
+        value: integracion
 
 databases:
   - name: db

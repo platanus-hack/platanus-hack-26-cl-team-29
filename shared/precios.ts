@@ -151,6 +151,11 @@ type Linea = { cantidad: number; precioUnitario: number };
 /** Monto neto de unas líneas: cantidad por precio unitario. */
 export const neto = (items: readonly Linea[]): number => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 
+/** Tasa de IVA en Chile, en %. */
+export const TASA_IVA = 19;
+/** IVA de un neto, redondeado como en el DTE. */
+export const ivaDe = (montoNeto: number): number => Math.round((montoNeto * TASA_IVA) / 100);
+
 /** Monto neto de una orden de compra. */
 export const totalOrden = (orden: { items: readonly Linea[] }): number => neto(orden.items);
 

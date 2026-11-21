@@ -16,11 +16,11 @@ import type {
   ResultadoEmision,
   ResultadoLote,
 } from './tipos.ts';
+import { ivaDe, TASA_IVA } from '../../shared/precios.ts';
 import { normalizarRut } from '../../shared/rut.ts';
 import { fechaEnChile, marcaEnChile } from '../../shared/fecha.ts';
 import { escaparTexto, limpiarLatin1 } from './texto.ts';
 
-const TASA_IVA = 19;
 
 /** Una `Referencia` del documento, ya en términos del XSD. */
 export interface ReferenciaDte {
@@ -89,7 +89,7 @@ export function calcularTotales(items: readonly Item[]): Totales {
     return Math.round(item.cantidad * item.precioUnitario);
   });
   const neto = lineas.reduce((a, b) => a + b, 0);
-  const iva = Math.round((neto * TASA_IVA) / 100);
+  const iva = ivaDe(neto);
   return { lineas, neto, iva, total: neto + iva };
 }
 

@@ -2,6 +2,7 @@
 
 import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
 import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
+import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { contar, enumerar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
@@ -864,6 +865,17 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     }
     case 'red.reiniciada':
       return 'La red volvió al inicio de la demo';
+    // Crédito Bando: el comprador nunca se nombra (su deuda es privada).
+    case 'credito.otorgado': {
+      const monto = numero(e.datos.monto);
+      return `Bando le pagó${monto ? ` ${dinero(monto)}` : ''} a ${proveedor ?? 'un proveedor'} al instante`;
+    }
+    case 'credito.cobrado': {
+      const monto = numero(e.datos.monto);
+      return `${e.datos.ok ? 'Se cobró' : 'No se pudo cobrar'} un crédito Bando${monto ? ` de ${dinero(monto)}` : ''}`;
+    }
+    case 'tarjeta.inscrita':
+      return 'Un negocio inscribió su tarjeta para pagar a plazo';
   }
   return 'Algo cambió en la red';
 }
@@ -1109,6 +1121,22 @@ export function detalleEvento(e: EventoRed, estado: EstadoRed, eventos: readonly
       const ordenes = lista(e.datos.ordenes).length;
       const partes = [ganadora !== undefined && `${dinero(ganadora)} ${porUnidad}`, negocios > 0 && contar(negocios, 'negocio'), ordenes > 0 && contar(ordenes, 'orden', 'órdenes')];
       return { resumen: unir(partes), filas: [...fila('Precio ganador', partes[0]), ...fila('Negocios', partes[1]), ...fila('Órdenes', partes[2])] };
+    }
+    case 'credito.otorgado':
+    case 'credito.cobrado': {
+      const [monto, plazo, vence] = [numero(e.datos.monto), numero(e.datos.plazoDias), texto(e.datos.venceEn)];
+      const aPlazo = plazo ? `el negocio paga a ${plazo} días` : 'se cobra hoy';
+      const cobro = e.tipo === 'credito.cobrado' ? (e.datos.ok ? 'cobrado en su tarjeta' : 'cobro rechazado, se reintenta mañana') : undefined;
+      return {
+        resumen: cobro ?? aPlazo,
+        filas: [
+          ...fila(e.tipo === 'credito.otorgado' ? 'Bando pagó al proveedor' : 'Monto', monto !== undefined && `${dinero(monto)} con IVA`),
+          ...fila('Proveedor', proveedor),
+          ...fila('Plazo del comprador', aPlazo),
+          ...fila('Vence', vence && fechaCorta(vence)),
+          ...fila('Cobro', cobro),
+        ],
+      };
     }
     case 'licitacion.facturada': {
       const [total, ahorro] = [numero(e.datos.total), numero(e.datos.ahorroTotal)];
