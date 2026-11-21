@@ -6,11 +6,13 @@ import { Proveedor } from './canal/Proveedor.tsx';
 import { Navegador } from './components/Navegador.tsx';
 import { Licitacion } from './vistas/Licitacion.tsx';
 import { RedEnVivo } from './vistas/RedEnVivo.tsx';
+import { Sala } from './vistas/Sala.tsx';
 import { Unirse } from './vistas/Unirse.tsx';
 
 // Rutas por path, sin librería: la pantalla de la demo, la licitación y la página del QR.
 const VISTAS: Record<string, () => JSX.Element> = {
   '/licitacion': Licitacion,
+  '/sala': Sala,
   '/unirse': Unirse,
   '/app': MiNegocio,
   '/proveedor': Proveedor,
