@@ -9,6 +9,7 @@ import { leerFacturas } from '../server/catalogo/xml.ts';
 import { xmlsDeEjemplo } from '../server/catalogo/ejemplo.ts';
 import { errorDeTramos, tramosSugeridos } from '../shared/precios.ts';
 import type { EventoRed } from '../server/red/index.ts';
+import { buzonDeCodigos, tokenConCodigo } from './acceso-apoyo.ts';
 
 // XML ficticio: un EnvioDTE con una factura, una guía y una nota de crédito. Todos los RUT son de prueba.
 const XML = `<?xml version="1.0" encoding="ISO-8859-1"?>
@@ -86,12 +87,13 @@ test('los XML cargados por el equipo se suman sin contar dos veces y descartan l
 
 test('el proveedor ve su catálogo armado solo y suma un producto a la compra con los tramos de su historial', async () => {
   const repo = crearRepositorioMemoria();
-  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1' });
+  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 7777 0000' });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const catalogos = await iniciarCatalogos({ emitir: () => {} });
-  const env = { PROVEEDOR_CODIGO: 'codigo-de-prueba', DEMO_TOKEN: 'token-de-prueba' };
+  const env = { DEMO_TOKEN: 'token-de-prueba' };
   const catalogo = { proveedor: crearRutasCatalogo(catalogos, red), operacion: crearRutasOperacionCatalogo(catalogos, red) };
-  const server = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { catalogo })).listen(0);
+  const buzon = buzonDeCodigos();
+  const server = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { catalogo, enviarCodigo: buzon.enviarCodigo })).listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
   const pedir = async (ruta: string, init: RequestInit = {}) => {
     const r = await fetch(url + ruta, init);
@@ -100,8 +102,8 @@ test('el proveedor ve su catálogo armado solo y suma un producto a la compra co
   try {
     assert.equal((await pedir('/proveedor/catalogo')).status, 401);
     const json = { 'content-type': 'application/json' };
-    const entrada = await pedir('/proveedor/sesion', { method: 'POST', headers: json, body: JSON.stringify({ codigo: env.PROVEEDOR_CODIGO }) });
-    const auth = { authorization: `Bearer ${entrada.cuerpo.token}` };
+    const post = (ruta: string, body: unknown) => pedir(ruta, { method: 'POST', headers: json, body: JSON.stringify(body) });
+    const auth = { authorization: `Bearer ${await tokenConCodigo(post, buzon, '+56 9 7777 0000')}` };
     assert.equal((await pedir('/proveedor/catalogo', { headers: auth })).cuerpo.estado, 'armando');
     await catalogos.armar({ id: PROVEEDOR_SALA });
     const listo = (await pedir('/proveedor/catalogo', { headers: auth })).cuerpo;

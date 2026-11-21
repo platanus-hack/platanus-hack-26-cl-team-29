@@ -12,6 +12,7 @@ import type { EventoRed, LicitacionVista, PuertoSii } from '../server/red/index.
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { precioPorVolumen } from '../shared/precios.ts';
 import { consultaConFicha, RUT_EMPRESA } from './sii-apoyo.ts';
+import { buzonDeCodigos, entrarConCodigo } from './acceso-apoyo.ts';
 
 const ENV = { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099', DEMO_PRECIO_PISO: '23900' };
 const ANA = '+56 9 1111 2222';
@@ -174,7 +175,8 @@ test('el carrito por la web: PUT y DELETE con la sesión, config con la canasta 
   const red = await crearRed({ repo, sii: crearSiiFalso(), env });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));
-  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, env));
+  const buzon = buzonDeCodigos();
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { enviarCodigo: buzon.enviarCodigo }));
   const server = app.listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
   const pedir = async (method: string, ruta: string, body?: unknown, token?: string) => {
@@ -195,7 +197,7 @@ test('el carrito por la web: PUT y DELETE con la sesión, config con la canasta 
 
     // Alguien por WhatsApp también compra: su teléfono no puede aparecer en nada público.
     await red.actualizarCarrito('L-1', { telefono: ANA, nombre: 'Ana', items: [{ productoId: 'rollos', cantidad: 1 }] });
-    const { cuerpo: { token, negocio } } = await pedir('POST', '/sesion', { nombre: 'Carla', rubro: 'Panadería', rut: '33333333-3' });
+    const { cuerpo: { token, negocio } } = await entrarConCodigo((r, b) => pedir('POST', r, b), buzon, '+56 9 3333 3333', { nombre: 'Carla', rubro: 'Panadería', rut: '33333333-3' });
     assert.equal(negocio.rubro, 'panaderia');
     assert.equal((await pedir('POST', '/licitaciones/L-1/unirse', { nombre: 'Dani', rubro: 'astronauta', rut: '44444444-4', cantidad: 1 })).cuerpo.participante.rubro, 'otro');
     assert.equal((await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [] })).status, 401);

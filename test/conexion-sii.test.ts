@@ -11,6 +11,7 @@ import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso } from 
 import type { Negocio, PuertoSii, SiiReal } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { CLAVE_PFX, generarCaf, generarPfx, RUT_EMPRESA, RUT_FIRMANTE } from './sii-apoyo.ts';
+import { buzonDeCodigos, tokenConCodigo } from './acceso-apoyo.ts';
 
 const LLAVE = randomBytes(32).toString('base64');
 const silencioso = { info() {}, warn() {}, error() {} };
@@ -190,11 +191,12 @@ test('cada proveedor emite con la conexión de su empresa, un sobre lleva un sol
 
 test('las rutas exigen la sesión del proveedor y nunca devuelven el certificado, su clave ni el CAF', async () => {
   const repo = crearRepositorioMemoria();
-  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1' });
+  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 7777 0000' });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const conexion = conexionDePrueba();
+  const buzon = buzonDeCodigos();
   const app = express().use(express.json())
-    .use('/api/red', crearRutasRed(red, { PROVEEDOR_CODIGO: 'codigo-de-prueba' }, { conexionSii: crearRutasConexionSii(conexion) }));
+    .use('/api/red', crearRutasRed(red, {}, { conexionSii: crearRutasConexionSii(conexion), enviarCodigo: buzon.enviarCodigo }));
   const server = app.listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
   const respuestas: string[] = [];
@@ -211,7 +213,7 @@ test('las rutas exigen la sesión del proveedor y nunca devuelven el certificado
   const caf = generarCaf(33).bytes.toString('base64');
   try {
     assert.equal((await pedir('GET', '/proveedor/sii')).status, 401);
-    const { cuerpo: { token } } = await pedir('POST', '/proveedor/sesion', { codigo: 'codigo-de-prueba' });
+    const token = await tokenConCodigo((ruta, body) => pedir('POST', ruta, body), buzon, '+56 9 7777 0000');
     assert.equal((await pedir('POST', '/proveedor/sii/certificado', { pfxBase64, clave: 'mala' }, token)).status, 400);
     assert.equal((await pedir('POST', '/proveedor/sii/certificado', { pfxBase64, clave: CLAVE_PFX }, token)).status, 200);
     assert.equal((await pedir('PUT', '/proveedor/sii/empresa', empresa, token)).status, 200);

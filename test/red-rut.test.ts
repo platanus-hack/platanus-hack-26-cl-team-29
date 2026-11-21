@@ -12,6 +12,7 @@ import { RUT_INVALIDO } from '../shared/rut.ts';
 import type { ConsultarContribuyente, DatosContribuyente, EventoRed, PuertoSii } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { RUT_EMPRESA } from './sii-apoyo.ts';
+import { buzonDeCodigos, entrarConCodigo } from './acceso-apoyo.ts';
 
 // RUT de prueba sin dueño conocido (dígito verificador correcto).
 const RUT_A = '11111111-1';
@@ -115,7 +116,8 @@ test('por WhatsApp, un teléfono ya registrado recibe su RUT al sumarse', async 
 test('ni la foto pública ni los eventos ni las respuestas de la web llevan el RUT o los datos del SII', async () => {
   const { consultar } = consultaContada({ [RUT_A]: ficha('Comercial Prueba Limitada') });
   const { red, eventos } = await redDePrueba(consultar);
-  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, {}));
+  const buzon = buzonDeCodigos();
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, {}, { enviarCodigo: buzon.enviarCodigo }));
   const server = app.listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
   const pedir = async (method: string, ruta: string, body?: unknown, token?: string) => {
@@ -131,9 +133,11 @@ test('ni la foto pública ni los eventos ni las respuestas de la web llevan el R
     assert.ok(!texto.includes('Comercial Prueba') && !texto.includes('"rut"') && !texto.includes('contribuyente'), 'aparecieron datos del SII');
   };
   try {
-    assert.equal((await pedir('POST', '/sesion', { nombre: 'Almacén Ana' })).status, 400, 'sin RUT no entra');
-    assert.equal((await pedir('POST', '/sesion', { nombre: 'Almacén Ana', rut: '11.111.111-2' })).cuerpo.mensaje, RUT_INVALIDO);
-    const entrada = await pedir('POST', '/sesion', { nombre: 'Almacén Ana', rut: '11.111.111-1' });
+    const post = (ruta: string, body: unknown) => pedir('POST', ruta, body);
+    const ANA = '+56 9 4444 0001';
+    assert.deepEqual((await entrarConCodigo(post, buzon, ANA, { nombre: 'Almacén Ana' })).cuerpo, { registro: true }, 'sin RUT no se registra');
+    assert.equal((await entrarConCodigo(post, buzon, ANA, { nombre: 'Almacén Ana', rut: '11.111.111-2' })).cuerpo.mensaje, RUT_INVALIDO);
+    const entrada = await entrarConCodigo(post, buzon, ANA, { nombre: 'Almacén Ana', rut: '11.111.111-1' });
     assert.equal(entrada.status, 201);
     privado(entrada.cuerpo);
     const { token } = entrada.cuerpo;

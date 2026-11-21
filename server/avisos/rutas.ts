@@ -2,6 +2,7 @@ import express from 'express';
 import type { Request } from 'express';
 import { limitarPor } from '../limite.ts';
 import type { Red, Sesiones } from '../red/index.ts';
+import { puedeComprar } from '../../shared/red.ts';
 import type { Avisos } from './index.ts';
 
 // Rutas `/api/avisos`: la invitación del comprador con sesión web (la misma sesión de /app y /unirse) y, en público,
@@ -11,7 +12,8 @@ export function crearRutasAvisos(avisos: Avisos, red: Pick<Red, 'negocioPorId'>,
   const rutas = express.Router();
   const comprador = (req: Request) => {
     const s = sesiones.buscar(/^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1]);
-    const n = s?.rol === 'comprador' ? red.negocioPorId(s.negocioId) : null;
+    const n = s ? red.negocioPorId(s.negocioId) : null;
+    if (n && !puedeComprar(n)) return null;
     return n?.rut ? n : null;
   };
   // Pedir la invitación puede crear un código: límite por negocio, nunca por IP (la sala comparte el wifi).

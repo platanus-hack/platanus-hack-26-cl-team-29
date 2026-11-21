@@ -13,6 +13,7 @@ import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
 import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
+import { telefonoParaWhatsapp } from '../../../shared/telefono.ts';
 import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
 
 /** La canasta por defecto del contrato. */
@@ -28,6 +29,8 @@ const CONFIG: ConfigRed = {
 };
 
 const PROVEEDOR_DEMO = 'p-papelera';
+/** Con datos de prueba, este teléfono entra como el proveedor y cualquier código de 6 dígitos sirve. */
+export const TELEFONO_PROVEEDOR_FALSO = '56900000000';
 
 const PROVEEDORES: Array<[string, string, string, number]> = [
   [PROVEEDOR_DEMO, 'Papelera del Centro', 'Santiago', 4.2],
@@ -137,6 +140,7 @@ export function crearApiFalsa(): CanalApi {
   const red = sembrar();
   const folios: Record<TipoDocumento, number> = { 33: 1200, 52: 800, 61: 300 };
   const sesiones = new Map<string, string>();
+  const porTelefono = new Map<string, string>([[TELEFONO_PROVEEDOR_FALSO, PROVEEDOR_DEMO]]);
   /** A quién sale la factura de cada comprador web (datos simulados, como la consulta falsa del servidor). */
   const facturas = new Map<string, FacturaA>();
   const oyentes = new Set<(e?: EventoRed) => void>();
@@ -270,19 +274,36 @@ export function crearApiFalsa(): CanalApi {
     config: async () => CONFIG,
     estado: async () => foto(),
 
-    async sesion({ nombre, comuna, rubro, rut }) {
+    async pedirCodigo(telefono) {
       await espera(300);
-      exigir(!!nombre.trim(), 'Escribe el nombre de tu negocio.');
-      exigir(!!validarRut(rut), RUT_INVALIDO);
-      const negocio: Negocio = { id: `c-web-${++contador}`, nombre: nombre.trim(), comuna: comuna.trim() || 'Santiago', rol: 'comprador', ...(rubro ? { rubro } : {}) };
-      red.negocios.push(negocio);
-      sembrarComprador(negocio);
-      const token = `falso-${negocio.id}`;
+      exigir(!!telefonoParaWhatsapp(telefono), 'Escribe tu número de WhatsApp, por ejemplo 9 1234 5678.');
+      return { retenido: false };
+    },
+
+    async entrar(texto, codigo, datos) {
+      await espera(300);
+      const telefono = telefonoParaWhatsapp(texto) ?? '';
+      if (!/^\d{6}$/.test(codigo)) throw new ErrorCanal('El código no coincide. Revisa el último que te llegó.');
+      let negocio = red.negocios.find(n => n.id === porTelefono.get(telefono));
+      if (!negocio) {
+        if (!datos) return { registro: true };
+        exigir(!!datos.nombre.trim(), 'Escribe el nombre de tu negocio.');
+        exigir(!!validarRut(datos.rut), RUT_INVALIDO);
+        negocio = { id: `c-web-${++contador}`, nombre: datos.nombre.trim(), comuna: datos.comuna.trim() || 'Santiago', rol: 'comprador', ...(datos.rubro ? { rubro: datos.rubro } : {}) };
+        red.negocios.push(negocio);
+        sembrarComprador(negocio);
+        porTelefono.set(telefono, negocio.id);
+        facturas.set(negocio.id, {
+          rut: formatearRutAlEscribir(datos.rut), razonSocial: 'Contribuyente de prueba', giro: 'Comercio al por menor', comuna: 'Santiago', simulado: true,
+        });
+      }
+      const token = `falso-${negocio.id}-${++contador}`;
       sesiones.set(token, negocio.id);
-      facturas.set(negocio.id, {
-        rut: formatearRutAlEscribir(rut), razonSocial: 'Contribuyente de prueba', giro: 'Comercio al por menor', comuna: 'Santiago', simulado: true,
-      });
       return { token, negocio };
+    },
+
+    async cerrarSesion(token) {
+      sesiones.delete(token);
     },
 
     async yo(token) {
@@ -366,14 +387,6 @@ export function crearApiFalsa(): CanalApi {
       avisar('reclamo.registrado', { orden: o, reclamo: o.reclamo, motivo: 'falta parcial' });
       cambiarNota(o.proveedorId, -0.4);
       despues(6000, () => notaCredito(o));
-    },
-
-    async sesionProveedor(codigo) {
-      await espera(300);
-      exigir(!!codigo.trim(), 'Escribe tu código de acceso.');
-      const token = `falso-${PROVEEDOR_DEMO}-${++contador}`;
-      sesiones.set(token, PROVEEDOR_DEMO);
-      return { token };
     },
 
     async yoProveedor(token) {

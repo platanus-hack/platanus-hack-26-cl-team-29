@@ -11,6 +11,7 @@ import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso, enlace
 import type { EventoRed } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { generarCaf, RUT_EMPRESA, RUT_FIRMANTE } from './sii-apoyo.ts';
+import { buzonDeCodigos, tokenConCodigo } from './acceso-apoyo.ts';
 
 
 const ENV = { PDF_LLAVE: 'llave-de-prueba' };
@@ -92,7 +93,8 @@ async function servidor() {
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: ENV });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));
-  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, ENV));
+  const buzon = buzonDeCodigos();
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, ENV, { enviarCodigo: buzon.enviarCodigo }));
   const server = app.listen(0);
   const base = `http://localhost:${(server.address() as AddressInfo).port}`;
   const json = async (ruta: string, init: { metodo?: string; body?: unknown; token?: string } = {}) => {
@@ -103,8 +105,11 @@ async function servidor() {
     });
     return { status: r.status, cuerpo: await r.json() };
   };
-  const entrar = async (nombre: string): Promise<string> =>
-    (await json('/sesion', { metodo: 'POST', body: { nombre, rut: '11111111-1' } })).cuerpo.token;
+  let compradores = 0;
+  const entrar = (nombre: string): Promise<string> => {
+    const n = ++compradores;
+    return tokenConCodigo((ruta, body) => json(ruta, { metodo: 'POST', body }), buzon, `+56 9 5555 000${n}`, { nombre, rut: `${n}${n}${n}${n}${n}${n}${n}${n}-${n}` });
+  };
   return { red, server, base, eventos, json, entrar };
 }
 

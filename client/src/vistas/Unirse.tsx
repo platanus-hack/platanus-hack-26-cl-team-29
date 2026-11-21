@@ -1,12 +1,13 @@
-// /unirse: la página del QR. La primera vez pide solo el nombre del negocio (y, si quiere, comuna y rubro),
-// crea la sesión web sin avisar y muestra el carrito de la canasta. Quien vuelve ve su carrito de inmediato.
+// /unirse: la página del QR. La primera vez se entra con el número de WhatsApp y un código (y, si el número es nuevo,
+// el nombre y el RUT del negocio); después muestra el carrito de la canasta. Quien vuelve ve su carrito de inmediato.
 
 import { useRef } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { CarritoCompra, FacturaANombre, FormularioNegocio, resumenGrupo, ultimoEnSumarse } from '../canal/Carrito.tsx';
+import { Acceso, CargandoCuenta } from '../canal/Acceso.tsx';
+import { CarritoCompra, FacturaANombre, resumenGrupo, ultimoEnSumarse } from '../canal/Carrito.tsx';
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
 import { BotonWhatsapp, Marca } from '../canal/piezas.tsx';
-import { useCanal, useDatosConSesion, useSesionComprador } from '../canal/useCanal.ts';
+import { useCanal, useDatosConSesion, useSesion } from '../canal/useCanal.ts';
 import { useInvitacionRecibida } from '../canal/Invitar.tsx';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
@@ -16,14 +17,14 @@ import '../canal/canal.css';
 export function Unirse() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const ahora = useAhora();
-  const { token, entrar, alVencer } = useSesionComprador(api);
-  const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), alVencer);
+  const { token, entrar, vencer, salir } = useSesion(api);
+  const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
   useInvitacionRecibida(token, api?.modo); // llegó con ?ref=<código> de otro negocio ("Trae a tu vecino")
   const idPedido = useRef(new URLSearchParams(location.search).get('licitacion'));
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
   const lic = foto.licitaciones.find(l => l.id === idPedido.current) ?? licitacionVigente(foto.licitaciones);
-  const aviso = <p className="nota-demo">Modo demo: te sumas solo con tu RUT, sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>;
+  const aviso = <p className="nota-demo">Modo demo: las facturas se emiten en el ambiente de certificación del SII.</p>;
 
   if (!lic) {
     return (
@@ -56,13 +57,13 @@ export function Unirse() {
       {!token ? (
         abierta ? (
           <>
-            <p className="cn-bajada">Elige lo que necesitas: cada producto baja de precio cuando el grupo junta más unidades.</p>
-            <FormularioNegocio boton="Ver productos" onEntrar={entrar} />
+            <Acceso api={api} config={config} fuente={fuente} titulo="Entra para elegir tus productos"
+              bajada="Cada producto baja de precio cuando el grupo junta más unidades." onEntrar={entrar} />
             <BotonWhatsapp numero={config?.whatsappNumero} />
           </>
         ) : <p className="vacio">Esta compra conjunta ya cerró.</p>
       ) : !yo ? (
-        <p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu carrito...'}</p>
+        <CargandoCuenta error={error} texto="Cargando tu carrito..." onSalir={salir} />
       ) : (
         <>
           <p className="cn-hola mono">Comprando como <strong>{yo.negocio.nombre}</strong></p>

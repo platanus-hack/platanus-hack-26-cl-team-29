@@ -43,4 +43,5 @@ dividido cuando ganan varios proveedores; esto lo construye.
 - Pendiente (punto 4 de la decisión de Luciano): sumar un costo de despacho por proveedor al elegir ganadores, para no
   premiar pedidos muy fragmentados.
 - El panel web del proveedor sigue siendo solo el del proveedor de la demo (`PROVEEDOR_CODIGO`); los proveedores reales
-  operan por WhatsApp.
+  operan por WhatsApp. Actualizado: ahora cada proveedor entra al panel con su WhatsApp y un código
+  (docs/decisiones/20261121-1950-entrar-con-codigo-por-whatsapp.md) y `PROVEEDOR_CODIGO` ya no existe.
