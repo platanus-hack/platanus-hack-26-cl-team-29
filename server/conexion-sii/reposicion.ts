@@ -122,7 +122,7 @@ export function crearReposicion({
   const enCurso = new Map<TipoDocumento, Promise<FoliosSii>>();
   const ultimoPedido = new Map<TipoDocumento, number>();
   const oyentes = new Set<(aviso: AvisoFolios) => void>();
-  const ultimoAviso = new Map<TipoDocumento, string>();
+  const ultimoAviso = new Map<TipoDocumento, EstadoFolios>();
   let demandaDe: (tipo: TipoDocumento) => number = () => 0;
 
   async function estado(tipo: TipoDocumento, demanda = demandaDe(tipo)): Promise<FoliosSii> {
@@ -139,13 +139,15 @@ export function crearReposicion({
     };
   }
 
-  /** Avisa (evento público, sin textos del SII) solo si algo cambió desde el último aviso del tipo. */
-  async function avisar(tipo: TipoDocumento) {
+  /**
+   * Avisa (evento público, sin textos del SII) cuando cambia el estado del tipo o cuando una corrida repuso folios;
+   * no por cada folio que se gasta (no llenar la pantalla de "quedan N").
+   */
+  async function avisar(tipo: TipoDocumento, repuso = false) {
     const { libres, minimo, estado: e, repuestos } = await estado(tipo);
-    const aviso: AvisoFolios = { tipo, libres, minimo, estado: e, repuestos };
-    const huella = JSON.stringify(aviso);
-    if (ultimoAviso.get(tipo) === huella) return;
-    ultimoAviso.set(tipo, huella);
+    const aviso: AvisoFolios = { tipo, libres, minimo, estado: e, repuestos: repuso ? repuestos : 0 };
+    if (!repuso && ultimoAviso.get(tipo) === e) return;
+    ultimoAviso.set(tipo, e);
     for (const o of oyentes) {
       try { o(aviso); } catch (error) { log.error('[folios] oyente falló', error); }
     }
@@ -220,9 +222,10 @@ export function crearReposicion({
     return { folios, quedan: candidatos.length >= RANGOS_POR_LISTADO, agotado: false };
   }
 
-  async function corrida(tipo: TipoDocumento, demanda: number, conexion: boolean): Promise<void> {
+  /** Una corrida de reposición; true si consiguió folios. */
+  async function corrida(tipo: TipoDocumento, demanda: number, conexion: boolean): Promise<boolean> {
     const cred = await fuente.credenciales();
-    if (!cred) return;
+    if (!cred) return false;
     const g = structuredClone(await fuente.gestion(tipo));
     const tieneCaf = conexion || (await fuente.rangos(tipo)).length > 0;
     const presupuesto = { consultas: MAX_CONSULTAS, reobtenciones: MAX_REOBTENCIONES };
@@ -277,6 +280,7 @@ export function crearReposicion({
       log.error(`[folios] tipo ${tipo}: la reposición falló, no se reintenta hasta ${new Date(final.esperaHasta!).toISOString()}. ${final.detalle} ${final.mensajeSii ?? ''}`);
     }
     await fuente.guardarGestion(tipo, final);
+    return reobtenidos + pedidos > 0;
   }
 
   function reponer(tipo: TipoDocumento, opciones: { demanda?: number; conexion?: boolean } = {}): Promise<FoliosSii> {
@@ -284,10 +288,10 @@ export function crearReposicion({
     if (previa) return previa;
     const demanda = opciones.demanda ?? demandaDe(tipo);
     const promesa = corrida(tipo, demanda, !!opciones.conexion)
-      .catch(error => log.error(`[folios] tipo ${tipo}: corrida falló`, error))
-      .then(() => { enCurso.delete(tipo); })
-      .then(async () => {
-        await avisar(tipo);
+      .catch(error => { log.error(`[folios] tipo ${tipo}: corrida falló`, error); return false; })
+      .then(async repuso => {
+        enCurso.delete(tipo);
+        await avisar(tipo, repuso);
         return estado(tipo, demanda);
       });
     enCurso.set(tipo, promesa);

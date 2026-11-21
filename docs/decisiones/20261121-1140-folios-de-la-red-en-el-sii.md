@@ -1,6 +1,7 @@
 # Folios de la red en el SII: se reservan antes de armar y nunca se reusan
 
 Fecha: 2026-11-21 11:40
+Actualizada por: `20261121-1450-reposicion-automatica-de-folios.md` (sin variables `SII_*` en el servidor, varios CAF por tipo, sin receptor de respaldo).
 Autor: Luciano Saavedra Reyes
 
 ## Contexto

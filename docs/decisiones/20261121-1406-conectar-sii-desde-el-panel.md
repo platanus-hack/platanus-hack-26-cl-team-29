@@ -1,6 +1,7 @@
 # Conectar el SII desde el panel del proveedor
 
 Fecha: 2026-11-21 14:06
+Actualizada por: `20261121-1450-reposicion-automatica-de-folios.md` (sin variables `SII_*` en el servidor, varios CAF por tipo, sin receptor de respaldo).
 Autor: Luciano Saavedra Reyes
 
 ## Contexto
