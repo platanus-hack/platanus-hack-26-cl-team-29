@@ -1,14 +1,14 @@
 # sala-pantalla
-Actualizado: 2026-11-21 17:30
+Actualizado: 2026-11-21 18:30
 
 ## Estado
-libre (PR #18 listo para revisión)
+trabajando
 
 ## Trabajando en
-- (nada)
+- `/sala`: el aviso "Bajó el precio" a pantalla completa solo al cruzar un tramo (máximo uno cada 6 s, se cierra solo); las bajadas por ofertas se animan en el lugar; más filas en el muro con la franja de proveedores.
 
 ## Archivos que estoy tocando
-- client/ (fuera de client/src/canal/)
+- client/src/vistas/, client/src/red/derivar.ts, test/pantalla-derivar.test.ts
 
 ## Hecho
 - `/sala`: la sala compra junta. Fases `abierta` (QR a WhatsApp o a `/unirse` sin número, alternativa web `/app`, muro de negocios, precio gigante, escalera de tramos con "faltan N"), momento "bajó el precio" con `licitacion.precio_bajo`, `cerrada` (esperando el sí del proveedor), `facturando` (muro de facturas con sello del SII y estado) y `lista` (total y "la sala ahorró"). Cabe sin scroll en 1920x1080, 1440x810 y 1024x768. Respeta `prefers-reduced-motion`.
