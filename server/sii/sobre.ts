@@ -2,7 +2,7 @@
 import type { Certificado } from './certificado.ts';
 import { firmarElemento } from './firma.ts';
 import { normalizarRut } from '../../shared/rut.ts';
-import { marcaEnChile } from './texto.ts';
+import { marcaEnChile } from '../../shared/fecha.ts';
 
 /** El receptor de todo sobre enviado al SII es el SII mismo, también en factura. */
 export const RUT_SII = '60803000-K';

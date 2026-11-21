@@ -6,6 +6,7 @@
 //
 // El folio debe estar dentro del CAF de SII_CAF_33_BASE64 y no haberse usado antes.
 import { crearSii, ErrorSii, type ResultadoEmision, type Sii } from '../server/sii/index.ts';
+import { fechaEnChile } from '../shared/fecha.ts';
 
 const args = process.argv.slice(2);
 const flag = (nombre: string): string | undefined => {
@@ -32,7 +33,7 @@ const titulo = (texto: string) => console.log(`\n=== ${texto}`);
 
 async function main(sii: Sii): Promise<void> {
   if (sii.modo !== 'certificacion') throw new Error('Falta SII_PFX_BASE64: la prueba de humo no corre en modo falso.');
-  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+  const hoy = fechaEnChile(new Date());
 
   titulo(`Emitiendo factura 33 folio ${folio} de ${sii.rutEmisor} a ${env.SII_RUT_RECEPTOR}`);
   const emision: ResultadoEmision = await sii.emitirFactura({

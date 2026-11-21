@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 import { precioAjustado, precioPorVolumen, unidadesDe } from '../../shared/precios.ts';
@@ -221,8 +222,6 @@ export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
 export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
 export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
 
-const ZONA = 'America/Santiago';
-const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date(iso));
 const neto = (items: Item[]) => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
 /** Rubro conocido, sin tildes ni mayúsculas; uno desconocido es `otro` y vacío, undefined. */
@@ -460,7 +459,7 @@ export async function crearRed({
       o.estado = 'corregida';
       await guardar('ordenes', o);
       emitir('nota_credito.emitida', { orden: o, documento: doc });
-      if (dia(doc.emitidoEn) === dia(reclamo.en)) await registrarReputacion(o.proveedorId, o.id, 'nota_credito_mismo_dia');
+      if (fechaEnChile(doc.emitidoEn) === fechaEnChile(reclamo.en)) await registrarReputacion(o.proveedorId, o.id, 'nota_credito_mismo_dia');
       return structuredClone(doc);
     });
   }

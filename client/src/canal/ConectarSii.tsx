@@ -4,6 +4,7 @@
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { fechaCorta } from '../../../shared/fecha.ts';
 import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../shared/documentos.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
@@ -17,9 +18,6 @@ const NOMBRE_PASO: Record<PasoSii['id'], string> = {
 const ESTADO_PASO: Record<PasoSii['estado'], string> = { pendiente: 'En espera', en_curso: 'Consultando...', listo: 'Listo', omitido: 'Sin cambios', error: 'Falta' };
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : 'No pudimos completarlo. Inténtalo de nuevo.');
-const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' }) : '');
-/** "2026-01-15" -> "15-01-2026", como se leen las fechas en Chile. */
-const dia = (aaaammdd: string) => (/^\d{4}-\d{2}-\d{2}$/.test(aaaammdd) ? aaaammdd.split('-').reverse().join('-') : aaaammdd);
 
 /** Contenido del archivo en base64, leído en el navegador. */
 function leerBase64(archivo: File): Promise<string> {
@@ -127,7 +125,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
       <article className="cn-paso">
         <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 1 · Certificado digital</p>
         {pasoCert ? <PasoCertificado api={api} token={token} alListo={hecho} onCancelar={estado.titular ? () => setEditar(null) : undefined} /> : (
-          <Resumen texto={`Titular ${estado.titular} · vence el ${fecha(estado.venceEl)}`} onCambiar={() => setEditar('certificado')} />
+          <Resumen texto={`Titular ${estado.titular} · vence el ${fechaCorta(estado.venceEl ?? '')}`} onCambiar={() => setEditar('certificado')} />
         )}
       </article>
 
@@ -138,7 +136,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
           <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 2 · Tu empresa</p>
           {pasoEmpresa ? <PasoEmpresa api={api} token={token} estado={estado} alListo={hecho} onCancelar={estado.empresa ? () => setEditar(null) : undefined} /> : (
             <Resumen
-              texto={`${estado.empresa!.razonSocial} · ${estado.rutEmisor} · resolución del ${dia(estado.resolucion!.fecha)} n.º ${estado.resolucion!.numero}`}
+              texto={`${estado.empresa!.razonSocial} · ${estado.rutEmisor} · resolución del ${fechaCorta(estado.resolucion!.fecha)} n.º ${estado.resolucion!.numero}`}
               onCambiar={() => setEditar('empresa')}
             />
           )}
@@ -375,7 +373,7 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocum
         <div>
           <strong>{nombreDocumento(tipo)} ({tipo})</strong>
           <p className="mono tenue">
-            {!caf ? 'Sin CAF' : `Folios ${caf.desde} a ${caf.hasta} · autorizado el ${dia(caf.fa)}`}
+            {!caf ? 'Sin CAF' : `Folios ${caf.desde} a ${caf.hasta} · autorizado el ${fechaCorta(caf.fa)}`}
           </p>
         </div>
         <label className={`boton secundario cn-boton-archivo${enviando ? ' deshabilitado' : ''}`}>

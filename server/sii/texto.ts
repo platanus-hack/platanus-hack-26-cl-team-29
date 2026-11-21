@@ -44,21 +44,5 @@ export function plegarTed(texto: string): string {
     .substring(0, 40);
 }
 
-const formatoChile = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Santiago',
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', second: '2-digit',
-  hourCycle: 'h23',
-});
-
-/** `AAAA-MM-DDTHH:MM:SS` en hora de Chile (con su horario de verano real), sin zona: `TSTED`, `TmstFirma`, `TmstFirmaEnv`. */
-export function marcaEnChile(instante: Date): string {
-  const p = Object.fromEntries(formatoChile.formatToParts(instante).map(x => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
-}
-
-/** Fecha de hoy en Chile, `AAAA-MM-DD`. */
-export const fechaEnChile = (instante: Date): string => marcaEnChile(instante).slice(0, 10);
-
 /** Base64 en líneas de 64, como lo escribe la referencia dentro de la firma. */
 export const envolver64 = (base64: string): string => base64.match(/.{1,64}/g)?.join('\n') ?? '';

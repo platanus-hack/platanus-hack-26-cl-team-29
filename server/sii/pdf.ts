@@ -5,6 +5,7 @@
 import bwipjs from 'bwip-js';
 import PDFDocument from 'pdfkit';
 import { esTipoDocumento, nombreElectronico } from '../../shared/documentos.ts';
+import { fechaLarga } from '../../shared/fecha.ts';
 import { dinero } from '../../shared/formato.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { DocumentoImpreso, LineaImpresa, ReferenciaImpresa } from './tipos.ts';
@@ -32,19 +33,11 @@ const TRASLADOS: Record<number, string> = {
   9: 'Venta para exportación',
 };
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-
 /** "FACTURA ELECTRÓNICA", "GUÍA DE DESPACHO ELECTRÓNICA" o "NOTA DE CRÉDITO ELECTRÓNICA". */
 export const nombreDelTipo = (tipo: number): string =>
   esTipoDocumento(tipo) ? nombreElectronico(tipo).toUpperCase() : `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
 
 const decimales = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 6 });
-
-function fechaLarga(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) return iso;
-  return `${Number(m[3])} de ${MESES[Number(m[2]) - 1] ?? m[2]} de ${m[1]}`;
-}
 
 function textoReferencia(r: ReferenciaImpresa): string {
   const nombre = nombreElectronico(Number(r.tipoDocumento));

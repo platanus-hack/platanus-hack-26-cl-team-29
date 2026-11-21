@@ -1,3 +1,4 @@
+import { fechaEnChile } from '../../shared/fecha.ts';
 import { crearSiiEnMemoria, limpiarLatin1 } from '../sii/index.ts';
 import type { DocumentoImpreso, Item as ItemSii, Receptor } from '../sii/index.ts';
 import type { Documento, Item, Negocio, OrdenCompra, TipoDocumento } from './tipos.ts';
@@ -76,7 +77,6 @@ export function receptorDelComprador(n: Negocio): Receptor | null {
 
 /** RUT de ejemplo, sin dueño real, para el receptor del PDF simulado. */
 const RUT_RECEPTOR_SIMULADO = '22222222-2';
-const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date(iso));
 
 /**
  * SII simulado: folios correlativos por tipo, sin red. Se usa cuando no hay SII real.
@@ -98,7 +98,7 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
   };
   const items = (lista: readonly Item[], cantidad: (i: Item) => number): ItemSii[] =>
     lista.map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' })).filter(i => i.cantidad > 0);
-  const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: dia(o.creadaEn) });
+  const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(o.creadaEn) });
 
   /** El PDF es un extra: si no se puede armar, el documento se emite igual, sin representación impresa. */
   async function conImpreso(r: ResultadoSii, emisor: Negocio, armar: (folio: number) => Promise<{ documento: { impreso: DocumentoImpreso } }>) {
@@ -129,7 +129,7 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
     })),
     emitirNotaCredito: async ({ emisor, receptor: comprador, factura: f, items: faltantes }) =>
       conImpreso(resultado(61), emisor, folio => memoria.emitirNotaCredito({
-        folio, receptor: receptor(comprador), items: items(faltantes, i => i.cantidad), factura: { folio: f.folio, fecha: dia(f.emitidoEn) },
+        folio, receptor: receptor(comprador), items: items(faltantes, i => i.cantidad), factura: { folio: f.folio, fecha: fechaEnChile(f.emitidoEn) },
       })),
     registrarReclamo: async () => ({ estadoSii: 'simulado' }),
   };

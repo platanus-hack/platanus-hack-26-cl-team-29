@@ -5,6 +5,7 @@
 // respuesta, un evento ni el log.
 import type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, IdPasoSii, PasoSii } from '../../shared/conexion-sii.ts';
 import { nombreEnFrase, TIPOS_DOCUMENTO, type TipoDocumento } from '../../shared/documentos.ts';
+import { fechaEnChile } from '../../shared/fecha.ts';
 import { normalizarRut } from '../../shared/rut.ts';
 import { abrirCertificado, leerCaf, primerDiaVencido } from '../sii/index.ts';
 import type { ConsultaDocumento, EstadoDocumento, Log } from '../sii/index.ts';
@@ -79,7 +80,7 @@ const SEIS_MESES_MS = 182 * 86_400_000;
 /** Variables del emisor por entorno que la conexión de la app reemplaza completas (no se mezclan dos empresas). */
 const DEL_EMISOR = /^SII_(PFX_|RUT_EMISOR$|FCH_RESOL$|EMISOR_|CAF_|FOLIO_DESDE_)/;
 
-const hoyEnChile = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+const hoyEnChile = () => fechaEnChile(new Date());
 const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 const base64Valido = (v: string) => /^[A-Za-z0-9+/]+={0,2}$/.test(v.replace(/\s+/g, ''));
 

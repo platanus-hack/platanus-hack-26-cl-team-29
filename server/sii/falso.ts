@@ -5,7 +5,7 @@ import type { Sii } from './index.ts';
 import { resultadoDe, validarReclamo } from './reclamo.ts';
 import { timbrarSimulado } from './timbre.ts';
 import { normalizarRut } from '../../shared/rut.ts';
-import { marcaEnChile } from './texto.ts';
+import { marcaEnChile } from '../../shared/fecha.ts';
 import type { AccionReceptor, DocumentoEmitido, Emisor, EventoReceptor, RespuestaReclamo } from './tipos.ts';
 
 /** RUT de ejemplo, sin dueño real, para cuando no se configura uno. */

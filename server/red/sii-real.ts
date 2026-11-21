@@ -1,4 +1,5 @@
 import { nombreEnFrase } from '../../shared/documentos.ts';
+import { fechaEnChile } from '../../shared/fecha.ts';
 import { ErrorSii } from '../sii/index.ts';
 import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
@@ -46,7 +47,6 @@ const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'incierto', 'recib
 /** "factura 33", para los logs. */
 const nombreConTipo = (tipo: number) => `${nombreEnFrase(tipo)} ${tipo}`;
 
-const fechaEnChile = (fecha: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(fecha);
 const detalleDe = (error: unknown) =>
   error instanceof ErrorSii ? `${error.message}\n${error.respuesta}` : String(error instanceof Error ? error.message : error);
 const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
@@ -85,7 +85,7 @@ const itemsSii = (items: readonly Item[], cantidad: (i: Item) => number) =>
     .map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' }))
     .filter(i => i.cantidad > 0);
 
-const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(new Date(o.creadaEn)) });
+const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(o.creadaEn) });
 
 /**
  * Veredicto común de los `n` documentos de un tipo en un sobre procesado (QueryEstUp cuenta por tipo).
@@ -280,7 +280,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     // La nota de crédito va al mismo receptor que la factura que corrige.
     emitirNotaCredito: ({ orden, receptor: comprador, factura, items }) => emitir(61, orden.id, async folio => {
       const registro33 = await folios.buscar(33, factura.folio);
-      const fecha = registro33?.fechaEmision ?? fechaEnChile(new Date(factura.emitidoEn));
+      const fecha = registro33?.fechaEmision ?? fechaEnChile(factura.emitidoEn);
       return sii.emitirNotaCredito({
         folio, receptor: receptor(comprador), items: itemsSii(items, i => i.cantidad), factura: { folio: factura.folio, fecha },
       });

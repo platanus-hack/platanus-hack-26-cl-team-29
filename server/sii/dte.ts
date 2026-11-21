@@ -15,7 +15,8 @@ import type {
   Receptor,
 } from './tipos.ts';
 import { normalizarRut } from '../../shared/rut.ts';
-import { escaparTexto, fechaEnChile, limpiarLatin1, marcaEnChile } from './texto.ts';
+import { fechaEnChile, marcaEnChile } from '../../shared/fecha.ts';
+import { escaparTexto, limpiarLatin1 } from './texto.ts';
 
 const TASA_IVA = 19;
 
