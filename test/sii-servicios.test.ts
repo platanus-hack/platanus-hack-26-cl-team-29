@@ -112,6 +112,29 @@ test('crearSii en certificación arma, timbra, firma y sube la factura en un sob
   await assert.rejects(sii.emitirGuia({ folio: 1, receptor: { rut: '11111111-1', razonSocial: 'C', giro: 'G', direccion: 'D', comuna: 'S' }, items: [{ nombre: 'x', cantidad: 1, precioUnitario: 1 }], motivoTraslado: 1 }), /SII_CAF_52_BASE64/);
 });
 
+test('emitirFacturas sube N facturas en un solo sobre, con un SubTotDTE y una sola subida', async () => {
+  const { http, llamadas } = httpFalso({ [URLS.subida]: ['<RECEPCIONDTE><STATUS>0</STATUS><TRACKID>77</TRACKID></RECEPCIONDTE>'] });
+  const sii = crearSii({
+    http,
+    log: { info() {}, warn() {}, error() {} },
+    env: {
+      SII_PFX_BASE64: generarPfx().toString('base64'), SII_PFX_CLAVE: CLAVE_PFX, SII_RUT_EMISOR: RUT_EMPRESA,
+      SII_FCH_RESOL: '2026-01-01', SII_CAF_33_BASE64: generarCaf(33).bytes.toString('base64'),
+      SII_EMISOR_RAZON_SOCIAL: 'Empresa de Prueba', SII_EMISOR_GIRO: 'Insumos', SII_EMISOR_ACTECO: '465000',
+      SII_EMISOR_DIRECCION: 'Calle 1', SII_EMISOR_COMUNA: 'Santiago',
+    },
+  });
+  const receptor = { rut: '11111111-1', razonSocial: 'Cliente', giro: 'Comercio', direccion: 'Calle 2', comuna: 'Santiago' };
+  const r = await sii.emitirFacturas([3, 4, 5].map(folio => ({
+    folio, receptor, items: [{ nombre: 'Harina 25 kg', cantidad: folio, precioUnitario: 18500 }], ordenCompra: { folio: `OC-${folio}`, fecha: '2026-11-21' },
+  })));
+  assert.deepEqual(r.documentos.map(d => d.folio), [3, 4, 5]);
+  assert.equal(r.envio.estado === 'recibido' && r.envio.trackId, '77');
+  assert.equal(llamadas(URLS.subida).length, 1);
+  assert.match(r.sobreXml, /<SubTotDTE><TpoDTE>33<\/TpoDTE><NroDTE>3<\/NroDTE><\/SubTotDTE>/);
+  assert.equal(r.sobreXml.match(/<DTE /g)?.length, 3);
+});
+
 test('codResp del WS de reclamos se traduce a un resultado', () => {
   assert.deepEqual(
     [0, 7, 8, 11, 14, 17, 16, 18, -1, 5].map(resultadoDe),

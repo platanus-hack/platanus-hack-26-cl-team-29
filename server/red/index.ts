@@ -3,7 +3,7 @@ import { crearRed } from './dominio.ts';
 import type { Red } from './dominio.ts';
 import { crearRepositorioMemoria, crearRepositorioPostgres } from './repositorio.ts';
 import type { Repositorio } from './repositorio.ts';
-import { aplicarTelefonosDemo, sembrarSiVacio } from './semilla.ts';
+import { aplicarDatosDemo, sembrarSiVacio } from './semilla.ts';
 import { crearSiiFalso } from './sii.ts';
 import type { PuertoSii } from './sii.ts';
 import { crearSii } from '../sii/index.ts';
@@ -14,9 +14,11 @@ import type { SiiReal } from './sii-real.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
 export { crearRed, ErrorRed, precioAjustado } from './dominio.ts';
-export type { CodigoError, NuevaOferta, NuevaOrden, NuevoItem, NuevoParticipante, Recepcion, Red } from './dominio.ts';
+export type { CodigoError, EstadoPublico, NuevaOferta, NuevaOrden, NuevoItem, NuevoParticipante, Recepcion, Red } from './dominio.ts';
 export { normalizarProducto, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
+export { sinTelefonos } from './publico.ts';
+export type { SinTelefono } from './publico.ts';
 export { crearRepositorioMemoria } from './repositorio.ts';
 export { crearSiiFalso } from './sii.ts';
 export type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
@@ -24,7 +26,10 @@ export { crearSiiReal } from './sii-real.ts';
 export type { SiiReal } from './sii-real.ts';
 export { crearAlmacenFoliosMemoria } from './folios.ts';
 export type { AlmacenFolios, EstadoFolio, RegistroFolio } from './folios.ts';
-export { COMPRADOR_DEMO, PROVEEDOR_DEMO } from './semilla.ts';
+export { COMPRADOR_DEMO, LICITACION_SALA, PROVEEDOR_DEMO, PROVEEDOR_SALA } from './semilla.ts';
+export { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
+export type { ConfigDemo } from './config-demo.ts';
+export { precioPorVolumen, siguienteTramo, vistaLicitacion } from './compra.ts';
 export type * from './tipos.ts';
 
 /**
@@ -41,7 +46,7 @@ export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<R
     }
   }
   await sembrarSiVacio(repo);
-  await aplicarTelefonosDemo(repo);
+  await aplicarDatosDemo(repo);
   return crearRed({ repo, sii: sii ?? crearSiiFalso((await repo.cargar()).documentos) });
 }
 

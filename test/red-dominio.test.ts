@@ -86,13 +86,13 @@ test('la nota de crédito de otro día no recupera la nota', async () => {
 test('estadoDeLaRed entrega la foto completa y no se puede alterar desde afuera', async () => {
   const { red } = await redDePrueba({ ahora: new Date() });
   const foto = red.estadoDeLaRed();
-  assert.equal(foto.negocios.length, 8);
+  assert.equal(foto.negocios.length, 9);
   assert.deepEqual(foto.notas, {
     [PROVEEDOR_DEMO]: 4.7, 'n-molinos-del-sur': 4.6, 'n-harinas-andes': 4.5, 'n-distribuidora-sur': 4.4,
   });
   assert.equal(foto.licitaciones[0].estado, 'abierta');
   foto.negocios.length = 0;
-  assert.equal(red.estadoDeLaRed().negocios.length, 8);
+  assert.equal(red.estadoDeLaRed().negocios.length, 9);
 });
 
 test('negocioPorTelefono encuentra el negocio aunque el número venga con otro formato', async () => {
@@ -167,7 +167,7 @@ test('reiniciar la demo borra órdenes y documentos, resiembra la licitación y 
   const estado = await red.reiniciarDemo();
   assert.equal(estado.ordenes.length, 0);
   assert.equal(estado.documentos.length, 0);
-  assert.equal(estado.licitaciones[0].participantes.length, 3);
+  assert.equal(estado.licitaciones[0].participantes.length, 0);
   assert.equal(estado.licitaciones[0].cierraEn, '2026-11-21T16:05:00.000Z');
   assert.equal(estado.notas[PROVEEDOR_DEMO], 4.7);
   assert.equal(eventos.at(-1)?.tipo, 'red.reiniciada');

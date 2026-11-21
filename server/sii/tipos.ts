@@ -101,6 +101,13 @@ export interface ResultadoEmision {
   readonly sobreXml: string;
 }
 
+/** Resultado de subir varios documentos en un solo sobre: `documentos` va en el mismo orden de la entrada. */
+export interface ResultadoLote {
+  readonly documentos: readonly DocumentoEmitido[];
+  readonly envio: ResultadoEnvio;
+  readonly sobreXml: string;
+}
+
 export interface ConteoPorTipo {
   readonly tipo: number;
   readonly informados: number;

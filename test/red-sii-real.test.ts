@@ -4,6 +4,7 @@ import { crearSii } from '../server/sii/index.ts';
 import type { EntradaFactura, EntradaGuia, EntradaNotaCredito, Sii } from '../server/sii/index.ts';
 import { aDte, calcularTotales } from '../server/sii/dte.ts';
 import { crearAlmacenFoliosMemoria, crearSiiReal } from '../server/red/index.ts';
+import { veredictoDelSobre } from '../server/red/sii-real.ts';
 import type { AlmacenFolios, DatosEmision, Documento, Negocio, OrdenCompra } from '../server/red/index.ts';
 import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
 
@@ -12,6 +13,7 @@ const caf = (tipo: number, desde: number, hasta: number) => generarCaf(tipo, { d
 const env = {
   SII_RUT_EMISOR: RUT_EMPRESA,
   SII_CAF_33_BASE64: caf(33, 10, 12),
+  SII_CAF_33_LOTE: caf(33, 100, 199),
   SII_CAF_52_BASE64: caf(52, 1, 50),
   SII_CAF_61_BASE64: caf(61, 1, 50),
   SII_RUT_RECEPTOR: '11111111-1',
@@ -127,4 +129,43 @@ test('el reclamo del comprador es RFP sobre la factura 33 del emisor', async () 
   const factura: Documento = { id: 'd', ordenId: 'OC-1', tipo: 33, folio: f.folio, trackId: f.trackId, estadoSii: f.estadoSii, monto: 1, emitidoEn: '' };
   assert.deepEqual(await adapt.registrarReclamo({ factura, receptor: comprador, motivo: 'Faltan 2' }), { estadoSii: 'reclamado' });
   assert.deepEqual(acciones, [`RFP 33 ${f.folio} ${RUT_EMPRESA}`]);
+});
+
+test('el lote de facturas va en una sola subida, con folios consecutivos y sin reenviar una orden que ya tiene folio', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const { sii } = siiEspia();
+  const lotes: EntradaFactura[][] = [];
+  const espia: Sii = { ...sii, emitirFacturas: e => { lotes.push([...e]); return sii.emitirFacturas(e); } };
+  const adapt = crearSiiReal({ sii: espia, folios, env: { ...env, SII_CAF_33_BASE64: env.SII_CAF_33_LOTE }, log: silencioso, seguirEnvios: false });
+
+  const suelta = await adapt.emitirFactura(datos('OC-2'));
+  const r = await adapt.emitirFacturas(['OC-1', 'OC-2', 'OC-3', 'OC-4'].map(datos));
+  assert.equal(lotes.length, 1, 'una sola subida');
+  assert.deepEqual(lotes[0]!.map(e => e.folio), [101, 102, 103], 'OC-2 ya tenía su factura y no va en el sobre');
+  assert.ok(lotes[0]!.every(e => e.receptor.rut === '11111111-1'), 'en certificación todas van al receptor del entorno');
+  assert.deepEqual(r.map(x => x.folio), [101, suelta.folio, 102, 103]);
+  assert.equal(new Set([r[0]!.trackId, r[2]!.trackId, r[3]!.trackId]).size, 1, 'mismo track id para el sobre');
+  assert.equal((await folios.buscar(33, 103))?.estado, 'recibido');
+});
+
+test('un lote que falla antes de subir deja todos sus folios usados y el reintento toma folios nuevos', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const falla = crearSiiReal({
+    sii: siiEspia({ emitirFacturas: async () => { throw new Error('token rechazado'); } }).sii,
+    folios, env: { ...env, SII_CAF_33_BASE64: env.SII_CAF_33_LOTE }, log: silencioso, seguirEnvios: false,
+  });
+  await assert.rejects(falla.emitirFacturas([datos('OC-1'), datos('OC-2')]), /token rechazado/);
+  assert.equal((await folios.buscar(33, 100))?.estado, 'fallido');
+  assert.equal((await folios.buscar(33, 101))?.estado, 'fallido');
+  const ok = crearSiiReal({ sii: siiEspia().sii, folios, env: { ...env, SII_CAF_33_BASE64: env.SII_CAF_33_LOTE }, log: silencioso, seguirEnvios: false });
+  assert.deepEqual((await ok.emitirFacturas([datos('OC-1'), datos('OC-2')])).map(x => x.folio), [102, 103]);
+});
+
+test('el veredicto de un sobre con varios documentos es común solo si todos coinciden', () => {
+  const estado = (aceptados: number, rechazados: number, reparos: number) =>
+    ({ trackId: '1', codigo: 'EPR', glosa: null, respuesta: '', porTipo: [{ tipo: 33, informados: 3, aceptados, rechazados, reparos }] });
+  assert.equal(veredictoDelSobre(estado(3, 0, 0), 33, 3), 'aceptado');
+  assert.equal(veredictoDelSobre(estado(0, 3, 0), 33, 3), 'rechazado');
+  assert.equal(veredictoDelSobre(estado(0, 0, 3), 33, 3), 'reparo');
+  assert.equal(veredictoDelSobre(estado(2, 1, 0), 33, 3), undefined);
 });

@@ -53,7 +53,7 @@ test('el reinicio de la demo no existe sin DEMO_TOKEN y exige el token correcto'
     assert.equal((await reiniciar(urlCon, 'otro')).status, 403);
     const ok = await reiniciar(urlCon, 'secreto-de-prueba');
     assert.equal(ok.status, 200);
-    assert.equal((await ok.json()).licitaciones[0].participantes.length, 3);
+    assert.equal((await ok.json()).licitaciones[0].participantes.length, 0);
   } finally {
     for (const s of servidores) s.close();
   }
