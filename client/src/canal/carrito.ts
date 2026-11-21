@@ -145,11 +145,14 @@ export function resumirCarrito(productos: readonly ProductoCanasta[], c: Carrito
   }, { productos: 0, unidades: 0, total: 0, ahorro: 0 });
 }
 
+/** "Faltan 4 cajas" o "Falta 1 rollo". */
+export function faltan(siguiente: SiguienteTramo, p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string {
+  return `${siguiente.faltan === 1 ? 'Falta' : 'Faltan'} ${contar(siguiente.faltan, p.unidad, p.unidadPlural)}`;
+}
+
 /** "Faltan 4 cajas para bajar a $27.900" o "Falta 1 rollo para bajar a $5.900". */
 export function pistaTramo(siguiente: SiguienteTramo | null, p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string {
-  if (!siguiente) return '';
-  const falta = siguiente.faltan === 1 ? 'Falta' : 'Faltan';
-  return `${falta} ${contar(siguiente.faltan, p.unidad, p.unidadPlural)} para bajar a ${dinero(siguiente.precioUnitario)}`;
+  return siguiente ? `${faltan(siguiente, p)} para bajar a ${dinero(siguiente.precioUnitario)}` : '';
 }
 
 /** "Una caja", "Un rollo": el género sale del plural de la unidad (cajas, unidades). */

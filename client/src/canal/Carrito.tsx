@@ -5,14 +5,12 @@
 import { PedirTarjeta, useFaltaTarjeta } from './MiCredito.tsx';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { dinero } from '../../../shared/formato.ts';
-import { contar } from '../../../shared/texto.ts';
-import { haceCuanto } from '../red/formato.ts';
 import type { CanalApi } from './api.ts';
 import {
   aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, crearEnvio, desdeItems, fijar, mismoCarrito, pistaTramo, productosDe, proyectar,
   resumirCarrito, textoCantidades, una, type Carrito, type Envio, type ProductoCanasta,
 } from './carrito.ts';
-import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
+import { Icono, iconoDeProducto, LogoSii } from './iconos.tsx';
 import { mensajeDeError } from './logica.ts';
 import { Confirmar, useEnvio } from './piezas.tsx';
 import { formatearRutAlEscribir, validarRut } from '../../../shared/rut.ts';
@@ -257,8 +255,6 @@ interface PropsCarrito {
   /** Lo que dice `GET /yo`: se usa mientras la foto del grupo no trae a este negocio. */
   participacion?: Participacion;
   abierta: boolean;
-  /** En /app la barra queda sobre las pestañas fijas. */
-  conPestanas?: boolean;
 }
 
 /** Crédito Bando: quien todavía no está en la compra y no tiene tarjeta, primero la inscribe. */
@@ -270,7 +266,7 @@ export function CarritoCompra(props: PropsCarrito) {
   return <>{recien && falta === false && !yaEsta && <p className="cn-ok">Tarjeta inscrita. Elige tus productos.</p>}<CarritoConProductos {...props} /></>;
 }
 
-function CarritoConProductos({ api, token, lic, negocioId, participacion, abierta, conPestanas = false }: PropsCarrito) {
+function CarritoConProductos({ api, token, lic, negocioId, participacion, abierta }: PropsCarrito) {
   const productos = useMemo(() => productosDe(lic), [lic]);
   const orden = useMemo(() => productos.map(p => p.id), [productos]);
   const servidor = carritoEnLaFoto(lic, negocioId) ?? desdeItems(participacion?.items ?? []);
@@ -318,7 +314,7 @@ function CarritoConProductos({ api, token, lic, negocioId, participacion, abiert
         </Confirmar>
       )}
 
-      <div className={`cn-barra-carrito${conPestanas ? ' sobre-pestanas' : ''}`} aria-live="polite">
+      <div className="cn-barra-carrito" aria-live="polite">
         <div className="cn-barra-izq">
           {estado}
           <span className="cn-barra-detalle">
@@ -357,41 +353,4 @@ export function resumenGrupo(lic: LicitacionCanal): ResumenGrupo {
 export function ultimoEnSumarse(lic: LicitacionCanal, negocioId: string | undefined, ahora: number, ventanaMs = 20_000) {
   const otros = lic.participantes.filter(p => p.negocioId !== negocioId && p.en && ahora - Date.parse(p.en) < ventanaMs);
   return otros.sort((a, b) => Date.parse(b.en!) - Date.parse(a.en!))[0];
-}
-
-/** Cifras del grupo y los últimos negocios en sumarse. */
-export function GrupoEnVivo({ lic, negocioId, ahora, filas = 4 }: { lic: LicitacionCanal; negocioId?: string; ahora: number; filas?: number }) {
-  const g = resumenGrupo(lic);
-  const productos = productosDe(lic);
-  const recientes = [...lic.participantes]
-    .filter(p => p.cantidad > 0)
-    .sort((a, b) => Date.parse(b.en ?? '') - Date.parse(a.en ?? ''))
-    .slice(0, filas);
-  return (
-    <div className="tarjeta cn-grupo-vivo">
-      <p className="etiqueta">El grupo ahora</p>
-      <dl className="cn-cifras cn-cifras-grupo">
-        <div><dt>Negocios</dt><dd>{g.negocios}</dd></div>
-        <div><dt>Unidades</dt><dd>{g.unidades}</dd></div>
-        <div className="ancha"><dt>Ahorro del grupo</dt><dd className="verde">{dinero(g.ahorro)}</dd></div>
-      </dl>
-      {recientes.length > 0 && (
-        <ul className="cn-recientes">
-          {recientes.map(p => {
-            const items = p.items ?? [];
-            const solo = items.length === 1 ? productos.find(x => x.id === items[0].productoId) : undefined;
-            const detalle = solo ? contar(items[0].cantidad, solo.unidad, solo.unidadPlural) : contar(items.length || 1, 'producto');
-            const nombre = p.nombre ?? 'Un negocio';
-            return (
-              <li key={p.negocioId ?? `${nombre}-${p.en}`} className={p.en && ahora - Date.parse(p.en) < 20_000 ? 'nuevo' : ''}>
-                <Monograma nombre={nombre} tam={32} rubro={p.rubro ?? true} />
-                <span className="cn-reciente-nombre">{p.negocioId === negocioId ? `${nombre} (tú)` : nombre}</span>
-                <span className="cn-reciente-detalle">{detalle}{p.en ? `, ${haceCuanto(p.en, ahora)}` : ''}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
 }
