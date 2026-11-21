@@ -37,6 +37,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - Las erasable-only features de TS (no `enum`, no `namespace`, no parameter properties): Node solo quita tipos.
 - El puerto siempre desde `process.env.PORT`. Secretos solo por variables de entorno, nunca en el repo.
 - UI y textos para el usuario en español.
+- **Todo monto de dinero va con separador de miles**, en formato chileno: `$1.234.567`, sin decimales. Siempre por el formateador común (`dinero()` de `client/src/red/formato.ts` en el front, `dinero()` de `server/agente/mensajes.ts` en los mensajes, el de `server/sii/pdf.ts` en el PDF); nunca un número crudo ni un `toLocaleString` suelto. Aplica a la web, las pantallas proyectadas, WhatsApp, los PDF y los logs que lee una persona. Folios, años y RUT no son montos: el folio va sin separador y el RUT con su formato (12.345.678-5).
 
 ## Tiempo real (regla fija)
 - **Todo lo que se ve en pantalla se actualiza solo, en vivo.** Ninguna vista depende de recargar la página ni de un botón "actualizar".
