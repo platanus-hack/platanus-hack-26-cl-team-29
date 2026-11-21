@@ -18,7 +18,7 @@ import type { Candado } from './candado.ts';
 import { ErrorPortal, esErrorPortal } from './errores.ts';
 import { alertas, normalizar, textoVisible } from './html.ts';
 import {
-  cabecerasNavegador, codificarFormulario, ErrorTransporte, httpNode, redactar, tieneSesion, unirCookies,
+  cabecerasNavegador, cabecerasXhr, codificarFormulario, ErrorTransporte, httpNode, redactar, tieneSesion, unirCookies,
   type CredencialTls, type Http, type RespuestaHttp,
 } from './http.ts';
 import { CODIGO_AUTENTICACION, detectarRechazo } from './rechazo.ts';
@@ -70,12 +70,21 @@ export interface PeticionPortal {
   url: string;
   campos?: [string, string][];
   referer?: string;
+  /**
+   * `xhr`: una llamada de una SPA del SII (`cabecerasXhr`, exige `referer`), como la API de las apps nuevas de `www2c`.
+   * Sin él, la navegación de una página (`cabecerasNavegador`).
+   */
+  modo?: 'xhr';
+  /** Cabeceras propias de la solicitud, después de las comunes. */
+  cabeceras?: [string, string][];
   /** Devuelve la respuesta aunque traiga un rechazo conocido (quien llama lo lee como dato). */
   crudo?: boolean;
 }
 
 /** La sesión abierta, entregada a un trabajo. Cada solicitud agrega cookies y cabeceras y revisa el rechazo. */
 export interface SesionPortal {
+  /** RUT del titular del certificado (`12345678-9`): las apps nuevas lo piden en una cabecera. */
+  readonly rutTitular: string;
   pedir(p: PeticionPortal): Promise<RespuestaHttp>;
 }
 
@@ -223,6 +232,7 @@ export function crearPortalSii(o: OpcionesPortal): PortalSii {
   function sesionSobre(cred: Credencial, operacion: string, estado: Estado, ritmoMs: number): SesionPortal {
     let ultima = Number.NEGATIVE_INFINITY;
     return {
+      rutTitular: cred.rutTitular,
       async pedir(p) {
         const destino = new URL(p.url);
         if (destino.protocol !== 'https:' || !destino.hostname.endsWith('.sii.cl')) {
@@ -233,7 +243,12 @@ export function crearPortalSii(o: OpcionesPortal): PortalSii {
         const r = await enviar(operacion, p.paso, cred, {
           metodo: p.metodo,
           url: p.url,
-          cabeceras: cabecerasNavegador({ metodo: p.metodo, cookies: estado.cookies, referer: p.referer, origen: destino.origin }),
+          cabeceras: [
+            ...(p.modo === 'xhr'
+              ? cabecerasXhr({ cookies: estado.cookies, referer: p.referer ?? `${destino.origin}/` })
+              : cabecerasNavegador({ metodo: p.metodo, cookies: estado.cookies, referer: p.referer, origen: destino.origin })),
+            ...(p.cabeceras ?? []),
+          ],
           ...(p.metodo === 'POST' ? { cuerpo: codificarFormulario(p.campos ?? []) } : {}),
           conCertificado: false,
         });

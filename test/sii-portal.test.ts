@@ -130,3 +130,36 @@ test('el listado de reobtención se lee por filas y entrega los más recientes p
   assert.deepEqual(rangos.map(r => [r.desde, r.hasta, r.fecha]), [[5139, 5162, '2026-11-09'], [4955, 5002, '2026-10-01']]);
   assert.deepEqual(leerRangos('<p>No registra timbrajes para el documento FACTURA ELECTRONICA</p>').filas, []);
 });
+
+test('la resolución sale de la app de www2c con la secuencia de la SPA y cabeceras XHR, sin escribir', async () => {
+  const sii = crearPortalFalso({ fechaResolucion: '2026-11-02' });
+  const r = await portalDePrueba(sii.http).conSesion(certificado, 'resolucion', s => consultarResolucion(s, RUT_EMPRESA));
+  assert.deepEqual(r, { fecha: '2026-11-02', numero: 0, fechaAutorizacion: '2026-10-07', razonSocial: 'Comercial de Prueba SpA' });
+  const app = sii.solicitudes.filter(x => x.ruta.startsWith('www2c.sii.cl')).map(x => x.ruta.split('/').pop());
+  assert.deepEqual(app, ['', 'status', 'esUsuarioAdministrador', 'obtenerEmpresa', 'obtenerContribuyente']);
+  assert.ok(sii.solicitudes.every(x => x.metodo !== 'PUT' && !/existEmpresa|actualizarEmpresa/.test(x.ruta)));
+});
+
+test('un 401 de la app con una sesión guardada es sesión vencida: un solo login nuevo y se repite una vez', async () => {
+  const sii = crearPortalFalso();
+  const portal = portalDePrueba(sii.http);
+  await portal.conSesion(certificado, 'ficha', s => consultarFicha(s, RUT_EMPRESA));
+  sii.vencerSesionesApp();
+  const r = await portal.conSesion(certificado, 'resolucion', s => consultarResolucion(s, RUT_EMPRESA));
+  assert.equal(r.fecha, '2026-10-07');
+  assert.equal(sii.logins(), 2);
+});
+
+test('si la app rechaza una sesión recién creada, no se hace otro login', async () => {
+  const sii = crearPortalFalso({ app: 'sin_sesion' });
+  await assert.rejects(portalDePrueba(sii.http).conSesion(certificado, 'resolucion', s => consultarResolucion(s, RUT_EMPRESA)),
+    e => esErrorPortal(e, 'SESION_VENCIDA'));
+  assert.equal(sii.logins(), 1);
+});
+
+test('la verificación en dos pasos (428) se informa con la respuesta del SII y no se intenta otro login', async () => {
+  const sii = crearPortalFalso({ app: 'dos_pasos' });
+  await assert.rejects(portalDePrueba(sii.http).conSesion(certificado, 'resolucion', s => consultarResolucion(s, RUT_EMPRESA)),
+    e => esErrorPortal(e, 'VERIFICACION_DOS_PASOS') && /verificacion en dos pasos/.test(e.mensajeSii ?? ''));
+  assert.equal(sii.logins(), 1);
+});

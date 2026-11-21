@@ -1,12 +1,8 @@
-// Lecturas de la empresa en el portal de certificación (maullin), solo lectura:
-// - Ficha del contribuyente (`ce_consulta_muestra_e`): razón social, dirección y actividades, tal como el SII las
-//   tiene inscritas. Solo existe en maullin.
-// - Resolución (`ad_empresa1` y `ad_empresa2`): fecha y número de la resolución que va en la carátula del sobre.
-//   Es POR AMBIENTE: maullin entrega la de certificación (número 0 y la fecha de la postulación); mezclarla con otra
-//   da `RCT` (CRT-3-19 "Fecha/Numero Resolucion Invalido"). Nunca se usa un valor por defecto.
-// Ninguna de estas lecturas llega a `ad_empresa3` ni a `ad_empresa4` (grabar la ficha).
+// Ficha del contribuyente en el portal de certificación (maullin, `ce_consulta_muestra_e`), solo lectura: razón
+// social, dirección y actividades, tal como el SII las tiene inscritas. Solo existe en maullin. La resolución se lee
+// de la app nueva de www2c (mantenedor.ts).
 import { ErrorPortal } from './errores.ts';
-import { filasDeTabla, leerFormularios, normalizar, textoVisible, formularioHacia } from './html.ts';
+import { filasDeTabla, normalizar, textoVisible } from './html.ts';
 import type { SesionPortal } from './portal.ts';
 
 const PORTAL = 'https://maullin.sii.cl/cvc_cgi/dte';
@@ -26,13 +22,6 @@ export interface FichaEmpresa extends Empresa {
   actividades: { codigo: number; descripcion: string }[];
 }
 
-export interface Resolucion {
-  /** `AAAA-MM-DD`. */
-  fecha: string;
-  numero: number;
-  fechaAutorizacion: string | null;
-  razonSocial: string | null;
-}
 
 export function partirRut(rut: string): [string, string] {
   const [cuerpo = '', dv = ''] = rut.replace(/\./g, '').toUpperCase().split('-');
@@ -82,34 +71,6 @@ export function leerFicha(html: string): FichaEmpresa {
   return { rut, razonSocial, giro: principal?.descripcion ?? '', acteco: principal?.codigo ?? 0, ...separarDomicilio(domicilio), actividades };
 }
 
-/** `dd-mm-aaaa` (o `dd/mm/aaaa`) a `aaaa-mm-dd`; null si no es una fecha. */
-function fechaIso(texto: string | undefined): string | null {
-  const m = /^(\d{2})[-/](\d{2})[-/](\d{4})$/.exec((texto ?? '').trim());
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
-}
-
-/** Lee la resolución de `ad_empresa2` (filas "etiqueta, valor"). Falla con el texto de la página si no la trae. */
-export function leerResolucion(html: string): Resolucion {
-  const datos = new Map<string, string>();
-  for (const celdas of filasDeTabla(html)) {
-    if (celdas.length >= 2 && celdas[0]) {
-      const etiqueta = normalizar(celdas[0]).replace(/\s*\(\*\)$/, '').replace(/:$/, '');
-      if (!datos.has(etiqueta)) datos.set(etiqueta, celdas[1] ?? '');
-    }
-  }
-  const fecha = fechaIso(datos.get('FECHA RESOLUCION'));
-  const numero = (datos.get('RESOLUCION') ?? datos.get('NUMERO RESOLUCION') ?? '').replace(/\D/g, '');
-  if (!fecha || numero === '') {
-    throw new ErrorPortal('RESPUESTA_INESPERADA', 'El SII no entregó la fecha y el número de resolución de la empresa.', { paso: 'ad_empresa2', mensajeSii: textoVisible(html) });
-  }
-  return {
-    fecha,
-    numero: Number(numero),
-    fechaAutorizacion: fechaIso(datos.get('FECHA AUTORIZACION')),
-    razonSocial: datos.get('RAZON SOCIAL') ?? null,
-  };
-}
-
 /** Ficha del contribuyente para armar los DTE. */
 export async function consultarFicha(sesion: SesionPortal, rutEmpresa: string): Promise<FichaEmpresa> {
   const [rut, dv] = partirRut(rutEmpresa);
@@ -121,27 +82,4 @@ export async function consultarFicha(sesion: SesionPortal, rutEmpresa: string): 
     referer: `${PORTAL}/ad_empresa2`,
   });
   return leerFicha(r.cuerpo);
-}
-
-/** Resolución de certificación: GET del formulario `ad_empresa1` y POST a su `action` (`ad_empresa2`). */
-export async function consultarResolucion(sesion: SesionPortal, rutEmpresa: string): Promise<Resolucion> {
-  const [rut, dv] = partirRut(rutEmpresa);
-  const url1 = `${PORTAL}/ad_empresa1`;
-  const pagina = await sesion.pedir({ paso: 'ad_empresa1', metodo: 'GET', url: url1 });
-  const formulario = formularioHacia(leerFormularios(pagina.cuerpo), 'ad_empresa2');
-  if (pagina.estado !== 200 || !formulario) {
-    throw new ErrorPortal('RESPUESTA_INESPERADA', `El SII no mostró el formulario de datos de la empresa (HTTP ${pagina.estado}).`, { paso: 'ad_empresa1', mensajeSii: textoVisible(pagina.cuerpo) });
-  }
-  const campos = new Map(formulario.campos);
-  campos.set('RUT_EMP', rut);
-  campos.set('DV_EMP', dv);
-  if (!campos.has('ACEPTAR')) campos.set('ACEPTAR', 'Ingresar');
-  const r = await sesion.pedir({
-    paso: 'ad_empresa2',
-    metodo: 'POST',
-    url: new URL(formulario.accion ?? 'ad_empresa2', url1).toString(),
-    campos: [...campos],
-    referer: url1,
-  });
-  return leerResolucion(r.cuerpo);
 }

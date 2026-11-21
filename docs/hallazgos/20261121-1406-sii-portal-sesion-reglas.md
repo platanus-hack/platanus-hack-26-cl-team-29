@@ -42,3 +42,5 @@ Para conectar el SII de un proveedor sin pasos manuales (ficha de la empresa, re
 - Todo lo que toca el portal pasa por `server/sii-portal/` (ver la decisión del SII actualizada). Nadie abre sesiones con scripts sueltos: el único script es `scripts/sii-portal-lectura.ts`, de solo lectura y un login.
 - La resolución no se obtiene sola hoy: el proveedor la escribe (con la indicación de dónde verla en el SII) y, si el SII devuelve `RCT`, la app deja de emitir con ella hasta que se corrija. No se mandan sobres de prueba para adivinarla: aunque sus folios quedan libres, cada sobre es una escritura en el SII y un intento a ciegas.
 - Pendiente: leer `obtenerEmpresa` en `www2c` exige medir cómo entra el certificado a esa aplicación sin gastar el cupo de la sesión principal.
+
+**Corrección (2026-11-21 14:20):** `www2c` sí acepta la sesión del certificado. El 401 se debía a que faltaba la secuencia de la SPA (`/sii-muyd-inter/`, `/app/session/status`) y las cabeceras XHR. Ver `20261121-1413-sii-www2c-ficha-certificacion.md`.

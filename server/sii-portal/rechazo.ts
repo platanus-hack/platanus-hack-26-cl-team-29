@@ -20,8 +20,38 @@ function mensajePlantilla(visible: string): string | null {
   return i < 0 ? null : visible.slice(i).trim();
 }
 
+/** Hosts de las apps nuevas del SII (SPA con API JSON en `/app/...`). */
+const HOST_APP = /^www2c?\.sii\.cl$/;
+
+/**
+ * Rechazos de la API JSON de una app nueva (`www2c.sii.cl/app/...`), con los códigos que maneja la propia SPA:
+ * - 401, o una redirección fuera de `/app/`: la app no reconoce la sesión (vencida o anterior a la app). Un login nuevo
+ *   la habilita; se trata como sesión vencida (un solo login nuevo, nunca en una escritura).
+ * - 428: pide la verificación en dos pasos. 403: pide entrar con RUT y Clave Tributaria. Ninguno se resuelve con otro
+ *   login con certificado: se informan con el cuerpo literal.
+ */
+function rechazoApp(r: RespuestaHttp, url: URL, paso: string): ErrorPortal | null {
+  const cuerpo = r.cuerpo.trim();
+  if (r.estado === 401) return new ErrorPortal('SESION_VENCIDA', 'La app del SII no reconoce la sesión.', { paso, mensajeSii: cuerpo || null });
+  if (r.estado >= 300 && r.estado < 400) {
+    const destino = r.ubicacion ? new URL(r.ubicacion, url) : null;
+    if (destino?.host === url.host && destino.pathname.startsWith('/app/')) return null;
+    return new ErrorPortal('SESION_VENCIDA', 'La app del SII no reconoce la sesión.', { paso, mensajeSii: r.ubicacion });
+  }
+  if (r.estado === 428) {
+    return new ErrorPortal('VERIFICACION_DOS_PASOS', `El SII pide la verificación en dos pasos en ${paso} (HTTP 428).`, { paso, mensajeSii: cuerpo || null });
+  }
+  if (r.estado === 403) return new ErrorPortal('RECHAZO_SII', `El SII rechazó la solicitud en ${paso} (HTTP 403).`, { paso, mensajeSii: cuerpo || null });
+  return null;
+}
+
 /** El error que corresponde a la respuesta, o null si no es un rechazo conocido. */
 export function detectarRechazo(r: RespuestaHttp, paso: string): ErrorPortal | null {
+  const url = new URL(r.url);
+  if (HOST_APP.test(url.hostname) && url.pathname.startsWith('/app/')) {
+    const app = rechazoApp(r, url, paso);
+    if (app || r.estado < 500) return app;
+  }
   if (r.estado >= 300 && r.estado < 400) {
     const destino = r.ubicacion ?? '';
     if (DESTINO_LOGIN.test(destino)) return new ErrorPortal('SESION_VENCIDA', 'La sesión del SII venció.', { paso });
