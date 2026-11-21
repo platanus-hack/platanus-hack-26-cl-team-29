@@ -1,9 +1,11 @@
 // Entidades de la red de compras. Contrato: docs/decisiones/20261121-1130-contrato-red.md
 // Las fechas van como texto ISO para que viajen igual por HTTP, Socket.io y jsonb.
+import type { TipoDocumento } from '../../shared/documentos.ts';
+import type { SiguienteTramo, Tramo } from '../../shared/precios.ts';
+import type { EstadoOrden, Rol, TipoEventoRed } from '../../shared/red.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
 import type { DatosContribuyente } from './contribuyente.ts';
 
-export type Rol = 'comprador' | 'proveedor';
 
 export interface Negocio {
   id: string;
@@ -38,7 +40,6 @@ export interface Item {
   cantidadDespachada?: number;
 }
 
-export type EstadoOrden = 'enviada' | 'confirmada' | 'facturada' | 'recibida' | 'reclamada' | 'corregida';
 
 export interface Reclamo {
   producto: string;
@@ -57,7 +58,7 @@ export interface OrdenCompra {
   reclamo?: Reclamo;
 }
 
-export type TipoDocumento = 33 | 52 | 61;
+export type { TipoDocumento } from '../../shared/documentos.ts';
 
 export interface Documento {
   id: string;
@@ -116,16 +117,8 @@ export interface Ganadora extends Oferta {
   precioAjustado: number;
 }
 
-/** Desde cuántas unidades totales del grupo rige `precioUnitario`. */
-export interface Tramo {
-  desde: number;
-  precioUnitario: number;
-}
-
-export interface SiguienteTramo extends Tramo {
-  /** Unidades que le faltan al grupo para llegar a este tramo. */
-  faltan: number;
-}
+export type { SiguienteTramo, Tramo } from '../../shared/precios.ts';
+export type { EstadoOrden, Rol, TipoEventoRed } from '../../shared/red.ts';
 
 /** Un producto de la canasta de la compra conjunta, con sus propios tramos y ofertas. */
 export interface ProductoCompra {
@@ -220,21 +213,6 @@ export interface EstadoRed {
   licitaciones: LicitacionVista[];
 }
 
-export type TipoEventoRed =
-  | 'orden.creada'
-  | 'orden.confirmada'
-  | 'documento.emitido'
-  | 'documento.actualizado'
-  | 'recepcion.registrada'
-  | 'reclamo.registrado'
-  | 'nota_credito.emitida'
-  | 'nota.cambiada'
-  | 'licitacion.participante'
-  | 'licitacion.oferta'
-  | 'licitacion.cerrada'
-  | 'licitacion.precio_bajo'
-  | 'licitacion.facturada'
-  | 'red.reiniciada';
 
 /** Lo que viaja en `red:evento` por Socket.io. */
 export interface EventoRed {

@@ -1,7 +1,7 @@
 // Certificado digital del firmante (.pfx). node-forge solo abre el PKCS#12: la firma la hace node:crypto.
 import { createPrivateKey, createPublicKey, type KeyObject } from 'node:crypto';
 import forge from 'node-forge';
-import { normalizarRut } from './texto.ts';
+import { normalizarRut } from '../../shared/rut.ts';
 
 export interface Certificado {
   /** RUT de la persona titular del certificado: es el `RutEnvia` del sobre. */

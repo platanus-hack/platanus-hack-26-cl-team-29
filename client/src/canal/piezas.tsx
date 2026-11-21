@@ -1,9 +1,32 @@
 // Piezas comunes de /app y /proveedor: el paso de confirmación, el estado en el SII y el selector de cantidad.
 
-import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
+import { nombreDocumento } from '../../../shared/documentos.ts';
+import { dinero } from '../../../shared/formato.ts';
 import { textoEstadoSii } from '../red/formato.ts';
-import { GlifoWhatsapp, LogoSii } from './iconos.tsx';
-import { confirmacion, enlaceWhatsapp, formatearTelefono, SIN_CONFIRMACION, type Confirmacion, type EventoConfirmacion } from './logica.ts';
+import type { Documento } from '../red/tipos.ts';
+import { GlifoWhatsapp } from '../components/Iconos.tsx';
+import { Icono, LogoSii } from './iconos.tsx';
+import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
+import { confirmacion, mensajeDeError, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
+
+/** Un envío a la API con su estado: `enviando` mientras corre y `error` con el mensaje si falla. */
+export function useEnvio() {
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const enviar = async (tarea: () => Promise<unknown>, siFalla?: string) => {
+    setEnviando(true);
+    setError('');
+    try {
+      await tarea();
+    } catch (e) {
+      setError(mensajeDeError(e, siFalla));
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return { enviando, error, setError, enviar };
+}
 
 /** Paso de confirmación en la página: pedir → (sí) → enviando → listo o error. */
 export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {
@@ -17,14 +40,23 @@ export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {
       await ejecutar(accion);
       despachar({ tipo: 'listo' });
     } catch (e) {
-      despachar({ tipo: 'fallo', mensaje: e instanceof Error ? e.message : 'No pudimos completarlo. Inténtalo de nuevo.' });
+      despachar({ tipo: 'fallo', mensaje: mensajeDeError(e) });
     }
   }, [ejecutar]);
+  const cancelar = () => despachar({ tipo: 'cancelar' });
+  const confirmarPedida = () => { if (estado.fase === 'preguntando' || estado.fase === 'error') void confirmar(estado.accion); };
   return {
     estado,
     pedir: (accion: A) => despachar({ tipo: 'pedir', accion }),
-    cancelar: () => despachar({ tipo: 'cancelar' }),
-    confirmar: () => { if (estado.fase === 'preguntando' || estado.fase === 'error') void confirmar(estado.accion); },
+    cancelar,
+    confirmar: confirmarPedida,
+    /** Lo que necesita `<Confirmar>` para mostrar este paso: `<Confirmar ... {...c.panel}>`. */
+    panel: {
+      enviando: estado.fase === 'enviando',
+      error: estado.fase === 'error' ? estado.mensaje : undefined,
+      onSi: confirmarPedida,
+      onNo: cancelar,
+    },
   };
 }
 
@@ -73,6 +105,28 @@ export function EstadoSii({ estado }: { estado: string | null | undefined }) {
   return <span className={`cn-sii ${CLASE_SII[estado ?? ''] ?? 'en-curso'}`}><LogoSii tam={12} />{texto}</span>;
 }
 
+/** Documentos del SII, el más nuevo primero: tipo y folio, la contraparte, el monto (la nota de crédito resta) y su estado. */
+export function ListaDocumentos({ documentos, contraparte }: { documentos: readonly Documento[]; contraparte: (d: Documento) => string }) {
+  const docs = [...documentos].sort((a, b) => Date.parse(b.emitidoEn ?? '') - Date.parse(a.emitidoEn ?? '') || (b.folio ?? 0) - (a.folio ?? 0));
+  return (
+    <ul className="tarjeta cn-documentos">
+      {docs.map(d => (
+        <li key={d.id}>
+          <Icono nombre="documento" />
+          <div className="cn-doc-izq">
+            <strong>{nombreDocumento(d.tipo)} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
+            <span className="mono tenue nombre">{contraparte(d)}</span>
+          </div>
+          <div className="cn-doc-der">
+            <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
+            <EstadoSii estado={d.estadoSii} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function Cantidad({ valor, min = 1, max, onCambio, etiqueta }: {
   valor: number; min?: number; max: number; onCambio: (n: number) => void; etiqueta: string;
 }) {
@@ -115,7 +169,7 @@ export function BotonWhatsapp({ numero }: { numero: string | null | undefined })
   if (!enlace || !numero) return null;
   return (
     <a className="cn-boton-whatsapp" href={enlace} target="_blank" rel="noreferrer">
-      <GlifoWhatsapp />
+      <GlifoWhatsapp className="cn-icono" tam={22} />
       <span className="cn-wa-textos">
         <strong>Pedir por WhatsApp</strong>
         <span>{formatearTelefono(numero)}</span>

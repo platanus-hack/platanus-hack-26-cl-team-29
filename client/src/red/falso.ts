@@ -7,8 +7,9 @@
 // proveedores. La compra cierra, el proveedor dice que sí, salen las facturas (una línea por producto) y el
 // SII las acepta. Después de un rato vuelve a empezar.
 
-import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, ProductoCompra, Tramo, TipoEvento } from './tipos.ts';
-import { precioConUnidades } from './derivar.ts';
+import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, TipoEventoRed } from './tipos.ts';
+import { CANASTA_DEMO, PISO_ROLLOS_DEMO, pisoPorDefecto } from '../../../shared/canasta-demo.ts';
+import { precioDelProducto, siguienteTramo, totalesDeCanasta, totalOrden, unidadesDe } from '../../../shared/precios.ts';
 
 export interface RedFalsa {
   detener(): void;
@@ -18,15 +19,8 @@ export interface RedFalsa {
   confirmar(licitacionId: string): void;
 }
 
-const tramos = (...pares: Array<[number, number]>): Tramo[] => pares.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
-
-/** La canasta por defecto del contrato. `piso`: lo mínimo que ofrece el proveedor de la sala por ese producto. */
-const CANASTA: Array<Omit<ProductoCompra, 'ofertas'> & { piso: number }> = [
-  { id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32_000, tramos: tramos([1, 32_000], [10, 29_900], [25, 27_900], [50, 25_900], [100, 24_500]), piso: 23_900 },
-  { id: 'etiquetas', nombre: 'Rollo de etiquetas adhesivas 50x30 (1.000 un.)', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 6_900, tramos: tramos([1, 6_900], [10, 6_400], [25, 5_900], [50, 5_500]), piso: 5_520 },
-  { id: 'bolsas', nombre: 'Paquete de bolsas camiseta (1.000 un.)', unidad: 'paquete', unidadPlural: 'paquetes', precioSolo: 14_900, tramos: tramos([1, 14_900], [10, 13_900], [25, 12_900], [50, 11_900]), piso: 11_920 },
-  { id: 'guantes', nombre: 'Caja de guantes de nitrilo (100 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 8_900, tramos: tramos([1, 8_900], [10, 8_200], [25, 7_600], [50, 7_100]), piso: 7_120 },
-];
+/** La canasta por defecto. `piso`: lo mínimo que ofrece el proveedor de la sala por ese producto. */
+const CANASTA = CANASTA_DEMO.map(p => ({ ...structuredClone(p), piso: p.id === 'rollos' ? PISO_ROLLOS_DEMO : pisoPorDefecto(p.tramos, p.precioSolo) }));
 const PRODUCTO = CANASTA[0].nombre;
 const PROVEEDOR_SALA = 'p-austral';
 /** Proveedores rivales (agentes) y cuánto sobre el piso del de la sala pueden bajar, en la escala de los rollos. */
@@ -44,12 +38,16 @@ const PROVEEDORES: Array<[string, string, string, number]> = [
   ['p-centro', 'Comercial Centro', 'La Reina', 3.9],
 ];
 
-const COMPRADORES: Array<[string, string, string]> = [
+/** Compradores ficticios (id, nombre, comuna), también los del canal web falso. La pantalla siembra los cuatro primeros. */
+export const COMPRADORES_FALSOS: Array<[string, string, string]> = [
   ['c-esquina', 'Almacén La Esquina', 'Ñuñoa'],
   ['c-trigal', 'Panadería El Trigal', 'La Reina'],
   ['c-robles', 'Restaurante Los Robles', 'Providencia'],
   ['c-napoli', 'Pizzería Napoli', 'Macul'],
+  ['c-aromos', 'Minimarket Los Aromos', 'Macul'],
+  ['c-vecina', 'Botillería La Vecina', 'Peñalolén'],
 ];
+const COMPRADORES = COMPRADORES_FALSOS.slice(0, 4);
 
 const TIPOS = ['Almacén', 'Minimarket', 'Panadería', 'Botillería', 'Cafetería', 'Fuente de soda', 'Pizzería', 'Amasandería', 'Ferretería', 'Librería', 'Verdulería', 'Farmacia'];
 const NOMBRES = ['Don Lucho', 'La Vecina', 'El Sol', 'Santa Rosa', 'Los Aromos', 'La Pasada', 'Doña Carmen', 'El Roble', 'Las Palmas', 'San José', 'El Puente', 'La Plaza', 'Los Pinos', 'Mi Barrio', 'El Rincón', 'La Estrella', 'Los Andes', 'El Faro', 'La Casona', 'Buen Pan', 'El Paso', 'La Cruz', 'Las Rosas', 'El Molino', 'La Fuente', 'El Cerro', 'Los Olivos'];
@@ -91,9 +89,6 @@ function carritoAleatorio(): Item[] {
   return CANASTA.filter(p => productos.includes(p)).map(p => ({ productoId: p.id, cantidad: aleatorio(CANTIDADES) }));
 }
 
-const unidadesDe = (lic: Licitacion, productoId: string) =>
-  lic.participantes.reduce((s, p) => s + (p.items ?? []).filter(i => i.productoId === productoId).reduce((t, i) => t + i.cantidad, 0), 0);
-
 /**
  * Recalcula lo que deriva el backend (server/red/compra.ts): por producto, el precio del tramo alcanzado o,
  * si es menor, la oferta del proveedor de la sala; los campos de un solo producto son los del primero.
@@ -101,15 +96,7 @@ const unidadesDe = (lic: Licitacion, productoId: string) =>
 function conDerivados(lic: Licitacion): Licitacion {
   const productos = (lic.productos ?? []).map(p => {
     const total = unidadesDe(lic, p.id);
-    const tramo = precioConUnidades(p.tramos, p.precioSolo, total)!;
-    const propia = p.ofertas?.find(o => o.proveedorId === lic.proveedorId);
-    const sig = [...p.tramos].sort((a, b) => a.desde - b.desde).find(t => t.desde > total);
-    return {
-      ...p,
-      totalUnidades: total,
-      precioActual: propia && total > 0 ? Math.min(tramo, propia.precioUnitario) : tramo,
-      siguienteTramo: sig ? { ...sig, faltan: sig.desde - total } : null,
-    };
+    return { ...p, totalUnidades: total, precioActual: precioDelProducto(p, total, lic.proveedorId), siguienteTramo: siguienteTramo(p.tramos, total) };
   });
   const primero = productos[0];
   return {
@@ -118,9 +105,7 @@ function conDerivados(lic: Licitacion): Licitacion {
     producto: primero.nombre, unidad: primero.unidad, unidadPlural: primero.unidadPlural, precioSolo: primero.precioSolo,
     tramos: primero.tramos, ofertas: primero.ofertas ?? [], precioActual: primero.precioActual, siguienteTramo: primero.siguienteTramo,
     totalNegocios: lic.participantes.filter(p => p.cantidad > 0).length,
-    totalUnidades: productos.reduce((s, p) => s + p.totalUnidades, 0),
-    montoTotal: productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0),
-    ahorroTotal: productos.reduce((s, p) => s + p.totalUnidades * (p.precioSolo - p.precioActual), 0),
+    ...totalesDeCanasta(productos),
   };
 }
 
@@ -161,7 +146,7 @@ function sembrarEstado(): EstadoRed {
 }
 
 /** Un paso del guion: cambia la foto y devuelve el evento que lo anuncia. */
-type Paso = (e: EstadoRed) => Array<[TipoEvento, Record<string, unknown>]>;
+type Paso = (e: EstadoRed) => Array<[TipoEventoRed, Record<string, unknown>]>;
 
 /** Ciclo de una orden suelta para la pantalla /red (con o sin reclamo). */
 function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
@@ -175,9 +160,9 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
   const emitir = (e: EstadoRed, tipo: 33 | 52 | 61, f: number) => {
     const documento = { id: `d-${ordenId}-${tipo}`, ordenId, tipo, folio: f, trackId: null, estadoSii: 'recibido', monto: tipo === 61 ? 59_800 : 119_600, emitidoEn: ahoraIso() };
     e.documentos = [...e.documentos, documento];
-    return ['documento.emitido', { documento }] as [TipoEvento, Record<string, unknown>];
+    return ['documento.emitido', { documento }] as [TipoEventoRed, Record<string, unknown>];
   };
-  const cambiarNota = (e: EstadoRed, nueva: number): [TipoEvento, Record<string, unknown>] => {
+  const cambiarNota = (e: EstadoRed, nueva: number): [TipoEventoRed, Record<string, unknown>] => {
     const anterior = e.notas.find(x => x.proveedorId === 'p-molinos')!.nota;
     e.notas = e.notas.map(x => (x.proveedorId === 'p-molinos' ? { ...x, nota: nueva } : x));
     return ['nota.cambiada', { proveedorId: 'p-molinos', anterior, nota: nueva }];
@@ -246,7 +231,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     e.licitaciones = e.licitaciones.map(l => (l.id === id ? cambio(l) : l));
   };
 
-  type Evento = [TipoEvento, Record<string, unknown>];
+  type Evento = [TipoEventoRed, Record<string, unknown>];
 
   /** Un `licitacion.precio_bajo` por cada producto cuyo precio bajó, con las unidades de ese producto. */
   const bajadas = (antes: Licitacion, despues: Licitacion): Evento[] =>
@@ -376,7 +361,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     ordenes.forEach((o, i) => despues(i * FACTURA_MS, () => publicar(e => {
       const documento: Documento = {
         id: `d-${o.id}`, ordenId: o.id, tipo: 33, folio: folio++, trackId: null, estadoSii: 'recibido',
-        monto: o.items.reduce((s, item) => s + item.cantidad * item.precioUnitario, 0), emitidoEn: ahoraIso(),
+        monto: totalOrden(o), emitidoEn: ahoraIso(),
       };
       documentos.push(documento);
       e.documentos = [...e.documentos, documento];

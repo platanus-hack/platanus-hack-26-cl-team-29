@@ -4,6 +4,10 @@
 // El logo del SII no forma parte de la representación impresa.
 import bwipjs from 'bwip-js';
 import PDFDocument from 'pdfkit';
+import { esTipoDocumento, nombreElectronico } from '../../shared/documentos.ts';
+import { fechaLarga } from '../../shared/fecha.ts';
+import { dinero } from '../../shared/formato.ts';
+import { formatearRut } from '../../shared/rut.ts';
 import type { DocumentoImpreso, LineaImpresa, ReferenciaImpresa } from './tipos.ts';
 
 const ROJO = '#C8102E';
@@ -14,19 +18,6 @@ const FONDO = '#F2F2F2';
 const MARGEN = 40;
 const NORMAL = 'Helvetica';
 const NEGRITA = 'Helvetica-Bold';
-
-const TITULOS: Record<number, string> = {
-  33: 'FACTURA ELECTRÓNICA',
-  52: 'GUÍA DE DESPACHO ELECTRÓNICA',
-  61: 'NOTA DE CRÉDITO ELECTRÓNICA',
-};
-
-const REFERIDOS: Record<string, string> = {
-  801: 'Orden de compra',
-  33: 'Factura electrónica',
-  52: 'Guía de despacho electrónica',
-  61: 'Nota de crédito electrónica',
-};
 
 const CODIGOS_REFERENCIA: Record<number, string> = { 1: 'anula documento', 2: 'corrige texto', 3: 'corrige montos' };
 
@@ -42,30 +33,14 @@ const TRASLADOS: Record<number, string> = {
   9: 'Venta para exportación',
 };
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-
 /** "FACTURA ELECTRÓNICA", "GUÍA DE DESPACHO ELECTRÓNICA" o "NOTA DE CRÉDITO ELECTRÓNICA". */
-export const nombreDelTipo = (tipo: number): string => TITULOS[tipo] ?? `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
+export const nombreDelTipo = (tipo: number): string =>
+  esTipoDocumento(tipo) ? nombreElectronico(tipo).toUpperCase() : `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
 
-const enteros = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
 const decimales = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 6 });
-const pesos = (n: number): string => `$ ${enteros.format(n)}`;
-
-/** `76123456-7` → `76.123.456-7`. */
-function rutConPuntos(rut: string): string {
-  const m = /^(\d+)-([\dkK])$/.exec(rut.replace(/\./g, ''));
-  if (!m) return rut;
-  return `${m[1]!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}-${m[2]!.toUpperCase()}`;
-}
-
-function fechaLarga(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) return iso;
-  return `${Number(m[3])} de ${MESES[Number(m[2]) - 1] ?? m[2]} de ${m[1]}`;
-}
 
 function textoReferencia(r: ReferenciaImpresa): string {
-  const nombre = REFERIDOS[String(r.tipoDocumento)] ?? `Documento tipo ${r.tipoDocumento}`;
+  const nombre = nombreElectronico(Number(r.tipoDocumento));
   const motivo = [r.codigo ? CODIGOS_REFERENCIA[r.codigo] : undefined, r.razon].filter(Boolean).join(': ');
   return `${nombre} N° ${r.folio} del ${fechaLarga(r.fecha)}${motivo ? ` (${motivo})` : ''}`;
 }
@@ -129,7 +104,7 @@ function encabezado(doc: Doc, d: DocumentoImpreso, ancho: number): number {
 
   // Recuadro: se mide el texto primero para saber su alto.
   const lineas: [string, number][] = [
-    [`R.U.T.: ${rutConPuntos(d.emisor.rut)}`, 12],
+    [`R.U.T.: ${formatearRut(d.emisor.rut)}`, 12],
     [nombreDelTipo(d.tipo), 12],
     [`N° ${d.folio}`, 12],
   ];
@@ -161,7 +136,7 @@ function receptor(doc: Doc, d: DocumentoImpreso, ancho: number, y: number): numb
   const r = d.receptor;
   const filas: [string, string][] = [
     ['Señor(es)', r.razonSocial],
-    ['R.U.T.', rutConPuntos(r.rut)],
+    ['R.U.T.', formatearRut(r.rut)],
     ['Giro', r.giro],
     ['Dirección', r.direccion],
     ['Comuna', [r.comuna, r.ciudad].filter(Boolean).join(', ')],
@@ -225,8 +200,8 @@ function detalle(doc: Doc, lineas: readonly LineaImpresa[], ancho: number, y: nu
     doc.fillColor(TEXTO);
     doc.text(l.nombre, x.descripcion + relleno, yf + relleno, { width: anchoDescripcion - 2 * relleno });
     doc.text(cantidad, x.cantidad, yf + relleno, { width: columnas.cantidad - relleno, align: 'right' });
-    doc.text(pesos(l.precioUnitario), x.precio, yf + relleno, { width: columnas.precio - relleno, align: 'right' });
-    doc.text(pesos(l.monto), x.total, yf + relleno, { width: columnas.total - relleno, align: 'right' });
+    doc.text(dinero(l.precioUnitario), x.precio, yf + relleno, { width: columnas.precio - relleno, align: 'right' });
+    doc.text(dinero(l.monto), x.total, yf + relleno, { width: columnas.total - relleno, align: 'right' });
     yf += alto;
     doc.save().lineWidth(0.5).strokeColor(BORDE).moveTo(MARGEN, yf).lineTo(MARGEN + ancho, yf).stroke().restore();
   }
@@ -246,9 +221,9 @@ function pie(doc: Doc, d: DocumentoImpreso, ancho: number, y: number, timbre: Bu
   const anchoTotales = 220;
   const xTotales = MARGEN + ancho - anchoTotales;
   const filas: [string, string, boolean][] = [
-    ['Monto neto', pesos(d.neto), false],
-    [`IVA ${d.tasaIva}%`, pesos(d.iva), false],
-    ['Total', pesos(d.total), true],
+    ['Monto neto', dinero(d.neto), false],
+    [`IVA ${d.tasaIva}%`, dinero(d.iva), false],
+    ['Total', dinero(d.total), true],
   ];
   let yt = y;
   for (const [etiqueta, valor, fuerte] of filas) {

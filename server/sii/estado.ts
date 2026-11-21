@@ -2,7 +2,8 @@
 import { type Autenticador, esTokenRechazado } from './autenticacion.ts';
 import { CABECERAS_SOAP, desescapar, ErrorSii, etiqueta, type Http, sobreSoap, todas, URLS } from './soap.ts';
 import type { ConsultaDocumento, ConteoPorTipo, EstadoDocumento, EstadoEnvio } from './tipos.ts';
-import { escaparXml, partirRut } from './texto.ts';
+import { partirRut } from '../../shared/rut.ts';
+import { escaparXml } from './texto.ts';
 
 async function consultar(http: Http, url: string, cuerpo: string): Promise<{ texto: string; estado: string }> {
   const r = await http({ url, cabeceras: CABECERAS_SOAP, cuerpo });

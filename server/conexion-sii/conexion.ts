@@ -3,12 +3,15 @@
 // anulando). Lo que el SII no entrega se puede escribir o subir a mano. Con eso la red emite en el SII de
 // certificación sin variables de entorno. Los secretos se guardan cifrados (cifrado.ts) y nunca salen en una
 // respuesta, un evento ni el log.
-import { abrirCertificado, leerCaf, normalizarRut, primerDiaVencido } from '../sii/index.ts';
+import type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, IdPasoSii, PasoSii } from '../../shared/conexion-sii.ts';
+import { nombreEnFrase, TIPOS_DOCUMENTO, type TipoDocumento } from '../../shared/documentos.ts';
+import { fechaEnChile } from '../../shared/fecha.ts';
+import { normalizarRut } from '../../shared/rut.ts';
+import { abrirCertificado, leerCaf, primerDiaVencido } from '../sii/index.ts';
 import type { ConsultaDocumento, EstadoDocumento, Log } from '../sii/index.ts';
-import { TIPOS_CAF } from './almacen.ts';
-import type { AlmacenConexion, CafGuardado, ConexionGuardada, Empresa, TipoCaf } from './almacen.ts';
+import type { AlmacenConexion, CafGuardado, ConexionGuardada } from './almacen.ts';
 import { cifrar, descifrar, llaveDesdeEnv } from './cifrado.ts';
-import { esErrorPortal, type FichaEmpresa } from '../sii-portal/index.ts';
+import { esErrorPortal } from '../sii-portal/index.ts';
 import { conseguirCaf } from './automatico.ts';
 import type { PortalConexion } from './portal.ts';
 import { buscarPrimerLibre } from './primer-libre.ts';
@@ -20,51 +23,6 @@ export class ErrorConexion extends Error {
     this.name = 'ErrorConexion';
     this.status = status;
   }
-}
-
-export interface EstadoCaf {
-  tipo: TipoCaf;
-  desde: number;
-  hasta: number;
-  fa: string;
-  primerLibre: number | null;
-  /** Folios que quedan desde el primer libre, descontando los que la red ya tomó. */
-  libres: number | null;
-  escaneando: boolean;
-  progreso: { revisados: number; folio: number; total: number } | null;
-  error: string | null;
-}
-
-export type IdPaso = 'empresa' | 'resolucion' | 'caf_33' | 'caf_52' | 'caf_61';
-
-/** Un paso de la conexión automática, con el texto del SII cuando lo hay. */
-export interface PasoAutomatico {
-  id: IdPaso;
-  estado: 'pendiente' | 'en_curso' | 'listo' | 'omitido' | 'error';
-  detalle: string | null;
-  /** Texto literal del SII (bloqueo del timbraje, límite de sesiones...). */
-  mensajeSii: string | null;
-}
-
-/** Lo que ve el panel. Sin secretos: del certificado solo el RUT del titular y su vencimiento. */
-export interface EstadoConexion {
-  /** La red emite con esta conexión (certificado, empresa, resolución y CAF de factura con su primer folio libre). */
-  conectado: boolean;
-  /** Hay un SII configurado por variables de entorno, que se usa mientras la conexión de la app esté incompleta. */
-  respaldoVariables: boolean;
-  /** SII_LLAVE_CIFRADO válida: sin ella no se puede guardar nada. */
-  puedeGuardar: boolean;
-  titular: string | null;
-  venceEl: string | null;
-  rutEmisor: string | null;
-  empresa: Empresa | null;
-  origenEmpresa: 'sii' | 'manual' | null;
-  resolucion: { fecha: string; numero: number; origen: 'sii' | 'manual'; rechazada: boolean } | null;
-  cafs: EstadoCaf[];
-  /** Última conexión automática: en curso o su resultado. */
-  automatico: { activo: boolean; pasos: PasoAutomatico[] } | null;
-  /** La sesión del portal del SII sobrevive a reinicios (Postgres y llave de cifrado). */
-  sesionPersistente: boolean;
 }
 
 export type CrearConsulta = (pfx: Buffer, clave: string, rutEmisor: string) => (c: ConsultaDocumento) => Promise<EstadoDocumento>;
@@ -84,21 +42,21 @@ export interface OpcionesConexion {
 }
 
 export interface ConexionSii {
-  estado(): Promise<EstadoConexion>;
+  estado(): Promise<EstadoConexionSii>;
   /** Guarda el certificado y, con el RUT de la empresa (o el del titular), parte la conexión automática. */
-  subirCertificado(pfxBase64: unknown, clave: unknown, rutEmisor?: unknown): Promise<EstadoConexion>;
+  subirCertificado(pfxBase64: unknown, clave: unknown, rutEmisor?: unknown): Promise<EstadoConexionSii>;
   /** Vuelve a correr la conexión automática (por ejemplo, tras el límite de sesiones o un bloqueo). */
-  conectarAutomatico(rutEmisor?: unknown): Promise<EstadoConexion>;
-  consultarEmpresa(rutEmisor: unknown): Promise<FichaEmpresa>;
+  conectarAutomatico(rutEmisor?: unknown): Promise<EstadoConexionSii>;
+  consultarEmpresa(rutEmisor: unknown): Promise<FichaSii>;
   /**
    * Datos de otro contribuyente (un comprador) en el SII, con el certificado conectado y su misma sesión del portal.
    * `null` si el SII no entrega su ficha; `undefined` si no hay certificado conectado (quien llama usa la falsa).
    */
-  consultarContribuyente(rut: string): Promise<FichaEmpresa | null | undefined>;
-  guardarEmpresa(datos: Record<string, unknown>): Promise<EstadoConexion>;
-  subirCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexion; avisos: string[] }>;
-  fijarFolio(tipo: unknown, folio: unknown): Promise<EstadoConexion>;
-  desconectar(): Promise<EstadoConexion>;
+  consultarContribuyente(rut: string): Promise<FichaSii | null | undefined>;
+  guardarEmpresa(datos: Record<string, unknown>): Promise<EstadoConexionSii>;
+  subirCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexionSii; avisos: string[] }>;
+  fijarFolio(tipo: unknown, folio: unknown): Promise<EstadoConexionSii>;
+  desconectar(): Promise<EstadoConexionSii>;
   /**
    * Variables SII_* para emitir con esta conexión, sobre `base` sin las del emisor configurado por entorno (si ambos
    * existen, gana la app). `null` si la conexión está incompleta.
@@ -119,11 +77,10 @@ export interface ConexionSii {
 const MAX_PFX_BASE64 = 40_000;
 const MAX_CAF_BASE64 = 20_000;
 const SEIS_MESES_MS = 182 * 86_400_000;
-const NOMBRE: Record<TipoCaf, string> = { 33: 'factura', 52: 'guía de despacho', 61: 'nota de crédito' };
 /** Variables del emisor por entorno que la conexión de la app reemplaza completas (no se mezclan dos empresas). */
 const DEL_EMISOR = /^SII_(PFX_|RUT_EMISOR$|FCH_RESOL$|EMISOR_|CAF_|FOLIO_DESDE_)/;
 
-const hoyEnChile = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+const hoyEnChile = () => fechaEnChile(new Date());
 const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 const base64Valido = (v: string) => /^[A-Za-z0-9+/]+={0,2}$/.test(v.replace(/\s+/g, ''));
 
@@ -142,14 +99,14 @@ function campo(datos: Record<string, unknown>, nombre: string, etiqueta: string,
   return v;
 }
 
-const PASOS: IdPaso[] = ['empresa', 'resolucion', 'caf_33', 'caf_52', 'caf_61'];
+const PASOS: IdPasoSii[] = ['empresa', 'resolucion', 'caf_33', 'caf_52', 'caf_61'];
 
 export function crearConexionSii({
   almacen, env = process.env, log = console, portal, sesionPersistente = false, crearConsulta, ultimoUsado = async () => 0, hoy = hoyEnChile,
 }: OpcionesConexion): ConexionSii {
-  let automatico: { activo: boolean; pasos: PasoAutomatico[]; promesa: Promise<void> } | null = null;
+  let automatico: { activo: boolean; pasos: PasoSii[]; promesa: Promise<void> } | null = null;
   let version = 0;
-  const busquedas = new Map<TipoCaf, { generacion: number; revisados: number; folio: number; total: number; error: string | null; activa: boolean; promesa: Promise<void> }>();
+  const busquedas = new Map<TipoDocumento, { generacion: number; revisados: number; folio: number; total: number; error: string | null; activa: boolean; promesa: Promise<void> }>();
   let generacion = 0;
 
   const llave = () => {
@@ -177,10 +134,10 @@ export function crearConexionSii({
     return { pfx: Buffer.from(pfxBase64, 'base64'), clave };
   }
 
-  async function estado(): Promise<EstadoConexion> {
+  async function estado(): Promise<EstadoConexionSii> {
     const c = await leer();
-    const cafs: EstadoCaf[] = [];
-    for (const tipo of TIPOS_CAF) {
+    const cafs: CafSii[] = [];
+    for (const tipo of TIPOS_DOCUMENTO) {
       const g = c.cafs[tipo];
       if (!g) continue;
       const b = busquedas.get(tipo);
@@ -216,7 +173,7 @@ export function crearConexionSii({
     !!(c.certificado && c.rutEmisor && c.empresa && c.resolucion && !c.resolucion.rechazadaEn && c.cafs[33]?.primerLibre !== undefined);
 
   /** Busca en segundo plano el primer folio libre del CAF del tipo, desde `desde`. Nunca baja el ya conocido. */
-  function buscar(tipo: TipoCaf, cert: { pfx: Buffer; clave: string }, rutEmisor: string, caf: CafGuardado, desde: number) {
+  function buscar(tipo: TipoDocumento, cert: { pfx: Buffer; clave: string }, rutEmisor: string, caf: CafGuardado, desde: number) {
     const mia = ++generacion;
     const b = { generacion: mia, revisados: 0, folio: desde, total: caf.hasta - desde + 1, error: null as string | null, activa: true, promesa: Promise.resolve() };
     busquedas.set(tipo, b);
@@ -237,7 +194,7 @@ export function crearConexionSii({
         });
         if (!vigente()) return;
         if (libre === null) {
-          b.error = `El CAF de ${NOMBRE[tipo]} no tiene folios libres en el SII: sube otro CAF.`;
+          b.error = `El CAF de ${nombreEnFrase(tipo)} no tiene folios libres en el SII: sube otro CAF.`;
           return;
         }
         const c = await leer();
@@ -256,7 +213,7 @@ export function crearConexionSii({
   }
 
   /** Valida y guarda un CAF (subido o conseguido en el portal) y busca su primer folio libre en segundo plano. */
-  async function guardarCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexion; avisos: string[] }> {
+  async function guardarCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexionSii; avisos: string[] }> {
     const base64 = texto(xmlBase64);
     if (!base64 || !base64Valido(base64)) throw new ErrorConexion(400, 'Sube el archivo XML del CAF.');
     if (base64.length > MAX_CAF_BASE64) throw new ErrorConexion(413, 'El archivo es demasiado grande para ser un CAF.');
@@ -270,15 +227,15 @@ export function crearConexionSii({
     } catch (error) {
       throw new ErrorConexion(400, `El archivo no es un CAF válido: ${(error as Error).message}`);
     }
-    const tipo = caf.tipo as TipoCaf;
-    if (!TIPOS_CAF.includes(tipo)) throw new ErrorConexion(400, `El CAF es del tipo ${caf.tipo}; la red usa factura (33), guía (52) y nota de crédito (61).`);
+    const tipo = caf.tipo as TipoDocumento;
+    if (!TIPOS_DOCUMENTO.includes(tipo)) throw new ErrorConexion(400, `El CAF es del tipo ${caf.tipo}; la red usa factura (33), guía (52) y nota de crédito (61).`);
     if (caf.rutEmisor !== c.rutEmisor) throw new ErrorConexion(400, `El CAF es de la empresa ${caf.rutEmisor}, no de ${c.rutEmisor}.`);
     const avisos: string[] = [];
     const vence = primerDiaVencido(caf);
-    if (vence !== null && hoy() >= vence) throw new ErrorConexion(400, `El CAF de ${NOMBRE[tipo]} venció el ${vence}. Pide uno nuevo en el SII.`);
-    if (vence !== null && Date.parse(vence) - Date.parse(hoy()) < 30 * 86_400_000) avisos.push(`El CAF de ${NOMBRE[tipo]} vence el ${vence}.`);
+    if (vence !== null && hoy() >= vence) throw new ErrorConexion(400, `El CAF de ${nombreEnFrase(tipo)} venció el ${vence}. Pide uno nuevo en el SII.`);
+    if (vence !== null && Date.parse(vence) - Date.parse(hoy()) < 30 * 86_400_000) avisos.push(`El CAF de ${nombreEnFrase(tipo)} vence el ${vence}.`);
     if (vence === null && Date.parse(hoy()) - Date.parse(caf.fechaAutorizacion) > SEIS_MESES_MS) {
-      avisos.push(`El CAF de ${NOMBRE[tipo]} se autorizó hace más de 6 meses (${caf.fechaAutorizacion}); puede tener folios usados.`);
+      avisos.push(`El CAF de ${nombreEnFrase(tipo)} se autorizó hace más de 6 meses (${caf.fechaAutorizacion}); puede tener folios usados.`);
     }
     const previo = c.cafs[tipo];
     const mismoRango = previo && previo.desde === caf.folioDesde && previo.hasta === caf.folioHasta;
@@ -291,13 +248,13 @@ export function crearConexionSii({
     log.info(`[conexion-sii] CAF tipo ${tipo} guardado (folios ${caf.folioDesde} a ${caf.folioHasta}, FA ${caf.fechaAutorizacion})`);
     // Lo ya conocido no se vuelve a preguntar: ni lo que la red tomó ni lo que una búsqueda anterior dio por usado.
     const desde = Math.max(caf.folioDesde, guardado.primerLibre ?? 0, (await ultimoUsado(tipo)) + 1);
-    if (desde > caf.folioHasta) avisos.push(`El CAF de ${NOMBRE[tipo]} ya no tiene folios libres.`);
+    if (desde > caf.folioHasta) avisos.push(`El CAF de ${nombreEnFrase(tipo)} ya no tiene folios libres.`);
     else buscar(tipo, cert, c.rutEmisor, guardado, desde);
     return { estado: await estado(), avisos };
   }
 
-  const pasoDe = (id: IdPaso) => automatico!.pasos.find(p => p.id === id)!;
-  const marcar = (id: IdPaso, estadoPaso: PasoAutomatico['estado'], detalle: string | null = null, mensajeSii: string | null = null) => {
+  const pasoDe = (id: IdPasoSii) => automatico!.pasos.find(p => p.id === id)!;
+  const marcar = (id: IdPasoSii, estadoPaso: PasoSii['estado'], detalle: string | null = null, mensajeSii: string | null = null) => {
     Object.assign(pasoDe(id), { estado: estadoPaso, detalle, mensajeSii });
     version++;
   };
@@ -316,7 +273,7 @@ export function crearConexionSii({
     const cert = certificadoDe(c0);
     const certificado = { pfx: cert.pfx, clave: cert.clave };
     const detener = (error: unknown) => esErrorPortal(error, 'LIMITE_SESIONES') || esErrorPortal(error, 'CERTIFICADO_NO_HABILITADO');
-    const restantes = (desde: IdPaso, error: unknown) => {
+    const restantes = (desde: IdPasoSii, error: unknown) => {
       const { detalle, mensajeSii } = textoError(error);
       for (const id of PASOS.slice(PASOS.indexOf(desde))) marcar(id, 'error', detalle, mensajeSii);
     };
@@ -327,7 +284,7 @@ export function crearConexionSii({
       const c = await leer();
       if (c.rutEmisor && c.rutEmisor !== rut) {
         c.cafs = {};
-        for (const tipo of TIPOS_CAF) busquedas.delete(tipo);
+        for (const tipo of TIPOS_DOCUMENTO) busquedas.delete(tipo);
         delete c.resolucion;
       }
       c.rutEmisor = rut;
@@ -363,13 +320,13 @@ export function crearConexionSii({
         `El SII no entregó la resolución (${detalle}). ${previa ? 'Se mantiene la que ya estaba.' : 'Escríbela en "Tu empresa".'}`, mensajeSii);
     }
 
-    for (const tipo of TIPOS_CAF) {
-      const id = `caf_${tipo}` as IdPaso;
+    for (const tipo of TIPOS_DOCUMENTO) {
+      const id = `caf_${tipo}` as IdPasoSii;
       const c = await leer();
       const previo = c.cafs[tipo];
       const libres = previo?.primerLibre === undefined ? null : previo.hasta - Math.max(previo.primerLibre, (await ultimoUsado(tipo)) + 1) + 1;
       if (previo && (busquedas.get(tipo)?.activa || (libres ?? 0) > 0 || libres === null)) {
-        marcar(id, 'omitido', `Ya hay un CAF de ${NOMBRE[tipo]} (folios ${previo.desde} a ${previo.hasta}).`);
+        marcar(id, 'omitido', `Ya hay un CAF de ${nombreEnFrase(tipo)} (folios ${previo.desde} a ${previo.hasta}).`);
         continue;
       }
       marcar(id, 'en_curso');
@@ -477,7 +434,7 @@ export function crearConexionSii({
       const rut = rutValido(datos.rutEmisor);
       const acteco = Number(texto(datos.acteco));
       if (!/^\d{6}$/.test(texto(datos.acteco))) throw new ErrorConexion(400, 'El código de actividad económica tiene 6 dígitos.');
-      const empresa: Empresa = {
+      const empresa: EmpresaSii = {
         razonSocial: campo(datos, 'razonSocial', 'la razón social', 100),
         giro: campo(datos, 'giro', 'el giro', 80),
         acteco,
@@ -498,7 +455,7 @@ export function crearConexionSii({
       if (c.rutEmisor && c.rutEmisor !== rut) {
         // Otra empresa: sus CAF no sirven.
         c.cafs = {};
-        for (const tipo of TIPOS_CAF) busquedas.delete(tipo);
+        for (const tipo of TIPOS_DOCUMENTO) busquedas.delete(tipo);
       }
       c.rutEmisor = rut;
       c.empresa = empresa;
@@ -515,11 +472,11 @@ export function crearConexionSii({
     subirCaf: guardarCaf,
 
     async fijarFolio(tipoEntrada, folioEntrada) {
-      const tipo = Number(tipoEntrada) as TipoCaf;
+      const tipo = Number(tipoEntrada) as TipoDocumento;
       const folio = Number(folioEntrada);
       const c = await leer();
       const caf = c.cafs[tipo];
-      if (!caf) throw new ErrorConexion(404, `No hay CAF de ${NOMBRE[tipo] ?? `tipo ${tipo}`}.`);
+      if (!caf) throw new ErrorConexion(404, `No hay CAF de ${nombreEnFrase(tipo)}.`);
       const minimo = Math.max(caf.desde, caf.primerLibre ?? 0);
       if (!Number.isInteger(folio) || folio < minimo || folio > caf.hasta) {
         throw new ErrorConexion(400, `El folio debe estar entre ${minimo} y ${caf.hasta}: nunca se vuelve a un folio anterior.`);
@@ -558,7 +515,7 @@ export function crearConexionSii({
         SII_EMISOR_COMUNA: e.comuna,
         ...(e.ciudad ? { SII_EMISOR_CIUDAD: e.ciudad } : {}),
       });
-      for (const tipo of TIPOS_CAF) {
+      for (const tipo of TIPOS_DOCUMENTO) {
         const caf = c.cafs[tipo];
         // Un CAF cuyo primer folio libre aún no se conoce no se usa: podría repetir un folio ya recibido.
         if (!caf || caf.primerLibre === undefined) continue;

@@ -45,7 +45,7 @@ test('el PDF de una factura es un PDF con folio, tipo, referencia, totales y la 
   const pdf = await generarPdf(impreso);
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
   const texto = textoDelPdf(pdf);
-  for (const esperado of ['5190', 'FACTURA ELECTR', 'S.I.I. - SANTIAGO', 'OC-1-ABCD', '$ 77.000', '$ 14.630', '$ 91.630',
+  for (const esperado of ['5190', 'FACTURA ELECTR', 'S.I.I. - SANTIAGO', 'OC-1-ABCD', '$77.000', '$14.630', '$91.630',
     'Timbre Electr', 'Verifique documento: www.sii.cl', 'ambiente de certificaci', 'simulado']) {
     assert.ok(texto.includes(esperado), `falta "${esperado}" en el PDF`);
   }

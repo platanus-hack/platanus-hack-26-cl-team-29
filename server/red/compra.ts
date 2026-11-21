@@ -1,28 +1,11 @@
-import type { Licitacion, LicitacionVista, ProductoCompra, ProductoCompraVista, SiguienteTramo, Tramo } from './tipos.ts';
+import { precioDelProducto, siguienteTramo, totalesDeCanasta, unidadesDe } from '../../shared/precios.ts';
+import type { Licitacion, LicitacionVista, ProductoCompra, ProductoCompraVista } from './tipos.ts';
 
-// Precio por volumen de la compra conjunta, producto por producto de la canasta: mientras más unidades
-// de un producto junta el grupo, más barato ese producto para todos.
-
-type ConPrecio = { tramos: Tramo[]; precioSolo: number };
+// La compra conjunta vista producto por producto de la canasta. Los tramos y el precio de cada producto
+// se calculan en shared/precios.ts, igual que en las pantallas.
 
 /** Unidades de toda la canasta (suma de los carritos). */
 export const totalUnidades = (l: Pick<Licitacion, 'participantes'>) => l.participantes.reduce((s, p) => s + p.cantidad, 0);
-
-/** Unidades de un producto de la canasta (suma de ese ítem en los carritos). */
-export const unidadesDe = (l: Pick<Licitacion, 'participantes'>, productoId: string) =>
-  l.participantes.reduce((s, p) => s + p.items.filter(i => i.productoId === productoId).reduce((t, i) => t + i.cantidad, 0), 0);
-
-/** Precio unitario del tramo alcanzado por `total`; sin unidades, el precio de comprar solo. */
-export function precioPorVolumen(p: ConPrecio, total: number): number {
-  let precio = p.precioSolo;
-  for (const t of [...p.tramos].sort((a, b) => a.desde - b.desde)) if (total >= t.desde) precio = t.precioUnitario;
-  return precio;
-}
-
-export function siguienteTramo(p: Pick<ConPrecio, 'tramos'>, total: number): SiguienteTramo | null {
-  const t = [...p.tramos].sort((a, b) => a.desde - b.desde).find(x => x.desde > total);
-  return t ? { desde: t.desde, precioUnitario: t.precioUnitario, faltan: t.desde - total } : null;
-}
 
 /** El producto de la canasta, o el primero si no se dice cuál (compatibilidad con un solo producto). */
 export function productoDe(l: Pick<Licitacion, 'productos'>, productoId?: string): ProductoCompra | undefined {
@@ -35,11 +18,7 @@ export function productoDe(l: Pick<Licitacion, 'productos'>, productoId?: string
  */
 export function precioVigente(l: Pick<Licitacion, 'productos' | 'participantes' | 'proveedorId'>, productoId?: string): number {
   const p = productoDe(l, productoId);
-  if (!p) return 0;
-  const unidades = unidadesDe(l, p.id);
-  const tramo = precioPorVolumen(p, unidades);
-  const propia = l.proveedorId ? p.ofertas.find(o => o.proveedorId === l.proveedorId) : undefined;
-  return propia && unidades > 0 ? Math.min(tramo, propia.precioUnitario) : tramo;
+  return p ? precioDelProducto(p, unidadesDe(l, p.id), l.proveedorId) : 0;
 }
 
 /** Precio vigente de cada producto de la canasta, por id. */
@@ -47,13 +26,14 @@ export const preciosVigentes = (l: Licitacion) => new Map(l.productos.map(p => [
 
 function vistaProducto(l: Licitacion, p: ProductoCompra): ProductoCompraVista {
   const total = unidadesDe(l, p.id);
-  return { ...structuredClone(p), totalUnidades: total, precioActual: precioVigente(l, p.id), siguienteTramo: siguienteTramo(p, total) };
+  return { ...structuredClone(p), totalUnidades: total, precioActual: precioVigente(l, p.id), siguienteTramo: siguienteTramo(p.tramos, total) };
 }
 
 /** La licitación con sus datos derivados, como la ven pantallas y agente. Los campos de un solo producto reflejan `productos[0]`. */
 export function vistaLicitacion(l: Licitacion): LicitacionVista {
   const productos = l.productos.map(p => vistaProducto(l, p));
   const primero = productos[0];
+  const { montoTotal, ahorroTotal } = totalesDeCanasta(productos);
   return {
     ...structuredClone(l),
     ...(primero ? {
@@ -63,8 +43,8 @@ export function vistaLicitacion(l: Licitacion): LicitacionVista {
     productos,
     totalNegocios: l.participantes.filter(p => p.cantidad > 0).length,
     totalUnidades: totalUnidades(l),
-    montoTotal: productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0),
-    ahorroTotal: productos.reduce((s, p) => s + p.totalUnidades * (p.precioSolo - p.precioActual), 0),
+    montoTotal,
+    ahorroTotal,
     precioActual: primero?.precioActual ?? l.precioSolo,
     siguienteTramo: primero?.siguienteTramo ?? null,
   };

@@ -1,10 +1,11 @@
 // Implementación en memoria con respuestas plausibles del SII, para trabajar sin certificado ni CAF.
 // Valida la entrada igual que la real (RUT, totales, tipos y acciones), así un error aparece antes de certificar.
-import { aDte, calcularTotales, datosImpresos, type EntradaDte } from './dte.ts';
+import { calcularTotales, datosImpresos, emisiones, type EntradaDte } from './dte.ts';
 import type { Sii } from './index.ts';
 import { resultadoDe, validarReclamo } from './reclamo.ts';
 import { timbrarSimulado } from './timbre.ts';
-import { marcaEnChile, normalizarRut } from './texto.ts';
+import { normalizarRut } from '../../shared/rut.ts';
+import { marcaEnChile } from '../../shared/fecha.ts';
 import type { AccionReceptor, DocumentoEmitido, Emisor, EventoReceptor, RespuestaReclamo } from './tipos.ts';
 
 /** RUT de ejemplo, sin dueño real, para cuando no se configura uno. */
@@ -61,18 +62,10 @@ export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
     return { documentos, envio: { estado: 'recibido' as const, trackId, respuesta: texto }, sobreXml: '' };
   }
 
-  async function emitir(entrada: Omit<EntradaDte, 'emisor'>) {
-    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
-    return { documento: documentos[0]!, envio, sobreXml };
-  }
-
   return {
     modo: 'falso',
     rutEmisor: emisor,
-    emitirFactura: e => emitir(aDte.factura(e)),
-    emitirFacturas: entradas => emitirLote(entradas.map(aDte.factura)),
-    emitirGuia: e => emitir(aDte.guia(e)),
-    emitirNotaCredito: e => emitir(aDte.notaCredito(e)),
+    ...emisiones(emitirLote),
 
     async estadoEnvio(trackId) {
       const lote = porTrack.get(trackId);

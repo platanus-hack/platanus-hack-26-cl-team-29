@@ -3,29 +3,19 @@
 // primer folio libre (un folio cada 200 ms). La conexión automática se simula paso a paso, con la resolución sin
 // entregar (como el portal de certificación hoy) para mostrar el camino manual.
 
+import { validarRut } from '../../../shared/rut.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
-import type { CafSii, ConexionSii, PasoSii } from './tipos.ts';
+import type { CafSii, EstadoConexionSii, PasoSii } from './tipos.ts';
 
 type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiDesconectar'>;
 
-const vacia = (): ConexionSii => ({
+const vacia = (): EstadoConexionSii => ({
   conectado: false, respaldoVariables: false, puedeGuardar: true, titular: null, venceEl: null,
   rutEmisor: null, empresa: null, origenEmpresa: null, resolucion: null, cafs: [], automatico: null, sesionPersistente: false,
 });
 
 const espera = (ms: number) => new Promise(r => setTimeout(r, ms));
 const exigir = (cumple: boolean, mensaje: string) => { if (!cumple) throw new ErrorCanal(mensaje); };
-
-function rutValido(rut: string): string | null {
-  const m = /^0*(\d{7,8})-([\dkK])$/.exec(rut.replace(/[.\s]/g, ''));
-  if (!m) return null;
-  const [, cuerpo, dv] = m as unknown as [string, string, string];
-  let suma = 0, factor = 2;
-  for (let i = cuerpo.length - 1; i >= 0; i--) { suma += Number(cuerpo[i]) * factor; factor = factor === 7 ? 2 : factor + 1; }
-  const r = 11 - (suma % 11);
-  const esperado = r === 11 ? '0' : r === 10 ? 'K' : String(r);
-  return esperado === dv.toUpperCase() ? `${cuerpo}-${esperado}` : null;
-}
 
 export function crearConexionSiiFalsa(verificar: (token: string) => void): MetodosSii {
   let c = vacia();
@@ -99,21 +89,21 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
       exigir(!!clave, 'Escribe la clave de tu certificado.');
       c.titular = '11111111-1';
       c.venceEl = new Date(Date.now() + 300 * 86_400_000).toISOString();
-      automatico(rutValido(rutEmisor) ?? c.titular);
+      automatico(validarRut(rutEmisor) ?? c.titular);
       return copia();
     },
 
     async siiAutomatico(token, rutEmisor) {
       verificar(token);
       exigir(!!c.titular, 'Primero sube tu certificado digital.');
-      if (!c.automatico?.activo) automatico(rutValido(rutEmisor) ?? c.rutEmisor ?? c.titular!);
+      if (!c.automatico?.activo) automatico(validarRut(rutEmisor) ?? c.rutEmisor ?? c.titular!);
       return copia();
     },
 
     async siiConsultarEmpresa(token, rutEmisor) {
       verificar(token);
       await espera(800);
-      const rut = rutValido(rutEmisor);
+      const rut = validarRut(rutEmisor);
       exigir(!!rut, 'El RUT de la empresa no es válido. Escríbelo con guion y dígito verificador, por ejemplo 76123456-7.');
       exigir(!!c.titular, 'Primero sube tu certificado digital.');
       return {
@@ -126,7 +116,7 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
     async siiGuardarEmpresa(token, d) {
       verificar(token);
       await espera(300);
-      const rut = rutValido(d.rutEmisor);
+      const rut = validarRut(d.rutEmisor);
       exigir(!!rut, 'El RUT de la empresa no es válido.');
       exigir(!!c.titular, 'Primero sube tu certificado digital.');
       exigir(/^\d{6}$/.test(d.acteco), 'El código de actividad económica tiene 6 dígitos.');
@@ -150,7 +140,7 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
       const tipo = Number(valor('TD')) as CafSii['tipo'];
       exigir(!!tipo && !!valor('D') && !!valor('H'), 'El archivo no es un CAF válido.');
       exigir([33, 52, 61].includes(tipo), `El CAF es del tipo ${tipo}; la red usa factura (33), guía (52) y nota de crédito (61).`);
-      exigir(rutValido(valor('RE')) === c.rutEmisor, `El CAF es de la empresa ${valor('RE')}, no de ${c.rutEmisor}.`);
+      exigir(validarRut(valor('RE')) === c.rutEmisor, `El CAF es de la empresa ${valor('RE')}, no de ${c.rutEmisor}.`);
       const caf: CafSii = {
         tipo, desde: Number(valor('D')), hasta: Number(valor('H')), fa: valor('FA'),
         primerLibre: null, libres: null, escaneando: false, progreso: null, error: null,

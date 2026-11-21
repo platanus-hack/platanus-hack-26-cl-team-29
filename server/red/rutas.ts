@@ -2,6 +2,7 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { configDemo } from './config-demo.ts';
 import { ErrorRed, FALTA_RUT } from './dominio.ts';
+import { cuerpo, nuevoComprador, texto } from './peticion.ts';
 import type { CodigoError, Recepcion, Red } from './dominio.ts';
 import { generarPdf } from '../sii/index.ts';
 import { nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
@@ -33,7 +34,6 @@ export interface OpcionesRutas {
 export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, opciones: OpcionesRutas = {}): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
-  const cuerpo = (req: Request): Record<string, unknown> => (req.body && typeof req.body === 'object' ? req.body : {});
   const limitador = crearLimitador(opciones.limitePorMinuto ?? 120, 60_000);
   const limitar = (req: Request, res: Response, next: NextFunction) => {
     if (limitador(req.ip ?? 'sin-ip')) return next();
@@ -92,7 +92,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
 
   rutas.post('/ordenes/:id/despacho', async (req, res) => {
     const b = cuerpo(req);
-    res.json(await red.fijarDespacho(id(req), Number(b.cantidad), typeof b.producto === 'string' ? b.producto : undefined));
+    res.json(await red.fijarDespacho(id(req), Number(b.cantidad), texto(b.producto)));
   });
 
   rutas.post('/ordenes/:id/confirmar', async (req, res) => {
@@ -117,12 +117,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
   rutas.post('/licitaciones/:id/unirse', limitar, async (req, res) => {
     const b = cuerpo(req);
     if (typeof b.rut !== 'string' || !b.rut.trim()) throw new ErrorRed('datos_invalidos', FALTA_RUT);
-    const negocio = await red.registrarComprador({
-      nombre: typeof b.nombre === 'string' ? b.nombre : '',
-      comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
-      rubro: typeof b.rubro === 'string' ? b.rubro : undefined,
-      rut: b.rut,
-    });
+    const negocio = await red.registrarComprador(nuevoComprador(b, b.rut));
     res.json(await red.unirseALicitacion(id(req), {
       negocioId: negocio.id,
       ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),

@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "lib": ["ES2023", "DOM"]
   },
-  "include": ["server", "client", "test", "scripts", "vite.config.ts"]
+  "include": ["shared", "server", "client", "test", "scripts", "vite.config.ts"]
 }

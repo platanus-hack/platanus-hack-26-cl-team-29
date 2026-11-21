@@ -13,8 +13,12 @@ import type {
   Item,
   OrdenCompra,
   Receptor,
+  ResultadoEmision,
+  ResultadoLote,
 } from './tipos.ts';
-import { escaparTexto, fechaEnChile, limpiarLatin1, marcaEnChile, normalizarRut } from './texto.ts';
+import { normalizarRut } from '../../shared/rut.ts';
+import { fechaEnChile, marcaEnChile } from '../../shared/fecha.ts';
+import { escaparTexto, limpiarLatin1 } from './texto.ts';
 
 const TASA_IVA = 19;
 
@@ -254,6 +258,23 @@ const base = (tipo: 33 | 52 | 61, e: EntradaFactura | EntradaGuia | EntradaNotaC
   receptor: e.receptor,
   items: e.items,
 });
+
+/**
+ * Las cuatro formas de emitir sobre un emisor de lotes (real o falso). Un documento suelto va solo en su sobre:
+ * así un rechazo o un corte afecta a un solo folio.
+ */
+export function emisiones(emitirLote: (entradas: readonly Omit<EntradaDte, 'emisor'>[]) => Promise<ResultadoLote>) {
+  async function emitir(entrada: Omit<EntradaDte, 'emisor'>): Promise<ResultadoEmision> {
+    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
+    return { documento: documentos[0]!, envio, sobreXml };
+  }
+  return {
+    emitirFactura: (e: EntradaFactura) => emitir(aDte.factura(e)),
+    emitirFacturas: (entradas: readonly EntradaFactura[]) => emitirLote(entradas.map(aDte.factura)),
+    emitirGuia: (e: EntradaGuia) => emitir(aDte.guia(e)),
+    emitirNotaCredito: (e: EntradaNotaCredito) => emitir(aDte.notaCredito(e)),
+  };
+}
 
 const ordenCompra = (oc: OrdenCompra): ReferenciaDte => ({
   tipoDocumento: 801,

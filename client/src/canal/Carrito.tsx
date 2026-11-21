@@ -3,15 +3,18 @@
 // (PUT /yo/carrito con espera de 400 ms) y una barra fija abajo con el total y el ahorro.
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { contar, dinero, haceCuanto } from '../red/formato.ts';
+import { dinero } from '../../../shared/formato.ts';
+import { contar } from '../../../shared/texto.ts';
+import { haceCuanto } from '../red/formato.ts';
 import type { CanalApi } from './api.ts';
 import {
   aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, crearEnvio, desdeItems, fijar, mismoCarrito, pistaTramo, productosDe, proyectar,
   resumirCarrito, textoCantidades, una, type Carrito, type Envio, type ProductoCanasta,
 } from './carrito.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
+import { mensajeDeError } from './logica.ts';
 import { Confirmar } from './piezas.tsx';
-import { formatearRutAlEscribir, rutValido } from './rut.ts';
+import { formatearRutAlEscribir, validarRut } from '../../../shared/rut.ts';
 import type { DatosEntrada, FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
 
 // ---------- Datos del negocio ----------
@@ -39,7 +42,7 @@ export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar
   const [rubro, setRubro] = useState<string>();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
-  const rutMalo = rutRevisado && rut.length > 0 && !rutValido(rut);
+  const rutMalo = rutRevisado && rut.length > 0 && !validarRut(rut);
   const avisoRut = errorRut || (rutMalo ? RUT_INVALIDO : '');
   const marcarRut = (mensaje: string) => {
     setErrorRut(mensaje);
@@ -51,13 +54,13 @@ export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar
     e.preventDefault();
     if (!nombre.trim()) return setError('Escribe el nombre de tu negocio.');
     setError('');
-    if (!rutValido(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
+    if (!validarRut(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
     setEnviando(true);
     setErrorRut('');
     try {
       await onEntrar({ nombre: nombre.trim(), comuna: comuna.trim(), rut, ...(rubro ? { rubro } : {}) });
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'No pudimos registrarte. Inténtalo de nuevo.';
+      const mensaje = mensajeDeError(err, 'No pudimos registrarte. Inténtalo de nuevo.');
       if (/\bRUT\b|SII/.test(mensaje)) marcarRut(mensaje); else setError(mensaje);
       setEnviando(false);
     }
@@ -275,7 +278,7 @@ export function CarritoCompra({ api, token, lic, negocioId, participacion, abier
       setSaliendo('no');
       setSalio(true);
     } catch (e) {
-      setErrorSalir(e instanceof Error ? e.message : 'No pudimos sacarte de la compra. Inténtalo de nuevo.');
+      setErrorSalir(mensajeDeError(e, 'No pudimos sacarte de la compra. Inténtalo de nuevo.'));
       setSaliendo('preguntando');
     }
   };

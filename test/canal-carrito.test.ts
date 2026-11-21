@@ -145,9 +145,3 @@ test('envío diferido: un cambio mientras viaja otro se manda al volver, nunca d
     mock.timers.reset();
   }
 });
-
-test('número de WhatsApp legible para el botón', async () => {
-  const { formatearTelefono } = await import('../client/src/canal/logica.ts');
-  assert.equal(formatearTelefono('12084828247'), '+1 (208) 482-8247');
-  assert.equal(formatearTelefono('56912345678'), '+56 9 1234 5678');
-});

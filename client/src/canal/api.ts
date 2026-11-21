@@ -6,7 +6,7 @@ import type { Negocio, OrdenCompra } from '../red/tipos.ts';
 import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
-import type { ConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
+import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
   producto: string;
@@ -34,16 +34,16 @@ export interface CanalApi {
   confirmarOrden(token: string, ordenId: string): Promise<void>;
   notaCredito(token: string, ordenId: string): Promise<void>;
   /** "Conectar mi SII" del proveedor. Los secretos solo viajan al subirlos; nunca vuelven. */
-  siiEstado(token: string): Promise<ConexionSii>;
+  siiEstado(token: string): Promise<EstadoConexionSii>;
   /** Sube el certificado y parte la conexión automática con el RUT de la empresa (vacío: el del titular). */
-  siiCertificado(token: string, pfxBase64: string, clave: string, rutEmisor: string): Promise<ConexionSii>;
+  siiCertificado(token: string, pfxBase64: string, clave: string, rutEmisor: string): Promise<EstadoConexionSii>;
   /** Vuelve a correr la conexión automática. */
-  siiAutomatico(token: string, rutEmisor: string): Promise<ConexionSii>;
+  siiAutomatico(token: string, rutEmisor: string): Promise<EstadoConexionSii>;
   siiConsultarEmpresa(token: string, rutEmisor: string): Promise<FichaSii>;
-  siiGuardarEmpresa(token: string, datos: DatosEmpresaSii): Promise<ConexionSii>;
-  siiCaf(token: string, xmlBase64: string): Promise<{ estado: ConexionSii; avisos: string[] }>;
-  siiFolio(token: string, tipo: number, folio: number): Promise<ConexionSii>;
-  siiDesconectar(token: string): Promise<ConexionSii>;
+  siiGuardarEmpresa(token: string, datos: DatosEmpresaSii): Promise<EstadoConexionSii>;
+  siiCaf(token: string, xmlBase64: string): Promise<{ estado: EstadoConexionSii; avisos: string[] }>;
+  siiFolio(token: string, tipo: number, folio: number): Promise<EstadoConexionSii>;
+  siiDesconectar(token: string): Promise<EstadoConexionSii>;
   /** Avisa cada vez que algo cambia en la red. Devuelve cómo dejar de escuchar. */
   escuchar(alCambiar: (e?: EventoRed) => void): () => void;
 }

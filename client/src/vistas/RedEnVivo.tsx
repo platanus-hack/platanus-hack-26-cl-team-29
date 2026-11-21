@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
-import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
+import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { Icono, LogoSii, Monograma, type NombreIcono } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
   cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, totalesCanasta, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
-import { contar, dinero, haceCuanto, miles, nota, pedidoDe, unidadDe } from '../red/formato.ts';
-import type { EstadoRed, EventoRed, TipoEvento } from '../red/tipos.ts';
+import { dinero, miles, nota } from '../../../shared/formato.ts';
+import { contar, segun } from '../../../shared/texto.ts';
+import { haceCuanto, pedidoDe, unidadDe } from '../red/formato.ts';
+import type { EstadoRed, EventoRed, TipoEventoRed } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 
 export function Contador({ valor, texto, color, marca }: { valor: number; texto: string; color?: string; marca?: ReactNode }) {
@@ -48,6 +50,18 @@ function Fila({ fila, logoUrl }: { fila: FilaRanking; logoUrl?: string }) {
 }
 
 /** `logoUrl` es el logo del proveedor de la demo (`proveedorSala`); los demás llevan monograma. */
+/** Negocios, proveedores con nota y documentos en el SII, en vivo. */
+export function Contadores({ estado }: { estado: EstadoRed }) {
+  const cuenta = contadores(estado);
+  return (
+    <div className="contadores">
+      <Contador valor={cuenta.negocios} texto={segun(cuenta.negocios, 'negocio')} color="verde" />
+      <Contador valor={cuenta.proveedoresConNota} texto={segun(cuenta.proveedoresConNota, 'proveedor con nota', 'proveedores con nota')} color="amarillo" />
+      <Contador valor={cuenta.documentosSii} texto={segun(cuenta.documentosSii, 'documento en el SII', 'documentos en el SII')} marca={<LogoSii />} />
+    </div>
+  );
+}
+
 export function Ranking({ estado, cambios, ahora, logoUrl, proveedorSala }: {
   estado: EstadoRed; cambios: CambioNota[]; ahora: number; logoUrl?: string; proveedorSala?: string;
 }) {
@@ -71,7 +85,7 @@ export function Ranking({ estado, cambios, ahora, logoUrl, proveedorSala }: {
   );
 }
 
-const ICONO_EVENTO: Partial<Record<TipoEvento, NombreIcono>> = {
+const ICONO_EVENTO: Partial<Record<TipoEventoRed, NombreIcono>> = {
   'orden.creada': 'pedido',
   'orden.confirmada': 'check',
   'recepcion.registrada': 'caja',
@@ -79,7 +93,7 @@ const ICONO_EVENTO: Partial<Record<TipoEvento, NombreIcono>> = {
   'licitacion.precio_bajo': 'baja',
   'licitacion.cerrada': 'cerrada',
 };
-const EVENTO_SII = new Set<TipoEvento>(['documento.emitido', 'documento.actualizado', 'reclamo.registrado', 'nota_credito.emitida', 'licitacion.facturada']);
+const EVENTO_SII = new Set<TipoEventoRed>(['documento.emitido', 'documento.actualizado', 'reclamo.registrado', 'nota_credito.emitida', 'licitacion.facturada']);
 
 /** Lo del SII lleva su logo; quien se suma o oferta, su monograma; el resto, un ícono de línea. */
 function IconoEvento({ e, estado }: { e: EventoRed; estado: EstadoRed }) {
@@ -148,19 +162,13 @@ export function RedEnVivo() {
   const ahora = useAhora();
   if (!estado) return <Cargando />;
 
-  const cuenta = contadores(estado);
   const orden = ordenActual(estado);
   const pasos = orden ? cicloDeOrden(estado, orden, eventos) : [];
   const item = orden?.items[0];
 
   return (
     <main className="pagina proyeccion red">
-      <header className="red-cabecera">
-        <div className="marca" aria-hidden>B</div>
-        <h1 className="titulo-red">La red de compras, en vivo</h1>
-        <span className="en-vivo contorno">En vivo</span>
-        <AvisoFuente fuente={fuente} />
-      </header>
+      <CabeceraRed titulo="La red de compras, en vivo" fuente={fuente} />
 
       <div className="red-cuerpo">
         <div className="columna">
@@ -178,7 +186,7 @@ export function RedEnVivo() {
                 <ol className="ciclo" aria-label="Ciclo de la orden">
                   {pasos.map((p, i) => (
                     <li key={p.titulo} className={`paso ${p.carril} ${p.estado}`}>
-                      <span className="num">{i + 1} · {p.carril === 'sii' ? <LogoSii /> : p.carril}</span>
+                      <span className="etiqueta num">{i + 1} · {p.carril === 'sii' ? <LogoSii /> : p.carril}</span>
                       <h3>{p.titulo}</h3>
                       <p>{p.detalle}</p>
                     </li>
@@ -194,11 +202,7 @@ export function RedEnVivo() {
         </div>
 
         <div className="columna">
-          <div className="contadores">
-            <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
-          </div>
+          <Contadores estado={estado} />
           <Ranking estado={estado} cambios={cambios} ahora={ahora} logoUrl={config.proveedorLogoUrl ?? negocioPorId(estado, licitacionActual(estado)?.proveedorId)?.logoUrl} proveedorSala={licitacionActual(estado)?.proveedorId} />
           <MiniLicitacion estado={estado} />
         </div>

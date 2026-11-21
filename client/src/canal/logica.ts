@@ -2,10 +2,16 @@
 // Sin React ni red, para poder probarla con node:test.
 
 import type { Documento } from '../red/tipos.ts';
-import { contar, textoEstadoSii } from '../red/formato.ts';
+import { siguienteTramo, totalOrden, tramoAlcanzado } from '../../../shared/precios.ts';
+import { contar } from '../../../shared/texto.ts';
+import { textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+/** El mensaje de un error para mostrarlo tal cual, o `siFalla` si no trae uno. */
+export const mensajeDeError = (e: unknown, siFalla = 'No pudimos completarlo. Inténtalo de nuevo.'): string =>
+  (e instanceof Error ? e.message : siFalla);
 
 /** Acepta los tramos aunque vengan con otros nombres de campo (`minimo`, `precio`). */
 export function normalizarTramos(raw: unknown): Tramo[] {
@@ -39,13 +45,13 @@ export function precioDelGrupo(lic: LicitacionCanal): PrecioGrupo {
   const p0 = lic.productos?.[0];
   const tramos = normalizarTramos(p0?.tramos ?? lic.tramos);
   if (tramos.length) {
-    const actual = [...tramos].reverse().find(t => t.desde <= unidades) ?? tramos[0];
-    const prox = tramos.find(t => t.desde > unidades && t.precioUnitario < actual.precioUnitario);
+    const actual = tramoAlcanzado(tramos, unidades) ?? tramos[0]!;
+    const prox = siguienteTramo(tramos, unidades, actual.precioUnitario);
     return {
       unidades,
       precio: numero(p0?.precioActual) ?? numero(lic.precioActual) ?? actual.precioUnitario,
       precioSolo: p0?.precioSolo ?? lic.precioSolo ?? tramos[0].precioUnitario,
-      ...(prox ? { siguiente: { faltan: prox.desde - unidades, precio: prox.precioUnitario } } : {}),
+      ...(prox ? { siguiente: { faltan: prox.faltan, precio: prox.precioUnitario } } : {}),
     };
   }
   const ofertas = lic.ofertas.map(o => o.precioUnitario);
@@ -94,7 +100,6 @@ export function unidadPara(producto: string, config: ConfigRed | null): Unidad {
 
 // ---------- Pedidos ----------
 
-export const totalOrden = (orden: OrdenCanal) => orden.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 
 /** Monto de la nota de crédito: lo que faltó por su precio. Si ya se emitió, el monto del documento. */
 export function montoNotaCredito(orden: OrdenCanal, documentos: readonly Documento[]): number {
@@ -202,23 +207,6 @@ export function confirmacion<A>(estado: Confirmacion<A>, e: EventoConfirmacion<A
     case 'fallo':
       return enviando ? { fase: 'error', accion: estado.accion, mensaje: e.mensaje } : estado;
   }
-}
-
-/** Solo dígitos, para wa.me. Vacío si no hay número configurado. */
-export function enlaceWhatsapp(numero: string | null | undefined, texto = 'Hola'): string {
-  const digitos = (numero ?? '').replace(/\D/g, '');
-  return digitos ? `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}` : '';
-}
-
-/**
- * Número de WhatsApp legible: +1 → "+1 (208) 482-8247", +56 9 → "+56 9 1234 5678"; otros, con + y en bloques de 4.
- * Copia local de `formatearTelefono` de client/src/red/formato.ts, con el mismo nombre y comportamiento.
- */
-export function formatearTelefono(digitos: string): string {
-  const d = digitos.replace(/\D/g, '');
-  if (/^1\d{10}$/.test(d)) return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
-  if (/^569\d{8}$/.test(d)) return `+56 9 ${d.slice(3, 7)} ${d.slice(7)}`;
-  return `+${d.replace(/(\d{4})(?=\d)/g, '$1 ')}`;
 }
 
 // ---------- Proveedor ----------

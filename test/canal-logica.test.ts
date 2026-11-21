@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cicloDelPedido, confirmacion, enlaceWhatsapp, estaFacturada, montoNotaCredito, normalizarTramos, precioDelGrupo, resumenFacturacion, SIN_CONFIRMACION,
+  cicloDelPedido, confirmacion, estaFacturada, montoNotaCredito, normalizarTramos, precioDelGrupo, resumenFacturacion, SIN_CONFIRMACION,
   type Confirmacion,
 } from '../client/src/canal/logica.ts';
 import type { LicitacionCanal, OrdenCanal } from '../client/src/canal/tipos.ts';
@@ -107,11 +107,6 @@ test('facturar todo cuenta una factura por orden pendiente de la compra conjunta
   assert.deepEqual(resumenFacturacion(lic, []), { facturas: 2, total: 299_000 }, 'sin licitacionId, estima con los participantes');
 });
 
-test('el enlace de WhatsApp usa solo dígitos y desaparece sin número', () => {
-  assert.equal(enlaceWhatsapp('+56 9 0000 0000', 'Hola'), 'https://wa.me/56900000000?text=Hola');
-  assert.equal(enlaceWhatsapp(null), '');
-});
-
 test('la compra conjunta queda facturada cuando todas sus órdenes (ordenIds) pasaron por el SII', () => {
   const lic = licitacion([4, 6], { estado: 'cerrada', ordenIds: ['a', 'b'] });
   const enviadas = [orden('enviada', { id: 'a' }), orden('enviada', { id: 'b' }), orden('facturada', { id: 'otra' })];
@@ -121,18 +116,3 @@ test('la compra conjunta queda facturada cuando todas sus órdenes (ordenIds) pa
   assert.equal(estaFacturada(licitacion([4]), []), false, 'abierta no está facturada');
 });
 
-test('el RUT se formatea mientras se escribe y se valida con módulo 11', async () => {
-  const { formatearRutAlEscribir, rutValido } = await import('../client/src/canal/rut.ts');
-  assert.equal(formatearRutAlEscribir('1'), '1');
-  assert.equal(formatearRutAlEscribir('12'), '1-2');
-  assert.equal(formatearRutAlEscribir('1234'), '123-4');
-  assert.equal(formatearRutAlEscribir('123456785'), '12.345.678-5');
-  assert.equal(formatearRutAlEscribir('12.345.678-5'), '12.345.678-5');
-  assert.equal(formatearRutAlEscribir('12345678k'), '12.345.678-K');
-  assert.equal(formatearRutAlEscribir('12k34'), '123-4', 'una K en medio se descarta');
-  assert.equal(formatearRutAlEscribir('1234567890'), '12.345.678-9', 'no pasa de 9 caracteres');
-  assert.ok(rutValido('12.345.678-5'));
-  assert.ok(rutValido('5126663-3'));
-  assert.ok(!rutValido('12.345.678-6'));
-  assert.ok(!rutValido('123-4'));
-});

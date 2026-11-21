@@ -1,9 +1,11 @@
+import { nombreEnFrase } from '../../shared/documentos.ts';
+import { fechaEnChile } from '../../shared/fecha.ts';
 import { ErrorSii } from '../sii/index.ts';
 import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
-import { receptorDelComprador } from './sii.ts';
+import { guiaDeOrden, itemsSii, ordenCompraSii, receptorDelComprador } from './sii.ts';
 import type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
-import type { Item, Negocio, OrdenCompra } from './tipos.ts';
+import type { Negocio, OrdenCompra } from './tipos.ts';
 
 // Adaptador de PuertoSii sobre el módulo SII (server/sii/index.ts), solo certificación.
 // Demo: el proveedor de la red es la empresa SII_RUT_EMISOR (configurada en server/sii). Cada comprador que
@@ -42,9 +44,9 @@ const EN_PROCESO = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD', 'LSO']);
 export const ESPERAS_SEGUIMIENTO_MS: readonly number[] = [2_000, 3_000, 3_000, 4_000, 5_000, 8_000, ...Array<number>(26).fill(10_000)];
 /** Con un folio en estos estados no se toma otro para la misma orden y tipo: el documento ya existe o pudo llegar. */
 const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'incierto', 'recibido', 'aceptado', 'reparo', 'no_recibido', 'no_coincide'];
-const NOMBRE: Record<number, string> = { 33: 'factura 33', 52: 'guía 52', 61: 'nota de crédito 61' };
+/** "factura 33", para los logs. */
+const nombreConTipo = (tipo: number) => `${nombreEnFrase(tipo)} ${tipo}`;
 
-const fechaEnChile = (fecha: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(fecha);
 const detalleDe = (error: unknown) =>
   error instanceof ErrorSii ? `${error.message}\n${error.respuesta}` : String(error instanceof Error ? error.message : error);
 const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
@@ -55,7 +57,7 @@ const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
  */
 export function rangoDelCaf(env: NodeJS.ProcessEnv, tipo: number): RangoFolios {
   const base64 = env[`SII_CAF_${tipo}_BASE64`];
-  if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir la ${NOMBRE[tipo] ?? tipo}`);
+  if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir la ${nombreConTipo(tipo)}`);
   const xml = Buffer.from(base64, 'base64').toString('latin1');
   const td = /<TD>\s*(\d+)\s*<\/TD>/.exec(xml)?.[1];
   const rango = /<RNG>\s*<D>\s*(\d+)\s*<\/D>\s*<H>\s*(\d+)\s*<\/H>\s*<\/RNG>/.exec(xml);
@@ -77,13 +79,6 @@ export function receptorDesdeEnv(env: NodeJS.ProcessEnv): Receptor {
     comuna: env.SII_RECEPTOR_COMUNA ?? '',
   };
 }
-
-const itemsSii = (items: readonly Item[], cantidad: (i: Item) => number) =>
-  items
-    .map(i => ({ nombre: i.producto, cantidad: cantidad(i), precioUnitario: i.precioUnitario, unidad: 'UN' }))
-    .filter(i => i.cantidad > 0);
-
-const ordenCompra = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(new Date(o.creadaEn)) });
 
 /**
  * Veredicto común de los `n` documentos de un tipo en un sobre procesado (QueryEstUp cuenta por tipo).
@@ -129,12 +124,12 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     if (!previo) return undefined;
     // Quedó a medias (por ejemplo, un reinicio entre la subida y guardar el documento): no se reenvía.
     if (previo.estado === 'reservado') await guardar(previo, { estado: 'incierto', detalle: 'Reservado sin resultado de subida (reinicio)' });
-    log.warn(`[sii] ${NOMBRE[tipo]} de ${ordenId} ya tiene el folio ${previo.folio} (${previo.estado}): no se vuelve a enviar`);
+    log.warn(`[sii] ${nombreConTipo(tipo)} de ${ordenId} ya tiene el folio ${previo.folio} (${previo.estado}): no se vuelve a enviar`);
     return previo;
   }
 
   const entradaFactura = ({ orden, receptor: comprador }: DatosEmision, folio: number): EntradaFactura =>
-    ({ folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompra(orden) });
+    ({ folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompraSii(orden) });
 
   // Cierre de la compra conjunta: las facturas de todas las órdenes en UN sobre y una sola subida.
   // Mismas reglas que una factura suelta, folio por folio: se reservan en orden (consecutivos) antes de
@@ -200,7 +195,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
 
   function emitir(tipo: 33 | 52 | 61, ordenId: string, armar: (folio: number) => Promise<ResultadoEmision>) {
     return enCola(async () => {
-      const nombre = `${NOMBRE[tipo]} de ${ordenId}`;
+      const nombre = `${nombreConTipo(tipo)} de ${ordenId}`;
       const previo = await folioVivo(tipo, ordenId);
       if (previo) return resultado(previo);
       const registro = await folios.reservar(tipo, rangoDelCaf(env, tipo), ordenId);
@@ -271,14 +266,13 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     emitirFacturas,
 
     emitirGuia: ({ orden, receptor: comprador }) => emitir(52, orden.id, folio => sii.emitirGuia({
-      folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidadDespachada ?? i.cantidad),
-      motivoTraslado: 1, ordenCompra: ordenCompra(orden),
+      folio, receptor: receptor(comprador), ...guiaDeOrden(orden),
     })),
 
     // La nota de crédito va al mismo receptor que la factura que corrige.
     emitirNotaCredito: ({ orden, receptor: comprador, factura, items }) => emitir(61, orden.id, async folio => {
       const registro33 = await folios.buscar(33, factura.folio);
-      const fecha = registro33?.fechaEmision ?? fechaEnChile(new Date(factura.emitidoEn));
+      const fecha = registro33?.fechaEmision ?? fechaEnChile(factura.emitidoEn);
       return sii.emitirNotaCredito({
         folio, receptor: receptor(comprador), items: itemsSii(items, i => i.cantidad), factura: { folio: factura.folio, fecha },
       });

@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { avanceAlSiguiente } from './Escalera.tsx';
 import { Icono, iconoProducto, Monograma } from './Iconos.tsx';
 import { firmasDeCanasta, productoQueCambio, type ProductoSala } from '../red/derivar.ts';
-import { contar, dinero } from '../red/formato.ts';
+import { dinero } from '../../../shared/formato.ts';
+import { contar } from '../../../shared/texto.ts';
 import '../vistas/canasta.css';
 
 /** Avance de un producto en dos partes: las unidades ("32 cajas") y lo que falta ("faltan 18 para $25.900"). */
@@ -66,7 +67,7 @@ function FilaProducto({ p, destacado, destello, logoEnSala }: { p: ProductoSala;
             <Monograma nombre={p.lider.proveedor} logoUrl={p.lider.enEscenario ? logoEnSala : undefined} />
             <span className="prod-lider-texto">
               <span className="nombre">{p.lider.proveedor}</span>
-              <span className="prod-lider-pie">va ganando{p.proveedores > 1 ? ` · ${contar(p.proveedores, 'proveedor', 'proveedores')}` : ''}</span>
+              <span className="prod-lider-pie">va ganando{p.proveedores > 1 ? ` · ${contar(p.proveedores, 'proveedor')}` : ''}</span>
             </span>
             <span className="prod-lider-corto">gana</span>
           </>

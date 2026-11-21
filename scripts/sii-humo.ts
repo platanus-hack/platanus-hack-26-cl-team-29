@@ -6,6 +6,8 @@
 //
 // El folio debe estar dentro del CAF de SII_CAF_33_BASE64 y no haberse usado antes.
 import { crearSii, ErrorSii, type ResultadoEmision, type Sii } from '../server/sii/index.ts';
+import { receptorDesdeEnv } from '../server/red/sii-real.ts';
+import { fechaEnChile } from '../shared/fecha.ts';
 
 const args = process.argv.slice(2);
 const flag = (nombre: string): string | undefined => {
@@ -18,12 +20,14 @@ if (!Number.isSafeInteger(folio) || folio <= 0) {
   process.exit(2);
 }
 const env = process.env;
-const faltan = ['SII_RUT_RECEPTOR', 'SII_RECEPTOR_RAZON_SOCIAL', 'SII_RECEPTOR_GIRO', 'SII_RECEPTOR_DIRECCION', 'SII_RECEPTOR_COMUNA']
-  .filter(n => !env[n]);
-if (faltan.length > 0) {
-  console.error(`Faltan variables de entorno: ${faltan.join(', ')}`);
-  process.exit(2);
-}
+const receptor = (() => {
+  try {
+    return receptorDesdeEnv(env);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    return process.exit(2);
+  }
+})();
 
 /** Estados de QueryEstUp en que el SII todavía no termina de procesar el sobre. */
 const EN_PROCESO = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD', 'LSO']);
@@ -32,18 +36,12 @@ const titulo = (texto: string) => console.log(`\n=== ${texto}`);
 
 async function main(sii: Sii): Promise<void> {
   if (sii.modo !== 'certificacion') throw new Error('Falta SII_PFX_BASE64: la prueba de humo no corre en modo falso.');
-  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+  const hoy = fechaEnChile(new Date());
 
   titulo(`Emitiendo factura 33 folio ${folio} de ${sii.rutEmisor} a ${env.SII_RUT_RECEPTOR}`);
   const emision: ResultadoEmision = await sii.emitirFactura({
     folio,
-    receptor: {
-      rut: env.SII_RUT_RECEPTOR ?? '',
-      razonSocial: env.SII_RECEPTOR_RAZON_SOCIAL ?? '',
-      giro: env.SII_RECEPTOR_GIRO ?? '',
-      direccion: env.SII_RECEPTOR_DIRECCION ?? '',
-      comuna: env.SII_RECEPTOR_COMUNA ?? '',
-    },
+    receptor,
     items: [
       { nombre: 'Producto de prueba A', cantidad: 10, precioUnitario: 1500, unidad: 'UN' },
       { nombre: 'Producto de prueba B', cantidad: 3, precioUnitario: 2990, unidad: 'UN' },

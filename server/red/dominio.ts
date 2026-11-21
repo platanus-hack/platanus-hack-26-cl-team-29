@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { fechaEnChile } from '../../shared/fecha.ts';
+import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { precioPorVolumen, precioVigente, preciosVigentes, productoDe, unidadesDe, vistaLicitacion } from './compra.ts';
+import { neto, precioAjustado, precioPorVolumen, unidadesDe } from '../../shared/precios.ts';
+import { precioVigente, preciosVigentes, productoDe, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
@@ -8,7 +11,7 @@ import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
 import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
 import type { ConsultarContribuyente, DatosContribuyente } from './contribuyente.ts';
-import { validarRut } from './rut.ts';
+import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
 import { RUBROS } from './tipos.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
@@ -216,30 +219,19 @@ export interface OpcionesRed {
 }
 
 export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
-export const RUT_INVALIDO = 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.';
 export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
 export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
 
-const ZONA = 'America/Santiago';
-const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date(iso));
-const neto = (items: Item[]) => items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0);
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
 /** Rubro conocido, sin tildes ni mayúsculas; uno desconocido es `otro` y vacío, undefined. */
 export function normalizarRubro(texto: unknown): Rubro | undefined {
-  const limpio = String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const limpio = sinTildes(String(texto ?? '')).trim();
   if (!limpio) return undefined;
   return (RUBROS as readonly string[]).includes(limpio) ? limpio as Rubro : 'otro';
 }
 
 // Solo dígitos y los últimos 9 (móvil chileno), para que "+56 9 1234 5678" y "56912345678" coincidan.
 const normalizarTelefono = (t: string) => t.replace(/\D/g, '').slice(-9);
-
-// Puntaje de una oferta en la licitación: el precio, castigado por mala nota y por plazo largo.
-//   precioAjustado = precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * plazoDias)
-// Gana el menor. Así un proveedor 0.8 puntos peor necesita ser ~8% más barato para ganar.
-export function precioAjustado(oferta: NuevaOferta, nota: number): number {
-  return Math.round(oferta.precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * oferta.plazoDias));
-}
 
 /** Id del único producto de una licitación guardada antes de la canasta. */
 const PRODUCTO_UNICO = 'producto';
@@ -400,16 +392,19 @@ export async function crearRed({
   // El proveedor confirma: recién ahí se emiten la factura 33 (con la OC) y la guía 52.
   // Si el SII falla a mitad, la orden queda confirmada y se puede volver a llamar:
   // solo se emite lo que falta.
+  /** El proveedor dice que sí: la guía despacha lo pedido (si no se fijó otra cantidad). */
+  async function confirmar(o: OrdenCompra) {
+    for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
+    o.estado = 'confirmada';
+    await guardar('ordenes', o);
+    emitir('orden.confirmada', { orden: o });
+  }
+
   function confirmarOrden(ordenId: string) {
     return conCandado(ordenId, async () => {
       const o = orden(ordenId, 'enviada', 'confirmada');
       const datosEmision = { orden: o, emisor: negocio(o.proveedorId, 'proveedor'), receptor: negocio(o.compradorId, 'comprador') };
-      if (o.estado === 'enviada') {
-        for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
-        o.estado = 'confirmada';
-        await guardar('ordenes', o);
-        emitir('orden.confirmada', { orden: o });
-      }
+      if (o.estado === 'enviada') await confirmar(o);
       if (!documento(o.id, 33)) await guardarDocumento(o.id, 33, neto(o.items), await sii.emitirFactura(datosEmision));
       if (!documento(o.id, 52)) await guardarDocumento(o.id, 52, netoDespachado(o.items), await sii.emitirGuia(datosEmision));
       o.estado = 'facturada';
@@ -466,7 +461,7 @@ export async function crearRed({
       o.estado = 'corregida';
       await guardar('ordenes', o);
       emitir('nota_credito.emitida', { orden: o, documento: doc });
-      if (dia(doc.emitidoEn) === dia(reclamo.en)) await registrarReputacion(o.proveedorId, o.id, 'nota_credito_mismo_dia');
+      if (fechaEnChile(doc.emitidoEn) === fechaEnChile(reclamo.en)) await registrarReputacion(o.proveedorId, o.id, 'nota_credito_mismo_dia');
       return structuredClone(doc);
     });
   }
@@ -761,12 +756,7 @@ export async function crearRed({
       if (ocupada) throw new ErrorRed('ocupado', `${ocupada.id} se está procesando, intenta de nuevo`);
       for (const o of ordenes) enCurso.add(o.id);
       try {
-        for (const o of ordenes.filter(x => x.estado === 'enviada')) {
-          for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
-          o.estado = 'confirmada';
-          await guardar('ordenes', o);
-          emitir('orden.confirmada', { orden: o });
-        }
+        for (const o of ordenes.filter(x => x.estado === 'enviada')) await confirmar(o);
         const confirmadas = ordenes.filter(o => o.estado === 'confirmada');
         const sinFactura = confirmadas.filter(o => !documento(o.id, 33));
         if (sinFactura.length > 0) {

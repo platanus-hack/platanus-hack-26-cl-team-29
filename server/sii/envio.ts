@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Autenticador } from './autenticacion.ts';
 import { etiqueta, type Http, URLS, USER_AGENT } from './soap.ts';
 import type { ResultadoEnvio } from './tipos.ts';
-import { partirRut } from './texto.ts';
+import { partirRut } from '../../shared/rut.ts';
 
 export interface EntradaSubida {
   readonly sobreXml: string;

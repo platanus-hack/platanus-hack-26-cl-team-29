@@ -3,17 +3,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { contar, cuantos, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { totalOrden } from '../../../shared/precios.ts';
+import { contar, cuantos } from '../../../shared/texto.ts';
+import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
-import type { Negocio } from '../red/tipos.ts';
+import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import {
-  cicloDelPedido, estaAbierta, licitacionVigente, totalOrden, unidadPara, montoNotaCredito,
+  cicloDelPedido, estaAbierta, licitacionVigente, unidadPara, montoNotaCredito,
   type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
-import { BotonWhatsapp, Cantidad, Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
+import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
 import './canal.css';
@@ -146,26 +149,19 @@ function Pedir({ api, token, foto, config, alEnviar }: {
   const [producto, setProducto] = useState(CATALOGO[0]);
   const [cantidad, setCantidad] = useState(4);
   const [proveedorId, setProveedorId] = useState(proveedores[0]?.negocio.id ?? '');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
+  const { enviando, error, setError, enviar: enviarA } = useEnvio();
   const [enviada, setEnviada] = useState<{ proveedor: string; detalle: string; total: number } | null>(null);
   const u = unidadPara(producto, config);
   const proveedor = proveedores.find(p => p.negocio.id === proveedorId)?.negocio;
 
   if (!proveedores.length) return <Vacio titulo="Todavía no hay proveedores en la red" texto="Cuando se sume el primero, podrás pedirle desde aquí." />;
 
-  const enviar = async () => {
+  const enviar = () => {
     if (!proveedor || !producto) return setError('Elige un producto y un proveedor.');
-    setEnviando(true);
-    setError('');
-    try {
+    void enviarA(async () => {
       const orden = await api.pedir(token, proveedor.id, [{ producto, cantidad }]);
       setEnviada({ proveedor: proveedor.nombre, detalle: `${cantidadEn(cantidad, u)} de ${producto}`, total: totalOrden(orden) });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos enviar la orden. Inténtalo de nuevo.');
-    } finally {
-      setEnviando(false);
-    }
+    }, 'No pudimos enviar la orden. Inténtalo de nuevo.');
   };
 
   if (enviada) {
@@ -255,8 +251,7 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
   const ciclo = cicloDelPedido(orden, yo.documentos, u);
   const [faltaron, setFaltaron] = useState(false);
   const [faltante, setFaltante] = useState(1);
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
+  const { enviando, error, enviar } = useEnvio();
   const factura = yo.documentos.find(d => d.ordenId === orden.id && d.tipo === 33);
   const nc = yo.documentos.find(d => d.ordenId === orden.id && d.tipo === 61);
 
@@ -267,18 +262,10 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
   }, [api, token, orden.id, alCambiar]);
   const reclamo = useConfirmacion(reclamar);
 
-  const llegoTodo = async () => {
-    setEnviando(true);
-    setError('');
-    try {
-      await api.recepcion(token, orden.id, { conforme: true, confirmado: true });
-      alCambiar();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos registrarlo. Inténtalo de nuevo.');
-    } finally {
-      setEnviando(false);
-    }
-  };
+  const llegoTodo = () => enviar(async () => {
+    await api.recepcion(token, orden.id, { conforme: true, confirmado: true });
+    alCambiar();
+  }, 'No pudimos registrarlo. Inténtalo de nuevo.');
 
   return (
     <article className={`tarjeta cn-pedido ${orden.estado}`}>
@@ -331,10 +318,7 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
           sii
           titulo="¿Reclamamos la factura en el SII?"
           si="Sí, reclámala"
-          enviando={reclamo.estado.fase === 'enviando'}
-          error={reclamo.estado.fase === 'error' ? reclamo.estado.mensaje : undefined}
-          onSi={reclamo.confirmar}
-          onNo={reclamo.cancelar}
+          {...reclamo.panel}
         >
           <p>
             Reclamamos la factura{factura?.folio ? ` folio ${factura.folio}` : ''} por falta parcial:{' '}
@@ -360,36 +344,18 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
 
 // ---------- Mis facturas ----------
 
-const NOMBRE_DOC: Record<number, string> = { 33: 'Factura', 61: 'Nota de crédito' };
-
 function MisFacturas({ foto, yo }: { foto: FotoRed; yo: YoComprador }) {
-  const docs = yo.documentos
-    .filter(d => d.tipo === 33 || d.tipo === 61)
-    .sort((a, b) => Date.parse(b.emitidoEn ?? '') - Date.parse(a.emitidoEn ?? '') || (b.folio ?? 0) - (a.folio ?? 0));
+  const docs = yo.documentos.filter(d => d.tipo === 33 || d.tipo === 61);
   if (!docs.length) {
     return <Vacio titulo="Todavía no tienes facturas" texto="Cuando un proveedor confirme tu pedido, su factura del SII aparece aquí con su estado." />;
   }
+  const proveedorDe = (d: Documento) => {
+    const orden = yo.ordenes.find(o => o.id === d.ordenId);
+    return foto.negocios.find(n => n.id === orden?.proveedorId)?.nombre ?? 'Proveedor';
+  };
   return (
     <section className="cn-seccion">
-      <ul className="tarjeta cn-documentos">
-        {docs.map(d => {
-          const orden = yo.ordenes.find(o => o.id === d.ordenId);
-          const proveedor = foto.negocios.find(n => n.id === orden?.proveedorId)?.nombre;
-          return (
-            <li key={d.id}>
-              <Icono nombre="documento" />
-              <div className="cn-doc-izq">
-                <strong>{NOMBRE_DOC[d.tipo]} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
-                <span className="mono tenue nombre">{proveedor ?? 'Proveedor'}</span>
-              </div>
-              <div className="cn-doc-der">
-                <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
-                <EstadoSii estado={d.estadoSii} />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <ListaDocumentos documentos={docs} contraparte={proveedorDe} />
       <p className="mono tenue cn-nota-pie">Montos netos. Cada documento queda registrado en el SII.</p>
     </section>
   );

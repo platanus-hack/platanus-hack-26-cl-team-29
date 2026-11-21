@@ -1,3 +1,4 @@
+import { CANASTA_DEMO, PISO_ROLLOS_DEMO, pisoPorDefecto } from '../../shared/canasta-demo.ts';
 import type { Tramo } from './tipos.ts';
 
 // Configuración de "la sala compra junta". El proveedor es una empresa real: su nombre, comuna y
@@ -42,25 +43,9 @@ export interface ConfigDemo {
 /** Cantidad máxima por participante en la compra conjunta. */
 export const CANTIDAD_MAXIMA = 20;
 
-const TRAMOS: Tramo[] = [
-  { desde: 1, precioUnitario: 32000 },
-  { desde: 10, precioUnitario: 29900 },
-  { desde: 25, precioUnitario: 27900 },
-  { desde: 50, precioUnitario: 25900 },
-  { desde: 100, precioUnitario: 24500 },
-];
-
-const tramos = (pares: [number, number][]): Tramo[] => pares.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
-
-/** El resto de la canasta por defecto (el primero, rollos, sale de DEMO_PRODUCTO, DEMO_PRECIO_SOLO, DEMO_TRAMOS, etc.). */
-const OTROS_PRODUCTOS: Omit<ProductoDemo, 'piso'>[] = [
-  { id: 'etiquetas', nombre: 'Rollo de etiquetas adhesivas 50x30 (1.000 un.)', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 6900, tramos: tramos([[1, 6900], [10, 6400], [25, 5900], [50, 5500]]) },
-  { id: 'bolsas', nombre: 'Paquete de bolsas camiseta (1.000 un.)', unidad: 'paquete', unidadPlural: 'paquetes', precioSolo: 14900, tramos: tramos([[1, 14900], [10, 13900], [25, 12900], [50, 11900]]) },
-  { id: 'guantes', nombre: 'Caja de guantes de nitrilo (100 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 8900, tramos: tramos([[1, 8900], [10, 8200], [25, 7600], [50, 7100]]) },
-];
-
-/** Piso por defecto de un producto: 80 % del primer tramo, redondeado a $10. */
-const pisoPorDefecto = (t: Tramo[], precioSolo: number) => Math.round((0.8 * (t[0]?.precioUnitario ?? precioSolo)) / 10) * 10;
+/** La canasta por defecto: el primero (rollos) se puede cambiar con DEMO_PRODUCTO, DEMO_PRECIO_SOLO, DEMO_TRAMOS, etc. */
+const [ROLLOS, ...OTROS_PRODUCTOS] = CANASTA_DEMO;
+const TRAMOS = ROLLOS!.tramos;
 
 function leerListaTramos(lista: unknown): Tramo[] {
   if (!Array.isArray(lista) || lista.length === 0) throw new Error('los tramos deben ser una lista no vacía');
@@ -115,13 +100,13 @@ const positivo = (texto: string | undefined, porDefecto: number) => {
 };
 
 export function configDemo(env: NodeJS.ProcessEnv = process.env): ConfigDemo {
-  const precioPiso = positivo(env.DEMO_PRECIO_PISO, 23900);
+  const precioPiso = positivo(env.DEMO_PRECIO_PISO, PISO_ROLLOS_DEMO);
   const rollos: ProductoDemo = {
     id: 'rollos',
-    nombre: env.DEMO_PRODUCTO?.trim() || 'Caja de rollos térmicos 80 mm (50 un.)',
-    unidad: env.DEMO_UNIDAD?.trim() || 'caja',
-    unidadPlural: env.DEMO_UNIDAD_PLURAL?.trim() || (env.DEMO_UNIDAD ? `${env.DEMO_UNIDAD.trim()}s` : 'cajas'),
-    precioSolo: positivo(env.DEMO_PRECIO_SOLO, 32000),
+    nombre: env.DEMO_PRODUCTO?.trim() || ROLLOS!.nombre,
+    unidad: env.DEMO_UNIDAD?.trim() || ROLLOS!.unidad,
+    unidadPlural: env.DEMO_UNIDAD_PLURAL?.trim() || (env.DEMO_UNIDAD ? `${env.DEMO_UNIDAD.trim()}s` : ROLLOS!.unidadPlural),
+    precioSolo: positivo(env.DEMO_PRECIO_SOLO, ROLLOS!.precioSolo),
     tramos: leerTramos(env.DEMO_TRAMOS),
     piso: precioPiso,
   };

@@ -4,17 +4,20 @@
 
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { totalOrden } from '../../../shared/precios.ts';
+import { contar } from '../../../shared/texto.ts';
+import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import {
-  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
+  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
-import { Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
-import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
+import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
+import type { ConfigRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
 import './canal.css';
 
@@ -91,19 +94,11 @@ export function Proveedor() {
 
 function Acceso({ api, fuente, onEntrar }: { api: CanalApi; fuente: ReturnType<typeof useCanal>['fuente']; onEntrar: (token: string) => void }) {
   const [codigo, setCodigo] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-  const enviar = async (e: FormEvent) => {
+  const { enviando, error, setError, enviar: enviarA } = useEnvio();
+  const enviar = (e: FormEvent) => {
     e.preventDefault();
     if (!codigo.trim()) return setError('Escribe tu código de acceso.');
-    setEnviando(true);
-    setError('');
-    try {
-      onEntrar((await api.sesionProveedor(codigo.trim())).token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No pudimos entrar. Revisa el código.');
-      setEnviando(false);
-    }
+    void enviarA(async () => onEntrar((await api.sesionProveedor(codigo.trim())).token), 'No pudimos entrar. Revisa el código.');
   };
   return (
     <main className="cn-pagina cn-bienvenida">
@@ -179,10 +174,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
         <Confirmar
           titulo="¿Cierras la compra conjunta?"
           si="Sí, cerrar"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p>Nadie más podrá sumarse. Queda una orden por negocio: {contar(lic.participantes.length, 'negocio')}, {cantidadEn(g.unidades, u)} a {g.precio !== undefined ? dinero(g.precio) : '-'} por {u.singular}.</p>
         </Confirmar>
@@ -192,10 +184,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
           sii
           titulo={`¿Emites ${contar(c.estado.accion.facturas, 'factura')} en el SII?`}
           si="Sí, factura todo"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p className="cn-cifra-confirmar">{dinero(c.estado.accion.total)} neto en total</p>
           <p>Una factura por negocio, con la orden de compra como referencia, en un solo envío al SII. Le avisamos a cada negocio con su folio.</p>
@@ -236,10 +225,7 @@ function PedidoNuevo({ api, token, alCambiar, orden, comprador, config }: PropsA
           sii
           titulo="¿Confirmas y facturas?"
           si="Sí, factura"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p className="cn-cifra-confirmar">1 factura · {dinero(total)} neto</p>
           <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Le avisamos a {quien}.</p>
@@ -285,10 +271,7 @@ function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }
           sii
           titulo="¿Emites la nota de crédito?"
           si="Sí, emítela"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p className="cn-cifra-confirmar">Nota de crédito · {dinero(monto)} neto</p>
           <p>Queda amarrada a la factura{factura?.folio ? ` folio ${factura.folio}` : ''} en el SII. Le avisamos a {quien}.</p>
@@ -328,33 +311,14 @@ function MiNota({ yo }: { yo: YoProveedor }) {
   );
 }
 
-const NOMBRE_DOC: Record<number, string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
-
 function MisDocumentos({ yo, comprador }: { yo: YoProveedor; comprador: (id: string) => Negocio | undefined }) {
-  const docs = [...yo.documentos].sort((a, b) => Date.parse(b.emitidoEn ?? '') - Date.parse(a.emitidoEn ?? '') || (b.folio ?? 0) - (a.folio ?? 0));
+  const compradorDe = (d: Documento) => comprador(yo.ordenes.find(o => o.id === d.ordenId)?.compradorId ?? '')?.nombre ?? 'Cliente';
   return (
     <section className="cn-seccion">
       <h2 className="cn-titulo"><LogoSii tam={22} /> Mis documentos en el SII</h2>
-      {docs.length ? (
-        <ul className="tarjeta cn-documentos">
-          {docs.map(d => {
-            const orden = yo.ordenes.find(o => o.id === d.ordenId);
-            return (
-              <li key={d.id}>
-                <Icono nombre="documento" />
-                <div className="cn-doc-izq">
-                  <strong>{NOMBRE_DOC[d.tipo]} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
-                  <span className="mono tenue nombre">{comprador(orden?.compradorId ?? '')?.nombre ?? 'Cliente'}</span>
-                </div>
-                <div className="cn-doc-der">
-                  <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
-                  <EstadoSii estado={d.estadoSii} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : <p className="mono tenue cn-texto">Aquí aparecen tus facturas, guías y notas de crédito con su estado en el SII.</p>}
+      {yo.documentos.length
+        ? <ListaDocumentos documentos={yo.documentos} contraparte={compradorDe} />
+        : <p className="mono tenue cn-texto">Aquí aparecen tus facturas, guías y notas de crédito con su estado en el SII.</p>}
     </section>
   );
 }

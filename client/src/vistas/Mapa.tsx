@@ -9,15 +9,14 @@ import { AttributionControl, Map as MapaLibre, Marker, setWorkerUrl, type GeoJSO
 import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapa.css';
-import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
-import { LogoSii } from '../components/Iconos.tsx';
+import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
-import { contadores, notaDe, type CambioNota } from '../red/derivar.ts';
-import { miles, nota } from '../red/formato.ts';
+import { notaDe, type CambioNota } from '../red/derivar.ts';
+import { miles, nota } from '../../../shared/formato.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
-import { Contador, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
+import { Contadores, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
 
 setWorkerUrl(urlDelWorker);
 
@@ -190,16 +189,10 @@ export function Mapa() {
   const locales = useLocales();
   const ahora = useAhora();
   if (!estado) return <Cargando />;
-  const cuenta = contadores(estado);
 
   return (
     <main className="pagina proyeccion red">
-      <header className="red-cabecera">
-        <div className="marca" aria-hidden>B</div>
-        <h1 className="titulo-red">La red en el mapa, en vivo</h1>
-        <span className="en-vivo contorno">En vivo</span>
-        <AvisoFuente fuente={fuente} />
-      </header>
+      <CabeceraRed titulo="La red en el mapa, en vivo" fuente={fuente} />
 
       <div className="red-cuerpo">
         <section className="mapa-caja">
@@ -217,11 +210,7 @@ export function Mapa() {
         </section>
 
         <div className="columna">
-          <div className="contadores">
-            <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
-          </div>
+          <Contadores estado={estado} />
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           <MiniLicitacion estado={estado} />
           <Feed estado={estado} eventos={eventos} ahora={ahora} />

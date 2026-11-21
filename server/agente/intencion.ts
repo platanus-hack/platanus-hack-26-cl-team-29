@@ -1,6 +1,7 @@
 // Qué quiso decir la persona. El intérprete (Claude o reglas) solo clasifica:
 // nunca ejecuta nada. La máquina de estados decide qué hacer con la intención.
 import type { Catalogo, DatosCanasta } from './canasta.ts';
+import { sinTildes } from '../../shared/texto.ts';
 
 export type Intencion =
   /** `proveedor`: el nombre que dijo la persona, si eligió uno; si no, el agente elige el mejor. */
@@ -45,7 +46,7 @@ export function aNumero(palabra: string): number {
 
 /** Quita tildes y mayúsculas para comparar sin depender de cómo escribe la persona. */
 export function normalizar(texto: string): string {
-  return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[¿?¡!.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  return sinTildes(texto).replace(/[¿?¡!.,]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /** Intérprete sin red ni credenciales: cubre las frases de la demo. */

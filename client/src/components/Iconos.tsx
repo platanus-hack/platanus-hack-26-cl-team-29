@@ -14,7 +14,6 @@ const TRAZOS = {
   nota: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
   caja: 'M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8',
   cerrada: 'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3',
-  whatsapp: 'M3 21l1.65-4.95A9 9 0 1 1 7.95 19.35zM9 8.5c0 3.6 2.9 6.5 6.5 6.5l1-1.6-2-1-1 1c-1.2-.5-2.4-1.7-2.9-2.9l1-1-1-2z',
   // Productos de la canasta.
   rollo: 'M3 10a6 6 0 1 0 12 0a6 6 0 1 0-12 0M7 10a2 2 0 1 0 4 0a2 2 0 1 0-4 0M9 16h12v5H12',
   etiqueta: 'M3 12V4h8l10 10-8 8zM7.5 7.5h.01',
@@ -76,12 +75,14 @@ export function iniciales(nombre: string): string {
   return palabras.slice(0, 2).map(p => p[0]!.toUpperCase()).join('') || '?';
 }
 
-/** Color estable derivado del nombre: el mismo negocio siempre se ve igual en todas las pantallas. */
-export function colorDe(nombre: string): string {
+/** Tono estable derivado del nombre (0 a 359): el mismo negocio siempre se ve igual en todas las pantallas. */
+export function tonoDe(nombre: string): number {
   let h = 0;
   for (const c of nombre) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return `hsl(${h % 360} 70% 62%)`;
+  return h % 360;
 }
+
+const colorDe = (nombre: string): string => `hsl(${tonoDe(nombre)} 70% 62%)`;
 
 /**
  * Avatar de tamaño fijo: el logo si lo hay; si no, el ícono del rubro o las iniciales, sobre un color estable.
@@ -95,5 +96,14 @@ export function Monograma({ nombre, logoUrl, rubro = false, className = '' }: { 
     <span className={`monograma ${className}`} style={estilo} aria-hidden="true">
       {icono ? <Icono nombre={icono} /> : iniciales(nombre)}
     </span>
+  );
+}
+
+/** Glifo de WhatsApp (relleno, en el color del texto). Sin `tam`, lo mide el CSS de `className`. */
+export function GlifoWhatsapp({ tam, className = 'icono' }: { tam?: number; className?: string }) {
+  return (
+    <svg className={className} width={tam} height={tam} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.39-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.14.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.7.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.41-.08-.13-.27-.2-.57-.35m-5.42 7.4h-.01a9.87 9.87 0 0 1-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 0 1-1.51-5.26c0-5.45 4.44-9.88 9.89-9.88 2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 0 1 2.89 6.99c0 5.45-4.44 9.89-9.88 9.89m8.41-18.3A11.82 11.82 0 0 0 12.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 0 0 5.69 1.45h.01c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.41" />
+    </svg>
   );
 }

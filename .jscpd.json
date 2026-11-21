@@ -1,0 +1,9 @@
+{
+  "path": ["client", "server", "shared", "scripts"],
+  "format": ["typescript", "tsx", "css"],
+  "minTokens": 50,
+  "threshold": 0,
+  "ignore": ["**/node_modules/**", "**/dist/**", "data/**", "test/**", "**/*.test.ts"],
+  "reporters": ["console"],
+  "gitignore": true
+}

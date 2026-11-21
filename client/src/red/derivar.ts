@@ -1,18 +1,14 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
 import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
-import { cantidadCon, contar, dinero, nota, pedidoDe, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
+import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
+import { contar, mayuscula, pluralDe } from '../../../shared/texto.ts';
+import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;
-
-/**
- * Misma fórmula que el backend (server/red/dominio.ts): el precio castigado por mala nota y plazo largo.
- * Gana el menor.
- */
-export function precioAjustado(precioUnitario: number, plazoDias: number, nota: number): number {
-  return Math.round(precioUnitario * (1 + 0.1 * (5 - nota)) * (1 + 0.01 * plazoDias));
-}
 
 const numero = (v: unknown) => (typeof v === 'number' ? v : undefined);
 const lista = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
@@ -198,23 +194,13 @@ export interface EstadoTramos {
   desdeActual: number;
 }
 
-const ordenarTramos = (tramos: Tramo[] | undefined) => [...(tramos ?? [])].sort((a, b) => a.desde - b.desde);
-
-/** Precio con `unidades` en el grupo: el del tramo más alto alcanzado o, si ninguno, el de comprar solo. */
-export function precioConUnidades(tramos: Tramo[], precioSolo: number | undefined, unidades: number): number | undefined {
-  return ordenarTramos(tramos).filter(t => unidades >= t.desde).at(-1)?.precioUnitario ?? precioSolo;
-}
-
-/** Calcula los tramos desde los participantes. Lo usan la pantalla (si el backend no manda los derivados) y la red falsa. */
-export function calcularTramos(participantes: Participante[], tramos: Tramo[] | undefined, precioSolo: number | undefined) {
-  const orden = ordenarTramos(tramos);
+/** Calcula los tramos desde los participantes, si el backend no manda los derivados. */
+function calcularTramos(participantes: Participante[], tramos: Tramo[], precioSolo: number | undefined) {
   const totalUnidades = participantes.reduce((s, p) => s + p.cantidad, 0);
-  const alcanzados = orden.filter(t => totalUnidades >= t.desde).length;
-  const sig = orden[alcanzados];
   return {
     totalUnidades,
-    precioActual: precioConUnidades(orden, precioSolo, totalUnidades),
-    siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null,
+    precioActual: precioPorVolumen({ tramos, precioSolo }, totalUnidades),
+    siguienteTramo: siguienteTramo(tramos, totalUnidades),
   };
 }
 
@@ -265,7 +251,7 @@ export const tieneTramos = (lic: Licitacion) => (lic.tramos?.length ?? 0) > 0;
 export function nombreCorto(nombre: string, unidad?: string): string {
   let corto = nombre.replace(/\s*\([^)]*\)\s*$/, '').trim();
   if (unidad) corto = corto.replace(new RegExp(`^${unidad}s?\\s+de\\s+`, 'i'), '');
-  return corto ? corto[0].toUpperCase() + corto.slice(1) : nombre;
+  return corto ? mayuscula(corto) : nombre;
 }
 
 /**
@@ -396,13 +382,13 @@ function porLlegada(lic: Licitacion): Participante[] {
 function curvaPorTramos(lic: Licitacion): PuntoCurva[] {
   const ps = porLlegada(lic);
   const tramos = ordenarTramos(lic.tramos);
-  let precio = precioConUnidades(tramos, lic.precioSolo, 0) ?? tramos[0]?.precioUnitario;
+  let precio = precioPorVolumen({ tramos, precioSolo: lic.precioSolo }, 0) ?? tramos[0]?.precioUnitario;
   if (precio === undefined || !ps.length) return [];
   const puntos: PuntoCurva[] = [{ compradores: 1, precio }];
   let unidades = 0;
   ps.forEach((p, i) => {
     unidades += cantidadPrincipal(lic, p);
-    const nuevo = precioConUnidades(tramos, lic.precioSolo, unidades);
+    const nuevo = precioPorVolumen({ tramos, precioSolo: lic.precioSolo }, unidades);
     if (nuevo !== undefined && nuevo < precio!) {
       precio = nuevo;
       puntos.push({ compradores: i + 1, precio });
@@ -467,7 +453,7 @@ function evaluarOfertas(ofertas: Oferta[], estado: EstadoRed): OfertaVista[] {
         precioUnitario: o.precioUnitario,
         plazoDias: o.plazoDias,
         nota: n,
-        precioAjustado: precioAjustado(o.precioUnitario, o.plazoDias, n),
+        precioAjustado: precioAjustado(o, n),
         gana: false,
         riesgo: false,
       };
@@ -550,7 +536,7 @@ export function tipoDeBajada(datos: Record<string, unknown>, tramos: Tramo[] | u
   const nuevo = numero(datos.precioNuevo);
   const unidades = numero(datos.totalUnidades);
   if (anterior === undefined || nuevo === undefined || nuevo >= anterior) return null;
-  const delTramo = unidades === undefined ? undefined : precioConUnidades(tramos ?? [], undefined, unidades);
+  const delTramo = unidades === undefined ? undefined : tramoAlcanzado(tramos, unidades)?.precioUnitario;
   return delTramo === nuevo ? 'tramo' : 'oferta';
 }
 
@@ -701,7 +687,7 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
         lineas: orden.items.length,
         // Con canasta, una factura puede traer varias líneas: se cuentan los productos.
         detalle: orden.items.length > 1 ? contar(orden.items.length, 'producto') : item ? cantidadDeItem(lic, item) : '',
-        monto: d.monto ?? orden.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0),
+        monto: d.monto ?? totalOrden(orden),
         estadoSii: d.estadoSii,
       };
     });
@@ -741,8 +727,6 @@ function idDeOrden(e: EventoRed): string | undefined {
   return texto(objeto(e.datos.orden).id) ?? texto(objeto(e.datos.documento).ordenId) ?? texto(e.datos.ordenId);
 }
 
-const NOMBRE_DOC: Record<number, string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
-
 /** Una línea legible para cada evento. Lee `datos` con cuidado: si falta algo, cae a un texto genérico. */
 export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   // La orden puede venir en el evento antes de que llegue la foto nueva.
@@ -767,7 +751,7 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const doc = objeto(e.datos.documento);
       const tipo = numero(doc.tipo);
       const folio = numero(doc.folio);
-      const nombre = tipo ? NOMBRE_DOC[tipo] : undefined;
+      const nombre = esTipoDocumento(tipo) ? nombreDocumento(tipo) : undefined;
       const titulo = `${nombre ?? 'Documento'}${folio ? ` folio ${folio}` : ''}`;
       if (e.tipo === 'documento.emitido') return `${titulo} ${nombre ? 'emitida' : 'emitido'} en el SII`;
       const estadoSii = textoEstadoSii(texto(doc.estadoSii));

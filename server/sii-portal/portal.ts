@@ -12,6 +12,7 @@
 // - Las solicitudes de una sesión van en serie (candado por certificado) y todo pasa por un limitador global.
 import { createHash } from 'node:crypto';
 import forge from 'node-forge';
+import { horaEnChile } from '../../shared/fecha.ts';
 import { abrirCertificado } from '../sii/index.ts';
 import type { AlmacenSesiones, RegistroSesion } from './almacen.ts';
 import type { Candado } from './candado.ts';
@@ -291,6 +292,5 @@ export function crearPortalSii(o: OpcionesPortal): PortalSii {
 }
 
 function limiteTexto(hasta: number): string {
-  const hora = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' }).format(new Date(hasta));
-  return `El SII no abre más sesiones con este certificado por ahora (máximo de sesiones). No se vuelve a intentar hasta las ${hora}.`;
+  return `El SII no abre más sesiones con este certificado por ahora (máximo de sesiones). No se vuelve a intentar hasta las ${horaEnChile(hasta)}.`;
 }

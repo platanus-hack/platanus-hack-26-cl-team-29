@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "start": "node server/index.ts",
-    "test": "node --test"
+    "test": "node --test",
+    "duplicados": "jscpd"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1",
@@ -31,6 +32,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4",
+    "jscpd": "5.4.2",
     "qrcode-generator": "2.0.4",
     "react": "^19",
     "react-dom": "^19",

@@ -1,14 +1,10 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
-import { cortoDe, pluralDe, productosDe } from './canasta.ts';
+import { dinero, nota } from '../../shared/formato.ts';
+import { totalOrden } from '../../shared/precios.ts';
+import { contar, cuantos, mayuscula, pluralDe, segun } from '../../shared/texto.ts';
+import { cortoDe, productosDe } from './canasta.ts';
 
-const pesos = new Intl.NumberFormat('es-CL');
-
-export const dinero = (monto: number) => `$${pesos.format(Math.round(monto))}`;
-export const nota = (valor: number) => valor.toFixed(1).replace('.', ',');
-
-export const totalOrden = (orden: OrdenCompra) =>
-  orden.items.reduce((suma, item) => suma + item.cantidad * item.precioUnitario, 0);
 
 /** "4 sacos de harina, 2 cajas de aceite" */
 export const detalle = (orden: OrdenCompra) =>
@@ -122,7 +118,7 @@ export function proponerReclamo(orden: OrdenCompra, faltante: number): string {
 export function reclamoRegistrado(p: {
   proveedor: Negocio; diasPlazo: number; notaAntes: number; notaDespues: number; clientes: number;
 }): string {
-  const plazo = p.diasPlazo > 0 ? ` Te quedaban ${p.diasPlazo} ${p.diasPlazo === 1 ? 'día' : 'días'} de plazo.` : '';
+  const plazo = p.diasPlazo > 0 ? ` Te quedaban ${contar(p.diasPlazo, 'día')} de plazo.` : '';
   const cambio = p.notaDespues < p.notaAntes ? `bajó a ${nota(p.notaDespues)}` : `quedó en ${nota(p.notaDespues)}`;
   return `Listo, la reclamé en el SII por falta parcial.${plazo} ${p.proveedor.nombre} tiene que emitirte una nota de crédito. `
     + `Su nota ${cambio} para los ${p.clientes} negocios que le compran.`;
@@ -148,14 +144,11 @@ export const avisoNotaCredito = (proveedor: Negocio, monto: number, faltante: nu
 
 /** "caja" / "cajas" según la cantidad; usa el plural que entrega la red si viene. */
 export function unidadDe(p: Pick<ProductoCompra, 'unidad' | 'unidadPlural'>, n: number): string {
-  return n === 1 ? p.unidad : pluralDe(p.unidad, p.unidadPlural);
+  return segun(n, p.unidad, pluralDe(p.unidad, p.unidadPlural));
 }
 
-const negociosTexto = (n: number) => `${n} ${n === 1 ? 'negocio' : 'negocios'}`;
-const mayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** "la caja" / "el rollo": la gente escribe en femenino o masculino según la unidad. */
 const articulo = (p: Pick<ProductoCompra, 'unidad'>) => (/a$/i.test(p.unidad) ? 'la' : 'el');
-const cuantas = (p: Pick<ProductoCompra, 'unidad'>) => (/a$/i.test(p.unidad) ? 'Cuántas' : 'Cuántos');
 
 /** "4 cajas de rollos" */
 export const itemTexto = (p: ProductoCompra, cantidad: number) => `${cantidad} ${unidadDe(p, cantidad)} de ${cortoDe(p)}`;
@@ -190,7 +183,7 @@ function siguienteTramo(items: readonly ItemCarrito[], l: LicitacionSala): strin
   const [p] = conTramo.sort((a, b) => a.siguienteTramo!.faltan - b.siguienteTramo!.faltan);
   if (!p) return 'Ya está en el mejor precio.';
   const { faltan, precioUnitario } = p.siguienteTramo!;
-  return `${faltan === 1 ? 'Falta' : 'Faltan'} ${itemTexto(p, faltan)} para bajar a ${dinero(precioUnitario)}.`;
+  return `${segun(faltan, 'Falta', 'Faltan')} ${itemTexto(p, faltan)} para bajar a ${dinero(precioUnitario)}.`;
 }
 
 /** "Ej: 4 cajas de rollos y 2 de etiquetas" */
@@ -208,7 +201,7 @@ export const preguntaSala = (l: LicitacionSala) => `¿Cómo se llama tu negocio 
 
 export function bienvenidaSala(l: LicitacionSala, pregunta: string, urlPublica: string | null): string {
   const n = l.participantes.length;
-  const quienes = n === 0 ? 'Puedes ser el primero.' : `Ya ${n === 1 ? 'va' : 'van'} ${negociosTexto(n)}.`;
+  const quienes = n === 0 ? 'Puedes ser el primero.' : `Ya ${segun(n, 'va', 'van')} ${contar(n, 'negocio')}.`;
   const web = urlPublica ? `\n\nTambién puedes sumarte en ${urlPublica.replace(/\/+$/, '')}/app` : '';
   // La pregunta va al final: si trae opciones ("1. Conectar certificado…"), salen como botones de WhatsApp.
   return `Hola. La sala compra en conjunto: mientras más negocios, más baja el precio. ${quienes}\n${listaNumerada(l)}${web}\n\n${pregunta}`;
@@ -236,7 +229,7 @@ export const enlaceCertificado = (url: string) =>
   + 'Cuando termines, sigo tu registro por acá. También puedes escribir el RUT de tu negocio.';
 export const MODO_DEMO = 'Listo, modo demo: tu factura sale a un receptor de prueba en el ambiente de certificación del SII.';
 export const CERTIFICADO_CONECTADO = 'Certificado conectado ✓ Tu RUT sale de él: no tienes que escribirlo.';
-export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantas(p)} ${unidadDe(p, 2)} de ${cortoDe(p)} quieres?`;
+export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantos(unidadDe(p, 2))} ${unidadDe(p, 2)} de ${cortoDe(p)} quieres?`;
 export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
   `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;
 export const cantidadFueraDeRango = (maximo: number) =>
@@ -272,7 +265,7 @@ export interface BajaDePrecio { readonly producto: ProductoCompra; readonly prec
  * con ofertas, cuenta por qué bajó: "X ofertó $P. Y respondió $Q. La caja de rollos ya va en $Q."
  */
 export function bajoPrecio(bajas: readonly BajaDePrecio[], negocios: number): string {
-  const ya = `Ya son ${negociosTexto(negocios)}.`;
+  const ya = `Ya son ${contar(negocios, 'negocio')}.`;
   const cosa = (b: BajaDePrecio) => `${articulo(b.producto)} ${b.producto.unidad} de ${cortoDe(b.producto)}`;
   const porOferta = bajas.filter(b => b.ofertas.length > 0).map(b => {
     const porque = b.ofertas.map((o, k) => `${o.proveedorNombre} ${k === 0 ? 'ofertó' : 'respondió'} ${dinero(o.precioUnitario)}.`).join(' ');
@@ -286,12 +279,12 @@ export function bajoPrecio(bajas: readonly BajaDePrecio[], negocios: number): st
 }
 
 export function cierreAlProveedor(r: { negocios: number; lineas: readonly string[]; total: number }): string {
-  return `Cerró la compra conjunta: ${negociosTexto(r.negocios)}, ${r.lineas.join(', ')}. `
+  return `Cerró la compra conjunta: ${contar(r.negocios, 'negocio')}, ${r.lineas.join(', ')}. `
     + `Total ${dinero(r.total)}. ¿Las facturo todas en el SII?\n` + opciones('Sí, factura todo', 'Todavía no');
 }
 
 export const facturasDeLaSala = (cantidad: number) =>
-  `Listo, emití ${cantidad} ${cantidad === 1 ? 'factura' : 'facturas'} en el SII en un solo envío. Cada negocio recibe su folio por aquí.`;
+  `Listo, emití ${contar(cantidad, 'factura')} en el SII en un solo envío. Cada negocio recibe su folio por aquí.`;
 
 export const folioAlComprador = (p: { folio: number; lineas: readonly string[]; total: number; ahorro: number; pdf?: string | null }) =>
   `Tu factura folio ${p.folio} fue emitida en el SII: ${p.lineas.join(', ')}. Total ${dinero(p.total)}.`

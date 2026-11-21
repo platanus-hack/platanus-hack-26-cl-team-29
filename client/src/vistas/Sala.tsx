@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CierreCanasta, TableroCanasta, useProductoDestacado } from '../components/Canasta.tsx';
-import { Icono, iconoProducto, LogoSii, Monograma } from '../components/Iconos.tsx';
+import { GlifoWhatsapp, Icono, iconoProducto, LogoSii, Monograma } from '../components/Iconos.tsx';
 import { useGrillaQueCabe } from '../components/medidas.ts';
 import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
 import { bajadaDeProducto, facturaAceptada, licitacionActual, mostrarAviso, negocioPorId, resumenSala, type BajadaProducto, type FacturaSala, type ResumenSala } from '../red/derivar.ts';
-import { contar, cuentaRegresiva, dinero, formatearTelefono, miles, textoEstadoSii } from '../red/formato.ts';
+import { dinero, miles } from '../../../shared/formato.ts';
+import { contar, segun } from '../../../shared/texto.ts';
+import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
+import { cuentaRegresiva, textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, Licitacion } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 import './sala.css';
@@ -77,7 +80,7 @@ function usePanelOculto() {
 function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
   const web = `${location.origin}/app`;
   const numero = config.whatsappNumero;
-  const destino = numero ? `https://wa.me/${numero.replace(/\D/g, '')}?text=Quiero%20sumarme` : `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
+  const destino = numero ? enlaceWhatsapp(numero, 'Quiero sumarme') : `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   return (
     <section className="sala-unirse">
       <h2>{numero ? 'Escríbele a Bando y' : 'Escanea y'} <span className="subrayado">súmate al pedido</span></h2>
@@ -85,7 +88,7 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
       {numero ? (
         <a className="sala-numero" href={destino} target="_blank" rel="noopener noreferrer">
           <strong>{formatearTelefono(numero)}</strong>
-          <span className="pastilla-whatsapp"><Icono nombre="whatsapp" /> Abrir WhatsApp</span>
+          <span className="pastilla-whatsapp"><GlifoWhatsapp /> Abrir WhatsApp</span>
         </a>
       ) : null}
       <p className="sala-web">{numero ? 'o entra en' : 'o desde el navegador:'} <strong>{sinProtocolo(web)}</strong></p>
@@ -124,8 +127,8 @@ function Totales({ s, className = '' }: { s: ResumenSala; className?: string }) 
   const c = s.canasta;
   return (
     <div className={`sala-totales ${className}`}>
-      <div><div className="numero-grande" key={c.negocios}>{miles(c.negocios)}</div><p className="etiqueta">{c.negocios === 1 ? 'negocio' : 'negocios'}</p></div>
-      <div><div className="numero-grande" key={c.unidades}>{miles(c.unidades)}</div><p className="etiqueta">{c.unidades === 1 ? 'unidad' : 'unidades'}</p></div>
+      <div><div className="numero-grande" key={c.negocios}>{miles(c.negocios)}</div><p className="etiqueta">{segun(c.negocios, 'negocio')}</p></div>
+      <div><div className="numero-grande" key={c.unidades}>{miles(c.unidades)}</div><p className="etiqueta">{segun(c.unidades, 'unidad')}</p></div>
       <div><div className="numero-grande amarillo" key={c.monto}>{dinero(c.monto)}</div><p className="etiqueta">total neto</p></div>
       <div><div className="numero-grande verde" key={c.ahorro}>{dinero(c.ahorro)}</div><p className="etiqueta">la sala ahorra</p></div>
     </div>
@@ -170,7 +173,7 @@ function Cerrada({ s, lic }: { s: ResumenSala; lic: Licitacion }) {
   return (
     <div className="sala-cerrada">
       <p className="etiqueta">
-        {rivales > 1 ? `Ganó el mejor precio entre ${contar(rivales, 'proveedor', 'proveedores')}` : 'Toda la sala en un solo pedido'}
+        {rivales > 1 ? `Ganó el mejor precio entre ${contar(rivales, 'proveedor')}` : 'Toda la sala en un solo pedido'}
       </p>
       <h2>Esperando el sí de <span className="amarillo">{s.proveedor}</span><span className="puntos" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></h2>
       <Totales s={s} />
@@ -219,12 +222,12 @@ function Facturando({ s }: { s: ResumenSala }) {
       <section className="sala-facturas-resumen">
         <div>
           <div className="numero-gigante" key={s.facturas.length}>{s.facturas.length}</div>
-          <p className="resumen-texto">{s.facturas.length === 1 ? 'factura en el SII' : 'facturas en el SII'}</p>
+          <p className="resumen-texto">{segun(s.facturas.length, 'factura en el SII', 'facturas en el SII')}</p>
           <p className="sin-sii"><LogoSii /> Nadie entró al sitio del SII: todo salió solo.</p>
         </div>
         {!simuladas && <div>
           <div className="avance sii"><i style={{ width: `${s.facturas.length ? (s.aceptadas / s.facturas.length) * 100 : 0}%` }} /></div>
-          <p className="resumen-texto verde">{s.aceptadas} {s.aceptadas === 1 ? 'aceptada' : 'aceptadas'} por el SII</p>
+          <p className="resumen-texto verde">{s.aceptadas} {segun(s.aceptadas, 'aceptada')} por el SII</p>
         </div>}
         <div>
           <p className="etiqueta">Total facturado (neto)</p>

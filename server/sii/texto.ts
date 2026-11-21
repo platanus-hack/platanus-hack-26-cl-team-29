@@ -44,47 +44,5 @@ export function plegarTed(texto: string): string {
     .substring(0, 40);
 }
 
-/** RUT en la forma del XSD: sin puntos, sin ceros a la izquierda, DV en mayúscula (`12345678-5`). */
-export function normalizarRut(rut: string): string {
-  const limpio = rut.replace(/[.\s]/g, '').toUpperCase();
-  const m = /^0*(\d{1,8})-([\dK])$/.exec(limpio);
-  if (!m) throw new Error(`RUT con formato inválido: "${rut}"`);
-  const [, cuerpo, dv] = m as unknown as [string, string, string];
-  if (digitoVerificador(cuerpo) !== dv) throw new Error(`RUT con dígito verificador inválido: "${rut}"`);
-  return `${cuerpo}-${dv}`;
-}
-
-export function digitoVerificador(cuerpo: string): string {
-  let suma = 0;
-  let factor = 2;
-  for (let i = cuerpo.length - 1; i >= 0; i--) {
-    suma += Number(cuerpo[i]) * factor;
-    factor = factor === 7 ? 2 : factor + 1;
-  }
-  const resto = 11 - (suma % 11);
-  return resto === 11 ? '0' : resto === 10 ? 'K' : String(resto);
-}
-
-export function partirRut(rut: string): [cuerpo: string, dv: string] {
-  const [cuerpo = '', dv = ''] = normalizarRut(rut).split('-');
-  return [cuerpo, dv];
-}
-
-const formatoChile = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Santiago',
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', second: '2-digit',
-  hourCycle: 'h23',
-});
-
-/** `AAAA-MM-DDTHH:MM:SS` en hora de Chile (con su horario de verano real), sin zona: `TSTED`, `TmstFirma`, `TmstFirmaEnv`. */
-export function marcaEnChile(instante: Date): string {
-  const p = Object.fromEntries(formatoChile.formatToParts(instante).map(x => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
-}
-
-/** Fecha de hoy en Chile, `AAAA-MM-DD`. */
-export const fechaEnChile = (instante: Date): string => marcaEnChile(instante).slice(0, 10);
-
 /** Base64 en líneas de 64, como lo escribe la referencia dentro de la firma. */
 export const envolver64 = (base64: string): string => base64.match(/.{1,64}/g)?.join('\n') ?? '';

@@ -1,4 +1,4 @@
-import { precioPorVolumen } from './compra.ts';
+import { precioPorVolumen } from '../../shared/precios.ts';
 import { configDemo } from './config-demo.ts';
 import type { Red } from './dominio.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA } from './semilla.ts';

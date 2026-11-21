@@ -2,7 +2,7 @@
 import { Autenticador } from './autenticacion.ts';
 import { leerCaf, type Caf } from './caf.ts';
 import { abrirCertificado } from './certificado.ts';
-import { aDte, armarDte, datosImpresos, type EntradaDte } from './dte.ts';
+import { armarDte, datosImpresos, emisiones, type EntradaDte } from './dte.ts';
 import { subirSobre } from './envio.ts';
 import { estadoDocumento, estadoEnvio } from './estado.ts';
 import { crearSiiFalso } from './falso.ts';
@@ -30,7 +30,7 @@ export type * from './tipos.ts';
 export { ErrorSii } from './soap.ts';
 export { abrirCertificado, type Certificado } from './certificado.ts';
 export { leerCaf, primerDiaVencido, type Caf } from './caf.ts';
-export { limpiarLatin1, normalizarRut } from './texto.ts';
+export { limpiarLatin1 } from './texto.ts';
 export { crearSiiFalso as crearSiiEnMemoria } from './falso.ts';
 export { generarPdf, nombreDelTipo, opcionesTimbre } from './pdf.ts';
 export type { Http } from './soap.ts';
@@ -140,19 +140,10 @@ function crearSiiCertificacion(env: NodeJS.ProcessEnv, http: Http): Sii {
     return { documentos, envio, sobreXml };
   }
 
-  /** Un documento por sobre: así un rechazo o un corte afecta a un solo folio. */
-  async function emitir(entrada: Omit<EntradaDte, 'emisor'>): Promise<ResultadoEmision> {
-    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
-    return { documento: documentos[0]!, envio, sobreXml };
-  }
-
   return {
     modo: 'certificacion',
     rutEmisor: emisor.rut,
-    emitirFactura: e => emitir(aDte.factura(e)),
-    emitirFacturas: entradas => emitirLote(entradas.map(aDte.factura)),
-    emitirGuia: e => emitir(aDte.guia(e)),
-    emitirNotaCredito: e => emitir(aDte.notaCredito(e)),
+    ...emisiones(emitirLote),
     estadoEnvio: trackId => estadoEnvio(http, autenticador, emisor.rut, trackId),
     estadoDocumento: consulta => estadoDocumento(http, autenticador, emisor.rut, consulta),
     registrarAccionReceptor: (documento, accion) => registrarAccion(http, autenticador, documento, accion),

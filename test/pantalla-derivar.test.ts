@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
-import { contar, cuentaRegresiva, dinero, formatearTelefono, nota, textoEstadoSii } from '../client/src/red/formato.ts';
+import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
+import { cuentaRegresiva, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -17,13 +17,8 @@ const base = (): EstadoRed => ({
   licitaciones: [],
 });
 
-test('formatea dinero chileno y notas con coma', () => {
-  assert.equal(dinero(17200), '$17.200');
-  assert.equal(dinero(1234567), '$1.234.567');
-  assert.equal(nota(4.2), '4,2');
+test('formatea cuenta regresiva, conteos y estados del SII', () => {
   assert.equal(cuentaRegresiva(272_000), '04:32');
-  assert.equal(contar(1, 'negocio'), '1 negocio');
-  assert.equal(contar(3, 'día'), '3 días');
   assert.equal(textoEstadoSii('aceptado'), 'aceptado por el SII');
   assert.equal(cuentaRegresiva(7_171_000), '1:59:31');
 });
@@ -75,10 +70,6 @@ test('gana el menor precio ajustado por nota y plazo; la más barata con mala no
   assert.equal(r.delPublico, 1);
   assert.deepEqual(r.curva.map(p => p.precio), [21500, 17900, 17200, 17200]);
   assert.equal(r.ofertas[0].gana, true);
-});
-
-test('el precio ajustado coincide con la fórmula del backend', () => {
-  assert.equal(precioAjustado(17900, 2, 3.9), Math.round(17900 * 1.11 * 1.02));
 });
 
 test('el feed lee los datos con la forma del contrato', () => {
@@ -186,11 +177,4 @@ test('los totales de la canasta suman cada producto con su propio precio y ahorr
   assert.equal(etiquetas.lider?.proveedorId, 'a');
   assert.equal(etiquetas.proveedores, 2);
   assert.equal(productoQueCambio({ rollos: '4', etiquetas: '11' }, { rollos: '4', etiquetas: '12' }), 'etiquetas');
-});
-
-test('formatea teléfonos con su código de país', () => {
-  assert.equal(formatearTelefono('12084828247'), '+1 (208) 482-8247');
-  assert.equal(formatearTelefono('+56 9 1234 5678'), '+56 9 1234 5678');
-  assert.equal(formatearTelefono('34612345678'), '+34 612 345 678');
-  assert.equal(formatearTelefono('447911123456'), '+44 791 112 3456');
 });
