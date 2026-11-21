@@ -15,12 +15,9 @@ import {
 } from '../mapa/video.ts';
 import { MAX_TARJETAS, VIDA_TARJETA } from '../mapa/crece.ts';
 import { Contador } from './RedEnVivo.tsx';
+import { anclarAlMapa, C_AMARILLO, C_BLANCO, C_LOCAL, C_MAGENTA, C_VERDE, conAlfa, LeyendaRed3D } from './red3dComun.tsx';
 import { nota } from '../../../shared/formato.ts';
 
-type Color = [number, number, number, number];
-const rgb = (hex: string): Color => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).concat(255) as Color;
-const [C_VERDE, C_AMARILLO, C_MAGENTA, C_LOCAL, C_BLANCO] = [VERDE, AMARILLO, MAGENTA, AZUL_LOCAL, '#ffffff'].map(rgb);
-const conAlfa = (c: Color, a: number): Color => [c[0], c[1], c[2], Math.round(255 * Math.min(1, Math.max(0, a)))];
 const entre = (x: number, a: number, b: number) => Math.min(1, Math.max(0, (x - a) / (b - a)));
 
 const VIDA_ESTELA = 1600;
@@ -155,9 +152,7 @@ export function Red3DVideo() {
       const alto = caja.current?.clientHeight ?? 1080;
       const ancho = caja.current?.clientWidth ?? 1920;
       const etiquetas: DOMRect[] = [];
-      for (const el of Array.from(sobre.current?.children ?? []) as HTMLElement[]) {
-        const p = m.project([Number(el.dataset.lng), Number(el.dataset.lat)]);
-        el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      for (const { el, ...p } of anclarAlMapa(m, sobre.current)) {
         if (el.dataset.tarjeta) continue;
         // Cerca del horizonte, fuera de la toma o detrás de la cifra, la etiqueta se esconde.
         const dentro = p.x > 20 && p.x < ancho - 20 && p.y > alto * 0.2 && p.y < alto - 40 && !(p.x < 620 && p.y > alto - 230);
@@ -224,11 +219,7 @@ export function Red3DVideo() {
         </header>
       </div>
       <div className="r3d-cifra" aria-live="polite"><Contador valor={n} texto={capituloVideo(n)} color="verde" /></div>
-      <ul className="r3d-leyenda" aria-label="Leyenda">
-        <li><i className="punto verde" /> negocio</li>
-        <li><i className="punto amarillo" /> proveedor</li>
-        <li><i className="punto local" /> local real (OpenStreetMap)</li>
-      </ul>
+      <LeyendaRed3D />
       <p className="r3d-aviso">Simulación ilustrativa</p>
     </main>
   );

@@ -26,12 +26,9 @@ import { describirEventoCorto, notaDe } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed } from '../red/tipos.ts';
 import { useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, IconoEvento } from './RedEnVivo.tsx';
+import { anclarAlMapa, C_AMARILLO, C_BLANCO, C_LOCAL, C_MAGENTA, C_VERDE, conAlfa, LeyendaRed3D, type Color } from './red3dComun.tsx';
 import { miles, nota } from '../../../shared/formato.ts';
 
-type Color = [number, number, number, number];
-const rgb = (hex: string): Color => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).concat(255) as Color;
-const [C_VERDE, C_AMARILLO, C_MAGENTA, C_LOCAL, C_BLANCO] = [VERDE, AMARILLO, MAGENTA, AZUL_LOCAL, '#ffffff'].map(rgb);
-const conAlfa = (c: Color, a: number): Color => [c[0], c[1], c[2], Math.round(255 * Math.min(1, Math.max(0, a)))];
 const mezcla = (a: Color, b: Color, k: number): Color => a.map((x, i) => x + (b[i] - x) * k) as Color;
 
 /** Si los locales no llegan (sin backend), la secuencia parte igual con la red sola. */
@@ -229,10 +226,7 @@ function Lienzo({ estado, eventos, locales, recorrido, alElegir, alAvanzar }: {
       d.animaciones = d.animaciones.filter(a => ahora - a.inicio < DURACION[a.tipo]);
       overlay.setProps({ layers: capasDeck(d.escena, d.locales, d.animaciones, tt, ahora, id => elegir.current(id)) });
       // Tarjetas y etiquetas siguen a su punto del mapa en cada cuadro.
-      for (const el of Array.from(sobre.current?.children ?? []) as HTMLElement[]) {
-        const p = m.project([Number(el.dataset.lng), Number(el.dataset.lat)]);
-        el.style.transform = `translate(${p.x}px, ${p.y}px)`;
-      }
+      anclarAlMapa(m, sobre.current);
       if (ahora - ultimoAviso > 200) {
         ultimoAviso = ahora;
         setT(tt);
@@ -365,11 +359,7 @@ function Red3DRed() {
         {!recorrido && <p className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</p>}
       </div>
       <div className="r3d-cifra" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} color="verde" /></div>
-      <ul className="r3d-leyenda" aria-label="Leyenda">
-        <li><i className="punto verde" /> negocio</li>
-        <li><i className="punto amarillo" /> proveedor</li>
-        <li><i className="punto local" /> local real (OpenStreetMap)</li>
-      </ul>
+      <LeyendaRed3D />
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
     </main>
   );
