@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
 import { textoEstadoSii } from '../red/formato.ts';
 import { GlifoWhatsapp, LogoSii } from './iconos.tsx';
-import { confirmacion, enlaceWhatsapp, formatearTelefono, SIN_CONFIRMACION, type Confirmacion, type EventoConfirmacion } from './logica.ts';
+import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
+import { confirmacion, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
 
 /** Paso de confirmación en la página: pedir → (sí) → enviando → listo o error. */
 export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {

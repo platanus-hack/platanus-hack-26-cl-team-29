@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
-import { cuentaRegresiva, formatearTelefono, textoEstadoSii } from '../client/src/red/formato.ts';
+import { cuentaRegresiva, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -181,11 +181,4 @@ test('los totales de la canasta suman cada producto con su propio precio y ahorr
   assert.equal(etiquetas.lider?.proveedorId, 'a');
   assert.equal(etiquetas.proveedores, 2);
   assert.equal(productoQueCambio({ rollos: '4', etiquetas: '11' }, { rollos: '4', etiquetas: '12' }), 'etiquetas');
-});
-
-test('formatea teléfonos con su código de país', () => {
-  assert.equal(formatearTelefono('12084828247'), '+1 (208) 482-8247');
-  assert.equal(formatearTelefono('+56 9 1234 5678'), '+56 9 1234 5678');
-  assert.equal(formatearTelefono('34612345678'), '+34 612 345 678');
-  assert.equal(formatearTelefono('447911123456'), '+44 791 112 3456');
 });

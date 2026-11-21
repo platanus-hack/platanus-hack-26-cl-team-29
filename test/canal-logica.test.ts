@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cicloDelPedido, confirmacion, enlaceWhatsapp, estaFacturada, montoNotaCredito, normalizarTramos, precioDelGrupo, resumenFacturacion, SIN_CONFIRMACION,
+  cicloDelPedido, confirmacion, estaFacturada, montoNotaCredito, normalizarTramos, precioDelGrupo, resumenFacturacion, SIN_CONFIRMACION,
   type Confirmacion,
 } from '../client/src/canal/logica.ts';
 import type { LicitacionCanal, OrdenCanal } from '../client/src/canal/tipos.ts';
@@ -105,11 +105,6 @@ test('facturar todo cuenta una factura por orden pendiente de la compra conjunta
   ];
   assert.deepEqual(resumenFacturacion(lic, ordenes), { facturas: 2, total: 299_000 });
   assert.deepEqual(resumenFacturacion(lic, []), { facturas: 2, total: 299_000 }, 'sin licitacionId, estima con los participantes');
-});
-
-test('el enlace de WhatsApp usa solo dígitos y desaparece sin número', () => {
-  assert.equal(enlaceWhatsapp('+56 9 0000 0000', 'Hola'), 'https://wa.me/56900000000?text=Hola');
-  assert.equal(enlaceWhatsapp(null), '');
 });
 
 test('la compra conjunta queda facturada cuando todas sus órdenes (ordenIds) pasaron por el SII', () => {

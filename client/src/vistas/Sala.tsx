@@ -8,7 +8,8 @@ import { Qr } from '../components/Qr.tsx';
 import { bajadaDeProducto, facturaAceptada, licitacionActual, mostrarAviso, negocioPorId, resumenSala, type BajadaProducto, type FacturaSala, type ResumenSala } from '../red/derivar.ts';
 import { dinero, miles } from '../../../shared/formato.ts';
 import { contar, segun } from '../../../shared/texto.ts';
-import { cuentaRegresiva, formatearTelefono, textoEstadoSii } from '../red/formato.ts';
+import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
+import { cuentaRegresiva, textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, Licitacion } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 import './sala.css';
@@ -79,7 +80,7 @@ function usePanelOculto() {
 function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
   const web = `${location.origin}/app`;
   const numero = config.whatsappNumero;
-  const destino = numero ? `https://wa.me/${numero.replace(/\D/g, '')}?text=Quiero%20sumarme` : `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
+  const destino = numero ? enlaceWhatsapp(numero, 'Quiero sumarme') : `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   return (
     <section className="sala-unirse">
       <h2>{numero ? 'Escríbele a Bando y' : 'Escanea y'} <span className="subrayado">súmate al pedido</span></h2>
