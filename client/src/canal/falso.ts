@@ -4,6 +4,7 @@
 
 import type { Documento, EventoRed, Negocio, TipoDocumento, TipoEvento } from '../red/tipos.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
+import { crearConexionSiiFalsa } from './sii-falso.ts';
 import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
 
 const CONFIG: ConfigRed = {
@@ -202,6 +203,7 @@ export function crearApiFalsa(): CanalApi {
   });
 
   return {
+    ...crearConexionSiiFalsa(token => { quien(token); }),
     modo: 'falso',
     config: async () => CONFIG,
     estado: async () => foto(),

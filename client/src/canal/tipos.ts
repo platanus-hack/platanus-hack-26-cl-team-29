@@ -66,3 +66,53 @@ export interface FotoRed extends Omit<EstadoRed, 'licitaciones' | 'ordenes'> {
 }
 
 export type Modo = 'real' | 'falso';
+
+/** Datos tributarios de la empresa del proveedor, tal como van en sus documentos. */
+export interface EmpresaSii {
+  razonSocial: string;
+  giro: string;
+  acteco: number;
+  direccion: string;
+  comuna: string;
+  ciudad?: string;
+}
+
+/** `POST /api/red/proveedor/sii/empresa/consultar`: la ficha que el SII tiene inscrita. */
+export interface FichaSii extends EmpresaSii {
+  rut: string;
+  actividades: { codigo: number; descripcion: string }[];
+}
+
+export interface CafSii {
+  tipo: 33 | 52 | 61;
+  desde: number;
+  hasta: number;
+  fa: string;
+  primerLibre: number | null;
+  libres: number | null;
+  escaneando: boolean;
+  progreso: { revisados: number; folio: number; total: number } | null;
+  error: string | null;
+}
+
+/** `GET /api/red/proveedor/sii`. Nunca trae el certificado, su clave ni el CAF. */
+export interface ConexionSii {
+  conectado: boolean;
+  respaldoVariables: boolean;
+  puedeGuardar: boolean;
+  titular: string | null;
+  venceEl: string | null;
+  rutEmisor: string | null;
+  empresa: EmpresaSii | null;
+  origenEmpresa: 'sii' | 'manual' | null;
+  resolucion: { fecha: string; numero: number } | null;
+  cafs: CafSii[];
+}
+
+export interface DatosEmpresaSii extends Omit<EmpresaSii, 'acteco'> {
+  rutEmisor: string;
+  acteco: string;
+  fchResol: string;
+  nroResol: number;
+  origen: 'sii' | 'manual';
+}

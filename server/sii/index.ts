@@ -28,6 +28,23 @@ import type {
 
 export type * from './tipos.ts';
 export { ErrorSii } from './soap.ts';
+export { abrirCertificado, type Certificado } from './certificado.ts';
+export { leerCaf, primerDiaVencido, type Caf } from './caf.ts';
+export { normalizarRut } from './texto.ts';
+export type { Http } from './soap.ts';
+
+/**
+ * Solo QueryEstDte con un certificado dado, sin emisor ni CAF: sirve para buscar el primer folio libre de un CAF
+ * antes de tener todo lo necesario para emitir. Usa la misma cola de 1 solicitud por segundo del proceso.
+ */
+export function crearConsultaDocumentos(
+  certificado: { readonly pfx: Buffer; readonly clave: string },
+  rutEmisor: string,
+  http: Http = crearHttp(),
+): (consulta: ConsultaDocumento) => Promise<EstadoDocumento> {
+  const autenticador = new Autenticador(http, abrirCertificado(certificado.pfx, certificado.clave));
+  return consulta => estadoDocumento(http, autenticador, rutEmisor, consulta);
+}
 
 export interface Sii {
   /** `certificacion` habla con maullin y ws2; `falso` responde en memoria, sin credenciales. */

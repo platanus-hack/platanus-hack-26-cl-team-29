@@ -22,6 +22,8 @@ export interface OpcionesRutas {
   sesiones?: Sesiones;
   /** Pedidos por IP y minuto a los endpoints públicos que crean cosas (sesiones y uniones). */
   limitePorMinuto?: number;
+  /** Rutas "Conectar mi SII" del proveedor (server/conexion-sii). */
+  conexionSii?: express.Router;
 }
 
 /** Rutas `/api/red` del contrato. Requiere `express.json()` montado antes. */
@@ -117,7 +119,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     res.json(await red.confirmarOrdenesDeLicitacion(id(req)));
   });
 
-  rutas.use(crearRutasWeb(red, env, { sesiones: opciones.sesiones ?? crearSesiones(), limitar }));
+  rutas.use(crearRutasWeb(red, env, { sesiones: opciones.sesiones ?? crearSesiones(), limitar, conexionSii: opciones.conexionSii }));
 
   rutas.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (!(error instanceof ErrorRed)) return next(error);

@@ -1,0 +1,388 @@
+// "Conectar mi SII" en el panel del proveedor: certificado, datos de la empresa y CAF. Tres pasos en la misma página,
+// cada uno resumido en una línea cuando ya está listo. El certificado y su clave solo viajan al subirlos: no quedan en
+// el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
+
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import type { CanalApi } from './api.ts';
+import type { CafSii, ConexionSii, DatosEmpresaSii } from './tipos.ts';
+
+const NOMBRE_CAF: Record<CafSii['tipo'], string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
+const TIPOS: CafSii['tipo'][] = [33, 52, 61];
+const POLEO_MS = 1500;
+
+const mensaje = (e: unknown) => (e instanceof Error ? e.message : 'No pudimos completarlo. Inténtalo de nuevo.');
+const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' }) : '');
+
+/** Contenido del archivo en base64, leído en el navegador. */
+function leerBase64(archivo: File): Promise<string> {
+  return new Promise((resolver, rechazar) => {
+    const lector = new FileReader();
+    lector.onload = () => resolver(String(lector.result).replace(/^data:[^,]*,/, ''));
+    lector.onerror = () => rechazar(new Error('No pudimos leer el archivo.'));
+    lector.readAsDataURL(archivo);
+  });
+}
+
+interface Props {
+  api: CanalApi;
+  token: string;
+}
+
+/** Tarjeta del panel: el estado de la conexión y, al abrirla, los tres pasos. */
+export function ConectarSii({ api, token }: Props) {
+  const [estado, setEstado] = useState<ConexionSii | null>(null);
+  const [abierta, setAbierta] = useState(false);
+  const [error, setError] = useState('');
+
+  const recargar = useCallback(async () => {
+    try {
+      setEstado(await api.siiEstado(token));
+    } catch (e) {
+      setError(mensaje(e));
+    }
+  }, [api, token]);
+
+  useEffect(() => { void recargar(); }, [recargar]);
+
+  // Mientras se busca el primer folio libre de algún CAF, se consulta el avance.
+  const buscando = !!estado?.cafs.some(c => c.escaneando);
+  useEffect(() => {
+    if (!buscando) return;
+    const t = setInterval(() => { void recargar(); }, POLEO_MS);
+    return () => clearInterval(t);
+  }, [buscando, recargar]);
+
+  if (!estado) {
+    return error ? <p className="error">{error}</p> : null;
+  }
+
+  const factura = estado.cafs.find(c => c.tipo === 33);
+  return (
+    <section className="tarjeta cn-sii-conexion">
+      <div className="cn-fila-meta">
+        <span className={`cn-chip ${estado.conectado ? 'conectado' : ''}`}>{estado.conectado ? 'SII conectado' : 'SII sin conectar'}</span>
+        <span className="mono tenue">Certificación (maullin)</span>
+      </div>
+      {estado.conectado && estado.empresa ? (
+        <p className="cn-texto-grande cn-sub">
+          SII conectado · {estado.empresa.razonSocial} · {factura?.libres ?? 0} folios libres de factura
+        </p>
+      ) : (
+        <>
+          <h2 className="cn-producto">Conectar mi SII</h2>
+          <p className="mono tenue cn-texto">
+            Sube tu certificado digital, confirma los datos de tu empresa y tus folios (CAF). Desde ahí, tus facturas, guías y notas de crédito salen a tu nombre en el SII.
+            {estado.respaldoVariables && ' Mientras no termines, la red usa el SII configurado en el servidor.'}
+          </p>
+        </>
+      )}
+      {!abierta && (
+        <button type="button" className={`boton cn-ancho ${estado.conectado ? 'secundario cn-secundario' : 'cn-boton-sii'}`} onClick={() => setAbierta(true)}>
+          {estado.conectado ? 'Ver conexión' : 'Conectar mi SII'}
+        </button>
+      )}
+      {abierta && (
+        <Pasos api={api} token={token} estado={estado} alCambiar={setEstado} onCerrar={() => setAbierta(false)} />
+      )}
+    </section>
+  );
+}
+
+function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: ConexionSii; alCambiar: (e: ConexionSii) => void; onCerrar: () => void }) {
+  const [editar, setEditar] = useState<'certificado' | 'empresa' | null>(null);
+  const [desconectando, setDesconectando] = useState(false);
+  const [error, setError] = useState('');
+  const pasoCert = !estado.titular || editar === 'certificado';
+  const pasoEmpresa = !pasoCert && (!estado.empresa || !estado.resolucion || editar === 'empresa');
+  const hecho = (e: ConexionSii) => { alCambiar(e); setEditar(null); };
+
+  const desconectar = async () => {
+    setError('');
+    try {
+      hecho(await api.siiDesconectar(token));
+      setDesconectando(false);
+    } catch (e) {
+      setError(mensaje(e));
+    }
+  };
+
+  return (
+    <div className="cn-pasos">
+      {!estado.puedeGuardar && (
+        <p className="error">El servidor no tiene configurada la llave para guardar tus datos del SII (SII_LLAVE_CIFRADO). Avísale a quien administra la red.</p>
+      )}
+
+      <article className="cn-paso">
+        <p className="etiqueta">Paso 1 · Certificado digital</p>
+        {pasoCert ? <PasoCertificado api={api} token={token} alListo={hecho} onCancelar={estado.titular ? () => setEditar(null) : undefined} /> : (
+          <Resumen texto={`Titular ${estado.titular} · vence el ${fecha(estado.venceEl)}`} onCambiar={() => setEditar('certificado')} />
+        )}
+      </article>
+
+      {!pasoCert && (
+        <article className="cn-paso">
+          <p className="etiqueta">Paso 2 · Tu empresa</p>
+          {pasoEmpresa ? <PasoEmpresa api={api} token={token} estado={estado} alListo={hecho} onCancelar={estado.empresa ? () => setEditar(null) : undefined} /> : (
+            <Resumen
+              texto={`${estado.empresa!.razonSocial} · ${estado.rutEmisor} · resolución ${estado.resolucion!.fecha} n.º ${estado.resolucion!.numero}`}
+              onCambiar={() => setEditar('empresa')}
+            />
+          )}
+        </article>
+      )}
+
+      {!pasoCert && !pasoEmpresa && (
+        <article className="cn-paso">
+          <p className="etiqueta">Paso 3 · Folios (CAF)</p>
+          <p className="mono tenue cn-texto">
+            Sube el XML de cada CAF que descargaste del SII. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
+          </p>
+          {TIPOS.map(tipo => (
+            <FilaCaf key={tipo} api={api} token={token} tipo={tipo} caf={estado.cafs.find(c => c.tipo === tipo)} alCambiar={alCambiar} />
+          ))}
+        </article>
+      )}
+
+      {error && <p className="error">{error}</p>}
+      <div className="cn-acciones">
+        <button type="button" className="cn-boton-texto" onClick={onCerrar}>Cerrar</button>
+        {estado.titular && !desconectando && (
+          <button type="button" className="cn-boton-texto" onClick={() => setDesconectando(true)}>Desconectar mi SII</button>
+        )}
+      </div>
+      {desconectando && (
+        <div className="cn-confirmar" role="alertdialog" aria-label="Desconectar mi SII">
+          <h3>¿Desconectas tu SII?</h3>
+          <p className="cn-confirmar-texto">Borramos tu certificado, su clave y tus CAF de la red. Los documentos ya emitidos no cambian.</p>
+          <div className="cn-acciones">
+            <button type="button" className="boton" onClick={() => { void desconectar(); }}>Sí, desconectar</button>
+            <button type="button" className="cn-boton-texto" onClick={() => setDesconectando(false)}>No, volver</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Resumen({ texto, onCambiar }: { texto: string; onCambiar: () => void }) {
+  return (
+    <div className="cn-resumen">
+      <p className="mono">{texto}</p>
+      <button type="button" className="cn-boton-texto" onClick={onCambiar}>Cambiar</button>
+    </div>
+  );
+}
+
+function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo: (e: ConexionSii) => void; onCancelar?: () => void }) {
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [clave, setClave] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const enviar = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!archivo) return setError('Elige el archivo .pfx de tu certificado.');
+    if (!clave) return setError('Escribe la clave de tu certificado.');
+    setEnviando(true);
+    setError('');
+    try {
+      const estado = await api.siiCertificado(token, await leerBase64(archivo), clave);
+      setClave('');
+      alListo(estado);
+    } catch (err) {
+      setError(mensaje(err));
+      setEnviando(false);
+    }
+  };
+  return (
+    <form className="formulario" onSubmit={enviar}>
+      <label className="campo">
+        <span className="etiqueta">Archivo .pfx o .p12</span>
+        <input type="file" accept=".pfx,.p12,application/x-pkcs12" onChange={(e: ChangeEvent<HTMLInputElement>) => setArchivo(e.target.files?.[0] ?? null)} />
+      </label>
+      <label className="campo">
+        <span className="etiqueta">Clave del certificado</span>
+        <input type="password" value={clave} onChange={e => setClave(e.target.value)} autoComplete="off" />
+      </label>
+      <p className="mono tenue cn-nota-pie">Lo guardamos cifrado y solo lo usamos para hablar con el SII. Nunca se muestra de vuelta.</p>
+      {error && <p className="error">{error}</p>}
+      <button className="boton" disabled={enviando}>{enviando ? 'Revisando certificado...' : 'Subir certificado'}</button>
+      {onCancelar && <button type="button" className="cn-boton-texto" onClick={onCancelar}>Volver</button>}
+    </form>
+  );
+}
+
+const SIN_EMPRESA = { razonSocial: '', giro: '', acteco: '', direccion: '', comuna: '', ciudad: '' };
+
+function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { estado: ConexionSii; alListo: (e: ConexionSii) => void; onCancelar?: () => void }) {
+  const [rut, setRut] = useState(estado.rutEmisor ?? '');
+  const [datos, setDatos] = useState(() => estado.empresa
+    ? { ...SIN_EMPRESA, ...estado.empresa, acteco: String(estado.empresa.acteco), ciudad: estado.empresa.ciudad ?? '' }
+    : SIN_EMPRESA);
+  const [origen, setOrigen] = useState<'sii' | 'manual'>(estado.origenEmpresa ?? 'manual');
+  const [fchResol, setFchResol] = useState(estado.resolucion?.fecha ?? '');
+  const [nroResol, setNroResol] = useState(String(estado.resolucion?.numero ?? 0));
+  const [leyendo, setLeyendo] = useState(false);
+  const [aviso, setAviso] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+
+  const leerDelSii = async () => {
+    setLeyendo(true);
+    setAviso('');
+    setError('');
+    try {
+      const f = await api.siiConsultarEmpresa(token, rut.trim());
+      setDatos({ razonSocial: f.razonSocial, giro: f.giro, acteco: String(f.acteco || ''), direccion: f.direccion, comuna: f.comuna, ciudad: f.ciudad ?? '' });
+      setOrigen('sii');
+      setAviso('Datos leídos del SII. Revísalos antes de guardar.');
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setLeyendo(false);
+    }
+  };
+
+  const cambiar = (campo: keyof typeof SIN_EMPRESA) => (e: ChangeEvent<HTMLInputElement>) => {
+    setDatos(d => ({ ...d, [campo]: e.target.value }));
+    setOrigen('manual');
+  };
+
+  const guardar = async (e: FormEvent) => {
+    e.preventDefault();
+    setEnviando(true);
+    setError('');
+    const envio: DatosEmpresaSii = {
+      rutEmisor: rut.trim(), ...datos, fchResol, nroResol: Number(nroResol) || 0, origen,
+    };
+    try {
+      alListo(await api.siiGuardarEmpresa(token, envio));
+    } catch (err) {
+      setError(mensaje(err));
+      setEnviando(false);
+    }
+  };
+
+  const campo = (nombre: keyof typeof SIN_EMPRESA, etiqueta: string, max: number, extra: Record<string, string> = {}) => (
+    <label className="campo">
+      <span className="etiqueta">{etiqueta}</span>
+      <input value={datos[nombre]} onChange={cambiar(nombre)} maxLength={max} {...extra} />
+    </label>
+  );
+
+  return (
+    <form className="formulario" onSubmit={guardar}>
+      <div className="cn-fila-campo">
+        <label className="campo">
+          <span className="etiqueta">RUT de la empresa</span>
+          <input value={rut} onChange={e => setRut(e.target.value)} placeholder="76123456-7" autoCapitalize="characters" maxLength={12} />
+        </label>
+        <button type="button" className="boton secundario cn-boton-leer" onClick={() => { void leerDelSii(); }} disabled={leyendo || !rut.trim()}>
+          {leyendo ? 'Leyendo...' : 'Leer del SII'}
+        </button>
+      </div>
+      {aviso && <p className="cn-ok">{aviso}</p>}
+      {campo('razonSocial', 'Razón social', 100)}
+      {campo('giro', 'Giro', 80)}
+      {campo('acteco', 'Código de actividad económica', 6, { inputMode: 'numeric', placeholder: '6 dígitos' })}
+      {campo('direccion', 'Dirección', 70)}
+      <div className="cn-dos-campos">
+        {campo('comuna', 'Comuna', 20)}
+        {campo('ciudad', 'Ciudad (opcional)', 20)}
+      </div>
+      <div className="cn-dos-campos">
+        <label className="campo">
+          <span className="etiqueta">Fecha de resolución</span>
+          <input type="date" value={fchResol} onChange={e => setFchResol(e.target.value)} />
+        </label>
+        <label className="campo">
+          <span className="etiqueta">N.º de resolución</span>
+          <input inputMode="numeric" value={nroResol} onChange={e => setNroResol(e.target.value.replace(/\D/g, ''))} maxLength={6} />
+        </label>
+      </div>
+      <p className="mono tenue cn-nota-pie">
+        La fecha está en el portal de certificación del SII (maullin), en los datos de tu empresa como emisor electrónico. En certificación el número es 0.
+      </p>
+      {error && <p className="error">{error}</p>}
+      <button className="boton" disabled={enviando}>{enviando ? 'Guardando...' : 'Guardar mi empresa'}</button>
+      {onCancelar && <button type="button" className="cn-boton-texto" onClick={onCancelar}>Volver</button>}
+    </form>
+  );
+}
+
+function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: CafSii['tipo']; caf?: CafSii; alCambiar: (e: ConexionSii) => void }) {
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [manual, setManual] = useState('');
+  const [aMano, setAMano] = useState(false);
+
+  const subir = async (e: ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!archivo) return;
+    setEnviando(true);
+    setError('');
+    try {
+      const r = await api.siiCaf(token, await leerBase64(archivo));
+      setAvisos(r.avisos);
+      alCambiar(r.estado);
+    } catch (err) {
+      setError(mensaje(err));
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const fijar = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      alCambiar(await api.siiFolio(token, tipo, Number(manual)));
+      setAMano(false);
+      setManual('');
+    } catch (err) {
+      setError(mensaje(err));
+    }
+  };
+
+  const p = caf?.progreso;
+  return (
+    <div className="cn-caf">
+      <div className="cn-caf-cabecera">
+        <div>
+          <strong>{NOMBRE_CAF[tipo]} ({tipo})</strong>
+          <p className="mono tenue">
+            {!caf ? 'Sin CAF' : `Folios ${caf.desde} a ${caf.hasta} · autorizado el ${caf.fa}`}
+          </p>
+        </div>
+        <label className={`boton secundario cn-boton-archivo${enviando ? ' deshabilitado' : ''}`}>
+          {enviando ? 'Subiendo...' : caf ? 'Cambiar' : 'Subir CAF'}
+          <input type="file" accept=".xml,text/xml,application/xml" onChange={e => { void subir(e); }} disabled={enviando} hidden />
+        </label>
+      </div>
+      {caf?.escaneando && p && (
+        <div className="cn-progreso" role="status">
+          <p className="mono">Buscando el primer folio libre en el SII: folio {p.folio}, {p.revisados} revisados</p>
+          <div className="cn-barra" aria-hidden="true"><span /></div>
+        </div>
+      )}
+      {caf && !caf.escaneando && caf.primerLibre !== null && (
+        <p className="cn-ok">Primer folio libre: {caf.primerLibre} · {caf.libres ?? 0} folios libres</p>
+      )}
+      {caf?.error && <p className="error">{caf.error}</p>}
+      {avisos.map(a => <p key={a} className="mono tenue cn-nota-pie">{a}</p>)}
+      {error && <p className="error">{error}</p>}
+      {caf && (aMano ? (
+        <form className="cn-fila-campo" onSubmit={fijar}>
+          <label className="campo">
+            <span className="etiqueta">Primer folio a usar</span>
+            <input inputMode="numeric" value={manual} onChange={e => setManual(e.target.value.replace(/\D/g, ''))} />
+          </label>
+          <button className="boton secundario cn-boton-leer">Usar este folio</button>
+        </form>
+      ) : (
+        <button type="button" className="cn-boton-texto" onClick={() => setAMano(true)}>Indicar el primer folio a mano</button>
+      ))}
+    </div>
+  );
+}

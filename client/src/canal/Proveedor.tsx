@@ -8,6 +8,7 @@ import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
+import { ConectarSii } from './ConectarSii.tsx';
 import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
 } from './logica.ts';
@@ -75,6 +76,7 @@ export function Proveedor() {
         </div>
 
         <div className="cn-columna">
+          <ConectarSii api={api} token={tokenValido} />
           <MiNota yo={yo} />
           <MisDocumentos yo={yo} comprador={comprador} />
         </div>

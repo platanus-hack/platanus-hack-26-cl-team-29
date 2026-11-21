@@ -193,3 +193,27 @@
   .cn-acciones { grid-template-columns: 1fr 1fr; }
   .cn-cifras { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* ---------- Conectar mi SII ---------- */
+.cn-sii-conexion { border-color: var(--color-sii); }
+.cn-chip.conectado { background: var(--color-sii); border-color: var(--color-sii); color: #fff; }
+.cn-pasos { display: grid; gap: 16px; margin-top: 16px; }
+.cn-paso { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--color-border); min-width: 0; }
+.cn-paso .cn-texto { margin: 0; }
+.cn-resumen { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cn-resumen .mono { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.cn-pasos .campo input { width: 100%; min-width: 0; box-sizing: border-box; }
+.cn-pasos input[type='file'] { font-family: var(--font-mono); font-size: 14px; color: var(--color-muted); }
+.cn-fila-campo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.cn-dos-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cn-boton-leer, .cn-boton-archivo { font-size: 15px !important; padding: 0 14px !important; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; cursor: pointer; }
+.cn-boton-archivo.deshabilitado { opacity: 0.5; pointer-events: none; }
+.cn-caf { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--color-border); border-radius: 12px; min-width: 0; }
+.cn-caf-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.cn-caf-cabecera p { margin: 4px 0 0; font-size: 13px; }
+.cn-caf .cn-ok { margin: 0; }
+.cn-progreso .mono { margin: 0 0 8px; font-size: 13px; color: var(--color-muted); }
+.cn-barra { height: 6px; border-radius: 3px; background: var(--color-border); overflow: hidden; position: relative; }
+.cn-barra span { position: absolute; inset: 0 auto 0 0; width: 35%; background: var(--color-sii); border-radius: 3px; animation: cn-barra 1.2s ease-in-out infinite; }
+@keyframes cn-barra { from { left: -35%; } to { left: 100%; } }
+@media (max-width: 420px) { .cn-dos-campos { grid-template-columns: 1fr; } }
