@@ -389,3 +389,13 @@
 .cn-wa-textos { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
 .cn-wa-textos strong { font-size: 16px; font-weight: 800; }
 .cn-wa-textos span { font-family: var(--font-mono); font-size: 12px; }
+
+/* RUT del comprador: ayuda bajo el campo y a quién sale su factura (solo vistas personales). */
+.cn-ayuda { font-size: 12px; line-height: 1.4; color: var(--color-muted); }
+.cn-ayuda.cn-con-sii { gap: 6px; align-items: flex-start; }
+.cn-ayuda.cn-con-sii .cn-logo-sii { margin-top: 1px; flex: none; }
+.cn-ayuda.error { font-size: 12px; color: var(--color-magenta); }
+.campo input[aria-invalid="true"] { border-color: var(--color-magenta); }
+.cn-factura-a { margin: 0; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--color-muted); overflow-wrap: anywhere; }
+.cn-factura-a .cn-logo-sii { margin-top: 1px; flex: none; }
+.cn-factura-a strong { color: var(--color-text); }

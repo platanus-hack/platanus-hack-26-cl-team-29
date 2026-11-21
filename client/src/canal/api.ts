@@ -6,7 +6,7 @@ import type { Negocio, OrdenCompra } from '../red/tipos.ts';
 import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
-import type { ConexionSii, ConfigRed, DatosEmpresaSii, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
+import type { ConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
   producto: string;
@@ -17,7 +17,8 @@ export interface CanalApi {
   modo: Modo;
   config(): Promise<ConfigRed>;
   estado(): Promise<FotoRed>;
-  sesion(nombre: string, comuna: string, rubro?: string): Promise<{ token: string; negocio: Negocio }>;
+  /** Entra como comprador. El servidor valida el RUT y lo consulta en el SII (puede tardar un par de segundos). */
+  sesion(datos: DatosEntrada): Promise<{ token: string; negocio: Negocio }>;
   yo(token: string): Promise<YoComprador>;
   unirse(token: string, licitacionId: string, cantidad: number): Promise<void>;
   /** Reemplaza el carrito completo de la canasta (cantidad 0 quita; vacío = sale). */
@@ -108,10 +109,10 @@ export function crearApiReal(): CanalApi {
     modo: 'real',
     config: () => llamar('/config'),
     estado: async () => normalizarEstado(await llamar('/estado')) as FotoRed,
-    sesion: (nombre, comuna, rubro) => llamar('/sesion', { cuerpo: { nombre, ...(comuna ? { comuna } : {}), ...(rubro ? { rubro } : {}) } }),
+    sesion: ({ nombre, comuna, rubro, rut }) => llamar('/sesion', { cuerpo: { nombre, rut, ...(comuna ? { comuna } : {}), ...(rubro ? { rubro } : {}) } }),
     yo: async token => {
       const r = await llamar<Partial<YoComprador>>('/yo', { token });
-      return { negocio: r.negocio!, ordenes: lista(r.ordenes), documentos: lista(r.documentos), participaciones: lista(r.participaciones) };
+      return { negocio: r.negocio!, facturaA: r.facturaA ?? null, ordenes: lista(r.ordenes), documentos: lista(r.documentos), participaciones: lista(r.participaciones) };
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
     carrito: async (token, licitacionId, items) => { await llamar('/yo/carrito', { token, cuerpo: { licitacionId, items }, metodo: 'PUT' }); },

@@ -46,9 +46,28 @@ export interface Participacion {
   items?: Array<{ productoId: string; cantidad: number }>;
 }
 
+/** Lo que se pide para entrar como comprador. El RUT es obligatorio: la factura sale a ese RUT en el SII. */
+export interface DatosEntrada {
+  nombre: string;
+  comuna: string;
+  rubro?: string;
+  rut: string;
+}
+
+/** A quién sale la factura del comprador (sus datos del SII). Solo lo ve su dueño. */
+export interface FacturaA {
+  rut: string;
+  razonSocial: string;
+  giro: string;
+  comuna: string;
+  /** Datos de prueba: el SII todavía no está conectado para consultar RUT. */
+  simulado?: boolean;
+}
+
 /** `GET /api/red/yo`. */
 export interface YoComprador {
   negocio: Negocio;
+  facturaA?: FacturaA | null;
   ordenes: OrdenCanal[];
   documentos: Documento[];
   participaciones: Participacion[];

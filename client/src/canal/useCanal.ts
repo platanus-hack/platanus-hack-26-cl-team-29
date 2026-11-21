@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Fuente } from '../red/tipos.ts';
 import { crearApiReal, ErrorCanal, hayBackend, type CanalApi } from './api.ts';
 import { crearApiFalsa } from './falso.ts';
-import type { ConfigRed, FotoRed } from './tipos.ts';
+import type { ConfigRed, DatosEntrada, FotoRed } from './tipos.ts';
 
 let apiElegida: Promise<CanalApi> | undefined;
 
@@ -112,11 +112,8 @@ export function useDatosConSesion<T>(
   return { datos, error, recargar };
 }
 
-interface SesionGuardada {
+interface SesionGuardada extends DatosEntrada {
   token: string;
-  nombre: string;
-  comuna: string;
-  rubro?: string;
   modo: string;
 }
 
@@ -136,17 +133,18 @@ function leerSesion(texto: string | null): SesionGuardada | null {
 export function useSesionComprador(api: CanalApi | null) {
   const [guardada, guardar] = useGuardado('domino.app.sesion', 'local');
   const sesion = leerSesion(guardada);
-  // Una sesión de la red falsa no sirve contra el backend real, ni al revés.
-  const token = api && sesion?.modo === api.modo ? sesion.token : null;
+  // Una sesión de la red falsa no sirve contra el backend real, ni al revés; una sin RUT (anterior a pedirlo) tampoco.
+  const token = api && sesion?.modo === api.modo && sesion.rut ? sesion.token : null;
 
-  const entrar = useCallback(async (nombre: string, comuna: string, rubro?: string) => {
+  const entrar = useCallback(async (datos: DatosEntrada) => {
     if (!api) return;
-    const r = await api.sesion(nombre, comuna, rubro);
-    guardar(JSON.stringify({ token: r.token, nombre, comuna, ...(rubro ? { rubro } : {}), modo: api.modo } satisfies SesionGuardada));
+    const r = await api.sesion(datos);
+    guardar(JSON.stringify({ ...datos, token: r.token, modo: api.modo } satisfies SesionGuardada));
   }, [api, guardar]);
 
+  // Vuelve a entrar sola con lo guardado; una sesión guardada sin RUT (anterior a pedirlo) vuelve al formulario.
   const alVencer = useCallback(() => {
-    if (sesion) void entrar(sesion.nombre, sesion.comuna, sesion.rubro).catch(() => guardar(null));
+    if (sesion?.rut) void entrar({ nombre: sesion.nombre, comuna: sesion.comuna, rut: sesion.rut, ...(sesion.rubro ? { rubro: sesion.rubro } : {}) }).catch(() => guardar(null));
     else guardar(null);
   }, [sesion?.token, entrar, guardar]); // eslint-disable-line react-hooks/exhaustive-deps
 

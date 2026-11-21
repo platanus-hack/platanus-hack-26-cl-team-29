@@ -12,9 +12,9 @@ import {
   type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
-import { CarritoCompra, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
+import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
-import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
+import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
 import './canal.css';
 
@@ -90,16 +90,16 @@ export function MiNegocio() {
 // ---------- Bienvenida ----------
 
 function Bienvenida({ fuente, config, onEntrar }: {
-  fuente: ReturnType<typeof useCanal>['fuente']; config: ConfigRed | null; onEntrar: (nombre: string, comuna: string, rubro?: string) => Promise<void>;
+  fuente: ReturnType<typeof useCanal>['fuente']; config: ConfigRed | null; onEntrar: (datos: DatosEntrada) => Promise<void>;
 }) {
   return (
     <main className="cn-pagina cn-bienvenida">
       <Marca><AvisoFuente fuente={fuente} /></Marca>
       <h1>Compra junto a otros negocios y paga menos</h1>
       <p className="cn-bajada">Tus compras conjuntas, pedidos y facturas del SII en un solo lugar.</p>
-      <FormularioNegocio boton="Entrar" enviandoTexto="Entrando..." onEntrar={onEntrar} />
+      <FormularioNegocio boton="Entrar" onEntrar={onEntrar} />
       <BotonWhatsapp numero={config?.whatsappNumero} />
-      <p className="nota-demo">Modo demo: cualquiera puede sumarse sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>
+      <p className="nota-demo">Modo demo: te sumas solo con tu RUT, sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>
     </main>
   );
 }
@@ -123,6 +123,7 @@ function CompraConjunta({ api, token, foto, yo }: { api: CanalApi; token: string
         </div>
         <h2 className="cn-titulo-compra">Compra conjunta</h2>
         <p className="mono tenue cn-grupo">Cada producto baja de precio cuando el grupo junta más unidades.</p>
+        <FacturaANombre factura={yo.facturaA} />
       </div>
       {!abierta && mia && <p className="cn-ok">La compra cerró con tu carrito: tu pedido y su factura aparecen en Mis pedidos.</p>}
       <CarritoCompra api={api} token={token} lic={lic} negocioId={yo.negocio.id} participacion={mia} abierta={abierta} conPestanas />
