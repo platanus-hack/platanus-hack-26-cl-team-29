@@ -1,4 +1,5 @@
 import type { Fuente } from '../red/tipos.ts';
+import { Logo } from '../marca/Logo.tsx';
 
 /** Aviso discreto cuando la pantalla muestra datos de prueba (sin backend). */
 export function AvisoFuente({ fuente }: { fuente: Fuente }) {
@@ -14,7 +15,7 @@ export function Cargando() {
 export function CabeceraRed({ titulo, fuente }: { titulo: string; fuente: Fuente }) {
   return (
     <header className="red-cabecera">
-      <div className="marca" aria-hidden>B</div>
+      <Logo variante="icono" className="marca" />
       <h1 className="titulo-red">{titulo}</h1>
       <span className="en-vivo contorno">En vivo</span>
       <AvisoFuente fuente={fuente} />

@@ -15,7 +15,8 @@ Contexto del proyecto (prioridades, flujo, documentación, repo público): @AGEN
 ```
 server/            # BACKEND: index.ts = Express + Socket.io + pg; sirve dist/
 server/whatsapp/   # módulo de WhatsApp (Kapso), con dueño: se usa vía index.ts, no se edita (ver su README)
-client/            # FRONTEND: index.html + src/ (React; componentes en client/src/components/)
+client/            # FRONTEND: index.html + src/ (React; componentes en client/src/components/; marca en client/src/marca/ y client/public/marca/)
+DESIGN.md          # marca y diseño: logo, color, tipografía, íconos, ilustración, voz
 shared/            # funciones puras y tipos que usan front y back (dinero, RUT, teléfonos, tramos): sin dependencias ni E/S
 test/              # tests con node:test (*.test.ts)
 agents/            # estado de cada agente (ver agents/README.md)
@@ -43,7 +44,7 @@ Código prolijo, limpio y elegante, pensado para iterar rápido sin romper: que 
 - Funciones chicas, nombres claros, sin código muerto ni scaffolding "para después".
 - Las erasable-only features de TS (no `enum`, no `namespace`, no parameter properties): Node solo quita tipos.
 - El puerto siempre desde `process.env.PORT`. Secretos solo por variables de entorno, nunca en el repo.
-- UI y textos para el usuario en español.
+- UI y textos para el usuario en español, con la marca y la voz de `DESIGN.md`.
 - **Todo monto de dinero va con separador de miles**, en formato chileno: `$1.234.567`, sin decimales. Siempre por el único formateador común (`dinero()` de `shared/formato.ts`); nunca un número crudo ni un `toLocaleString` suelto. Aplica a la web, las pantallas proyectadas, WhatsApp, los PDF y los logs que lee una persona. Folios, años y RUT no son montos: el folio va sin separador y el RUT con su formato (12.345.678-5).
 
 ## Tiempo real (regla fija)

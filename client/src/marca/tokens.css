@@ -1,0 +1,68 @@
+/* Bando: tokens del kit de marca v1. Reglas de uso en DESIGN.md.
+
+   Dos capas, para migrar vista por vista sin romper las que aún no se rediseñan:
+   - Marca (`--bando-*`): globales. Ningún estilo anterior usa estos nombres.
+   - Producto (neutros, tipografía, forma): solo dentro de `.bando-ui`. Usan los mismos nombres que la interfaz
+     oscura actual (`--color-primary`, `--color-border`...), así que una vista rediseñada se envuelve en `.bando-ui`
+     y hereda la paleta nueva sin tocar las demás. */
+
+:root {
+  --bando-miel: #E2B031;          /* rellenos, progreso, ícono. Nunca texto sobre blanco */
+  --bando-miel-600: #B8892A;      /* bordes, barras oscuras, hover de miel */
+  --bando-miel-texto: #8A6A10;    /* texto miel sobre blanco o crema (5,1:1) */
+  --bando-miel-50: #FFF8E6;       /* fondos suaves de destacado */
+  --bando-oliva: #928C3E;         /* rellenos secundarios, ilustración */
+  --bando-oliva-texto: #5F6B28;   /* ahorro en texto (5,8:1) */
+  --bando-oliva-oscuro: #434538;
+  --bando-crema: #F3E9D0;         /* celdas, tarjetas cálidas */
+  --bando-fondo-crema: #FCF4DC;   /* fondo de ilustraciones, imagen para compartir, ícono de app */
+  --bando-carbon: #343532;        /* trazo de ilustración, fondo oscuro de marca */
+  --bando-tinta: #1D1D1F;         /* texto sobre miel */
+}
+
+.bando-ui {
+  /* Neutros */
+  --color-background: #FFFFFF;
+  --color-foreground: #000000;
+  --color-muted: #F4F1E7;          /* lateral */
+  --color-secondary: #F6F4EF;      /* bloques de apoyo */
+  --color-border: #EDEADE;
+  --color-muted-foreground: #404040;
+  --color-faint-fg: #6E6A5E;
+  --color-primary: #171717;        /* botón principal */
+  --color-primary-foreground: #FFFFFF;
+
+  /* Estados */
+  --color-success: #21C45D;
+  --color-warning: #FBBD23;
+  --color-destructive: #EF4343;
+
+  /* Tipografía */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --text-display: 72px;  --leading-display: 76px;
+  --text-hero: 60px;     --leading-hero: 60px;
+  --text-4xl: 36px;      --leading-4xl: 40px;
+  --text-2xl: 24px;      --leading-2xl: 32px;
+  --text-xl: 20px;       --leading-xl: 28px;
+  --text-base: 16px;     --leading-base: 24px;
+  --text-sm: 14px;       --leading-sm: 20px;
+  --text-xs: 12px;       --leading-xs: 16px;
+  --tracking-display: -0.045em;
+  --tracking-tight: -0.025em;
+  --tracking-caps: 0.05em;
+
+  /* Forma */
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;     /* botones, tarjetas */
+  --radius-2xl: 16px;    /* lienzo principal */
+  --radius-full: 9999px;
+  --control-height: 36px;
+  --border-width: 0.8px;
+
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}

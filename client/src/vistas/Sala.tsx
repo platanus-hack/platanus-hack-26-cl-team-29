@@ -14,6 +14,7 @@ import { cuentaRegresiva, textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, Licitacion } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 import './sala.css';
+import { Logo } from '../marca/Logo.tsx';
 
 /** Cuánto dura en pantalla el momento "bajó el precio". */
 const DURACION_BAJADA = 2400;
@@ -308,7 +309,7 @@ export function Sala() {
     <main className={`sala fase-${s.fase}`}>
       <header className="sala-cabecera">
         <div className="sala-marca">
-          <span className="marca">B</span>
+          <Logo variante="icono" className="marca" />
           <div>
             <div className="lic-meta">
               <span className="en-vivo">La sala compra junta</span>

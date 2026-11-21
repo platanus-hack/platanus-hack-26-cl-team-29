@@ -9,6 +9,7 @@ import { GlifoWhatsapp } from '../components/Iconos.tsx';
 import { Icono, LogoSii } from './iconos.tsx';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { confirmacion, mensajeDeError, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
+import { Logo } from '../marca/Logo.tsx';
 
 /**
  * Un envío a la API con su estado: `enviando` mientras corre y `error` con el mensaje si falla. Mientras hay uno
@@ -157,8 +158,7 @@ export function Cantidad({ valor, min = 1, max, onCambio, etiqueta }: {
 export function Marca({ children }: { children?: ReactNode }) {
   return (
     <div className="cn-marca">
-      <span className="marca" aria-hidden="true">B</span>
-      <span>Bando</span>
+      <Logo fondo="oscuro" className="cn-logo" />
       {children}
     </div>
   );

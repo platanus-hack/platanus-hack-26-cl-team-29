@@ -7,6 +7,8 @@ description: Revisión de UI y UX de las vistas de la app antes de mergear. Úsa
 
 Objetivo: pantallas ambiciosas pero no sobrecargadas, bien distribuidas, sin fricción y con textos que se entienden al primer vistazo. Una vista no está terminada hasta que pasa esta revisión en todos los tamaños.
 
+La marca (logo, color, tipografía, íconos, ilustraciones y voz) está en `DESIGN.md`: una vista rediseñada se revisa también contra esas reglas.
+
 ## Principios
 
 1. **Una idea principal por pantalla.** Lo más importante es lo más grande. Si todo compite, nada se lee. Ante la duda, quita un elemento en vez de agregar uno.
