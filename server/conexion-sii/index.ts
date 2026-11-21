@@ -2,7 +2,7 @@
 import type express from 'express';
 import type pg from 'pg';
 import { crearAlmacenFolios, crearConsultaContribuyenteFalsa, crearSiiReal } from '../red/index.ts';
-import type { ConsultarContribuyente } from '../red/contribuyente.ts';
+import type { ConsultarContribuyente, DatosContribuyente } from '../red/contribuyente.ts';
 import type { EventoRed, PuertoSii } from '../red/index.ts';
 import type { TipoDocumento } from '../../shared/documentos.ts';
 import { crearConsultaDocumentos, crearSiiConectado } from '../sii/index.ts';
@@ -12,7 +12,8 @@ import { crearConexionSii } from './conexion.ts';
 import type { ConexionSii } from './conexion.ts';
 
 import { crearPortalConexion } from './portal.ts';
-import { iniciarPortalSii } from '../sii-portal/index.ts';
+import { consultarContribuyentePublico, ErrorStc, iniciarPortalSii } from '../sii-portal/index.ts';
+import type { ConsultaPublicaContribuyente } from '../sii-portal/index.ts';
 import { crearRutasConexionSii } from './rutas.ts';
 import { crearSiiConmutable } from './sii-conmutable.ts';
 
@@ -36,7 +37,8 @@ export interface ConexionSiiDelServidor {
   sii: (falso: PuertoSii) => PuertoSii;
   /**
    * Para `iniciarRed`: datos de un comprador por su RUT, leídos del portal del SII con el certificado conectado y la
-   * misma sesión única (server/sii-portal). Sin certificado conectado, la consulta falsa de la red.
+   * misma sesión única (server/sii-portal). Sin certificado conectado, la consulta pública STC (sin sesión, sin
+   * dirección ni comuna); si la STC no responde, la consulta falsa de la red.
    */
   consultarContribuyente: ConsultarContribuyente;
   /** Eventos `sii.folios` (folios bajos, reponiéndose o repuestos), con el mismo formato que `red:evento`. */
@@ -62,9 +64,19 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     tomados: tipo => folios.tomados(tipo),
   });
   const falsa = crearConsultaContribuyenteFalsa();
+  const consultarSinCertificado: ConsultarContribuyente = async rut => {
+    try {
+      return datosDeStc(await consultarContribuyentePublico(rut));
+    } catch (error) {
+      if (error instanceof ErrorStc && error.noRegistrado) return null;
+      const delSii = error instanceof ErrorStc && error.mensajeSii ? ` | SII: ${error.mensajeSii}` : '';
+      console.warn(`[conexion-sii] la consulta pública STC de ${rut} falló, se usan datos simulados: ${error instanceof Error ? error.message : String(error)}${delSii}`);
+      return falsa(rut);
+    }
+  };
   const consultarContribuyente: ConsultarContribuyente = async rut => {
     const ficha = await conexion.consultarContribuyente(rut);
-    if (ficha === undefined) return falsa(rut);
+    if (ficha === undefined) return consultarSinCertificado(rut);
     return ficha && {
       razonSocial: ficha.razonSocial, giro: ficha.giro, direccion: ficha.direccion, comuna: ficha.comuna,
       actividades: ficha.actividades.map(a => ({ codigo: String(a.codigo), glosa: a.descripcion })),
@@ -82,6 +94,35 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
       conexion.folios.escuchar(aviso => oyente({ tipo: 'sii.folios', datos: aviso, en: new Date().toISOString() }));
     },
     fijarDemanda: demanda => conexion.folios.fijarDemanda(demanda),
+  };
+}
+
+/** Tope de la razón social y del giro en el DTE: se recortan aquí para no prellenar un valor que el SII rechace. */
+const MAX_RAZON_SOCIAL = 100;
+const MAX_GIRO = 80;
+
+/**
+ * La STC traducida a los datos de la red. Un RUT sin inicio de actividades (el SII responde `registrado: true`, nombre
+ * "**" y sin giros) no puede recibir factura: null. Giros con descripción, recortados y sin repetidos, en el orden del
+ * SII (el primero es el giro). La STC no trae dirección ni comuna: quedan vacías y la factura usa las que declare la
+ * persona o, sin ellas, el receptor de respaldo.
+ */
+function datosDeStc(c: ConsultaPublicaContribuyente): DatosContribuyente | null {
+  if (!c.inicioActividades || !/[\p{L}\d]/u.test(c.nombre)) return null;
+  const vistos = new Set<string>();
+  const actividades: DatosContribuyente['actividades'] = [];
+  for (const g of c.giros) {
+    const glosa = g.descripcion.trim().slice(0, MAX_GIRO);
+    if (!glosa || vistos.has(glosa)) continue;
+    vistos.add(glosa);
+    actividades.push({ codigo: g.codigo.trim(), glosa });
+  }
+  return {
+    razonSocial: c.nombre.trim().slice(0, MAX_RAZON_SOCIAL),
+    giro: actividades[0]?.glosa ?? '',
+    direccion: '',
+    comuna: '',
+    actividades,
   };
 }
 

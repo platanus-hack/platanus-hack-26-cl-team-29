@@ -20,6 +20,8 @@ export type { Resolucion } from './mantenedor.ts';
 export { consultarTope, listarReobtenibles, pedirCaf, reobtenerCaf, leerRangos } from './folios.ts';
 export type { RangoFolios, TopeFolios } from './folios.ts';
 export type { Http, RespuestaHttp } from './http.ts';
+export { consultarContribuyentePublico, leerConsultaPublicaContribuyente, ErrorStc } from './stc.ts';
+export type { ConsultaPublicaContribuyente, GiroNegocio, TimbrajeConsultaPublica, OpcionesStc } from './stc.ts';
 
 /**
  * Portal del servidor: con Postgres y SII_LLAVE_CIFRADO la sesión se guarda cifrada en la base (sobrevive a reinicios y
