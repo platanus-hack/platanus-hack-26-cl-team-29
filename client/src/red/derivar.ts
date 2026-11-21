@@ -751,18 +751,29 @@ function idDeOrden(e: EventoRed): string | undefined {
   return texto(objeto(e.datos.orden).id) ?? texto(objeto(e.datos.documento).ordenId) ?? texto(e.datos.ordenId);
 }
 
-/** Una línea legible para cada evento. Lee `datos` con cuidado: si falta algo, cae a un texto genérico. */
-export function describirEvento(e: EventoRed, estado: EstadoRed): string {
+/** Lo que describirEvento y detalleEvento leen de un evento y de la foto. */
+function contextoEvento(e: EventoRed, estado: EstadoRed) {
   // La orden puede venir en el evento antes de que llegue la foto nueva.
   const ordenDatos = e.datos.orden && typeof e.datos.orden === 'object' ? (e.datos.orden as OrdenCompra) : undefined;
   const orden = estado.ordenes.find(o => o.id === idDeOrden(e)) ?? ordenDatos;
-  const comprador = negocioPorId(estado, orden?.compradorId)?.nombre;
   const proveedorId = texto(e.datos.proveedorId) ?? texto(objeto(e.datos.oferta).proveedorId) ?? orden?.proveedorId;
-  const proveedor = negocioPorId(estado, proveedorId)?.nombre ?? texto(objeto(e.datos.oferta).proveedorNombre);
-  const item = orden?.items?.[0];
   const lic = licitacionActual(estado, texto(e.datos.licitacionId));
   const producto = lic?.productos?.find(x => x.id === (texto(e.datos.productoId) ?? texto(objeto(e.datos.oferta).productoId)));
-  const porUnidad = `por ${producto ? producto.unidad : lic ? unidadDeLicitacion(lic).singular : 'unidad'}`;
+  return {
+    orden,
+    comprador: negocioPorId(estado, orden?.compradorId)?.nombre,
+    proveedorId,
+    proveedor: negocioPorId(estado, proveedorId)?.nombre ?? texto(objeto(e.datos.oferta).proveedorNombre),
+    lic,
+    producto,
+    porUnidad: `por ${producto ? producto.unidad : lic ? unidadDeLicitacion(lic).singular : 'unidad'}`,
+  };
+}
+
+/** Una línea legible para cada evento. Lee `datos` con cuidado: si falta algo, cae a un texto genérico. */
+export function describirEvento(e: EventoRed, estado: EstadoRed): string {
+  const { orden, comprador, proveedor, lic, producto, porUnidad } = contextoEvento(e, estado);
+  const item = orden?.items?.[0];
   switch (e.tipo) {
     case 'orden.creada':
       return comprador && proveedor && item
@@ -883,4 +894,251 @@ export function describirEventoCorto(e: EventoRed, estado: EstadoRed): string {
       break;
   }
   return describirEvento(e, estado);
+}
+
+// ---------- Detalle de cada evento del feed ----------
+
+export interface FilaDetalle {
+  etiqueta: string;
+  valor: string;
+  /** Dato del SII: va con su logo. */
+  sii?: boolean;
+}
+
+export interface DetalleEvento {
+  /** Segunda línea del feed, siempre visible. Vacía si el evento no tiene más que su frase. */
+  resumen: string;
+  /** Todo el detalle, para el panel que se abre al tocar la fila. */
+  filas: FilaDetalle[];
+  /** Enlace privado al PDF: solo si el evento lo trae (la foto pública nunca lo trae). */
+  pdfUrl?: string;
+}
+
+const unir = (partes: Array<string | false | undefined>) => partes.filter(Boolean).join(' · ');
+const fila = (etiqueta: string, valor: string | false | undefined, sii?: boolean): FilaDetalle[] =>
+  valor ? [{ etiqueta, valor, ...(sii ? { sii } : {}) }] : [];
+const flecha = (antes: string | undefined, ahora: string) => (antes && antes !== ahora ? `${antes} → ${ahora}` : ahora);
+
+const ESTADO_ORDEN: Record<string, string> = {
+  enviada: 'enviada al proveedor', confirmada: 'confirmada', facturada: 'facturada', recibida: 'recibida conforme',
+  reclamada: 'con reclamo en el SII', corregida: 'corregida con nota de crédito',
+};
+
+/** "4 cajas de rollos · 2 sacos de harina · $123.400"; con más de dos productos, los cuenta. */
+function resumenPedido(items: ItemOrden[]): string {
+  if (!items.length) return '';
+  const que = items.length > 2 ? contar(items.length, 'producto') : items.map(i => pedidoDe(i.cantidad, i.producto)).join(' · ');
+  return unir([que, dinero(totalOrden({ items }))]);
+}
+
+function filasDeOrden(orden: OrdenCompra, comprador?: string, proveedor?: string): FilaDetalle[] {
+  const items = orden.items ?? [];
+  return [
+    ...items.map(i => ({ etiqueta: pedidoDe(i.cantidad, i.producto), valor: `${dinero(i.precioUnitario)} c/u · ${dinero(i.cantidad * i.precioUnitario)}` })),
+    ...fila('Total neto', items.length > 0 && dinero(totalOrden({ items }))),
+    ...fila('Comprador', comprador),
+    ...fila('Proveedor', proveedor),
+    ...fila('Orden', unir([orden.id, ESTADO_ORDEN[orden.estado]])),
+  ];
+}
+
+/** El documento del evento, con su estado más reciente si ya llegó la foto nueva. */
+function documentoDe(v: unknown, estado: EstadoRed): Documento | undefined {
+  const d = objeto(v);
+  if (!esTipoDocumento(d.tipo)) return undefined;
+  return estado.documentos.find(x => x.id === d.id) ?? (d as unknown as Documento);
+}
+
+const montoNeto = (d: Documento) => (d.monto !== undefined ? dinero(d.monto) : undefined);
+
+function resumenDocumento(d: Documento): string {
+  return unir([`${nombreDocumento(d.tipo)} ${d.tipo}`, !!d.folio && `folio ${d.folio}`, d.monto !== undefined && `${dinero(d.monto)} neto`, textoEstadoSii(d.estadoSii)]);
+}
+
+function filasDocumento(d: Documento): FilaDetalle[] {
+  return [
+    ...fila('Documento', `${nombreDocumento(d.tipo)} (tipo ${d.tipo})`),
+    ...fila('Folio', !!d.folio && String(d.folio)),
+    ...fila('Monto neto', montoNeto(d)),
+    ...fila('Estado en el SII', textoEstadoSii(d.estadoSii) || 'enviado', true),
+    ...fila('Track ID', d.trackId ?? undefined),
+  ];
+}
+
+/** Cómo cambió la nota del proveedor justo después del evento ("4,6 → 4,2"), si ya llegó ese cambio. */
+function notaTras(e: EventoRed, eventos: readonly EventoRed[], proveedorId: string | undefined): string | undefined {
+  const desde = Date.parse(e.en);
+  const cambio = eventos
+    .filter(x => x.tipo === 'nota.cambiada' && x.datos.proveedorId === proveedorId && Date.parse(x.en) >= desde)
+    .sort((a, b) => Date.parse(a.en) - Date.parse(b.en))[0];
+  const [a, n] = [numero(cambio?.datos.anterior), numero(cambio?.datos.nota)];
+  return n === undefined ? undefined : flecha(a === undefined ? undefined : nota(a), nota(n));
+}
+
+/** La oferta anterior del mismo proveedor por el mismo producto, para mostrar cuánto bajó. */
+function ofertaAnterior(e: EventoRed, eventos: readonly EventoRed[]): number | undefined {
+  const o = objeto(e.datos.oferta);
+  const previa = eventos.find(x => {
+    const p = objeto(x.datos.oferta);
+    return x.tipo === 'licitacion.oferta' && Date.parse(x.en) < Date.parse(e.en) && p.proveedorId === o.proveedorId && p.productoId === o.productoId;
+  });
+  return numero(objeto(previa?.datos.oferta).precioUnitario);
+}
+
+/**
+ * El detalle concreto de cada evento del feed: una línea con los datos (productos y total, folio y estado del SII,
+ * precio anterior y nuevo, efecto en la nota) y las filas para el panel. Con los mismos nombres que describirEvento.
+ * `eventos` son los recientes, para cruzar un reclamo con el cambio de nota que provocó o una oferta con la anterior.
+ */
+export function detalleEvento(e: EventoRed, estado: EstadoRed, eventos: readonly EventoRed[] = []): DetalleEvento {
+  const { orden, comprador, proveedorId, proveedor, lic, producto, porUnidad } = contextoEvento(e, estado);
+  const items = orden?.items ?? [];
+  const pdfUrl = texto(objeto(e.datos.documento).pdfUrl);
+  const conPdf = (d: DetalleEvento): DetalleEvento => (pdfUrl ? { ...d, pdfUrl } : d);
+  switch (e.tipo) {
+    case 'orden.creada':
+    case 'orden.confirmada':
+      return { resumen: resumenPedido(items), filas: orden ? filasDeOrden(orden, comprador, proveedor) : [] };
+    case 'documento.emitido':
+    case 'documento.actualizado': {
+      const doc = documentoDe(e.datos.documento, estado);
+      if (!doc) break;
+      return conPdf({ resumen: resumenDocumento(doc), filas: [...filasDocumento(doc), ...fila('Comprador', comprador), ...fila('Proveedor', proveedor)] });
+    }
+    case 'recepcion.registrada': {
+      const faltante = numero(e.datos.faltante);
+      const recepcion = faltante ? `faltaron ${faltante}` : 'todo conforme';
+      return { resumen: unir([resumenPedido(items), recepcion]), filas: [...fila('Recepción', recepcion), ...(orden ? filasDeOrden(orden, comprador, proveedor) : [])] };
+    }
+    case 'reclamo.registrado': {
+      const reclamo = objeto(e.datos.reclamo);
+      const motivo = texto(e.datos.motivo) ?? (orden?.reclamo && `Faltan ${orden.reclamo.faltante} de ${orden.reclamo.producto}`);
+      const cambio = notaTras(e, eventos, proveedorId);
+      const factura = estado.documentos.find(d => d.ordenId === orden?.id && d.tipo === 33);
+      return {
+        resumen: unir([motivo, cambio && `nota ${cambio}`]),
+        filas: [
+          ...fila('Motivo', motivo),
+          ...fila('Factura reclamada', factura && unir([factura.folio ? `folio ${factura.folio}` : undefined, montoNeto(factura)])),
+          ...fila('Estado del reclamo', textoEstadoSii(texto(reclamo.estadoSii) ?? orden?.reclamo?.estadoSii), true),
+          ...fila(`Nota de ${proveedor ?? 'el proveedor'}`, cambio),
+          ...fila('Comprador', comprador),
+          ...fila('Orden', orden?.id),
+        ],
+      };
+    }
+    case 'nota_credito.emitida': {
+      const doc = documentoDe(e.datos.documento, estado);
+      const cambio = notaTras(e, eventos, proveedorId);
+      const factura = estado.documentos.find(d => d.ordenId === orden?.id && d.tipo === 33);
+      return conPdf({
+        resumen: unir([doc && resumenDocumento(doc), cambio && `nota ${cambio}`]),
+        filas: [
+          ...(doc ? filasDocumento(doc) : []),
+          ...fila('Corrige la factura', !!factura?.folio && `folio ${factura.folio}`),
+          ...fila('Por', orden?.reclamo && `${orden.reclamo.faltante} de menos de ${orden.reclamo.producto}`),
+          ...fila(`Nota de ${proveedor ?? 'el proveedor'}`, cambio),
+          ...fila('Comprador', comprador),
+        ],
+      });
+    }
+    case 'nota.cambiada': {
+      const [a, n] = [numero(e.datos.anterior), numero(e.datos.nota)];
+      if (n === undefined) break;
+      const filas = ranking(estado, []);
+      const puesto = filas.find(f => f.proveedor.id === proveedorId)?.puesto;
+      const lugar = puesto !== undefined && `${puesto}.° de ${filas.length}`;
+      const cambio = flecha(a === undefined ? undefined : nota(a), nota(n));
+      return { resumen: unir([cambio, lugar && `${lugar} en el ranking`]), filas: [...fila('Proveedor', proveedor), ...fila('Nota', cambio), ...fila('Ranking', lugar)] };
+    }
+    case 'licitacion.participante': {
+      const p = objeto(e.datos.participante) as unknown as Participante;
+      const comuna = texto(p.comuna) ?? negocioPorId(estado, texto(p.negocioId))?.comuna;
+      const carrito = (p.items ?? []).filter(i => i.cantidad > 0).flatMap(i => {
+        const x = lic?.productos?.find(y => y.id === i.productoId);
+        return x ? [{ x, cantidad: i.cantidad }] : [];
+      });
+      const unico = carrito.length === 1 ? carrito[0].x : undefined;
+      const precio = unico?.precioActual ?? (carrito.length ? undefined : lic?.precioActual);
+      return {
+        resumen: unir([comuna, lic && e.datos.accion !== 'sale' && detalleCarrito(lic, p), precio !== undefined && `${dinero(precio)} ${unico ? `por ${unico.unidad}` : porUnidad}`]),
+        filas: [
+          ...fila('Comuna', comuna),
+          ...carrito.map(({ x, cantidad }) => ({
+            etiqueta: x.nombre,
+            valor: unir([contar(cantidad, x.unidad, x.unidadPlural), x.precioActual !== undefined && `${dinero(x.precioActual)} c/u hoy`]),
+          })),
+          ...fila('Compra conjunta', lic && unir([lic.totalNegocios !== undefined && contar(lic.totalNegocios, 'negocio'), lic.montoTotal !== undefined && `${dinero(lic.montoTotal)} neto`])),
+        ],
+      };
+    }
+    case 'licitacion.oferta': {
+      const o = objeto(e.datos.oferta);
+      const precio = numero(o.precioUnitario);
+      if (precio === undefined) break;
+      const anterior = ofertaAnterior(e, eventos);
+      const precios = `${flecha(anterior === undefined ? undefined : dinero(anterior), dinero(precio))} ${porUnidad}`;
+      const plazo = numero(o.plazoDias);
+      const notaOferta = numero(o.nota) ?? numero(e.datos.nota);
+      return {
+        resumen: unir([producto && nombreCorto(producto.nombre, producto.unidad), precios, e.datos.mejor === true && 'mejor oferta']),
+        filas: [
+          ...fila('Proveedor', proveedor),
+          ...fila('Producto', producto?.nombre),
+          ...fila('Precio', precios),
+          ...fila('Plazo', plazo !== undefined && contar(plazo, 'día')),
+          ...fila('Nota', notaOferta !== undefined && nota(notaOferta)),
+        ],
+      };
+    }
+    case 'licitacion.precio_bajo': {
+      const [a, n] = [numero(e.datos.precioAnterior), numero(e.datos.precioNuevo)];
+      if (n === undefined) break;
+      const unidades = numero(e.datos.totalUnidades);
+      const u = producto ? { singular: producto.unidad, plural: producto.unidadPlural } : lic ? unidadDeLicitacion(lic) : { singular: 'unidad', plural: 'unidades' };
+      const precios = `${flecha(a === undefined ? undefined : dinero(a), dinero(n))} ${porUnidad}`;
+      const grupo = unidades !== undefined && `el grupo lleva ${contar(unidades, u.singular, u.plural)}`;
+      return { resumen: unir([precios, grupo]), filas: [...fila('Producto', producto?.nombre), ...fila('Precio', precios), ...fila('Volumen', grupo)] };
+    }
+    case 'licitacion.cerrada': {
+      const l = objeto(e.datos.licitacion);
+      const ganadora = numero(objeto(l.ganadora).precioUnitario);
+      const negocios = lista(l.participantes).length;
+      const ordenes = lista(e.datos.ordenes).length;
+      const partes = [ganadora !== undefined && `${dinero(ganadora)} ${porUnidad}`, negocios > 0 && contar(negocios, 'negocio'), ordenes > 0 && contar(ordenes, 'orden', 'órdenes')];
+      return { resumen: unir(partes), filas: [...fila('Precio ganador', partes[0]), ...fila('Negocios', partes[1]), ...fila('Órdenes', partes[2])] };
+    }
+    case 'licitacion.facturada': {
+      const [total, ahorro] = [numero(e.datos.total), numero(e.datos.ahorroTotal)];
+      const partes = [total !== undefined && `${dinero(total)} neto`, !!ahorro && `ahorro ${dinero(ahorro)}`];
+      return { resumen: unir(partes), filas: [...fila('Total facturado', partes[0]), ...fila('Ahorro del grupo', !!ahorro && dinero(ahorro))] };
+    }
+    case 'licitacion.producto': {
+      const x = objeto(e.datos.producto);
+      const tramos = lista<Tramo>(x.tramos);
+      const solo = numero(x.precioSolo);
+      const desde = tramos.length ? Math.min(...tramos.map(t => t.precioUnitario)) : undefined;
+      const partes = [solo !== undefined && `solo ${dinero(solo)}`, desde !== undefined && `en grupo desde ${dinero(desde)}`, tramos.length > 0 && contar(tramos.length, 'tramo')];
+      return {
+        resumen: unir(partes),
+        filas: [...fila('Producto', texto(x.nombre)), ...fila('Comprando solo', solo !== undefined && dinero(solo)),
+          ...ordenarTramos(tramos).map(t => ({ etiqueta: `Desde ${contar(t.desde, texto(x.unidad) ?? 'unidad', texto(x.unidadPlural))}`, valor: `${dinero(t.precioUnitario)} c/u` }))],
+      };
+    }
+    case 'negocio.registrado': {
+      const n = objeto(e.datos.negocio);
+      const partes = [texto(n.comuna), texto(n.rubro)];
+      return { resumen: unir(partes), filas: [...fila('Comuna', partes[0]), ...fila('Rubro', partes[1])] };
+    }
+    case 'mercado_publico.actualizado': {
+      const [proveedores, precios, ordenes] = [numero(e.datos.proveedores), numero(e.datos.precios), numero(e.datos.ordenes)];
+      const partes = [
+        proveedores !== undefined && contar(proveedores, 'proveedor'),
+        precios !== undefined && contar(precios, 'precio'),
+        ordenes !== undefined && contar(ordenes, 'orden de compra', 'órdenes de compra'),
+      ];
+      return { resumen: unir(partes), filas: [...fila('Proveedores', partes[0]), ...fila('Precios de referencia', partes[1]), ...fila('Órdenes leídas', partes[2]), ...fila('Hasta', texto(e.datos.hasta)?.slice(0, 10))] };
+    }
+  }
+  return { resumen: '', filas: [] };
 }

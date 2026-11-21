@@ -9,6 +9,7 @@ const TRAZOS = {
   cubiertos: 'M5 3v5a2 2 0 0 0 4 0V3M7 10v11M17 3c-2.5 2-2.5 7 0 9v9',
   farmacia: 'M5 4h14v16H5zM12 8v8M8 12h8',
   check: 'M5 12.5l4.5 4.5L19 7.5',
+  cerrar: 'M6 6l12 12M18 6L6 18',
   pedido: 'M6 8h12l-1 12H7zM9 8a3 3 0 0 1 6 0',
   baja: 'M3 7l6 6 4-4 8 8M15 17h6v-6',
   nota: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
