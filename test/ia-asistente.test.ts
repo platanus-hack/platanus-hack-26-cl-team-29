@@ -5,6 +5,7 @@ import { crearAsistente, crearConsultasRed, type ClienteClaude, type Consultas }
 import { conectarAgente } from '../server/agente/index.ts';
 import { crearRedFalsa } from '../server/agente/red-falsa.ts';
 import type { EntradaConversacion, Intencion } from '../server/agente/intencion.ts';
+import { interpreteDeReglas } from '../server/agente/intencion.ts';
 import type { Negocio } from '../server/agente/puerto.ts';
 import type { MessageHandler } from '../server/whatsapp/index.ts';
 import { iniciarRed } from '../server/red/index.ts';
@@ -165,4 +166,38 @@ test('Claude pasa el proveedor elegido en la propuesta', async () => {
   const { cliente } = claudeFalso([[herramienta('proponer_pedido', { producto: 'levaduras', cantidad: 3, proveedor: 'Molinos del Sur' })]]);
   const { conversar } = crearAsistente({ cliente, modelo: 'm', consultas: consultasFalsas, log: silencio });
   assert.deepEqual(await conversar(entrada('pídele 3 a Molinos')), { tipo: 'pedir', producto: 'levaduras', cantidad: 3, proveedor: 'Molinos del Sur' });
+});
+
+test('las opciones de una confirmación salen como botones, y apretar uno confirma sin llamar a la IA', async () => {
+  const pica: Negocio = { id: 'pica', nombre: 'La Picá', comuna: 'Maipú', rol: 'comprador', telefono: 'tel-pica' };
+  const molinos: Negocio = { id: 'molinos', nombre: 'Molinos del Sur', comuna: 'Maipú', rol: 'proveedor', telefono: 'tel-molinos' };
+  const red = crearRedFalsa([pica, molinos]);
+  const conBotones: { to: string; body: string; buttons: readonly { id: string; title: string }[] }[] = [];
+  const textos: string[] = [];
+  let llamadasIa = 0;
+  let handler: MessageHandler = () => {};
+  conectarAgente(
+    {
+      onMessage: h => { handler = h; return () => {}; },
+      sendText: async (_to, body) => { textos.push(body); return { ok: true, messageIds: [] }; },
+      send: async (to, mensaje) => {
+        const msg = typeof mensaje === 'string' ? { body: mensaje } : mensaje;
+        conBotones.push({ to, body: msg.body, buttons: msg.buttons ?? [] });
+        return { status: 'sent', messageId: 'x' };
+      },
+    },
+    red,
+    { interprete: { interpretar: (texto, pregunta) => interpreteDeReglas.interpretar(texto, pregunta), conversar: async () => { llamadasIa++; return { tipo: 'pedir', producto: 'sacos de harina', cantidad: 4 }; } } },
+  );
+  const ctx = { reply: async (body: string) => { textos.push(body); return { ok: true as const, messageIds: [] }; }, markRead: async () => ({ ok: true as const, messageIds: [] }) };
+  await handler({ id: 'w1', conversationId: 'c', from: 'tel-pica', contactName: null, sentAt: new Date(), text: 'pide 4 sacos', content: { kind: 'text', text: 'pide 4 sacos' } }, ctx);
+
+  assert.equal(conBotones.length, 1);
+  assert.doesNotMatch(conBotones[0]!.body, /1\. /, 'las opciones no quedan como texto');
+  assert.deepEqual(conBotones[0]!.buttons, [{ id: '1', title: 'Sí, envíala' }, { id: '2', title: 'No' }]);
+
+  const antes = llamadasIa;
+  await handler({ id: 'w2', conversationId: 'c', from: 'tel-pica', contactName: null, sentAt: new Date(), text: 'Sí, envíala', content: { kind: 'reply', id: '1', title: 'Sí, envíala' } }, ctx);
+  assert.equal(llamadasIa, antes, 'el botón no pasa por la IA');
+  assert.equal((await red.estadoDeLaRed()).ordenes.length, 1);
 });

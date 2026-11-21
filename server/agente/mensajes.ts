@@ -19,6 +19,23 @@ const unidad = (producto: string) => producto.split(' de ')[0];
 
 const opciones = (...lineas: string[]) => lineas.map((l, i) => `${i + 1}. ${l}`).join('\n');
 
+/** Título de un botón de WhatsApp: máximo 20 caracteres. */
+const TITULO_BOTON_MAX = 20;
+
+/**
+ * Las opciones con que termina un mensaje ("1. Sí, envíala\n2. No"), para mandarlas como botones de WhatsApp.
+ * `null` si no termina en 2 o 3 opciones cortas: una lista de productos con precios sigue siendo texto.
+ */
+export function separarOpciones(texto: string): { cuerpo: string; opciones: string[] } | null {
+  const lineas = texto.trimEnd().split('\n');
+  const finales: string[] = [];
+  while (lineas.length > 0 && /^\d+\. /.test(lineas.at(-1)!)) finales.unshift(lineas.pop()!);
+  if (finales.length < 2 || finales.length > 3 || lineas.join('').trim() === '') return null;
+  const titulos = finales.map((l, i) => (l.startsWith(`${i + 1}. `) ? l.slice(`${i + 1}. `.length).trim() : ''));
+  if (titulos.some(t => !t || t.length > TITULO_BOTON_MAX)) return null;
+  return { cuerpo: lineas.join('\n').trim(), opciones: titulos };
+}
+
 export const NO_REGISTRADO = 'Hola. No encuentro tu negocio en la red. Pide que lo registren para empezar a usar Bando.';
 export const NADA_PENDIENTE = 'No tengo nada pendiente por confirmar.';
 export const CANCELADO = 'Listo, no hice nada.';

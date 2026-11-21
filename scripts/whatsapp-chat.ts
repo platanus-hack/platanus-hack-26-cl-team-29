@@ -65,7 +65,9 @@ async function enviar(texto: string) {
     if (historial.length > vistos) {
       for (const m of historial.slice(vistos)) {
         if (m.direction !== 'out') continue;
-        console.log(`\n${m.source === 'reply' ? 'Bando' : 'Aviso'} › ${m.text}`);
+        const botones = (m.payload as { buttons?: { id: string; title: string }[] } | null)?.buttons ?? [];
+        const pie = botones.length ? `\n        ${botones.map(x => `[${x.id}: ${x.title}]`).join('  ')}  ← escribe el número` : '';
+        console.log(`\n${m.source === 'reply' ? 'Bando' : 'Aviso'} › ${m.text}${pie}`);
         respondio ||= m.source === 'reply';
       }
       vistos = historial.length;
