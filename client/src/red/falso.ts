@@ -233,10 +233,14 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     confirmadas.add(id);
     const precio = lic.precioActual ?? PRECIO_SOLO;
     const ordenes: OrdenCompra[] = lic.participantes.map((p, i) => ({
-      id: `o-${id}-${i}`, compradorId: p.negocioId ?? '', proveedorId: lic.proveedorId ?? PROVEEDOR_SALA, licitacionId: id,
+      id: `o-${id}-${i}`, compradorId: p.negocioId ?? '', proveedorId: lic.proveedorId ?? PROVEEDOR_SALA,
       estado: 'confirmada', creadaEn: ahoraIso(), items: [{ producto: PRODUCTO, cantidad: p.cantidad, precioUnitario: precio }],
     }));
-    publicar(e => { e.ordenes = [...e.ordenes, ...ordenes]; return []; });
+    publicar(e => {
+      e.ordenes = [...e.ordenes, ...ordenes];
+      modificarLicitacion(e, id, l => ({ ...l, ordenIds: ordenes.map(o => o.id) }));
+      return [];
+    });
 
     const documentos: Documento[] = [];
     ordenes.forEach((o, i) => despues(i * FACTURA_MS, () => publicar(e => {
@@ -253,10 +257,9 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
 
     const finEmision = ordenes.length * FACTURA_MS;
     despues(finEmision + 600, () => publicar(e => {
-      modificarLicitacion(e, id, l => ({ ...l, estado: 'facturada' }));
       const total = documentos.reduce((s, d) => s + (d.monto ?? 0), 0);
       const unidades = lic.totalUnidades ?? 0;
-      return [['licitacion.facturada', { licitacionId: id, documentos, total, ahorroTotal: (PRECIO_SOLO - precio) * unidades }]];
+      return [['licitacion.facturada', { licitacionId: id, documentos: documentos.length, total, ahorroTotal: (PRECIO_SOLO - precio) * unidades }]];
     }));
     ordenes.forEach((o, i) => despues(finEmision + 1500 + i * ACEPTADA_MS, () => publicar(e => {
       e.documentos = e.documentos.map(d => (d.ordenId === o.id ? { ...d, estadoSii: 'aceptado' } : d));

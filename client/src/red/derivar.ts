@@ -409,14 +409,16 @@ const ACEPTADO = new Set(['aceptado', 'reparo']);
 export const facturaAceptada = (estadoSii: string | null) => !!estadoSii && ACEPTADO.has(estadoSii);
 
 /**
- * Órdenes que salieron de esta compra conjunta: las que traen su `licitacionId` o, si el backend no lo manda,
+ * Órdenes que salieron de esta compra conjunta: las de `ordenIds` o, si el backend no las manda,
  * las del mismo proveedor creadas después de que se sumó el primer participante.
  */
 export function ordenesDeLicitacion(lic: Licitacion, estado: EstadoRed): OrdenCompra[] {
+  if (lic.ordenIds) {
+    const ids = new Set(lic.ordenIds);
+    return estado.ordenes.filter(o => ids.has(o.id));
+  }
   const primera = Math.min(...lic.participantes.map(p => (p.en ? Date.parse(p.en) : Infinity)));
-  return estado.ordenes.filter(o =>
-    o.licitacionId ? o.licitacionId === lic.id : !!lic.proveedorId && o.proveedorId === lic.proveedorId && Date.parse(o.creadaEn) >= primera,
-  );
+  return estado.ordenes.filter(o => !!lic.proveedorId && o.proveedorId === lic.proveedorId && Date.parse(o.creadaEn) >= primera);
 }
 
 function eventoFacturada(eventos: EventoRed[], licitacionId: string) {
@@ -446,8 +448,10 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
     });
   const finalizada = eventoFacturada(eventos, lic.id);
   const cerrada = lic.estado !== 'abierta' || Date.parse(lic.cierraEn) <= ahora;
+  // Lista: llegó `licitacion.facturada` o (al recargar la pantalla) todas las órdenes ya tienen su factura.
+  const todasFacturadas = ordenes.length > 0 && facturas.length >= ordenes.length;
   const fase: FaseSala =
-    finalizada || lic.estado === 'facturada' ? 'lista' : facturas.length ? 'facturando' : cerrada ? 'cerrada' : 'abierta';
+    finalizada || todasFacturadas ? 'lista' : facturas.length ? 'facturando' : cerrada ? 'cerrada' : 'abierta';
   const precioFinal = tramos.precioActual;
   const ahorroCalculado = lic.precioSolo !== undefined && precioFinal !== undefined ? Math.max(0, lic.precioSolo - precioFinal) * tramos.totalUnidades : 0;
   const total = numero(finalizada?.datos.total);
@@ -538,7 +542,7 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       return nuevo ? `La compra conjunta bajó a ${dinero(nuevo)} por unidad` : 'Bajó el precio de la compra conjunta';
     }
     case 'licitacion.facturada': {
-      const docs = lista(e.datos.documentos).length;
+      const docs = numero(e.datos.documentos) ?? lista(e.datos.documentos).length;
       return docs ? `${docs === 1 ? 'Salió' : 'Salieron'} ${contar(docs, 'factura')} de la compra conjunta` : 'La compra conjunta quedó facturada';
     }
     case 'licitacion.cerrada': {

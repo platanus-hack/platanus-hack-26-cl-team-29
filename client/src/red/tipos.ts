@@ -25,8 +25,6 @@ export interface OrdenCompra {
   items: ItemOrden[];
   estado: EstadoOrden;
   creadaEn: string;
-  /** La compra conjunta que originó la orden, si viene de una. */
-  licitacionId?: string;
   /** Presente desde `reclamada`. */
   reclamo?: { producto: string; faltante: number; en: string; estadoSii: string };
 }
@@ -88,7 +86,7 @@ export interface Licitacion {
   cierraEn: string;
   participantes: Participante[];
   ofertas: Oferta[];
-  estado: 'abierta' | 'cerrada' | 'facturada';
+  estado: 'abierta' | 'cerrada';
   ganadora?: Ganadora;
   /** Precio por unidad que paga un negocio comprando solo. Opcional: si falta, se usa la oferta más cara. */
   precioSolo?: number;
@@ -102,6 +100,8 @@ export interface Licitacion {
   totalUnidades?: number;
   precioActual?: number;
   siguienteTramo?: SiguienteTramo | null;
+  /** Órdenes creadas al cerrar, una por participante. */
+  ordenIds?: string[];
 }
 
 /** GET /api/red/config: a qué número escribirle a Dominó y qué se compra. */
@@ -144,7 +144,7 @@ export type TipoEvento =
  * nota_credito.emitida { orden, documento }, nota.cambiada { proveedorId, anterior, nota },
  * licitacion.participante { licitacion, participante }, licitacion.oferta { licitacion, oferta, nota },
  * licitacion.cerrada { licitacion, ordenes }, licitacion.precio_bajo { licitacionId, precioAnterior, precioNuevo, totalUnidades },
- * licitacion.facturada { licitacionId, documentos, total, ahorroTotal }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
+ * licitacion.facturada { licitacionId, documentos (cantidad), total, ahorroTotal }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
  */
 export interface EventoRed {
   tipo: TipoEvento;
