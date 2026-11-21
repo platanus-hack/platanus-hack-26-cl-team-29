@@ -17,11 +17,13 @@ export function anclarAlMapa(m: MapaLibre, contenedor: HTMLElement | null): { el
   });
 }
 
-export function LeyendaRed3D() {
+/** `mercadoPublico`: suma los proveedores de Mercado Público (no en el modo video, que es guionado). */
+export function LeyendaRed3D({ mercadoPublico = false }: { mercadoPublico?: boolean }) {
   return (
     <ul className="r3d-leyenda" aria-label="Leyenda">
       <li><i className="punto verde" /> negocio</li>
-      <li><i className="punto amarillo" /> proveedor</li>
+      <li><i className="punto amarillo" /> {mercadoPublico ? 'proveedor en Bando' : 'proveedor'}</li>
+      {mercadoPublico && <li><i className="punto mp" /> proveedor de Mercado Público</li>}
       <li><i className="punto local" /> local real (OpenStreetMap)</li>
     </ul>
   );

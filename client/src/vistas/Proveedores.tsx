@@ -9,6 +9,7 @@ import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { contar, segun } from '../../../shared/texto.ts';
 import { LogoSii, Monograma } from '../canal/iconos.tsx';
+import { useJson } from '../red/useJson.ts';
 import { useRed } from '../red/useRed.ts';
 import '../canal/canal.css';
 import './proveedores.css';
@@ -41,27 +42,6 @@ const NOMBRE_FUENTE: Record<TipoFuente | 'ia' | 'reglas', string> = {
 };
 
 const claveEnUrl = () => new URLSearchParams(location.search).get('p');
-
-/** GET que se repite con cada evento de la red: así la vista nunca depende de recargar. */
-function useJson<T>(url: string | null, evento: number | undefined) {
-  const [datos, setDatos] = useState<T | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    if (!url) return;
-    let activo = true;
-    const t = setTimeout(() => {
-      fetch(url, { headers: { accept: 'application/json' } })
-        .then(async r => {
-          if (!r.ok || !r.headers.get('content-type')?.includes('application/json')) throw new Error(r.status === 404 ? 'No encontramos ese proveedor.' : 'No pudimos cargar los proveedores.');
-          return r.json() as Promise<T>;
-        })
-        .then(d => { if (activo) { setDatos(d); setError(''); } })
-        .catch((e: Error) => activo && setError(e.message));
-    }, 150);
-    return () => { activo = false; clearTimeout(t); };
-  }, [url, evento]);
-  return { datos, error };
-}
 
 const lugar = (r: Pick<Resumen, 'comuna' | 'region'>) => [r.comuna, r.region].filter(Boolean).join(', ');
 

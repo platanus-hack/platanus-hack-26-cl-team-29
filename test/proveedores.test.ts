@@ -5,7 +5,7 @@ import { limpiarOrdenes } from '../server/mercado-publico/index.ts';
 import type { OrdenMP, PrecioMP } from '../server/mercado-publico/normalizar.ts';
 import type { EstadoRed } from '../server/red/index.ts';
 import { crearAlmacenEnriquecidosMemoria, crearEnriquecedor } from '../server/proveedores/enriquecer.ts';
-import { armarFichas, buscar, indexar } from '../server/proveedores/fichas.ts';
+import { armarFichas, buscar, indexar, paraElMapa } from '../server/proveedores/fichas.ts';
 
 const precio = (p: Partial<PrecioMP>): PrecioMP => ({
   orden: 'o', producto: 'Arroz grado 2, bolsa 1 kg', codigoProducto: 50221101, rubro: '', categoria: '', unidad: 'unidad',
@@ -63,6 +63,9 @@ test('la búsqueda une por RUT al proveedor de la red con el de Mercado Público
   assert.equal(buscar(indexar(fichas), { q: '76000000' }).total, 1, 'por RUT sin puntos');
   assert.deepEqual(buscar(indexar(fichas), { categoria: 'carnes' }).resultados.map(x => x.nombre), ['OTRO PROVEEDOR']);
   assert.ok(!JSON.stringify(fichas).includes('Hospital B'), 'los organismos solo van contados');
+  const mapa = paraElMapa(fichas);
+  assert.deepEqual(mapa.map(p => [p.nombre, p.enBando, p.ubicacion]), [['Molinos del Sur', true, 'comuna'], ['OTRO PROVEEDOR', false, 'region']], 'en el mapa: por comuna si se sabe, si no por región');
+  assert.ok(!JSON.stringify(mapa).includes('Hospital B'));
 });
 
 test('el enriquecimiento usa la caché: un RUT ya consultado en el SII no se vuelve a consultar', async () => {
