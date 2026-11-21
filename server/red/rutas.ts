@@ -18,7 +18,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env): e
   const cuerpo = (req: Request): Record<string, unknown> => (req.body && typeof req.body === 'object' ? req.body : {});
 
   rutas.get('/estado', (_req, res) => {
-    res.json(red.estadoDeLaRed());
+    res.json(red.estadoPublico());
   });
 
   rutas.post('/ordenes', async (req, res) => {

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
+import { sinTelefonos } from './publico.ts';
+import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
 import { sembrar } from './semilla.ts';
 import type { PuertoSii } from './sii.ts';
@@ -54,15 +56,20 @@ export interface Red {
   unirseALicitacion(licitacionId: string, participante: NuevoParticipante): Promise<Licitacion>;
   ofertar(licitacionId: string, oferta: NuevaOferta): Promise<Licitacion>;
   cerrarLicitacion(licitacionId: string): Promise<Licitacion>;
+  /** Foto interna, con teléfonos: solo para el servidor (agente de WhatsApp). */
   estadoDeLaRed(): EstadoRed;
+  /** Foto para pantallas y `GET /api/red/estado`: sin teléfonos. */
+  estadoPublico(): EstadoPublico;
   negocioPorTelefono(telefono: string): Negocio | null;
   /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
   actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string): Promise<Documento | null>;
-  /** Borra órdenes, documentos y eventos y vuelve a sembrar la demo. No toca los folios del SII. */
-  reiniciarDemo(): Promise<EstadoRed>;
+  /** Borra órdenes, documentos y eventos y vuelve a sembrar la demo. No toca los folios del SII. Devuelve la foto pública. */
+  reiniciarDemo(): Promise<EstadoPublico>;
   /** Se llama con cada `red:evento`; devuelve la función para dejar de escuchar. */
   escuchar(oyente: (evento: EventoRed) => void): () => void;
 }
+
+export type EstadoPublico = SinTelefono<EstadoRed>;
 
 export interface OpcionesRed {
   repo: Repositorio;
@@ -90,8 +97,9 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
   const enCurso = new Set<string>();
   const ahora = () => reloj().toISOString();
 
+  // Los eventos van a todas las pantallas: salen sin teléfonos.
   function emitir(tipo: TipoEventoRed, payload: unknown) {
-    const evento: EventoRed = { tipo, datos: structuredClone(payload), en: ahora() };
+    const evento: EventoRed = { tipo, datos: sinTelefonos(payload), en: ahora() };
     for (const oyente of oyentes) {
       try { oyente(evento); } catch (error) { console.error('[red] oyente falló', error); }
     }
@@ -358,7 +366,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
     await repo.vaciar();
     await sembrar(repo, reloj());
     Object.assign(datos, await repo.cargar());
-    const estado = estadoDeLaRed();
+    const estado = estadoPublico();
     emitir('red.reiniciada', estado);
     return estado;
   }
@@ -375,6 +383,8 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
     });
   }
 
+  const estadoPublico = () => sinTelefonos(estadoDeLaRed());
+
   function negocioPorTelefono(telefono: string) {
     const buscado = normalizarTelefono(telefono);
     const n = buscado ? datos.negocios.find(x => normalizarTelefono(x.telefono) === buscado) : undefined;
@@ -383,7 +393,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date() }: Opciones
 
   return {
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, ofertar, cerrarLicitacion, estadoDeLaRed, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, ofertar, cerrarLicitacion, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };
