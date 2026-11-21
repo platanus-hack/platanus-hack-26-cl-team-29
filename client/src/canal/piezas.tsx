@@ -1,13 +1,32 @@
 // Piezas comunes de /app y /proveedor: el paso de confirmación, el estado en el SII y el selector de cantidad.
 
-import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { nombreDocumento } from '../../../shared/documentos.ts';
 import { dinero } from '../../../shared/formato.ts';
 import { textoEstadoSii } from '../red/formato.ts';
 import type { Documento } from '../red/tipos.ts';
-import { GlifoWhatsapp, Icono, LogoSii } from './iconos.tsx';
+import { GlifoWhatsapp } from '../components/Iconos.tsx';
+import { Icono, LogoSii } from './iconos.tsx';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
-import { confirmacion, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
+import { confirmacion, mensajeDeError, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
+
+/** Un envío a la API con su estado: `enviando` mientras corre y `error` con el mensaje si falla. */
+export function useEnvio() {
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const enviar = async (tarea: () => Promise<unknown>, siFalla?: string) => {
+    setEnviando(true);
+    setError('');
+    try {
+      await tarea();
+    } catch (e) {
+      setError(mensajeDeError(e, siFalla));
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return { enviando, error, setError, enviar };
+}
 
 /** Paso de confirmación en la página: pedir → (sí) → enviando → listo o error. */
 export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {
@@ -21,14 +40,23 @@ export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {
       await ejecutar(accion);
       despachar({ tipo: 'listo' });
     } catch (e) {
-      despachar({ tipo: 'fallo', mensaje: e instanceof Error ? e.message : 'No pudimos completarlo. Inténtalo de nuevo.' });
+      despachar({ tipo: 'fallo', mensaje: mensajeDeError(e) });
     }
   }, [ejecutar]);
+  const cancelar = () => despachar({ tipo: 'cancelar' });
+  const confirmarPedida = () => { if (estado.fase === 'preguntando' || estado.fase === 'error') void confirmar(estado.accion); };
   return {
     estado,
     pedir: (accion: A) => despachar({ tipo: 'pedir', accion }),
-    cancelar: () => despachar({ tipo: 'cancelar' }),
-    confirmar: () => { if (estado.fase === 'preguntando' || estado.fase === 'error') void confirmar(estado.accion); },
+    cancelar,
+    confirmar: confirmarPedida,
+    /** Lo que necesita `<Confirmar>` para mostrar este paso: `<Confirmar ... {...c.panel}>`. */
+    panel: {
+      enviando: estado.fase === 'enviando',
+      error: estado.fase === 'error' ? estado.mensaje : undefined,
+      onSi: confirmarPedida,
+      onNo: cancelar,
+    },
   };
 }
 
@@ -141,7 +169,7 @@ export function BotonWhatsapp({ numero }: { numero: string | null | undefined })
   if (!enlace || !numero) return null;
   return (
     <a className="cn-boton-whatsapp" href={enlace} target="_blank" rel="noreferrer">
-      <GlifoWhatsapp />
+      <GlifoWhatsapp className="cn-icono" tam={22} />
       <span className="cn-wa-textos">
         <strong>Pedir por WhatsApp</strong>
         <span>{formatearTelefono(numero)}</span>

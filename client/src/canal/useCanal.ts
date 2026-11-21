@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Fuente } from '../red/tipos.ts';
 import { crearApiReal, ErrorCanal, hayBackend, type CanalApi } from './api.ts';
 import { crearApiFalsa } from './falso.ts';
+import { mensajeDeError } from './logica.ts';
 import type { ConfigRed, DatosEntrada, FotoRed } from './tipos.ts';
 
 let apiElegida: Promise<CanalApi> | undefined;
@@ -103,7 +104,7 @@ export function useDatosConSesion<T>(
       .catch((e: unknown) => {
         if (!activo) return;
         if (e instanceof ErrorCanal && e.sesionVencida) return vencerRef.current();
-        setError(e instanceof Error ? e.message : 'No pudimos traer tus datos.');
+        setError(mensajeDeError(e, 'No pudimos traer tus datos.'));
       });
     return () => { activo = false; };
   }, [api, token, cambio, pedidos]);

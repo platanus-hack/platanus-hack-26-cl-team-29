@@ -12,6 +12,7 @@ import {
   resumirCarrito, textoCantidades, una, type Carrito, type Envio, type ProductoCanasta,
 } from './carrito.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
+import { mensajeDeError } from './logica.ts';
 import { Confirmar } from './piezas.tsx';
 import { formatearRutAlEscribir, validarRut } from '../../../shared/rut.ts';
 import type { DatosEntrada, FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
@@ -59,7 +60,7 @@ export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar
     try {
       await onEntrar({ nombre: nombre.trim(), comuna: comuna.trim(), rut, ...(rubro ? { rubro } : {}) });
     } catch (err) {
-      const mensaje = err instanceof Error ? err.message : 'No pudimos registrarte. Inténtalo de nuevo.';
+      const mensaje = mensajeDeError(err, 'No pudimos registrarte. Inténtalo de nuevo.');
       if (/\bRUT\b|SII/.test(mensaje)) marcarRut(mensaje); else setError(mensaje);
       setEnviando(false);
     }
@@ -277,7 +278,7 @@ export function CarritoCompra({ api, token, lic, negocioId, participacion, abier
       setSaliendo('no');
       setSalio(true);
     } catch (e) {
-      setErrorSalir(e instanceof Error ? e.message : 'No pudimos sacarte de la compra. Inténtalo de nuevo.');
+      setErrorSalir(mensajeDeError(e, 'No pudimos sacarte de la compra. Inténtalo de nuevo.'));
       setSaliendo('preguntando');
     }
   };

@@ -15,7 +15,7 @@ import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
-import { Confirmar, EstadoSii, ListaDocumentos, Marca, useConfirmacion, Vacio } from './piezas.tsx';
+import { Confirmar, EstadoSii, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
 import './canal.css';
@@ -93,19 +93,11 @@ export function Proveedor() {
 
 function Acceso({ api, fuente, onEntrar }: { api: CanalApi; fuente: ReturnType<typeof useCanal>['fuente']; onEntrar: (token: string) => void }) {
   const [codigo, setCodigo] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-  const enviar = async (e: FormEvent) => {
+  const { enviando, error, setError, enviar: enviarA } = useEnvio();
+  const enviar = (e: FormEvent) => {
     e.preventDefault();
     if (!codigo.trim()) return setError('Escribe tu código de acceso.');
-    setEnviando(true);
-    setError('');
-    try {
-      onEntrar((await api.sesionProveedor(codigo.trim())).token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No pudimos entrar. Revisa el código.');
-      setEnviando(false);
-    }
+    void enviarA(async () => onEntrar((await api.sesionProveedor(codigo.trim())).token), 'No pudimos entrar. Revisa el código.');
   };
   return (
     <main className="cn-pagina cn-bienvenida">
@@ -181,10 +173,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
         <Confirmar
           titulo="¿Cierras la compra conjunta?"
           si="Sí, cerrar"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p>Nadie más podrá sumarse. Queda una orden por negocio: {contar(lic.participantes.length, 'negocio')}, {cantidadEn(g.unidades, u)} a {g.precio !== undefined ? dinero(g.precio) : '-'} por {u.singular}.</p>
         </Confirmar>
@@ -194,10 +183,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
           sii
           titulo={`¿Emites ${contar(c.estado.accion.facturas, 'factura')} en el SII?`}
           si="Sí, factura todo"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p className="cn-cifra-confirmar">{dinero(c.estado.accion.total)} neto en total</p>
           <p>Una factura por negocio, con la orden de compra como referencia, en un solo envío al SII. Le avisamos a cada negocio con su folio.</p>
@@ -238,10 +224,7 @@ function PedidoNuevo({ api, token, alCambiar, orden, comprador, config }: PropsA
           sii
           titulo="¿Confirmas y facturas?"
           si="Sí, factura"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p className="cn-cifra-confirmar">1 factura · {dinero(total)} neto</p>
           <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Le avisamos a {quien}.</p>
@@ -287,10 +270,7 @@ function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }
           sii
           titulo="¿Emites la nota de crédito?"
           si="Sí, emítela"
-          enviando={c.estado.fase === 'enviando'}
-          error={c.estado.fase === 'error' ? c.estado.mensaje : undefined}
-          onSi={c.confirmar}
-          onNo={c.cancelar}
+          {...c.panel}
         >
           <p className="cn-cifra-confirmar">Nota de crédito · {dinero(monto)} neto</p>
           <p>Queda amarrada a la factura{factura?.folio ? ` folio ${factura.folio}` : ''} en el SII. Le avisamos a {quien}.</p>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CierreCanasta, TableroCanasta, useProductoDestacado } from '../components/Canasta.tsx';
-import { Icono, iconoProducto, LogoSii, Monograma } from '../components/Iconos.tsx';
+import { GlifoWhatsapp, Icono, iconoProducto, LogoSii, Monograma } from '../components/Iconos.tsx';
 import { useGrillaQueCabe } from '../components/medidas.ts';
 import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
@@ -88,7 +88,7 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
       {numero ? (
         <a className="sala-numero" href={destino} target="_blank" rel="noopener noreferrer">
           <strong>{formatearTelefono(numero)}</strong>
-          <span className="pastilla-whatsapp"><Icono nombre="whatsapp" /> Abrir WhatsApp</span>
+          <span className="pastilla-whatsapp"><GlifoWhatsapp /> Abrir WhatsApp</span>
         </a>
       ) : null}
       <p className="sala-web">{numero ? 'o entra en' : 'o desde el navegador:'} <strong>{sinProtocolo(web)}</strong></p>

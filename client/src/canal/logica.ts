@@ -9,6 +9,10 @@ import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
+/** El mensaje de un error para mostrarlo tal cual, o `siFalla` si no trae uno. */
+export const mensajeDeError = (e: unknown, siFalla = 'No pudimos completarlo. Inténtalo de nuevo.'): string =>
+  (e instanceof Error ? e.message : siFalla);
+
 /** Acepta los tramos aunque vengan con otros nombres de campo (`minimo`, `precio`). */
 export function normalizarTramos(raw: unknown): Tramo[] {
   if (!Array.isArray(raw)) return [];

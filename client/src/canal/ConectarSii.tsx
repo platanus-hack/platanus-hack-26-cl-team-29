@@ -9,6 +9,8 @@ import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../s
 import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
 import { LogoSii } from './iconos.tsx';
+import { mensajeDeError } from './logica.ts';
+import { useEnvio } from './piezas.tsx';
 import type { CafSii, EstadoConexionSii, DatosEmpresaSii, PasoSii } from './tipos.ts';
 
 const POLEO_MS = 1500;
@@ -17,7 +19,6 @@ const NOMBRE_PASO: Record<PasoSii['id'], string> = {
 };
 const ESTADO_PASO: Record<PasoSii['estado'], string> = { pendiente: 'En espera', en_curso: 'Consultando...', listo: 'Listo', omitido: 'Sin cambios', error: 'Falta' };
 
-const mensaje = (e: unknown) => (e instanceof Error ? e.message : 'No pudimos completarlo. Inténtalo de nuevo.');
 
 /** Contenido del archivo en base64, leído en el navegador. */
 function leerBase64(archivo: File): Promise<string> {
@@ -44,7 +45,7 @@ export function ConectarSii({ api, token }: Props) {
     try {
       setEstado(await api.siiEstado(token));
     } catch (e) {
-      setError(mensaje(e));
+      setError(mensajeDeError(e));
     }
   }, [api, token]);
 
@@ -112,7 +113,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
       hecho(await api.siiDesconectar(token));
       setDesconectando(false);
     } catch (e) {
-      setError(mensaje(e));
+      setError(mensajeDeError(e));
     }
   };
 
@@ -189,22 +190,16 @@ function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo:
   const [archivo, setArchivo] = useState<File | null>(null);
   const [clave, setClave] = useState('');
   const [rut, setRut] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-  const enviar = async (e: FormEvent) => {
+  const { enviando, error, setError, enviar: enviarA } = useEnvio();
+  const enviar = (e: FormEvent) => {
     e.preventDefault();
     if (!archivo) return setError('Elige el archivo .pfx de tu certificado.');
     if (!clave) return setError('Escribe la clave de tu certificado.');
-    setEnviando(true);
-    setError('');
-    try {
+    void enviarA(async () => {
       const estado = await api.siiCertificado(token, await leerBase64(archivo), clave, rut.trim());
       setClave('');
       alListo(estado);
-    } catch (err) {
-      setError(mensaje(err));
-      setEnviando(false);
-    }
+    });
   };
   return (
     <form className="formulario" onSubmit={enviar}>
@@ -241,8 +236,7 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
   const [nroResol, setNroResol] = useState(String(estado.resolucion?.numero ?? 0));
   const [leyendo, setLeyendo] = useState(false);
   const [aviso, setAviso] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
+  const { enviando, error, setError, enviar } = useEnvio();
 
   const leerDelSii = async () => {
     setLeyendo(true);
@@ -254,7 +248,7 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
       setOrigen('sii');
       setAviso('Datos leídos del SII. Revísalos antes de guardar.');
     } catch (err) {
-      setError(mensaje(err));
+      setError(mensajeDeError(err));
     } finally {
       setLeyendo(false);
     }
@@ -265,19 +259,12 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
     setOrigen('manual');
   };
 
-  const guardar = async (e: FormEvent) => {
+  const guardar = (e: FormEvent) => {
     e.preventDefault();
-    setEnviando(true);
-    setError('');
     const envio: DatosEmpresaSii = {
       rutEmisor: rut.trim(), ...datos, fchResol, nroResol: Number(nroResol) || 0, origen,
     };
-    try {
-      alListo(await api.siiGuardarEmpresa(token, envio));
-    } catch (err) {
-      setError(mensaje(err));
-      setEnviando(false);
-    }
+    void enviar(async () => alListo(await api.siiGuardarEmpresa(token, envio)));
   };
 
   const campo = (nombre: keyof typeof SIN_EMPRESA, etiqueta: string, max: number, extra: Record<string, string> = {}) => (
@@ -331,8 +318,7 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
 }
 
 function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocumento; caf?: CafSii; alCambiar: (e: EstadoConexionSii) => void }) {
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
+  const { enviando, error, setError, enviar } = useEnvio();
   const [avisos, setAvisos] = useState<string[]>([]);
   const [manual, setManual] = useState('');
   const [aMano, setAMano] = useState(false);
@@ -341,17 +327,11 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocum
     const archivo = e.target.files?.[0];
     e.target.value = '';
     if (!archivo) return;
-    setEnviando(true);
-    setError('');
-    try {
+    await enviar(async () => {
       const r = await api.siiCaf(token, await leerBase64(archivo));
       setAvisos(r.avisos);
       alCambiar(r.estado);
-    } catch (err) {
-      setError(mensaje(err));
-    } finally {
-      setEnviando(false);
-    }
+    });
   };
 
   const fijar = async (e: FormEvent) => {
@@ -362,7 +342,7 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocum
       setAMano(false);
       setManual('');
     } catch (err) {
-      setError(mensaje(err));
+      setError(mensajeDeError(err));
     }
   };
 
@@ -417,7 +397,7 @@ function Automatico({ api, token, estado, alCambiar }: Props & { estado: EstadoC
     try {
       alCambiar(await api.siiAutomatico(token, estado.rutEmisor ?? ''));
     } catch (e) {
-      setError(mensaje(e));
+      setError(mensajeDeError(e));
     }
   };
   return (
