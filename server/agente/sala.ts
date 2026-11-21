@@ -207,7 +207,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       if (!rutDicho) return seguir({ ...reg, paso: 'rut' }, m.pedirRut());
       let c: Awaited<ReturnType<NonNullable<typeof red.consultarRut>>>;
       try {
-        c = await red.consultarRut!(rutDicho);
+        c = await red.consultarRut!(rutDicho, telefono);
       } catch (e) {
         if (!esErrorDeRut(e)) throw e;
         // El SII no respondió o rechazó la consulta, pero el RUT es válido: el registro sigue con lo que declare.

@@ -14,7 +14,7 @@ import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.
 import type { ConsultarContribuyente } from './contribuyente.ts';
 
 // API pública del dominio de la red. Fuera de server/red/ se importa solo este archivo.
-export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, RUT_DESCONOCIDO, SII_NO_DISPONIBLE } from './dominio.ts';
+export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, RUT_DE_OTRO_TELEFONO, RUT_DESCONOCIDO, SII_NO_DISPONIBLE } from './dominio.ts';
 export { RUBROS } from './tipos.ts';
 export type {
   BajadaPrecio, CodigoError, ContribuyenteDeRut, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
