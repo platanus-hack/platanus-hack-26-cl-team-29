@@ -233,7 +233,7 @@ function CompraConjunta({ api, token, foto, yo, config, alCambiar }: {
             <BarraTramo lic={lic} unidades={g.unidades} />
           </div>
         )}
-        <p className="mono tenue cn-grupo">{contar(compradores, 'negocio')}, {cantidadEn(g.unidades, u)} en total</p>
+        <p className="mono tenue cn-grupo">{compradores > 0 ? `${contar(compradores, 'negocio')}, ${cantidadEn(g.unidades, u)} en total` : 'Todavía nadie se suma: sé el primero.'}</p>
       </div>
 
       <div className="tarjeta">

@@ -25,10 +25,11 @@
   font-size: 17px; white-space: normal; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
 }
-.cn-quien .mono { font-size: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cn-quien .mono { font-size: 12px; display: flex; align-items: center; column-gap: 8px; flex-wrap: wrap; white-space: nowrap; }
 .cn-quien .fuente-falsa { font-size: 10px; padding: 2px 6px; }
 .cn-contenido { max-width: 640px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
 .cn-seccion { display: grid; gap: 16px; min-width: 0; }
+.cn-seccion > *, .cn-columna > * { min-width: 0; }
 .cn-titulo { margin: 8px 0 0; font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
 
 /* Pestañas: abajo en el teléfono, al alcance del pulgar. */
@@ -54,6 +55,7 @@
 .cn-texto-grande { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.25; }
 .cn-sub { margin-top: 16px; }
 .cn-ancho { width: 100%; margin-top: 16px; min-height: 56px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+@media (max-width: 420px) { .cn-ancho { font-size: 18px; } }
 .cn-acciones { display: grid; gap: 8px; margin-top: 16px; }
 .cn-acciones .boton { min-height: 56px; }
 .cn-secundario { font-size: 18px !important; padding: 14px !important; min-height: 56px; }
@@ -162,7 +164,7 @@
 .cn-confirmar.sii .error { color: #fff; background: rgb(255 26 179 / 0.5); padding: 8px 10px; border-radius: 8px; margin-top: 10px; }
 
 /* ---------- Facturas y documentos ---------- */
-.cn-documentos { list-style: none; margin: 0; display: grid; gap: 0; }
+.cn-documentos { list-style: none; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
 .cn-documentos li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
 .cn-documentos li:last-child { border-bottom: 0; }
 .cn-doc-izq, .cn-doc-der { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -265,3 +267,5 @@
 .cn-ok.cn-con-sii, .cn-aviso-sii.cn-con-sii { align-items: flex-start; }
 .cn-ok.cn-con-sii .cn-logo-sii, .cn-aviso-sii.cn-con-sii .cn-logo-sii { margin-top: 1px; }
 .boton .cn-logo-sii { margin-right: 4px; }
+/* En las listas de documentos el nombre del negocio se lee entero: baja de línea en vez de cortarse. */
+.cn-documentos .nombre { white-space: normal; overflow-wrap: anywhere; }

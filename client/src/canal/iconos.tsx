@@ -78,7 +78,8 @@ function tono(nombre: string): number {
 
 /** Avatar del negocio: su logo si lo tiene; si no, iniciales sobre un color estable y el ícono del rubro. */
 export function Monograma({ nombre, tam = 40, logoUrl, rubro = true }: { nombre: string; tam?: number; logoUrl?: string | null; rubro?: boolean }) {
-  const icono = rubro ? rubroDe(nombre) : undefined;
+  // Bajo 32 px el ícono del rubro taparía las iniciales.
+  const icono = rubro && tam >= 32 ? rubroDe(nombre) : undefined;
   return (
     <span className="cn-monograma" style={{ width: tam, height: tam, fontSize: Math.round(tam * 0.38), background: logoUrl ? '#fff' : `hsl(${tono(nombre)} 55% 62%)` }} aria-hidden="true">
       {logoUrl ? <img src={logoUrl} alt="" /> : iniciales(nombre)}

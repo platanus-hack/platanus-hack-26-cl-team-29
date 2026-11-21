@@ -34,6 +34,8 @@ export function Unirse() {
   const r = resumenLicitacion(lic, estado);
   const unidad = unidadDeLicitacion(lic);
   const precio = r.precioActual;
+  // La canasta trae `totalUnidades` de todos sus productos: esta página muestra solo el primero.
+  const unidadesDelProducto = lic.productos?.[0]?.totalUnidades ?? r.totalUnidades;
   const cuantas = (n: number) => contar(n, unidad.singular, unidad.plural);
   const cerrada = lic.estado === 'cerrada' || Date.parse(lic.cierraEn) <= ahora;
 
@@ -71,7 +73,7 @@ export function Unirse() {
           <p className="etiqueta">Precio por {unidad.singular} hoy</p>
           <div className="numero-grande">{precio ? dinero(precio) : 'Sin ofertas'}</div>
         </div>
-        {r.precioSolo !== undefined && (
+        {r.precioSolo !== undefined && precio !== undefined && r.precioSolo > precio && (
           <div style={{ textAlign: 'right' }}>
             <p className="etiqueta">Solo</p>
             <div className="mono tachado" style={{ fontSize: 20, marginTop: 8 }}>{dinero(r.precioSolo)}</div>
@@ -79,7 +81,7 @@ export function Unirse() {
         )}
       </div>
       <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 14 }}>
-        {contar(r.compradores, 'negocio')}, {cuantas(r.totalUnidades)} en total
+        {r.compradores > 0 ? `${contar(r.compradores, 'negocio')}, ${cuantas(unidadesDelProducto)} en total` : 'Todavía nadie se suma: sé el primero.'}
       </p>
     </section>
   );
@@ -107,7 +109,7 @@ export function Unirse() {
             </p>
           )}
           <p className="mono" style={{ margin: '12px 0 0', color: 'var(--color-muted)', fontSize: 14 }}>
-            Ya son {contar(r.compradores, 'negocio')}, {cuantas(r.totalUnidades)} en total.
+            Ya hay {contar(r.compradores, 'negocio')}, {cuantas(unidadesDelProducto)} en total.
           </p>
         </section>
       </main>
