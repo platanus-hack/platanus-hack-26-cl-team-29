@@ -30,6 +30,14 @@ const REGIONES: Array<[palabra: string, capital: Punto]> = [
   ['lagos', [-72.94, -41.45]], ['aysen', [-72.07, -45.57]], ['magallanes', [-71.05, -53.15]],
 ];
 
+const KM_POR_GRADO = 111.19;
+
+/** Distancia aproximada en km entre dos puntos cercanos (escala de ciudad o región). */
+export function distanciaKm(a: Punto, b: Punto): number {
+  const dx = (a[0] - b[0]) * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180));
+  return Math.hypot(dx, a[1] - b[1]) * KM_POR_GRADO;
+}
+
 /** Cuánto se separan los negocios de una misma comuna, en grados (cerca de 1 km). */
 const DISPERSION_COMUNA = 0.012;
 /** Proveedores de la Región Metropolitana sin comuna: repartidos entre las comunas, un poco más sueltos (~2 km). */

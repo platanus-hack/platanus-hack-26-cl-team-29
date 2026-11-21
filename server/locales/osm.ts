@@ -1,6 +1,8 @@
 // Catálogo de locales de Chile desde OpenStreetMap: cómo se lee el extracto, en qué celdas se recorre y qué
 // muestra se toma de cada una. Lógica pura, sin red. Datos © OpenStreetMap (ODbL): la atribución va en el mapa.
 
+import { distanciaKm } from '../../shared/ubicacion.ts';
+
 export type Punto = [lng: number, lat: number];
 
 /** Centro del recorrido: el MUT (Mercado Urbano Tobalaba). Coordenada aproximada. */
@@ -52,10 +54,7 @@ export interface Celda {
 
 const KM_POR_GRADO = 111.19;
 
-export function distanciaKm(a: Punto, b: Punto): number {
-  const dx = (a[0] - b[0]) * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180));
-  return Math.hypot(dx, a[1] - b[1]) * KM_POR_GRADO;
-}
+export { distanciaKm };
 
 /** Arma un local desde las etiquetas de OpenStreetMap. Sin nombre, posición o tipo conocido, no sirve. */
 export function localDesdeTags(id: string, lng: number, lat: number, t: Record<string, string | undefined>): Local | null {

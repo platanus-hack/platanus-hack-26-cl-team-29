@@ -1,6 +1,7 @@
 import express from 'express';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { limitarPor } from '../limite.ts';
+import { crearReparto, opcionesDesdeEnv, type Reparto } from '../reparto/index.ts';
 import { ErrorRed, FALTA_RUT } from './dominio.ts';
 import { cuerpo, nuevoComprador } from './peticion.ts';
 import type { Recepcion, Red } from './dominio.ts';
@@ -24,14 +25,17 @@ export interface OpcionesWeb {
   conexionSii?: express.Router;
   /** Catálogo desde sus facturas (server/catalogo), en /proveedor/catalogo: recibe su id y RUT en `res.locals.proveedor`. */
   catalogo?: express.Router;
+  /** Ruta de reparto del proveedor (server/reparto). Sin ella, la de OSRM y Nominatim según el entorno. */
+  reparto?: Reparto;
 }
 
 interface ConSesion extends Request {
   sesion?: Sesion & { negocio: Negocio };
 }
 
-export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porRut, conexionSii, catalogo }: OpcionesWeb): express.Router {
+export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porRut, conexionSii, catalogo, reparto }: OpcionesWeb): express.Router {
   const rutas = express.Router();
+  const rutaDeReparto = reparto ?? crearReparto(red, opcionesDesdeEnv(env));
   const id = (req: Request) => String(req.params.id);
   const tokenDe = (req: Request) => /^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1];
 
@@ -56,6 +60,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
   const porNegocio = (maximo: number) => limitarPor(maximo, MINUTO, (req: ConSesion) => req.sesion?.negocio.id);
   const limitarCarrito = porNegocio(300);
   const limitarProveedor = porNegocio(30);
+  const limitarRuta = porNegocio(120);
   const limitarSii = limitarPor(30, MINUTO, (req: ConSesion) => (req.method === 'GET' ? null : req.sesion?.negocio.id));
   // El ingreso del proveedor es la única ruta por IP: frena que se adivine el código y no la usa el público.
   const porIp = limitarPor(20, MINUTO, req => req.ip ?? 'sin-ip');
@@ -193,6 +198,16 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
       compraAbierta: licitaciones.find(l => l.estado === 'abierta') ?? null,
       licitaciones,
     });
+  });
+
+  // Su ruta de reparto: los negocios que esperan su pedido, en orden, con su guía de despacho. Solo para él.
+  rutas.get('/proveedor/ruta', exigir('proveedor'), limitarRuta, async (req: ConSesion, res) => {
+    res.json(await rutaDeReparto(yo(req).id));
+  });
+
+  rutas.post('/proveedor/ruta/guias', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
+    exigirConfirmado(req);
+    res.status(201).json(await red.emitirGuiasDeReparto(yo(req).id));
   });
 
   function licitacionPropia(req: ConSesion) {

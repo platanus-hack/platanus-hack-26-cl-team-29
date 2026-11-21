@@ -18,6 +18,7 @@ const TRAZOS: Record<string, ReactNode> = {
   grupo: <><circle cx="9" cy="8" r="3.25" /><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M16 4.9a3.25 3.25 0 0 1 0 6.2M18 13.8c1.8.7 3 2.6 3 5.2" /></>,
   carro: <><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1" /><circle cx="9.5" cy="19.5" r="1.25" /><circle cx="17" cy="19.5" r="1.25" /></>,
   paquete: <><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z" /><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9M7.8 5.2l8.5 4.6" /></>,
+  camion: <><path d="M2.5 6h11v10h-11zM13.5 9.5h4l3 3.5V16h-7" /><circle cx="6.5" cy="17.5" r="1.75" /><circle cx="17" cy="17.5" r="1.75" /></>,
   documento: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></>,
   // Productos
   rollo: <><ellipse cx="8" cy="12" rx="3.5" ry="7" /><ellipse cx="8" cy="12" rx="1.2" ry="2.4" /><path d="M8 5h9c1.9 0 3.5 3.1 3.5 7s-1.6 7-3.5 7H8" /></>,

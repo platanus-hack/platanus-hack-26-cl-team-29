@@ -15,6 +15,7 @@ import type { Documento, Licitacion, Negocio, ProductoCompra } from '../red/tipo
 import type { CanalApi } from './api.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import { MiCatalogo } from './MiCatalogo.tsx';
+import { RutaReparto } from './RutaReparto.tsx';
 import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad,
 } from './logica.ts';
@@ -66,6 +67,7 @@ export function Proveedor() {
             <Vacio titulo="No hay una compra conjunta abierta" texto="Cuando parta una, aquí ves cuántos negocios se suman y la cierras y facturas con un toque." />
           )}
           {lic && <TramosDeLaCompra {...props} lic={lic} yo={yo} />}
+          <RutaReparto {...props} yo={yo} config={config} />
 
           <section className="cn-seccion">
             <h2 className="cn-titulo">Pedidos nuevos {nuevos.length > 0 && <span className="cn-globo">{nuevos.length}</span>}</h2>

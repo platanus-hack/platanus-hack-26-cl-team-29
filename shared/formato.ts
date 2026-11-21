@@ -14,3 +14,8 @@ export function dinero(monto: number): string {
 export function nota(valor: number): string {
   return valor.toFixed(1).replace('.', ',');
 }
+
+/** Distancia con coma decimal bajo 100 km: 12.4 → "12,4 km"; 134.2 → "134 km". */
+export function kilometros(km: number): string {
+  return `${km < 100 ? nota(km) : miles(km)} km`;
+}
