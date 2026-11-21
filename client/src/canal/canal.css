@@ -405,3 +405,16 @@
 .cn-folios .cn-texto { margin: 0; align-items: flex-start; }
 .cn-folios .boton { margin-top: 4px; }
 .cn-folios-estado.bajo, .cn-folios-estado.en_espera { color: var(--color-sii); font-weight: 600; }
+
+/* ---------- Aviso de compra abierta (/app) ---------- */
+.cn-aviso-compra {
+  display: grid; grid-template-columns: 24px 1fr 44px; gap: 12px; align-items: start; padding: 14px 8px 14px 14px;
+  border-radius: 12px; border: 2px solid var(--color-primary); background: rgb(242 255 0 / 0.08); animation: aparecer 0.4s ease-out;
+}
+.cn-aviso-compra > svg { color: var(--color-primary); margin-top: 2px; }
+.cn-aviso-compra strong { display: block; font-size: 17px; line-height: 1.25; }
+.cn-aviso-compra p { margin: 6px 0 12px; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: var(--color-muted); overflow-wrap: anywhere; }
+.cn-aviso-compra .boton { min-height: 44px; padding: 0 18px; }
+.cn-aviso-cerrar {
+  width: 44px; height: 44px; margin: -10px 0 0; border: 0; background: none; color: var(--color-muted); font-size: 24px; line-height: 1; cursor: pointer;
+}

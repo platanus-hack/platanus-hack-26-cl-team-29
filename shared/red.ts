@@ -43,4 +43,6 @@ export type TipoEventoRed =
   // Folios del SII del proveedor conectado: bajos, reponiéndose o repuestos (`AvisoFolios`, sin secretos).
   | 'sii.folios'
   // Llegaron proveedores y precios de referencia nuevos de Mercado Público (server/mercado-publico/).
-  | 'mercado_publico.actualizado';
+  | 'mercado_publico.actualizado'
+  // Se avisó por WhatsApp a los compradores registrados que abrió una compra conjunta: `{ licitacionId, negocios }` (solo el conteo).
+  | 'avisos.enviados';

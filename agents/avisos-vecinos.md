@@ -1,12 +1,11 @@
 # avisos-vecinos
-Actualizado: 2026-11-21 16:20
+Actualizado: 2026-11-21 16:06
 
 ## Estado
 trabajando
 
 ## Trabajando en
-- Aviso de compra conjunta abierta a compradores registrados (WhatsApp y banner en /app), con BASTA para no recibir más.
-- Después: "Trae a tu vecino" (invitaciones con código, atribución y línea en /sala).
+- "Trae a tu vecino" (invitaciones con código, atribución y línea en /sala).
 
 ## Archivos que estoy tocando
 - server/avisos/ (dueño, nuevo)
@@ -17,10 +16,10 @@ trabajando
 - test/avisos-*.test.ts
 
 ## Hecho
-- (nada aún)
+- Aviso de compra conjunta abierta a compradores registrados (WhatsApp con SÍ y BASTA, banner en vivo en /app). Decisión: docs/decisiones/20261121-1604-avisos-de-compra-abierta.md
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- (ninguno)
+- @javier-whatsapp: `conectarAgente` recibe un gancho opcional `avisos` (server/agente/index.ts, 12 líneas): BASTA responde siempre y un SÍ a un aviso entra a la sala con "me sumo". Sin cambios en server/whatsapp/.

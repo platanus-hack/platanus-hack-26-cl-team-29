@@ -60,6 +60,8 @@ export interface OpcionesAgente {
   };
   /** Cada cuánto revisar la conexión al SII de un proveedor nuevo (tests). */
   readonly revisarSiiMs?: number;
+  /** Avisos de compra abierta (server/avisos), opcional: BASTA responde siempre y un SÍ a su aviso lo suma a la sala. */
+  readonly avisos?: { atender(telefono: string, texto: string): Promise<{ respuesta: string } | { sumarse: string } | null> };
 }
 
 export interface TiemposSala {
@@ -398,7 +400,17 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       await ctx.reply(await proveedores.atenderRegistro(telefono, texto));
       return;
     }
+    const aviso = (await opciones.avisos?.atender(telefono, texto)) ?? null;
+    if (aviso && 'respuesta' in aviso) {
+      await ctx.reply(aviso.respuesta);
+      return;
+    }
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
+    // SÍ a un aviso de compra abierta: se suma con el flujo de siempre de la sala, si no hay otra pregunta en curso.
+    if (aviso && sala && !(negocio && actual(negocio.id))) {
+      await ctx.reply(await sala.atenderPublico(telefono, 'me sumo', negocio?.nombre ?? aviso.sumarse));
+      return;
+    }
     if (!negocio) {
       const quiereVender = proveedores && ['ser_proveedor', 'crear_producto'].includes(interpretarConReglas(texto).tipo);
       await ctx.reply(quiereVender ? proveedores!.empezar(telefono) : sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
