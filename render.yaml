@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter            # NO usar free: se duerme a los 15 min y corta los sockets
     buildCommand: npm ci && npm run build
-    startCommand: node server.ts
+    startCommand: node server/index.ts
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { io } from 'socket.io-client';
 
 process.env.PORT = '0';
-const { server } = await import('../server.ts');
+const { server } = await import('../server/index.ts');
 const url = `http://localhost:${(server.address() as AddressInfo).port}`;
 
 test('un evento de un cliente llega al otro', async () => {
