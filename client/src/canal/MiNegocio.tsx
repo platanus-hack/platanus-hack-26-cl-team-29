@@ -11,6 +11,7 @@ import {
   cicloDelPedido, enlaceWhatsapp, estaAbierta, licitacionVigente, normalizarTramos, precioDelGrupo, totalOrden, unidadPara, montoNotaCredito,
   type Unidad,
 } from './logica.ts';
+import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { Cantidad, Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
@@ -22,7 +23,9 @@ const CATALOGO = ['Harina 25 kg', 'Levadura 500 g', 'Azúcar 25 kg', 'Manteca 10
 const MAX_COMPRA_CONJUNTA = 20;
 
 type Seccion = 'compra' | 'pedir' | 'pedidos' | 'facturas';
-const SECCIONES: Array<[Seccion, string]> = [['compra', 'Compra conjunta'], ['pedir', 'Pedir'], ['pedidos', 'Mis pedidos'], ['facturas', 'Mis facturas']];
+const SECCIONES: Array<[Seccion, string, NombreIcono]> = [
+  ['compra', 'Compra conjunta', 'grupo'], ['pedir', 'Pedir', 'carro'], ['pedidos', 'Mis pedidos', 'paquete'], ['facturas', 'Mis facturas', 'documento'],
+];
 
 const seccionDelHash = (): Seccion => {
   const h = location.hash.slice(1);
@@ -87,6 +90,7 @@ export function MiNegocio() {
     <div className="cn-app">
       <header className="cn-cabecera">
         <Marca />
+        <Monograma nombre={yo.negocio.nombre} />
         <div className="cn-quien">
           <strong className="nombre">{yo.negocio.nombre}</strong>
           <span className="mono tenue">{yo.negocio.comuna} <AvisoFuente fuente={fuente} /></span>
@@ -95,9 +99,10 @@ export function MiNegocio() {
       </header>
 
       <nav className="cn-pestanas" aria-label="Secciones">
-        {SECCIONES.map(([s, titulo]) => (
+        {SECCIONES.map(([s, titulo, icono]) => (
           <a key={s} href={`#${s}`} className={s === seccion ? 'activa' : ''} aria-current={s === seccion ? 'page' : undefined}>
-            {titulo}
+            <Icono nombre={icono} />
+            <span>{titulo}</span>
             {s === 'pedidos' && porRecibir > 0 && <span className="cn-globo" aria-label={`${porRecibir} por revisar`}>{porRecibir}</span>}
           </a>
         ))}
@@ -213,7 +218,7 @@ function CompraConjunta({ api, token, foto, yo, config, alCambiar }: {
           {abierta ? <span className="en-vivo">En vivo</span> : <span className="cn-chip">Cerrada</span>}
           {abierta && <span className="mono">cierra en {cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}</span>}
         </div>
-        <h2 className="cn-producto">{lic.producto}</h2>
+        <h2 className="cn-producto cn-con-icono"><Icono nombre={iconoDeProducto(lic.producto)} tam={28} /><span>{lic.producto}</span></h2>
         <div className="cn-precio">
           <span className="numero-grande amarillo">{g.precio !== undefined ? dinero(g.precio) : 'Sin precio'}</span>
           <span className="mono">por {u.singular}</span>
@@ -314,6 +319,8 @@ function Tramos({ lic, unidades, u }: { lic: LicitacionCanal; unidades: number; 
 function Pedir({ api, token, foto, config, alEnviar }: {
   api: CanalApi; token: string; foto: FotoRed; config: ConfigRed | null; alEnviar: () => void;
 }) {
+  const delaCompra = licitacionVigente(foto.licitaciones)?.proveedorId;
+  const logoDe = (id: string) => (id === delaCompra ? config?.proveedorLogoUrl : undefined);
   const proveedores = foto.negocios
     .filter(n => n.rol === 'proveedor')
     .map(n => ({ negocio: n, nota: foto.notas.find(x => x.proveedorId === n.id)?.nota }))
@@ -364,6 +371,7 @@ function Pedir({ api, token, foto, config, alEnviar }: {
         <div className="cn-opciones" role="radiogroup" aria-label="Producto">
           {CATALOGO.map(p => (
             <button key={p} type="button" role="radio" aria-checked={p === producto} className={`cn-opcion${p === producto ? ' elegida' : ''}`} onClick={() => setProducto(p)}>
+              <Icono nombre={iconoDeProducto(p)} />
               {p}
             </button>
           ))}
@@ -378,6 +386,7 @@ function Pedir({ api, token, foto, config, alEnviar }: {
           {proveedores.map(({ negocio, nota: n }, i) => (
             <li key={negocio.id}>
               <button type="button" role="radio" aria-checked={negocio.id === proveedorId} className={`cn-proveedor${negocio.id === proveedorId ? ' elegida' : ''}`} onClick={() => setProveedorId(negocio.id)}>
+                <Monograma nombre={negocio.nombre} logoUrl={logoDe(negocio.id)} rubro={false} />
                 <span className="cn-proveedor-nombre">
                   <strong className="nombre">{negocio.nombre}</strong>
                   <span className="mono tenue">{negocio.comuna}{i === 0 && n !== undefined ? ' · mejor nota' : ''}</span>
@@ -457,7 +466,7 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
     <article className={`tarjeta cn-pedido ${orden.estado}`}>
       <header className="cn-pedido-cabecera">
         <div>
-          <p className="etiqueta">{proveedor?.nombre ?? 'Proveedor'}</p>
+          <p className="etiqueta cn-con-sii"><Monograma nombre={proveedor?.nombre ?? 'Proveedor'} tam={24} rubro={false} />{proveedor?.nombre ?? 'Proveedor'}</p>
           <h3>{item?.producto ?? 'Pedido'}</h3>
           <p className="mono tenue">
             {item ? `${cantidadEn(item.cantidad, u)} · ` : ''}{dinero(totalOrden(orden))} neto{orden.licitacionId ? ' · compra conjunta' : ''}
@@ -470,7 +479,7 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
         {ciclo.pasos.map((p, i) => (
           <li key={p.titulo} className={`${p.estado}${i === 2 || i === 4 ? ' sii' : ''}`}>
             <span className="cn-punto" aria-hidden="true" />
-            <span className="cn-paso-titulo">{p.titulo}</span>
+            <span className="cn-paso-titulo">{p.titulo}{(i === 2 || i === 4) && <LogoSii tam={14} />}</span>
             <span className="cn-paso-detalle">{p.detalle}</span>
           </li>
         ))}
@@ -518,10 +527,11 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
       )}
 
       {orden.estado === 'reclamada' && (
-        <p className="cn-aviso-sii">Reclamado en el SII. Esperando la nota de crédito de {proveedor?.nombre ?? 'tu proveedor'}.</p>
+        <p className="cn-aviso-sii cn-con-sii"><LogoSii /> Reclamado en el SII. Esperando la nota de crédito de {proveedor?.nombre ?? 'tu proveedor'}.</p>
       )}
       {orden.estado === 'corregida' && (
-        <p className="cn-ok">
+        <p className="cn-ok cn-con-sii">
+          <LogoSii />
           Nota de crédito recibida{nc?.folio ? `, folio ${nc.folio}` : ''}: {dinero(montoNotaCredito(orden, yo.documentos))} por{' '}
           {cantidadEn(orden.reclamo?.faltante ?? 0, u)} que {orden.reclamo?.faltante === 1 ? 'faltó' : 'faltaron'}. Quedó amarrada a tu factura en el SII.
         </p>
@@ -549,6 +559,7 @@ function MisFacturas({ foto, yo }: { foto: FotoRed; yo: YoComprador }) {
           const proveedor = foto.negocios.find(n => n.id === orden?.proveedorId)?.nombre;
           return (
             <li key={d.id}>
+              <Icono nombre="documento" />
               <div className="cn-doc-izq">
                 <strong>{NOMBRE_DOC[d.tipo]} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
                 <span className="mono tenue nombre">{proveedor ?? 'Proveedor'}</span>

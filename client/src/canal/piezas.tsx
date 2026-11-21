@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
 import { textoEstadoSii } from '../red/formato.ts';
+import { LogoSii } from './iconos.tsx';
 import { confirmacion, SIN_CONFIRMACION, type Confirmacion, type EventoConfirmacion } from './logica.ts';
 
 /** Paso de confirmación en la página: pedir → (sí) → enviando → listo o error. */
@@ -50,7 +51,7 @@ export function Confirmar({ titulo, children, si, no = 'No, volver', sii, envian
   }, []);
   return (
     <div ref={panel} className={`cn-confirmar${sii ? ' sii' : ''}`} role="alertdialog" aria-label={titulo}>
-      {sii && <p className="etiqueta">Trámite legal en el SII</p>}
+      {sii && <p className="etiqueta cn-con-sii"><LogoSii tam={16} /> Se registra en el SII</p>}
       <h3>{titulo}</h3>
       <div className="cn-confirmar-texto">{children}</div>
       {error && <p className="error">{error}</p>}
@@ -69,7 +70,7 @@ const CLASE_SII: Record<string, string> = { aceptado: 'ok', recibido: 'en-curso'
 export function EstadoSii({ estado }: { estado: string | null | undefined }) {
   const texto = textoEstadoSii(estado);
   if (!texto) return null;
-  return <span className={`cn-sii ${CLASE_SII[estado ?? ''] ?? 'en-curso'}`}>{texto}</span>;
+  return <span className={`cn-sii ${CLASE_SII[estado ?? ''] ?? 'en-curso'}`}><LogoSii tam={12} />{texto}</span>;
 }
 
 export function Cantidad({ valor, min = 1, max, onCambio, etiqueta }: {

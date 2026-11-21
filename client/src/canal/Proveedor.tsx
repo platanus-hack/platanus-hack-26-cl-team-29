@@ -12,6 +12,7 @@ import { ConectarSii } from './ConectarSii.tsx';
 import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, totalOrden, unidadPara, type Unidad,
 } from './logica.ts';
+import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
@@ -44,6 +45,7 @@ export function Proveedor() {
     <div className="cn-app cn-panel">
       <header className="cn-cabecera">
         <Marca />
+        <Monograma nombre={yo.proveedor?.nombre ?? 'Proveedor'} rubro={false} logoUrl={lic?.proveedorId === yo.proveedor?.id ? config?.proveedorLogoUrl : undefined} />
         <div className="cn-quien">
           <strong className="nombre">{yo.proveedor?.nombre ?? 'Proveedor'}</strong>
           <span className="mono tenue">Panel del proveedor <AvisoFuente fuente={fuente} /></span>
@@ -153,7 +155,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
         {abierta && <span className="mono">cierra en {cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}</span>}
       </div>
       <p className="etiqueta cn-sub">Compra conjunta</p>
-      <h2 className="cn-producto">{lic.producto}</h2>
+      <h2 className="cn-producto cn-con-icono"><Icono nombre={iconoDeProducto(lic.producto)} tam={28} /><span>{lic.producto}</span></h2>
       <dl className="cn-cifras">
         <div><dt>Negocios</dt><dd>{lic.participantes.length}</dd></div>
         <div><dt>{u.plural}</dt><dd>{g.unidades}</dd></div>
@@ -168,10 +170,10 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
         lic.estado === 'abierta' ? (
           <button type="button" className="boton cn-ancho" onClick={() => c.pedir({ tipo: 'cerrar' })}>Cerrar compra</button>
         ) : (
-          <button type="button" className="boton cn-ancho cn-boton-sii" onClick={() => c.pedir({ tipo: 'facturar', ...f })}>Facturar todo en el SII</button>
+          <button type="button" className="boton cn-ancho cn-boton-sii" onClick={() => c.pedir({ tipo: 'facturar', ...f })}><LogoSii /> Facturar todo en el SII</button>
         )
       )}
-      {facturada && <p className="cn-ok">Facturada en el SII. Cada negocio ya recibió su factura.</p>}
+      {facturada && <p className="cn-ok cn-con-sii"><LogoSii />Facturada en el SII. Cada negocio ya recibió su factura.</p>}
 
       {c.estado.fase !== 'nada' && c.estado.accion.tipo === 'cerrar' && (
         <Confirmar
@@ -221,14 +223,14 @@ function PedidoNuevo({ api, token, alCambiar, orden, comprador, config }: PropsA
     <article className="tarjeta cn-pedido">
       <header className="cn-pedido-cabecera">
         <div>
-          <p className="etiqueta">{quien}{comprador?.comuna ? ` · ${comprador.comuna}` : ''}</p>
+          <p className="etiqueta cn-con-sii"><Monograma nombre={quien} tam={24} />{quien}{comprador?.comuna ? ` · ${comprador.comuna}` : ''}</p>
           <h3>{detalleDe(orden, config)}</h3>
           <p className="mono tenue">{dinero(total)} neto</p>
         </div>
         <span className="cn-chip enviada">Nuevo</span>
       </header>
       {c.estado.fase === 'nada' ? (
-        <button type="button" className="boton cn-ancho" onClick={() => c.pedir(undefined)}>Confirmar y facturar</button>
+        <button type="button" className="boton cn-ancho" onClick={() => c.pedir(undefined)}><LogoSii /> Confirmar y facturar</button>
       ) : (
         <Confirmar
           sii
@@ -266,7 +268,7 @@ function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }
     <article className="tarjeta cn-pedido reclamada">
       <header className="cn-pedido-cabecera">
         <div>
-          <p className="etiqueta magenta">Reclamo en el SII</p>
+          <p className="etiqueta magenta cn-con-sii"><LogoSii tam={16} /> Reclamo en el SII</p>
           <h3>{quien} reclamó la factura{factura?.folio ? ` folio ${factura.folio}` : ''}</h3>
           <p className="mono tenue">
             {detalleDe(orden, config)}: {orden.reclamo?.faltante === 1 ? 'faltó' : 'faltaron'} {cantidadEn(orden.reclamo?.faltante ?? 0, u)}.
@@ -276,7 +278,7 @@ function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }
       {c.estado.fase === 'nada' ? (
         <>
           <p className="mono tenue cn-texto">Si emites la nota de crédito hoy, tu nota sube.</p>
-          <button type="button" className="boton cn-ancho" onClick={() => c.pedir(undefined)}>Emitir nota de crédito por {dinero(monto)}</button>
+          <button type="button" className="boton cn-ancho" onClick={() => c.pedir(undefined)}><LogoSii /> Emitir nota de crédito por {dinero(monto)}</button>
         </>
       ) : (
         <Confirmar
@@ -332,13 +334,14 @@ function MisDocumentos({ yo, comprador }: { yo: YoProveedor; comprador: (id: str
   const docs = [...yo.documentos].sort((a, b) => Date.parse(b.emitidoEn ?? '') - Date.parse(a.emitidoEn ?? '') || (b.folio ?? 0) - (a.folio ?? 0));
   return (
     <section className="cn-seccion">
-      <h2 className="cn-titulo">Mis documentos en el SII</h2>
+      <h2 className="cn-titulo"><LogoSii tam={22} /> Mis documentos en el SII</h2>
       {docs.length ? (
         <ul className="tarjeta cn-documentos">
           {docs.map(d => {
             const orden = yo.ordenes.find(o => o.id === d.ordenId);
             return (
               <li key={d.id}>
+                <Icono nombre="documento" />
                 <div className="cn-doc-izq">
                   <strong>{NOMBRE_DOC[d.tipo]} {d.folio !== null ? `folio ${d.folio}` : ''}</strong>
                   <span className="mono tenue nombre">{comprador(orden?.compradorId ?? '')?.nombre ?? 'Cliente'}</span>

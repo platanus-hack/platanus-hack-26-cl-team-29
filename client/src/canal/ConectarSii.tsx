@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { contar } from '../red/formato.ts';
 import type { CanalApi } from './api.ts';
+import { LogoSii } from './iconos.tsx';
 import type { CafSii, ConexionSii, DatosEmpresaSii } from './tipos.ts';
 
 const NOMBRE_CAF: Record<CafSii['tipo'], string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
@@ -63,7 +64,7 @@ export function ConectarSii({ api, token }: Props) {
   return (
     <section className="tarjeta cn-sii-conexion">
       <div className="cn-fila-meta">
-        <span className={`cn-chip ${estado.conectado ? 'conectado' : ''}`}>{estado.conectado ? 'SII conectado' : 'SII sin conectar'}</span>
+        <span className={`cn-chip cn-con-sii ${estado.conectado ? 'conectado' : ''}`}><LogoSii tam={14} />{estado.conectado ? 'SII conectado' : 'SII sin conectar'}</span>
         <span className="mono tenue">Certificación (maullin)</span>
       </div>
       {estado.conectado && estado.empresa ? (
@@ -73,7 +74,7 @@ export function ConectarSii({ api, token }: Props) {
         </>
       ) : (
         <>
-          <h2 className="cn-producto">Conectar mi SII</h2>
+          <h2 className="cn-producto cn-con-icono"><LogoSii tam={28} /><span>Conectar mi SII</span></h2>
           <p className="mono tenue cn-texto">
             Sube tu certificado digital, revisa los datos de tu empresa y sube tus folios (CAF). Así tus facturas, guías y notas de crédito salen a tu nombre.
             {estado.respaldoVariables && ' Mientras no termines, la red usa el SII configurado en el servidor.'}
@@ -82,7 +83,7 @@ export function ConectarSii({ api, token }: Props) {
       )}
       {!abierta && (
         <button type="button" className={`boton cn-ancho ${estado.conectado ? 'secundario cn-secundario' : 'cn-boton-sii'}`} onClick={() => setAbierta(true)}>
-          {estado.conectado ? 'Ver conexión' : 'Conectar mi SII'}
+          <LogoSii /> {estado.conectado ? 'Ver conexión' : 'Conectar mi SII'}
         </button>
       )}
       {abierta && (
@@ -118,7 +119,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
       )}
 
       <article className="cn-paso">
-        <p className="etiqueta">Paso 1 · Certificado digital</p>
+        <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 1 · Certificado digital</p>
         {pasoCert ? <PasoCertificado api={api} token={token} alListo={hecho} onCancelar={estado.titular ? () => setEditar(null) : undefined} /> : (
           <Resumen texto={`Titular ${estado.titular} · vence el ${fecha(estado.venceEl)}`} onCambiar={() => setEditar('certificado')} />
         )}
@@ -126,7 +127,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
 
       {!pasoCert && (
         <article className="cn-paso">
-          <p className="etiqueta">Paso 2 · Tu empresa</p>
+          <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 2 · Tu empresa</p>
           {pasoEmpresa ? <PasoEmpresa api={api} token={token} estado={estado} alListo={hecho} onCancelar={estado.empresa ? () => setEditar(null) : undefined} /> : (
             <Resumen
               texto={`${estado.empresa!.razonSocial} · ${estado.rutEmisor} · resolución del ${dia(estado.resolucion!.fecha)} n.º ${estado.resolucion!.numero}`}
@@ -138,7 +139,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
 
       {!pasoCert && !pasoEmpresa && (
         <article className="cn-paso">
-          <p className="etiqueta">Paso 3 · Folios (CAF)</p>
+          <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 3 · Folios (CAF)</p>
           <p className="mono tenue cn-texto">
             Sube el XML de cada CAF que descargaste del SII. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
           </p>
@@ -372,7 +373,7 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: CafSii['t
         </div>
       )}
       {caf && !caf.escaneando && caf.primerLibre !== null && (
-        <p className="cn-ok">Primer folio libre: {caf.primerLibre} · {contar(caf.libres ?? 0, 'folio libre', 'folios libres')}</p>
+        <p className="cn-ok cn-con-sii"><LogoSii />Primer folio libre: {caf.primerLibre} · {contar(caf.libres ?? 0, 'folio libre', 'folios libres')}</p>
       )}
       {caf?.error && <p className="error">{caf.error}</p>}
       {avisos.map(a => <p key={a} className="mono tenue cn-nota-pie">{a}</p>)}

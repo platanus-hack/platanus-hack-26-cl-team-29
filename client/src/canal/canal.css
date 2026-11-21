@@ -19,7 +19,7 @@
   background: var(--color-background); position: sticky; top: 0; z-index: 2; min-height: 64px;
 }
 .cn-panel .cn-cabecera { --ancho-contenido: 1136px; }
-.cn-cabecera .cn-marca > span:nth-child(2) { display: none; }
+.cn-cabecera .cn-marca { display: none; }
 .cn-quien { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
 .cn-quien strong {
   font-size: 17px; white-space: normal; overflow-wrap: anywhere;
@@ -37,11 +37,11 @@
   background: var(--color-surface); border-top: 1px solid var(--color-border); padding-bottom: env(safe-area-inset-bottom);
 }
 .cn-pestanas a {
-  position: relative; display: flex; align-items: center; justify-content: center; text-align: center; min-height: 64px; padding: 8px 4px;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; min-height: 64px; padding: 8px 4px;
   color: var(--color-muted); text-decoration: none; font-family: var(--font-mono); font-size: 12px; font-weight: 700; line-height: 1.2;
 }
 .cn-pestanas a.activa { color: var(--color-primary); box-shadow: inset 0 3px 0 var(--color-primary); }
-.cn-pestanas .cn-globo { position: absolute; top: 6px; right: 8px; }
+.cn-pestanas .cn-globo { position: absolute; top: 4px; left: calc(50% + 6px); }
 
 .cn-globo {
   display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
@@ -53,7 +53,7 @@
 .cn-texto { margin: 12px 0 0; font-size: 15px; line-height: 1.5; }
 .cn-texto-grande { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.25; }
 .cn-sub { margin-top: 16px; }
-.cn-ancho { width: 100%; margin-top: 16px; min-height: 56px; }
+.cn-ancho { width: 100%; margin-top: 16px; min-height: 56px; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .cn-acciones { display: grid; gap: 8px; margin-top: 16px; }
 .cn-acciones .boton { min-height: 56px; }
 .cn-secundario { font-size: 18px !important; padding: 14px !important; min-height: 56px; }
@@ -82,6 +82,8 @@
 
 /* ---------- Compra conjunta ---------- */
 .cn-fila-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--color-muted); }
+.cn-con-icono { display: flex; align-items: flex-start; gap: 10px; }
+.cn-con-icono > .cn-icono, .cn-con-icono > .cn-logo-sii { margin-top: 1px; }
 .cn-producto { margin: 12px 0 0; font-size: 24px; line-height: 1.15; font-weight: 800; letter-spacing: var(--tracking-tight); }
 .cn-precio { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .cn-precio .numero-grande { font-size: 52px; }
@@ -102,11 +104,11 @@
 .cn-opcion, .cn-proveedor {
   font: inherit; color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-radius: 12px; cursor: pointer;
 }
-.cn-opcion { padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left; }
+.cn-opcion { padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left; display: inline-flex; align-items: center; gap: 8px; }
 .cn-opcion.elegida, .cn-proveedor.elegida { border: 2px solid var(--color-primary); background: rgb(242 255 0 / 0.08); }
 .cn-proveedores { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
 .cn-proveedor { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; min-height: 64px; text-align: left; }
-.cn-proveedor-nombre { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.cn-proveedor-nombre { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
 .cn-proveedor-nombre strong { font-size: 17px; }
 .cn-proveedor-nombre .mono { font-size: 12px; }
 .cn-nota { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--color-primary); flex-shrink: 0; }
@@ -140,7 +142,7 @@
 .cn-punto { grid-row: span 2; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--color-border); background: var(--color-surface); }
 .cn-ciclo li.hecho .cn-punto { background: var(--c); border-color: var(--c); }
 .cn-ciclo li.actual .cn-punto { border-color: var(--color-primary); box-shadow: 0 0 0 4px rgb(242 255 0 / 0.2); }
-.cn-paso-titulo { font-size: 15px; font-weight: 700; line-height: 18px; }
+.cn-paso-titulo { font-size: 15px; font-weight: 700; line-height: 18px; display: inline-flex; align-items: center; gap: 6px; }
 .cn-paso-detalle { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted); line-height: 1.4; }
 .cn-ciclo li.pendiente, .cn-ciclo li.omitido { opacity: 0.45; }
 .cn-ciclo li.omitido .cn-paso-titulo { text-decoration: line-through; }
@@ -161,13 +163,15 @@
 
 /* ---------- Facturas y documentos ---------- */
 .cn-documentos { list-style: none; margin: 0; display: grid; gap: 0; }
-.cn-documentos li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+.cn-documentos li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
 .cn-documentos li:last-child { border-bottom: 0; }
 .cn-doc-izq, .cn-doc-der { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cn-doc-izq { flex: 1; }
+.cn-documentos .cn-icono { margin-top: 1px; color: var(--color-muted); }
 .cn-doc-der { align-items: flex-end; flex-shrink: 0; }
 .cn-doc-izq strong { font-size: 16px; }
 .cn-doc-izq .mono { font-size: 12px; }
-.cn-sii { font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.cn-sii { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 3px 8px 3px 4px; border-radius: 6px; white-space: nowrap; }
 .cn-sii.ok { background: var(--color-sii); color: #fff; }
 .cn-sii.en-curso { border: 1px solid #3fa9f5; color: #9fd3ff; }
 .cn-sii.simulado { border: 1px dashed var(--color-tenue); color: var(--color-muted); }
@@ -196,11 +200,12 @@
   .cn-cabecera {
     padding: 16px max(112px, calc((100% - var(--ancho-contenido)) / 2)) 16px max(32px, calc((100% - var(--ancho-contenido)) / 2));
   }
-  .cn-cabecera .cn-marca > span:nth-child(2) { display: inline; }
+  .cn-cabecera .cn-marca { display: flex; margin-right: 12px; }
   .cn-pestanas {
     position: static; max-width: 608px; margin: 16px auto 0; border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden;
   }
-  .cn-pestanas a { min-height: 52px; font-size: 14px; }
+  .cn-pestanas a { min-height: 52px; font-size: 14px; flex-direction: row; gap: 8px; }
+  .cn-pestanas .cn-globo { position: static; }
   .cn-pestanas a.activa { background: var(--color-primary); color: var(--color-primary-foreground); box-shadow: none; }
   .cn-pestanas a.activa .cn-globo { background: var(--color-primary-foreground); color: var(--color-primary); }
   .cn-contenido { padding: 24px 16px; }
@@ -238,3 +243,25 @@
   .cn-barra span, .cn-bajo, .cn-confirmar { transition: none; animation: none; }
 }
 @media (max-width: 420px) { .cn-dos-campos { grid-template-columns: 1fr; } }
+
+/* ---------- Iconografía ---------- */
+.cn-icono { flex-shrink: 0; display: block; }
+.cn-logo-sii {
+  display: inline-grid; place-items: center; flex-shrink: 0; box-sizing: border-box; padding: 2px; border-radius: 4px;
+  background: #fff; vertical-align: middle;
+}
+.cn-logo-sii img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cn-monograma {
+  position: relative; display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 10px;
+  color: #0b0b0b; font-family: var(--font-display); font-weight: 800; letter-spacing: 0.02em; line-height: 1;
+}
+.cn-monograma img { width: 82%; height: 82%; object-fit: contain; }
+.cn-rubro {
+  position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);
+}
+.cn-con-sii { display: flex; align-items: center; gap: 8px; }
+.cn-chip.cn-con-sii { display: inline-flex; gap: 6px; padding-left: 5px; }
+.cn-ok.cn-con-sii, .cn-aviso-sii.cn-con-sii { align-items: flex-start; }
+.cn-ok.cn-con-sii .cn-logo-sii, .cn-aviso-sii.cn-con-sii .cn-logo-sii { margin-top: 1px; }
+.boton .cn-logo-sii { margin-right: 4px; }
