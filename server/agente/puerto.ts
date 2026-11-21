@@ -9,6 +9,8 @@ export interface Negocio {
   readonly nombre: string;
   readonly comuna: string;
   readonly rol: 'comprador' | 'proveedor';
+  /** Se registró como proveedor por WhatsApp: vende y también compra. */
+  readonly vende?: boolean;
   readonly telefono: string;
   /** RUT del comprador, si ya lo dio. Solo interno. */
   readonly rut?: string;
@@ -91,6 +93,10 @@ export interface ProductoCompra {
   readonly unidadPlural?: string;
   readonly precioSolo: number;
   readonly tramos: readonly Tramo[];
+  /** Ofertas de proveedores por este producto. */
+  readonly ofertas?: readonly { readonly proveedorId: string; readonly precioUnitario: number }[];
+  /** Quien creó el producto (sus tramos son su precio por volumen). */
+  readonly proveedorId?: string;
   readonly totalUnidades: number;
   readonly precioActual: number;
   readonly siguienteTramo: { readonly desde: number; readonly precioUnitario: number; readonly faltan: number } | null;
@@ -187,6 +193,23 @@ export interface RedSala {
   /** Enlace privado al PDF de un documento emitido, si la red lo ofrece. */
   enlacePdf?(documento: Documento): Talvez<string | null>;
   escuchar(oyente: (evento: EventoDeLaRed) => void): () => void;
+}
+
+/** Lo que necesitan los proveedores que se registran y venden por WhatsApp (server/agente/proveedor.ts). */
+export interface RedProveedores {
+  /** Falla con `codigo` y un `message` para mostrar tal cual (RUT inválido, de otro teléfono...). */
+  registrarProveedor(datos: { readonly telefono: string; readonly rut: string; readonly nombre?: string }): Talvez<Negocio>;
+  ofertar(licitacionId: string, oferta: {
+    readonly proveedorId: string; readonly productoId: string; readonly precioUnitario: number; readonly plazoDias: number;
+  }): Talvez<LicitacionSala>;
+  crearProducto(licitacionId: string, producto: {
+    readonly proveedorId: string; readonly nombre: string; readonly unidad: string; readonly precio: number;
+  }): Talvez<{ readonly producto: ProductoCompra }>;
+}
+
+export function tieneProveedores(red: object): red is RedProveedores {
+  const r = red as Partial<Record<keyof RedProveedores, unknown>>;
+  return typeof r.registrarProveedor === 'function' && typeof r.ofertar === 'function' && typeof r.crearProducto === 'function';
 }
 
 /** La red real expone la compra conjunta desde cierta versión; sin ella el agente sigue con los flujos de siempre. */

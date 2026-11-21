@@ -1,6 +1,8 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
 import { dinero, nota } from '../../shared/formato.ts';
+import { formatearRut } from '../../shared/rut.ts';
+import type { Tramo } from '../../shared/precios.ts';
 import { totalOrden } from '../../shared/precios.ts';
 import { contar, cuantos, mayuscula, pluralDe, segun } from '../../shared/texto.ts';
 import { cortoDe, productosDe } from './canasta.ts';
@@ -59,7 +61,10 @@ export const NO_REGISTRADO = 'Hola. No encuentro tu negocio en la red. Pide que 
 export const NADA_PENDIENTE = 'No tengo nada pendiente por confirmar.';
 export const CANCELADO = 'Listo, no hice nada.';
 export const AYUDA_COMPRADOR = 'Puedo pedir a tus proveedores por ti. Escribe, por ejemplo: "pide 4 sacos de harina".';
-export const AYUDA_PROVEEDOR = 'Escribe "pedidos" para ver tus pedidos nuevos.';
+export const AYUDA_PROVEEDOR = 'Escribe "pedidos" para ver tus pedidos nuevos. En la compra conjunta: "oferto $25.000 por rollos", '
+  + '"vendo café molido 1 kg a $12.000 la bolsa" para sumar un producto, o "mis ofertas".';
+/** Quien compra y también vende. */
+export const AYUDA_COMPRA_Y_VENDE = `${AYUDA_PROVEEDOR}\nPara comprar en la compra conjunta, escribe lo que quieres. Ej: "3 cajas de rollos".`;
 export const CUANTOS_FALTARON = 'Cuéntame cuántos faltaron. Por ejemplo: "faltaron 2".';
 export const SIN_PROVEEDOR = 'No encontré proveedores en la red para ese pedido.';
 export const proveedorNoEncontrado = (nombre: string, disponibles: readonly string[]) =>
@@ -322,3 +327,55 @@ export const SIN_COMPRA_ABIERTA = 'En este momento no hay una compra conjunta ab
 export const COMPRA_CERRADA = 'La compra conjunta ya cerró. Te escribo por aquí con tu folio apenas salga tu factura.';
 export const YA_FACTURADA = 'Esas facturas ya están emitidas en el SII.';
 export const ERROR_TEMPORAL = 'Tuve un problema con tu mensaje. Intenta de nuevo en un momento.';
+
+// --- Proveedores por WhatsApp (server/agente/proveedor.ts) ---
+
+export const registroProveedor = (url: string) =>
+  'Para vender en Bando necesitas tu certificado digital: con él emites tus facturas en el SII (ambiente de certificación). '
+  + `Súbelo aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
+  + 'La clave no pasa por WhatsApp. Cuando termines, sigo tu registro por acá. Para no seguir, escribe "cancelar".';
+export const esperandoCertificado = (url: string) =>
+  `Te espero con tu certificado digital. Si el link anterior venció, usa este:\n${url}\n\nPara no seguir, escribe "cancelar".`;
+export const REGISTRO_PROVEEDOR_CANCELADO = 'Listo, no seguimos con tu registro de proveedor. Si cambias de opinión, escribe "quiero vender".';
+export const preguntarEmpresa = (rutTitular: string) =>
+  `Certificado conectado ✓ ¿Con qué RUT facturas?\n• Tu RUT: ${formatearRut(rutTitular)}\n• O el de una empresa en que estás autorizado en el SII.\n`
+  + opciones('Mi RUT', 'Otra empresa');
+export const PEDIR_RUT_EMPRESA = 'Escribe el RUT de la empresa con que facturas. Ej: 76.123.456-7';
+export const proveedorRegistrado = (nombre: string, conectandoSii: boolean) =>
+  `Listo, ${nombre} ya vende en Bando ✓ ${conectandoSii ? 'Estoy conectando tu SII (datos, resolución y folios); te aviso cuando esté listo.' : ''}\n\n`
+  + 'Para sumar un producto a la compra conjunta: "vendo café molido 1 kg a $12.000 la bolsa". '
+  + 'Para ofertar por uno que ya está: "oferto $25.000 por rollos". También puedes seguir comprando.';
+export const SII_LISTO = 'Tu SII quedó conectado ✓ Tus facturas de la compra conjunta saldrán a tu nombre en el SII.';
+export const siiNoConectado = (detalle: string | null) =>
+  `No pude terminar de conectar tu SII${detalle ? `: ${detalle}` : '.'} Mientras, tus facturas saldrán simuladas. `
+  + 'Puedes volver a intentarlo escribiendo "conectar certificado".';
+
+export const elegirProductoParaOfertar = (productos: readonly ProductoCompra[], ejemplo: (p: ProductoCompra) => string) =>
+  `¿Por cuál producto? Los de la compra conjunta:\n${productos.map(p => `• ${p.nombre}: hoy ${dinero(p.precioActual)} por ${p.unidad}`).join('\n')}\n`
+  + `Escribe por ejemplo "${ejemplo(productos[0]!)}".`;
+export const proponerOferta = (p: ProductoCompra, precio: number) =>
+  `¿Ofertas ${dinero(precio)} por ${p.unidad} de ${cortoDe(p)}? Hoy el grupo paga ${dinero(p.precioActual)}`
+  + `${p.totalUnidades > 0 ? ` y lleva ${contar(p.totalUnidades, p.unidad, p.unidadPlural)}` : ''}.\n`
+  + opciones('Sí, ofertar', 'No');
+export const ofertaHecha = (p: ProductoCompra, precio: number, ganando: boolean) =>
+  `Listo, ofertaste ${dinero(precio)} por ${p.unidad} de ${cortoDe(p)}. `
+  + (ganando ? 'Vas ganando ✓ Te aviso si alguien te supera.' : `El mejor precio sigue en ${dinero(p.precioActual)}.`);
+export const teSuperaron = (p: ProductoCompra, quien: string, precio: number) =>
+  `${quien} ofertó ${dinero(precio)} por ${p.unidad} de ${cortoDe(p)} y ya no vas ganando. `
+  + `Para responder, escribe por ejemplo "oferto ${dinero(Math.max(precio - 100, 1))} por ${cortoDe(p)}".`;
+export const productoYaExiste = (nombre: string) =>
+  `"${nombre}" ya está en la compra conjunta. Para competir, oferta por él: "oferto $X por ${nombre.toLowerCase()}".`;
+export const proponerProducto = (nombre: string, unidad: string, tramos: readonly Tramo[]) =>
+  `¿Sumo "${nombre}" a la compra conjunta a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}? `
+  + `Baja solo con el volumen del grupo: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
+  + 'Otros proveedores pueden ofertar por él.\n' + opciones('Sí, súmalo', 'No');
+export const productoCreado = (p: ProductoCompra) =>
+  `Listo, "${p.nombre}" ya está en la compra conjunta a ${dinero(p.precioActual)} por ${p.unidad}. La sala lo ve en vivo.`;
+export function estadoDeOfertas(mias: readonly { producto: ProductoCompra; propia: number; ganando: boolean }[], productos: readonly ProductoCompra[]): string {
+  if (mias.length === 0) {
+    return `Aún no ofertas en la compra conjunta. Productos:\n${productos.map(p => `• ${p.nombre}: hoy ${dinero(p.precioActual)}`).join('\n')}\n`
+      + 'Escribe por ejemplo "oferto $25.000 por rollos".';
+  }
+  return `Tus ofertas:\n${mias.map(x => `• ${x.producto.nombre}: ${dinero(x.propia)} por ${x.producto.unidad} · `
+    + (x.ganando ? 'vas ganando ✓' : `el mejor va en ${dinero(x.producto.precioActual)}`)).join('\n')}`;
+}

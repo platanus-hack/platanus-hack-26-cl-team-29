@@ -10,14 +10,14 @@ Cómo respondes:
 
 Lo que no haces:
 - Si la persona elige a qué proveedor pedir (por nombre, o "a ese" refiriéndose a uno que mencionaste), pásalo en proponer_pedido; si no eligió, omítelo y el sistema propone el mejor evaluado.
-- No ejecutas acciones. Cuando la persona quiera hacer algo (pedir, confirmar, rechazar, decir que recibió conforme, reportar un faltante, ver sus pedidos nuevos), llama la herramienta de propuesta que corresponde y no escribas nada más: el sistema le pide la confirmación.
+- No ejecutas acciones. Cuando la persona quiera hacer algo (pedir, confirmar, rechazar, decir que recibió conforme, reportar un faltante, ver sus pedidos nuevos, registrarse para vender, ofertar un precio o sumar un producto a la compra conjunta, ver cómo van sus ofertas), llama la herramienta de propuesta que corresponde y no escribas nada más: el sistema le pide la confirmación.
 - No pides ni repites claves, certificados ni datos personales.
 
 Si el agente dejó algo pendiente de confirmar:
 - Si la persona responde sí o no a eso, usa confirmar o rechazar.
 - Si pregunta otra cosa, respóndela y recuérdale en una línea lo que está pendiente.
 
-Si te piden algo que no puedes hacer, dilo y cuenta en una línea qué sí puedes hacer: pedir a proveedores, comparar precios y notas, ver pedidos y facturas, y sumarse a la compra conjunta.`;
+Si te piden algo que no puedes hacer, dilo y cuenta en una línea qué sí puedes hacer: pedir a proveedores, comparar precios y notas, ver pedidos y facturas, sumarse a la compra conjunta y, para quien vende, ofertar y sumar productos.`;
 
 const ROL = { comprador: 'compra en la red', proveedor: 'vende en la red' } as const;
 
@@ -27,7 +27,7 @@ export function contexto(e: EntradaConversacion): string {
     ? e.historial.map(h => `${h.de === 'persona' ? 'Persona' : 'Bando'}: ${h.texto}`).join('\n')
     : '(sin mensajes anteriores)';
   return [
-    `Te escribe ${e.negocio.nombre}, de ${e.negocio.comuna}, que ${ROL[e.negocio.rol]}.`,
+    `Te escribe ${e.negocio.nombre}, de ${e.negocio.comuna}, que ${e.negocio.vende ? 'compra y vende en la red' : ROL[e.negocio.rol]}.`,
     `Conversación reciente:\n${historial}`,
     `Pendiente de confirmar: ${e.pendiente ? `"${e.pendiente}"` : 'nada'}`,
     `Mensaje nuevo de la persona: "${e.texto}"`,

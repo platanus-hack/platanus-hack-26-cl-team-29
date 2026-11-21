@@ -134,6 +134,16 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
   };
 }
 
+/**
+ * La conexión en una línea para WhatsApp: si ya emite, si la conexión automática sigue corriendo, y si no, por qué
+ * (el primer paso con error, con el texto del SII si lo hay).
+ */
+export function resumenDeConexion(e: EstadoConexionSii): { listo: boolean; enCurso: boolean; detalle: string | null } {
+  const error = e.automatico?.pasos.find(p => p.estado === 'error');
+  const detalle = error ? `${error.detalle ?? 'el SII no respondió'}${error.mensajeSii ? ` (el SII dice: «${error.mensajeSii}»)` : ''}` : null;
+  return { listo: e.conectado, enCurso: e.automatico?.activo ?? false, detalle };
+}
+
 /** Tope de la razón social y del giro en el DTE: se recortan aquí para no prellenar un valor que el SII rechace. */
 const MAX_RAZON_SOCIAL = 100;
 const MAX_GIRO = 80;

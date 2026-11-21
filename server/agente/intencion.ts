@@ -11,13 +11,21 @@ export type Intencion =
   | { readonly tipo: 'conforme' }
   | { readonly tipo: 'faltante'; readonly cantidad: number }
   | { readonly tipo: 'ver_pedidos' }
+  /** Un proveedor ofrece un precio por un producto de la compra conjunta (si no dice cuál, se le pregunta). */
+  | { readonly tipo: 'ofertar'; readonly precio: number; readonly producto?: string }
+  /** Un proveedor suma un producto nuevo a la compra conjunta: nombre, unidad de venta y precio. */
+  | { readonly tipo: 'crear_producto'; readonly nombre: string; readonly unidad: string; readonly precio: number }
+  /** Quiere vender en la red: registro de proveedor con su certificado digital. */
+  | { readonly tipo: 'ser_proveedor' }
+  /** Un proveedor pregunta cómo van sus ofertas. */
+  | { readonly tipo: 'ver_ofertas' }
   /** Respuesta en lenguaje libre (una pregunta, una consulta): se manda tal cual, no ejecuta nada. */
   | { readonly tipo: 'respuesta'; readonly texto: string }
   | { readonly tipo: 'otro' };
 
 /** Lo que el intérprete conversacional sabe del mensaje. Nunca incluye teléfonos. */
 export interface EntradaConversacion {
-  readonly negocio: { readonly id: string; readonly nombre: string; readonly comuna: string; readonly rol: 'comprador' | 'proveedor' };
+  readonly negocio: { readonly id: string; readonly nombre: string; readonly comuna: string; readonly rol: 'comprador' | 'proveedor'; readonly vende?: boolean };
   readonly texto: string;
   /** Mensajes anteriores de esta conversación, del más antiguo al más nuevo (sin el actual). */
   readonly historial: readonly { readonly de: 'persona' | 'bando'; readonly texto: string }[];
@@ -49,9 +57,58 @@ export function normalizar(texto: string): string {
   return sinTildes(texto).replace(/[¿?¡!.,]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/** Unidades de venta que se reconocen al crear un producto ("vendo cajas de café"); en singular. */
+const UNIDADES = ['caja', 'bolsa', 'saco', 'paquete', 'rollo', 'botella', 'bidón', 'kilo', 'unidad', 'pack', 'bandeja', 'docena', 'litro', 'frasco', 'lata', 'sobre', 'resma'];
+
+/** "$12.000", "12000", "12 000" → 12000. Solo montos de 3 dígitos o más ("1 kg" no es un precio). */
+const PRECIO = /\$\s*(\d{1,3}(?:[.\s]\d{3})+|\d+)|\b(\d{1,3}(?:\.\d{3})+|\d{3,})\b/;
+const precioDe = (m: RegExpExecArray) => Number((m[1] ?? m[2])!.replace(/[.\s]/g, ''));
+
+/** Una unidad de venta en singular si la palabra es una ("cajas" → "caja"). */
+function unidadDe(palabra: string | undefined): string | undefined {
+  const p = sinTildes(palabra ?? '');
+  return UNIDADES.find(u => [sinTildes(u), `${sinTildes(u)}s`, `${sinTildes(u)}es`].includes(p));
+}
+
+/** "oferto $25.000 por rollos", "te dejo los guantes en 7.900". */
+function leerOferta(texto: string): Intencion | null {
+  const t = normalizar(texto);
+  if (!/\b(oferto|ofertar|ofrezco|te lo dejo|te los dejo|te las dejo|lo dejo en|mi oferta)\b/.test(t)) return null;
+  const precio = PRECIO.exec(texto);
+  if (!precio) return null;
+  const resto = texto.replace(precio[0], ' ').replace(/\b(oferto|ofertar|ofrezco|te l[oa]s? dejo|lo dejo|mi oferta( es)?)\b/gi, ' ')
+    .replace(/(^|\s)(por|en|a|para|de)(?=\s|$)/gi, ' ').replace(/[$,.]/g, ' ').replace(/\s+/g, ' ').trim();
+  return { tipo: 'ofertar', precio: precioDe(precio), ...(resto ? { producto: resto } : {}) };
+}
+
+/** "vendo café molido 1 kg a $12.000 la bolsa", "nuevo producto: cajas de té a 4500". */
+function leerProductoNuevo(texto: string): Intencion | null {
+  const verbo = /^\s*(vendo|agrega(?:r)? (?:el )?producto|nuevo producto|suma(?:r)? (?:el )?producto)\s*:?\s*/i.exec(texto);
+  if (!verbo) return null;
+  const sinVerbo = texto.slice(verbo[0].length);
+  const precio = PRECIO.exec(sinVerbo);
+  if (!precio) return null;
+  const antes = sinVerbo.slice(0, precio.index).replace(/\s+(a|en|por|x)\s*$/i, '').trim();
+  const despues = sinVerbo.slice(precio.index + precio[0].length).trim();
+  const porUnidad = /^(?:la|el|por|cada|x|c\/u)\s+([\p{L}]+)/iu.exec(despues)?.[1];
+  const primera = antes.split(/\s+/)[0];
+  const unidad = unidadDe(porUnidad) ?? unidadDe(primera) ?? 'unidad';
+  // "cajas de té": el nombre es "Té"; "café molido 1 kg": queda tal cual.
+  const nombre = unidadDe(primera) ? antes.replace(/^\S+\s+(?:de\s+)?/i, '') : antes;
+  if (nombre.length < 2) return null;
+  return { tipo: 'crear_producto', nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), unidad, precio: precioDe(precio) };
+}
+
 /** Intérprete sin red ni credenciales: cubre las frases de la demo. */
 export function interpretarConReglas(texto: string): Intencion {
   const t = normalizar(texto);
+
+  if (/\b(quiero vender|soy proveedor|ser proveedor|registrarme como proveedor|vender en (la red|bando))\b/.test(t)) return { tipo: 'ser_proveedor' };
+  const productoNuevo = leerProductoNuevo(texto);
+  if (productoNuevo) return productoNuevo;
+  const oferta = leerOferta(texto);
+  if (oferta) return oferta;
+  if (/\b(mis ofertas|como voy|como van mis ofertas)\b/.test(t)) return { tipo: 'ver_ofertas' };
 
   const faltante = t.match(new RegExp(`(?:faltaron|falto|faltan|falta|llegaron solo|solo llegaron) ${CANTIDAD}`));
   if (faltante) return { tipo: 'faltante', cantidad: aNumero(faltante[1]) };

@@ -9,8 +9,11 @@
 import type { WhatsApp } from '../whatsapp/index.ts';
 import type { Interprete, Intencion } from './intencion.ts';
 import type { Negocio, OrdenCompra, Red } from './puerto.ts';
-import { tieneSala } from './puerto.ts';
-import { interpreteDeReglas, normalizar } from './intencion.ts';
+import { tieneProveedores, tieneSala } from './puerto.ts';
+import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
+import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { crearProveedores } from './proveedor.ts';
+import type { EstadoSiiProveedor, PropuestaProveedor, Proveedores } from './proveedor.ts';
 import { crearInterpreteClaude } from './claude.ts';
 import { crearEnvios, enmascarar } from './envios.ts';
 import type { Log, WhatsAppDeEnvios } from './envios.ts';
@@ -20,6 +23,7 @@ import * as m from './mensajes.ts';
 import type { AlmacenBorradores } from './borradores.ts';
 
 export type { Red } from './puerto.ts';
+export { crearAlmacenBorradores } from './borradores.ts';
 
 const PLAZO_RECLAMO_DIAS = 8;
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -31,7 +35,12 @@ type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'reclamar'; readonly ordenId: string; readonly faltante: number; readonly facturaEn: Date }
   | { readonly tipo: 'nota_credito'; readonly ordenId: string; readonly faltante: number; readonly monto: number; readonly reclamoEn: Date }
   | { readonly tipo: 'facturar_licitacion'; readonly licitacionId: string }
+  /** Ofertar o sumar un producto a la compra conjunta (server/agente/proveedor.ts). */
+  | { readonly tipo: 'proveedor'; readonly propuesta: PropuestaProveedor }
 );
+
+/** Lo que solo hace quien vende: no es de la sala aunque lo escriba alguien que también compra. */
+const DE_PROVEEDOR = new Set<Intencion['tipo']>(['ofertar', 'crear_producto', 'ser_proveedor', 'ver_ofertas']);
 
 export interface OpcionesAgente {
   readonly interprete?: Interprete;
@@ -44,6 +53,13 @@ export interface OpcionesAgente {
   readonly certificados?: { enlace(telefono: string): string };
   /** Dónde guardar lo que cada teléfono lleva a medias (registro, carrito), para que sobreviva a un reinicio. */
   readonly almacenBorradores?: AlmacenBorradores;
+  /** SII de cada proveedor registrado por WhatsApp (server/conexion-sii). Sin él, sus facturas son simuladas. */
+  readonly conexionSii?: {
+    conectar(rutEmpresa: string, rutTitular: string): Promise<void>;
+    estado(rutEmpresa: string): Promise<EstadoSiiProveedor>;
+  };
+  /** Cada cuánto revisar la conexión al SII de un proveedor nuevo (tests). */
+  readonly revisarSiiMs?: number;
 }
 
 export interface TiemposSala {
@@ -126,7 +142,21 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return null;
   }
 
+  // Proveedores por WhatsApp: con compra conjunta, una red que registra proveedores y el link al certificado.
+  const conProveedores = tieneSala(red) && tieneProveedores(red) && Boolean(opciones.certificados);
+  let proveedores: Proveedores | null = null;
   const sala: Sala | null = tieneSala(red) ? crearSalaDelAgente(red, opciones.sala ?? {}) : null;
+  if (conProveedores && tieneSala(red) && tieneProveedores(red) && opciones.certificados) {
+    const { certificados, conexionSii } = opciones;
+    proveedores = crearProveedores(red, {
+      log,
+      enlaceCertificado: telefono => certificados.enlace(telefono),
+      avisar: (telefono, texto) => enviar(telefono, texto, 'agente'),
+      ...(conexionSii ? { conectarSii: conexionSii.conectar, estadoSii: conexionSii.estado } : {}),
+      ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
+      ...(opciones.revisarSiiMs !== undefined ? { revisarSiiMs: opciones.revisarSiiMs } : {}),
+    });
+  }
 
   function crearSalaDelAgente(redSala: Parameters<typeof crearSala>[0], t: Partial<TiemposSala>): Sala {
     const tiempos = { ...TIEMPOS_SALA, ...t };
@@ -142,6 +172,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       urlPublica: env.PUBLIC_URL || null,
       ...(opciones.certificados ? { enlaceCertificado: (telefono: string) => opciones.certificados!.enlace(telefono) } : {}),
       ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
+      ...(conProveedores ? { alElegirVender: async (telefono: string) => proveedores!.empezar(telefono) } : {}),
       pedirConfirmacion: (proveedor, licitacionId, mensaje) => encolar(proveedor, { tipo: 'facturar_licitacion', licitacionId, mensaje }),
     });
   }
@@ -171,7 +202,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   async function proponerPedido(comprador: Negocio, producto: string, cantidad: number, elegido?: string): Promise<string> {
     const { negocios } = await red.estadoDeLaRed();
     const candidatos = await Promise.all(
-      negocios.filter(n => n.rol === 'proveedor').map(async n => ({ n, nota: await red.notaDeProveedor(n.id) })),
+      negocios.filter(n => puedeVender(n) && n.id !== comprador.id).map(async n => ({ n, nota: await red.notaDeProveedor(n.id) })),
     );
     if (candidatos.length === 0) return m.SIN_PROVEEDOR;
     // El que eligió la persona; si no eligió, el mejor evaluado, prefiriendo los de la misma comuna.
@@ -253,6 +284,9 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       case 'facturar_licitacion':
         if (!sala) throw new Error('la red no tiene compra conjunta');
         return sala.facturar(p.licitacionId, negocio.id);
+      case 'proveedor':
+        if (!proveedores) throw new Error('la red no tiene proveedores por WhatsApp');
+        return proveedores.ejecutar(negocio, p.propuesta);
     }
   }
 
@@ -272,9 +306,14 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const p = actual(negocio.id);
     switch (intencion.tipo) {
       case 'pedir':
-        return negocio.rol === 'comprador' ? proponerPedido(negocio, intencion.producto, intencion.cantidad, intencion.proveedor) : m.AYUDA_PROVEEDOR;
+        return puedeComprar(negocio) ? proponerPedido(negocio, intencion.producto, intencion.cantidad, intencion.proveedor) : m.AYUDA_PROVEEDOR;
       case 'ver_pedidos':
-        return negocio.rol === 'proveedor' ? proponerConfirmacion(negocio) : m.AYUDA_COMPRADOR;
+        return puedeVender(negocio) ? proponerConfirmacion(negocio) : m.AYUDA_COMPRADOR;
+      case 'ser_proveedor':
+      case 'ofertar':
+      case 'crear_producto':
+      case 'ver_ofertas':
+        return responderComoProveedor(negocio, intencion);
       case 'si':
       case 'conforme':
         if (intencion.tipo === 'conforme' && p?.tipo !== 'recepcion') return p ? m.noEntendi(p.mensaje) : m.NADA_PENDIENTE;
@@ -298,13 +337,33 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
         return intencion.texto;
       case 'otro':
         if (p) return m.noEntendi(p.mensaje);
-        return negocio.rol === 'comprador' ? m.AYUDA_COMPRADOR : m.AYUDA_PROVEEDOR;
+        return ayudaDe(negocio);
     }
+  }
+
+  const ayudaDe = (n: Negocio) => (puedeVender(n) ? (puedeComprar(n) ? m.AYUDA_COMPRA_Y_VENDE : m.AYUDA_PROVEEDOR) : m.AYUDA_COMPRADOR);
+
+  /** Vender: quien aún no vende parte su registro; quien vende arma la oferta o el producto para confirmar con un sí. */
+  async function responderComoProveedor(negocio: Negocio, intencion: Intencion): Promise<string> {
+    if (!proveedores) return ayudaDe(negocio);
+    if (!puedeVender(negocio)) return proveedores.empezar(negocio.telefono);
+    let propuesta: PropuestaProveedor | string;
+    switch (intencion.tipo) {
+      case 'ofertar': propuesta = await proveedores.proponerOferta(negocio, intencion.precio, intencion.producto); break;
+      case 'crear_producto': propuesta = await proveedores.proponerProducto(negocio, intencion.nombre, intencion.unidad, intencion.precio); break;
+      case 'ver_ofertas': return proveedores.verOfertas(negocio);
+      default: return `Ya vendes en Bando ✓ ${m.AYUDA_PROVEEDOR}`;
+    }
+    if (typeof propuesta === 'string') return propuesta;
+    // Una oferta o un producto nuevo reemplaza a otro sin confirmar, pero no a lo que pregunta la contraparte.
+    if (actual(negocio.id)?.tipo === 'proveedor') tomar(negocio.id);
+    alFrente(negocio.id, { tipo: 'proveedor', propuesta, mensaje: propuesta.mensaje });
+    return propuesta.mensaje;
   }
 
   /** El proveedor dijo "todavía no" a facturar la compra conjunta y ahora dice que sí: se le vuelve a preguntar. */
   function reproponerFacturacion(negocio: Negocio): string | null {
-    const pendiente = negocio.rol === 'proveedor' ? sala?.pendienteDeFacturar(negocio.id) : null;
+    const pendiente = puedeVender(negocio) ? sala?.pendienteDeFacturar(negocio.id) : null;
     if (!pendiente) return null;
     alFrente(negocio.id, { tipo: 'facturar_licitacion', licitacionId: pendiente.licitacionId, mensaje: pendiente.mensaje });
     return pendiente.mensaje;
@@ -314,8 +373,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   async function entender(negocio: Negocio, telefono: string, texto: string, pendiente: string | null): Promise<Intencion> {
     // Un botón apretado ("1", "2") no necesita a Claude: las reglas lo entienden al instante.
     if (!interprete.conversar || /^\d$/.test(texto)) return interprete.interpretar(texto, pendiente);
-    const { id, nombre, comuna, rol } = negocio;
-    return interprete.conversar({ negocio: { id, nombre, comuna, rol }, texto, historial: await historialDe(telefono, texto), pendiente });
+    const { id, nombre, comuna, rol, vende } = negocio;
+    return interprete.conversar({ negocio: { id, nombre, comuna, rol, ...(vende ? { vende } : {}) }, texto, historial: await historialDe(telefono, texto), pendiente });
   }
 
   async function historialDe(telefono: string, texto: string) {
@@ -334,9 +393,15 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       await ctx.reply(m.enlaceCertificado(opciones.certificados.enlace(telefono)));
       return;
     }
+    // Registrándose como proveedor: todo lo que escriba es de ese registro hasta terminar o cancelar.
+    if (proveedores?.registrando(telefono)) {
+      await ctx.reply(await proveedores.atenderRegistro(telefono, texto));
+      return;
+    }
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
-      await ctx.reply(sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
+      const quiereVender = proveedores && ['ser_proveedor', 'crear_producto'].includes(interpretarConReglas(texto).tipo);
+      await ctx.reply(quiereVender ? proveedores!.empezar(telefono) : sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
       return;
     }
     const antes = actual(negocio.id);
@@ -345,7 +410,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     // Quien se suma por WhatsApp queda registrado en la red: "sí", "no" o "2 del 3" también son de la sala.
     // Un pedido de un producto de la canasta ("quiero 3 cajas más") es de la sala aunque se lea como pedido.
     const pideDeLaCanasta = sala !== null && intencion.tipo === 'pedir' && (await sala.hablaDeLaCanasta(intencion.producto));
-    const deLaSala = sala && !antes && negocio.rol === 'comprador' && intencion.tipo !== 'faltante'
+    const deLaSala = sala && !antes && puedeComprar(negocio) && intencion.tipo !== 'faltante' && !DE_PROVEEDOR.has(intencion.tipo)
       && (pideDeLaCanasta || intencion.tipo !== 'pedir');
     // Si la IA ya respondió una pregunta, la sala solo la toma si es una acción suya (no "¿cuántas le compré a X?").
     const paraLaSala = intencion.tipo !== 'respuesta' || (sala !== null && (await sala.entiende(telefono, texto)));
@@ -369,7 +434,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return siguiente;
   }
   // Lo que cada teléfono llevaba a medias antes de un reinicio: se recupera antes de atender el primer mensaje.
-  const cargado = (sala?.cargar() ?? Promise.resolve()).catch(error => log.error('[agente] no se pudieron recuperar los borradores', error));
+  const cargado = Promise.all([sala?.cargar(), proveedores?.cargar()]).catch(error => log.error('[agente] no se pudieron recuperar los borradores', error));
   const desconectar = whatsapp.onMessage((mensaje, ctx) => {
     const telefono = mensaje.from;
     return enFila(telefono, async () => {
@@ -394,6 +459,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       return enFila(telefono, async () => {
         const ctx = { reply: (body: string) => enviar(telefono, body, 'reply') };
         try {
+          await cargado;
+          // Registrándose como proveedor: sigue con el RUT con que factura.
+          const comoProveedor = proveedores?.certificadoConectado(telefono, rut);
+          if (comoProveedor) return void (await enviar(telefono, comoProveedor, 'agente'));
           await enviar(telefono, m.CERTIFICADO_CONECTADO, 'agente');
           if (sala?.esperaRut(telefono)) await atender(telefono, rut, ctx);
         } catch (error) {
@@ -405,6 +474,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     desconectar() {
       desconectar();
       sala?.detener();
+      proveedores?.detener();
     },
   };
 }
