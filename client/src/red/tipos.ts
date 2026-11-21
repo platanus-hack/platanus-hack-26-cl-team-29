@@ -107,7 +107,7 @@ export interface Licitacion {
   ordenIds?: string[];
 }
 
-/** GET /api/red/config: a qué número escribirle a Dominó y qué se compra. */
+/** GET /api/red/config: a qué número escribirle a Bando y qué se compra. */
 export interface ConfigRed {
   whatsappNumero: string | null;
   producto?: string;

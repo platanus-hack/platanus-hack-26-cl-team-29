@@ -98,7 +98,7 @@ export function RedEnVivo() {
   return (
     <main className="pagina proyeccion red">
       <header className="red-cabecera">
-        <div className="marca" aria-hidden>D</div>
+        <div className="marca" aria-hidden>B</div>
         <h1 className="titulo-red">La red de compras, en vivo</h1>
         <span className="en-vivo contorno">En vivo</span>
         <AvisoFuente fuente={fuente} />
