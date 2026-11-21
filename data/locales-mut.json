@@ -1,0 +1,405 @@
+{
+ "siguienteCelda": 6,
+ "locales": [
+  {
+   "id": "node/13930198538",
+   "nombre": "Get It",
+   "tipo": "almacén",
+   "lat": -33.420636,
+   "lng": -70.610529,
+   "distanciaKm": 0.94,
+   "encontradoEn": "2026-11-21T15:58:33.117Z",
+   "direccion": "Nueva de Lyon",
+   "comuna": "Providencia"
+  },
+  {
+   "id": "way/586633520",
+   "nombre": "Dolce & Salato",
+   "tipo": "café",
+   "lat": -33.428132,
+   "lng": -70.595226,
+   "distanciaKm": 1.27,
+   "encontradoEn": "2026-11-21T15:58:33.117Z",
+   "direccion": "Eliodoro Yáñez 2820",
+   "comuna": "Providencia",
+   "web": "http://www.dolceysalato.cl/"
+  },
+  {
+   "id": "node/598787554",
+   "nombre": "Almacen",
+   "tipo": "almacén",
+   "lat": -33.426142,
+   "lng": -70.614696,
+   "distanciaKm": 1.57,
+   "encontradoEn": "2026-11-21T15:58:33.117Z"
+  },
+  {
+   "id": "node/676382731",
+   "nombre": "La Mini",
+   "tipo": "panadería",
+   "lat": -33.424244,
+   "lng": -70.581271,
+   "distanciaKm": 1.97,
+   "encontradoEn": "2026-11-21T15:58:33.117Z"
+  },
+  {
+   "id": "node/10142072862",
+   "nombre": "Castaño",
+   "tipo": "panadería",
+   "lat": -33.423583,
+   "lng": -70.578392,
+   "distanciaKm": 2.19,
+   "encontradoEn": "2026-11-21T15:58:33.117Z",
+   "direccion": "Avenida Cristóbal Colón 4457",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/2501987524",
+   "nombre": "RestoBar",
+   "tipo": "bar",
+   "lat": -33.438636,
+   "lng": -70.608451,
+   "distanciaKm": 2.42,
+   "encontradoEn": "2026-11-21T15:58:33.117Z"
+  },
+  {
+   "id": "node/13924668806",
+   "nombre": "Akún Bar & Lounge",
+   "tipo": "bar",
+   "lat": -33.400352,
+   "lng": -70.574346,
+   "distanciaKm": 3.14,
+   "encontradoEn": "2026-11-21T15:58:33.117Z",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/479397637",
+   "nombre": "5to. Cheers Café",
+   "tipo": "café",
+   "lat": -33.44126,
+   "lng": -70.631224,
+   "distanciaKm": 3.83,
+   "encontradoEn": "2026-11-21T15:58:33.117Z",
+   "direccion": "Avenida General Bustamante 104"
+  },
+  {
+   "id": "node/11418369755",
+   "nombre": "El Crustáceo Cascarudo",
+   "tipo": "comida rápida",
+   "lat": -33.465475,
+   "lng": -70.595476,
+   "distanciaKm": 5.33,
+   "encontradoEn": "2026-11-21T16:03:01.553Z"
+  },
+  {
+   "id": "node/13265215639",
+   "nombre": "La carne y sería quesería",
+   "tipo": "carnicería",
+   "lat": -33.46696,
+   "lng": -70.598666,
+   "distanciaKm": 5.47,
+   "encontradoEn": "2026-11-21T16:03:01.553Z"
+  },
+  {
+   "id": "node/11413570682",
+   "nombre": "Wendy's",
+   "tipo": "comida rápida",
+   "lat": -33.415237,
+   "lng": -70.541288,
+   "distanciaKm": 5.55,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur 875",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/11413570728",
+   "nombre": "Burger King",
+   "tipo": "comida rápida",
+   "lat": -33.415287,
+   "lng": -70.541109,
+   "distanciaKm": 5.57,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur 875",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/11413570732",
+   "nombre": "Taco Bell",
+   "tipo": "comida rápida",
+   "lat": -33.415206,
+   "lng": -70.540979,
+   "distanciaKm": 5.58,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur 875",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/11413570722",
+   "nombre": "Carl's Jr.",
+   "tipo": "comida rápida",
+   "lat": -33.414566,
+   "lng": -70.540629,
+   "distanciaKm": 5.61,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur 875",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/11413570683",
+   "nombre": "Dunkin'",
+   "tipo": "comida rápida",
+   "lat": -33.416068,
+   "lng": -70.54002,
+   "distanciaKm": 5.66,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur 875",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/13265178511",
+   "nombre": "El mercadito",
+   "tipo": "almacén",
+   "lat": -33.468843,
+   "lng": -70.598749,
+   "distanciaKm": 5.68,
+   "encontradoEn": "2026-11-21T16:03:01.553Z"
+  },
+  {
+   "id": "node/13265178512",
+   "nombre": "Fono Pizza",
+   "tipo": "restaurante",
+   "lat": -33.468927,
+   "lng": -70.598753,
+   "distanciaKm": 5.69,
+   "encontradoEn": "2026-11-21T16:03:01.553Z"
+  },
+  {
+   "id": "node/2401634378",
+   "nombre": "Santa Isabel",
+   "tipo": "supermercado",
+   "lat": -33.41961,
+   "lng": -70.663129,
+   "distanciaKm": 5.77,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Fermín Vivaceta 957"
+  },
+  {
+   "id": "node/4425537750",
+   "nombre": "Lalo's",
+   "tipo": "restaurante",
+   "lat": -33.420093,
+   "lng": -70.663076,
+   "distanciaKm": 5.77,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Fermín Vivaceta"
+  },
+  {
+   "id": "node/1114558044",
+   "nombre": "Santa Isabel",
+   "tipo": "supermercado",
+   "lat": -33.423459,
+   "lng": -70.538825,
+   "distanciaKm": 5.8,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur 1621",
+   "comuna": "Las Condes"
+  },
+  {
+   "id": "node/1114558189",
+   "nombre": "Pop & Rolls",
+   "tipo": "comida rápida",
+   "lat": -33.423136,
+   "lng": -70.538813,
+   "distanciaKm": 5.8,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur"
+  },
+  {
+   "id": "node/5013108322",
+   "nombre": "Trendy",
+   "tipo": "almacén",
+   "lat": -33.412329,
+   "lng": -70.663389,
+   "distanciaKm": 5.82,
+   "encontradoEn": "2026-11-21T16:00:11.295Z"
+  },
+  {
+   "id": "way/445113704",
+   "nombre": "Copec",
+   "tipo": "almacén",
+   "lat": -33.418046,
+   "lng": -70.664073,
+   "distanciaKm": 5.85,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Fermín Vivaceta"
+  },
+  {
+   "id": "way/445113701",
+   "nombre": "Hong Fa",
+   "tipo": "restaurante",
+   "lat": -33.417715,
+   "lng": -70.663992,
+   "distanciaKm": 5.85,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Fermín Vivaceta"
+  },
+  {
+   "id": "node/1114558036",
+   "nombre": "Minimarket Guacarana",
+   "tipo": "almacén",
+   "lat": -33.421596,
+   "lng": -70.537479,
+   "distanciaKm": 5.91,
+   "encontradoEn": "2026-11-21T16:01:38.415Z",
+   "direccion": "Avenida Padre Hurtado Sur"
+  },
+  {
+   "id": "way/445100645",
+   "nombre": "Kun Yeng",
+   "tipo": "restaurante",
+   "lat": -33.412408,
+   "lng": -70.665253,
+   "distanciaKm": 5.99,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Fermín Vivaceta"
+  },
+  {
+   "id": "way/445112540",
+   "nombre": "Ganadera Río Bueno",
+   "tipo": "carnicería",
+   "lat": -33.412606,
+   "lng": -70.665676,
+   "distanciaKm": 6.03,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Fermín Vivaceta"
+  },
+  {
+   "id": "node/13152926139",
+   "nombre": "Under Pizza",
+   "tipo": "comida rápida",
+   "lat": -33.472478,
+   "lng": -70.59844,
+   "distanciaKm": 6.08,
+   "encontradoEn": "2026-11-21T16:03:01.553Z",
+   "web": "https://www.underpizza.com/pedir"
+  },
+  {
+   "id": "node/4432966466",
+   "nombre": "Carniceria El Negro",
+   "tipo": "carnicería",
+   "lat": -33.473735,
+   "lng": -70.596237,
+   "distanciaKm": 6.24,
+   "encontradoEn": "2026-11-21T16:03:01.553Z",
+   "direccion": "Avenida Rodrigo de Araya 3423",
+   "comuna": "Macul"
+  },
+  {
+   "id": "node/14240001605",
+   "nombre": "Fat Bakers",
+   "tipo": "panadería",
+   "lat": -33.415355,
+   "lng": -70.668982,
+   "distanciaKm": 6.32,
+   "encontradoEn": "2026-11-21T16:00:11.295Z",
+   "direccion": "Avenida Domingo Santa María 2511",
+   "web": "http://www.fatbakers.cl"
+  },
+  {
+   "id": "way/447535090",
+   "nombre": "Starbucks",
+   "tipo": "café",
+   "lat": -33.476871,
+   "lng": -70.598641,
+   "distanciaKm": 6.57,
+   "encontradoEn": "2026-11-21T16:03:01.553Z",
+   "direccion": "Avenida Macul"
+  },
+  {
+   "id": "way/447535092",
+   "nombre": "Punto",
+   "tipo": "almacén",
+   "lat": -33.47785,
+   "lng": -70.598717,
+   "distanciaKm": 6.68,
+   "encontradoEn": "2026-11-21T16:03:01.553Z",
+   "direccion": "Avenida Macul"
+  },
+  {
+   "id": "node/4466700961",
+   "nombre": "Pollos Asados Peruanos",
+   "tipo": "restaurante",
+   "lat": -33.465236,
+   "lng": -70.673144,
+   "distanciaKm": 8.52,
+   "encontradoEn": "2026-11-21T16:05:54.769Z"
+  },
+  {
+   "id": "node/4462580041",
+   "nombre": "Cabeza de Piso",
+   "tipo": "almacén",
+   "lat": -33.465101,
+   "lng": -70.673395,
+   "distanciaKm": 8.53,
+   "encontradoEn": "2026-11-21T16:05:54.769Z"
+  },
+  {
+   "id": "way/449733379",
+   "nombre": "Antofagasta",
+   "tipo": "panadería",
+   "lat": -33.466288,
+   "lng": -70.672801,
+   "distanciaKm": 8.57,
+   "encontradoEn": "2026-11-21T16:05:54.769Z",
+   "direccion": "San Alfonso 1380"
+  },
+  {
+   "id": "node/8387161117",
+   "nombre": "Tío Rodi",
+   "tipo": "almacén",
+   "lat": -33.470644,
+   "lng": -70.670268,
+   "distanciaKm": 8.71,
+   "encontradoEn": "2026-11-21T16:05:54.769Z",
+   "direccion": "Avenida General Rondizzoni"
+  },
+  {
+   "id": "node/4455805402",
+   "nombre": "El Dragón",
+   "tipo": "supermercado",
+   "lat": -33.469533,
+   "lng": -70.671548,
+   "distanciaKm": 8.71,
+   "encontradoEn": "2026-11-21T16:05:54.769Z",
+   "direccion": "Bascuñán Guerrero 1702"
+  },
+  {
+   "id": "node/5762551253",
+   "nombre": "Yong Xing",
+   "tipo": "restaurante",
+   "lat": -33.471738,
+   "lng": -70.67143,
+   "distanciaKm": 8.87,
+   "encontradoEn": "2026-11-21T16:05:54.769Z",
+   "direccion": "Bascuñán Guerrero 1898"
+  },
+  {
+   "id": "way/445738042",
+   "nombre": "Donde la Rosita Almacén",
+   "tipo": "almacén",
+   "lat": -33.478441,
+   "lng": -70.670238,
+   "distanciaKm": 9.31,
+   "encontradoEn": "2026-11-21T16:05:54.769Z"
+  },
+  {
+   "id": "node/4431138656",
+   "nombre": "Talcahuano",
+   "tipo": "restaurante",
+   "lat": -33.478446,
+   "lng": -70.670678,
+   "distanciaKm": 9.34,
+   "encontradoEn": "2026-11-21T16:05:54.769Z"
+  }
+ ]
+}

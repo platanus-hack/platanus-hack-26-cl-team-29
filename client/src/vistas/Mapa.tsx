@@ -3,7 +3,7 @@
 // Los datos son los mismos de /red (useRed): cada `red:evento` mueve el mapa y el panel a la vez.
 
 import { useEffect, useRef } from 'react';
-import { Map as MapaLibre, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
+import { AttributionControl, Map as MapaLibre, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
 // MapLibre 6 busca su worker junto a su propio archivo; al compilar con Vite ese archivo cambia de nombre.
 // Vite copia el worker a dist/assets y nos da su URL.
 import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
@@ -12,8 +12,9 @@ import './mapa.css';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { LogoSii } from '../components/Iconos.tsx';
 import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
+import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
 import { contadores, notaDe, type CambioNota } from '../red/derivar.ts';
-import { nota } from '../red/formato.ts';
+import { miles, nota } from '../red/formato.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
@@ -38,7 +39,12 @@ function agregarCapas(m: MapaLibre) {
   m.addSource('radio', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: circulo(MUT, RADIO_KM) } } });
   m.addSource('lineas', { type: 'geojson', data: vacio });
   m.addSource('negocios', { type: 'geojson', data: vacio });
+  m.addSource('locales', { type: 'geojson', data: vacio });
+  m.addSource('buscando', { type: 'geojson', data: vacio });
   m.addLayer({ id: 'radio', type: 'line', source: 'radio', paint: { 'line-color': AMARILLO, 'line-width': 1.5, 'line-opacity': 0.7, 'line-dasharray': [3, 3] } });
+  // Locales que encontró el explorador: debajo de la red, tenues, para que la red mande.
+  m.addLayer({ id: 'locales', type: 'circle', source: 'locales', paint: { 'circle-radius': 2.5, 'circle-color': '#9adfff', 'circle-opacity': 0.55 } });
+  m.addLayer({ id: 'buscando', type: 'line', source: 'buscando', paint: { 'line-color': '#9adfff', 'line-width': 1.5, 'line-dasharray': [1, 1] } });
   m.addLayer({
     id: 'lineas', type: 'line', source: 'lineas', filter: ['!=', ['get', 'tipo'], 'reclamo'],
     paint: {
@@ -69,22 +75,27 @@ function crear(clase: string, html = ''): HTMLDivElement {
   return el;
 }
 
-function Lienzo({ estado, cambios, eventos }: { estado: EstadoRed; cambios: CambioNota[]; eventos: EventoVisto[] }) {
+function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; cambios: CambioNota[]; eventos: EventoVisto[]; locales: Locales | null }) {
   const caja = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaLibre | null>(null);
   const etiquetas = useRef(new Map<string, Marker>());
   const vistos = useRef(new Set<number>());
   const datos = useRef(capas(estado, cambios));
+  const exploracion = useRef(locales);
 
   const pintar = () => {
     const m = mapa.current;
     if (!m?.getSource('negocios')) return;
     (m.getSource('negocios') as GeoJSONSource).setData(datos.current.negocios);
     (m.getSource('lineas') as GeoJSONSource).setData(datos.current.lineas);
+    (m.getSource('locales') as GeoJSONSource).setData(puntosDeLocales(exploracion.current?.locales ?? []));
+    (m.getSource('buscando') as GeoJSONSource).setData(contornoDeCelda(exploracion.current?.avance.buscando ?? null));
   };
 
   useEffect(() => {
-    const m = new MapaLibre({ container: caja.current!, style: ESTILO, center: MUT, zoom: 10, attributionControl: { compact: true } });
+    // Los créditos van arriba a la derecha: abajo están la leyenda y las etiquetas del sur.
+    const m = new MapaLibre({ container: caja.current!, style: ESTILO, center: MUT, zoom: 10, attributionControl: false });
+    m.addControl(new AttributionControl({ compact: true }), 'top-right');
     mapa.current = m;
     let conCalles = false;
     m.on('style.load', () => {
@@ -135,6 +146,12 @@ function Lienzo({ estado, cambios, eventos }: { estado: EstadoRed; cambios: Camb
     }
   }, [estado, cambios]);
 
+  // Cada celda que recorre el explorador suma sus locales y mueve el contorno de búsqueda.
+  useEffect(() => {
+    exploracion.current = locales;
+    pintar();
+  }, [locales]);
+
   // Cada evento nuevo late una vez en el negocio donde pasó.
   useEffect(() => {
     const m = mapa.current;
@@ -154,8 +171,21 @@ function Lienzo({ estado, cambios, eventos }: { estado: EstadoRed; cambios: Camb
   return <div className="mapa-lienzo" ref={caja} role="img" aria-label="Mapa de Santiago con los negocios y proveedores de la red" />;
 }
 
+/** Por dónde va el explorador de locales: cuántos lleva y a qué distancia del MUT. */
+function AvisoExploracion({ locales }: { locales: Locales }) {
+  const { avance } = locales;
+  const que = avance.terminado ? 'Muestra lista' : avance.fase === 'reparto' ? 'Repartiendo la muestra' : 'Sumando locales hacia afuera';
+  return (
+    <p className="mapa-exploracion" aria-live="polite">
+      <i className={avance.terminado ? '' : 'activo'} />
+      {que} · {miles(locales.locales.length)} locales{avance.fase === 'acumulando' && !avance.terminado ? ` · ${String(avance.distanciaKm).replace('.', ',')} km del MUT` : ''}
+    </p>
+  );
+}
+
 export function Mapa() {
   const { estado, eventos, cambios, fuente } = useRed();
+  const locales = useLocales();
   const ahora = useAhora();
   if (!estado) return <Cargando />;
   const cuenta = contadores(estado);
@@ -171,10 +201,12 @@ export function Mapa() {
 
       <div className="red-cuerpo">
         <section className="mapa-caja">
-          <Lienzo estado={estado} cambios={cambios} eventos={eventos} />
+          <Lienzo estado={estado} cambios={cambios} eventos={eventos} locales={locales} />
+          {locales && <AvisoExploracion locales={locales} />}
           <ul className="mapa-leyenda" aria-label="Leyenda">
             <li><i className="punto verde" /> negocio</li>
             <li><i className="punto amarillo" /> proveedor</li>
+            {locales && <li><i className="punto local" /> local cercano</li>}
             <li><i className="raya amarillo" /> último pedido</li>
             <li><i className="raya magenta" /> reclamo</li>
             <li><i className="raya radio" /> {RADIO_KM} km desde el MUT</li>
