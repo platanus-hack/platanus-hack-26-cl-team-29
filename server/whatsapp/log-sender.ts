@@ -16,7 +16,8 @@ export class LogSender implements WhatsAppSender {
   async send(to: string, message: OutboundMessage): Promise<TransportResult> {
     const opciones = message.list?.rows ?? message.buttons ?? [];
     const buttons = opciones.length ? ` [${opciones.map(b => b.title).join(' | ')}]` : '';
-    this.#log.info(`[whatsapp:dev] → ${to}: ${message.body}${buttons}`);
+    const document = message.document ? ` [documento ${message.document.filename}: ${message.document.link}]` : '';
+    this.#log.info(`[whatsapp:dev] → ${to}: ${message.body}${buttons}${document}`);
     return { ok: true, messageIds: [`dev.${++this.#count}`] };
   }
 

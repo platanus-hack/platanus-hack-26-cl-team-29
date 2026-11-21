@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KapsoSender } from '../server/whatsapp/kapso/sender.ts';
+import { LogSender } from '../server/whatsapp/log-sender.ts';
 import { verifySignature, signPayload } from '../server/whatsapp/kapso/signature.ts';
 
 function fakeFetch(statuses: number[], errorBody: unknown = { error: { message: 'nope' } }) {
@@ -95,4 +96,25 @@ test('una lista va como mensaje interactivo de tipo list, con sus filas', async 
     body: { text: '¿Qué producto?' },
     action: { button: 'Ver opciones', sections: [{ title: 'Ver opciones', rows: [{ id: 'op1', title: 'Rollos', description: '$32.000 por caja' }, { id: 'op2', title: 'Guantes' }] }] },
   });
+});
+
+test('un documento va como mensaje de tipo document, con la leyenda como caption', async () => {
+  const { fn, calls } = fakeFetch([200, 200]);
+  const document = { link: 'https://demo.invalid/pdf/doc-5190', filename: 'factura-5190.pdf' };
+  assert.deepEqual(await sender(fn).send('+56 9 1111 2222', { body: 'Tu factura folio 5190', document }), { ok: true, messageIds: ['wamid.1'] });
+  assert.deepEqual(calls[0]!.body, {
+    messaging_product: 'whatsapp', recipient_type: 'individual', to: '56911112222',
+    type: 'document', document: { ...document, caption: 'Tu factura folio 5190' },
+  });
+
+  await sender(fn).send('569', { body: '', document });
+  assert.deepEqual(calls[1]!.body.document, document, 'sin leyenda no se manda caption vacío');
+});
+
+test('el sender de desarrollo loguea el documento con su nombre y enlace', async () => {
+  const lines: string[] = [];
+  const log = { info: (l: string) => lines.push(l), warn() {}, error() {} };
+  const result = await new LogSender(log).send('569', { body: 'Tu factura', document: { link: 'https://x.invalid/f.pdf', filename: 'f.pdf' } });
+  assert.equal(result.ok, true);
+  assert.deepEqual(lines, ['[whatsapp:dev] → 569: Tu factura [documento f.pdf: https://x.invalid/f.pdf]']);
 });
