@@ -76,7 +76,7 @@ export interface Tramo {
 export interface ParticipanteSala {
   readonly nombre: string;
   readonly cantidad: number;
-  /** Presente en quienes se sumaron por WhatsApp. */
+  /** La red no lo expone hacia afuera; el agente lo resuelve con `telefonoDeNegocio(negocioId)`. */
   readonly telefono?: string;
   readonly negocioId?: string;
 }
@@ -88,7 +88,8 @@ export interface LicitacionSala {
   readonly unidad: string;
   /** "cajas". Si falta, el agente lo deriva de `unidad`. */
   readonly unidadPlural?: string;
-  readonly proveedorId: string;
+  /** Proveedor único de la compra conjunta; si falta, se usa el de las órdenes al cerrar. */
+  readonly proveedorId?: string;
   readonly precioSolo: number;
   readonly tramos: readonly Tramo[];
   readonly participantes: readonly ParticipanteSala[];

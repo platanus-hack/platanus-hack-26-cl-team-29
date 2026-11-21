@@ -126,10 +126,12 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
 
   // --- Cascada de precios ---
 
-  function telefonosDe(l: LicitacionSala): string[] {
-    const desdeRed = l.participantes.flatMap(p => (p.telefono ? [p.telefono] : []));
+  /** Los que se sumaron por este agente y, tras un reinicio, los que la red conoce por su negocio. */
+  async function telefonosDe(l: LicitacionSala): Promise<string[]> {
     const conocidos = [...participantes.values()].filter(p => p.licitacionId === l.id).map(p => p.telefono);
-    return [...desdeRed, ...conocidos];
+    const desdeRed = await Promise.all(l.participantes.map(async p =>
+      p.telefono ?? (p.negocioId ? await red.telefonoDeNegocio(p.negocioId) : null)));
+    return [...conocidos, ...desdeRed.filter((t): t is string => Boolean(t))];
   }
 
   async function difundirBaja() {
@@ -139,7 +141,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     if (!baja) return;
     const l = await abierta();
     if (!l || l.id !== baja.licitacionId) return; // ya cerró: la baja no importa
-    await o.envios.difundir(telefonosDe(l), m.bajoPrecio(baja.precioNuevo, l), 'baja de precio');
+    await o.envios.difundir(await telefonosDe(l), m.bajoPrecio(baja.precioNuevo, l), 'baja de precio');
   }
 
   function alBajarPrecio(datos: { licitacionId: string; precioNuevo: number }) {
@@ -177,7 +179,8 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const total = ordenes.reduce((s, x) => s + m.totalOrden(x), 0) || unidades * precio;
     const resumen = { negocios: ordenes.length || l.participantes.length, unidades, precio, total };
     o.log.info(`[sala] cerró ${l.id}: ${resumen.negocios} negocios, ${unidades} unidades a ${precio}`);
-    const proveedor = await proveedorDe(l.proveedorId);
+    const proveedorId = l.proveedorId ?? ordenes[0]?.proveedorId;
+    const proveedor = proveedorId ? await proveedorDe(proveedorId) : null;
     if (!proveedor) {
       o.log.warn(`[sala] no sé a qué teléfono pedirle el sí al proveedor de ${l.id}`);
       return;
