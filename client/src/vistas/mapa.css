@@ -19,8 +19,20 @@
 .mapa-leyenda li { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 .mapa-leyenda .punto { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
 .mapa-leyenda .raya { width: 20px; border-top: 3px solid currentColor; }
+.mapa-leyenda .credito { color: var(--color-tenue); }
+.mapa-leyenda .punto.local { width: 7px; height: 7px; color: #9adfff; opacity: 0.8; }
 .mapa-leyenda .raya.magenta { border-top-style: dashed; }
 .mapa-leyenda .raya.radio { border-top: 2px dashed var(--color-primary); }
+
+/* Avance del explorador de locales, arriba a la izquierda del mapa. */
+.mapa-exploracion {
+  position: absolute; left: 12px; top: 12px; margin: 0; padding: 6px 12px; max-width: calc(40% - 24px);
+  display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgb(0 0 0 / 0.85); border: 1px solid var(--color-border); border-radius: 10px;
+  font-family: var(--font-mono); font-size: clamp(11px, 1.5vh, 14px); color: var(--color-muted);
+}
+.mapa-exploracion i { width: 8px; height: 8px; border-radius: 50%; background: #9adfff; flex-shrink: 0; }
+.mapa-exploracion i.activo { animation: latido 1.2s ease-in-out infinite; }
 
 /* Etiqueta de cada proveedor: nombre y nota. Cambia de color unos segundos cuando su nota se mueve. */
 .mapa-proveedor {

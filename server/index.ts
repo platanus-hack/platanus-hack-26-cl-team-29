@@ -7,6 +7,7 @@ import { crearRutasRed, iniciarRed } from './red/index.ts';
 import { iniciarConexionSii } from './conexion-sii/index.ts';
 import { conectarAgente } from './agente/index.ts';
 import { crearInterpreteDesdeEnv } from './ia/index.ts';
+import { iniciarLocales } from './locales/index.ts';
 
 const app = express();
 const http = createServer(app);
@@ -20,6 +21,8 @@ const conexionSii = await iniciarConexionSii(dbRed);
 export const red = await iniciarRed(dbRed, conexionSii.sii);
 red.escuchar(evento => io.emit('red:evento', evento));
 export const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env, red) });
+// Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
+const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento', hallazgo));
 
 app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP de /api/red)
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
@@ -27,6 +30,7 @@ app.use(express.json());
 app.get('/api/health', async (_req, res) => {
   res.json((await db.query('select now()')).rows[0]);
 });
+app.use('/api/locales', locales.rutas);
 app.use('/api/red', crearRutasRed(red, process.env, { conexionSii: conexionSii.rutas }));
 app.use(express.static('dist'));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' })); // fallback SPA (Express 5: no usar app.get('*'))
