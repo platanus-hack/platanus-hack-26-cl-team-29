@@ -2,7 +2,7 @@
 // Sin React ni red, para poder probarla con node:test.
 
 import type { Documento } from '../red/tipos.ts';
-import { textoEstadoSii } from '../red/formato.ts';
+import { contar, textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -135,7 +135,7 @@ const conEstadoSii = (texto: string, estado: string | null | undefined) => {
 };
 
 /** Los 6 pasos del ciclo, los mismos de la pantalla en vivo, vistos por el comprador. */
-export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento[]): CicloPedido {
+export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento[], unidad?: Unidad): CicloPedido {
   const doc = (tipo: Documento['tipo']) => documentos.find(d => d.ordenId === orden.id && d.tipo === tipo);
   const factura = doc(33);
   const nc = doc(61);
@@ -147,7 +147,7 @@ export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento
     ['Pedido', 'Enviaste la orden de compra'],
     ['Confirmado', avance >= 1 ? 'El proveedor confirmó' : 'Esperando que el proveedor confirme'],
     ['Factura en el SII', factura ? conEstadoSii(`Folio ${factura.folio}`, factura.estadoSii) : 'Llega con la guía de despacho'],
-    ['Recepción', conforme ? 'Llegó todo' : faltante ? `${faltante === 1 ? 'Faltó' : 'Faltaron'} ${faltante}` : '¿Recibiste todo?'],
+    ['Recepción', conforme ? 'Llegó todo' : faltante ? `${faltante === 1 ? 'Faltó' : 'Faltaron'} ${unidad ? contar(faltante, unidad.singular, unidad.plural) : faltante}` : '¿Recibiste todo?'],
     ['Reclamo en el SII', conforme ? 'No hizo falta' : orden.reclamo ? conEstadoSii('Reclamado', orden.reclamo.estadoSii) : 'Solo si falta algo'],
     ['Nota de crédito', conforme ? 'No hizo falta' : nc ? conEstadoSii(`Folio ${nc.folio}`, nc.estadoSii) : 'El proveedor la emite'],
   ];

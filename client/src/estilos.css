@@ -380,6 +380,8 @@ body {
   bottom: calc(12px + env(safe-area-inset-bottom));
   box-shadow: 0 8px 24px 8px rgb(0 0 0 / 0.7);
 }
+/* Aviso de modo demo: una línea discreta, nunca encima de una acción. */
+.nota-demo { margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: var(--color-tenue); }
 .error { color: var(--color-magenta); font-family: var(--font-mono); font-size: 14px; margin: 0; }
 .confirmacion .numero-grande { font-size: 64px; }
 .bajada { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 12px; }

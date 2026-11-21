@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { licitacionActual, resumenLicitacion, unidadDeLicitacion } from '../red/derivar.ts';
-import { contar, cuentaRegresiva, dinero } from '../red/formato.ts';
+import { contar, cuantos, cuentaRegresiva, dinero } from '../red/formato.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 
 /** Cuánto puede pedir un negocio en la compra conjunta. */
@@ -132,7 +132,7 @@ export function Unirse() {
             <datalist id="comunas">{COMUNAS.map(c => <option key={c} value={c} />)}</datalist>
           </label>
           <div className="campo">
-            <span className="etiqueta">¿Cuántos {unidad.plural}?</span>
+            <span className="etiqueta">¿{cuantos(unidad.plural)} {unidad.plural}?</span>
             <div className="stepper">
               <button type="button" className="boton secundario" aria-label="Menos" onClick={() => setCantidad(c => Math.max(1, c - 1))}>-</button>
               <input type="number" inputMode="numeric" min={1} max={MAXIMO} value={cantidad} onChange={e => setCantidad(Math.min(MAXIMO, Math.max(1, Number(e.target.value) || 1)))} aria-label="Cantidad" />
@@ -143,6 +143,7 @@ export function Unirse() {
           <button className="boton" disabled={enviando}>{enviando ? 'Sumándote...' : 'Sumarme a la compra'}</button>
         </form>
       )}
+      <p className="nota-demo">Modo demo: cualquiera puede sumarse sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>
     </main>
   );
 }

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
+import { contar, cuantos, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
@@ -162,6 +162,7 @@ function Bienvenida({ fuente, config, onEntrar }: {
         <button className="boton" disabled={enviando}>{enviando ? 'Entrando...' : 'Entrar'}</button>
       </form>
       {wa && <a className="cn-whatsapp" href={wa} target="_blank" rel="noreferrer">También puedes hacer todo esto por WhatsApp</a>}
+      <p className="nota-demo">Modo demo: cualquiera puede sumarse sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>
     </main>
   );
 }
@@ -233,8 +234,8 @@ function CompraConjunta({ api, token, foto, yo, config, alCambiar }: {
       <div className="tarjeta">
         {abierta ? (
           <>
-            <p className="etiqueta">{mia ? 'Tu parte' : `¿Cuántas ${u.plural} quieres?`}</p>
-            {mia && <p className="cn-texto">Estás en el grupo con <strong>{cantidadEn(mia.cantidad, u)}</strong>.</p>}
+            <p className="etiqueta">{mia ? 'Tu parte' : `¿${cuantos(u.plural)} ${u.plural} quieres?`}</p>
+            {mia && !aviso && <p className="cn-texto">Estás en el grupo con <strong>{cantidadEn(mia.cantidad, u)}</strong>.</p>}
             <Cantidad valor={cantidad} max={MAX_COMPRA_CONJUNTA} onCambio={setCantidad} etiqueta={`Cantidad de ${u.plural}`} />
             {g.precio !== undefined && (
               <p className="mono cn-texto">
@@ -367,7 +368,7 @@ function Pedir({ api, token, foto, config, alEnviar }: {
             </button>
           ))}
         </div>
-        <p className="etiqueta cn-sub">¿Cuántas {u.plural}?</p>
+        <p className="etiqueta cn-sub">¿{cuantos(u.plural)} {u.plural}?</p>
         <Cantidad valor={cantidad} max={500} onCambio={setCantidad} etiqueta="Cantidad" />
       </div>
 
@@ -386,10 +387,11 @@ function Pedir({ api, token, foto, config, alEnviar }: {
             </li>
           ))}
         </ul>
+        <p className="mono tenue cn-nota-pie cn-sub">El proveedor pone el precio y te llega la factura del SII con su guía de despacho.</p>
       </div>
 
       <div className="tarjeta cn-resumen-pedido">
-        <p className="cn-texto">Vas a pedir <strong>{cantidadEn(cantidad, u)}</strong> de {producto} a <strong>{proveedor?.nombre}</strong>. El proveedor pone el precio y te llega la factura del SII con su guía de despacho.</p>
+        <p className="cn-texto"><strong>{cantidadEn(cantidad, u)}</strong> de {producto} a <strong>{proveedor?.nombre}</strong></p>
         {error && <p className="error">{error}</p>}
         <button type="button" className="boton cn-ancho" onClick={enviar} disabled={enviando}>{enviando ? 'Enviando...' : 'Enviar orden de compra'}</button>
       </div>
@@ -421,9 +423,9 @@ type AccionRecepcion = { faltante: number };
 function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: {
   api: CanalApi; token: string; orden: OrdenCanal; yo: YoComprador; proveedor?: Negocio; config: ConfigRed | null; alCambiar: () => void;
 }) {
-  const ciclo = cicloDelPedido(orden, yo.documentos);
   const item = orden.items[0];
   const u = unidadPara(item?.producto ?? '', config);
+  const ciclo = cicloDelPedido(orden, yo.documentos, u);
   const [faltaron, setFaltaron] = useState(false);
   const [faltante, setFaltante] = useState(1);
   const [enviando, setEnviando] = useState(false);
@@ -488,7 +490,7 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
 
       {ciclo.accion === 'recibir' && faltaron && reclamo.estado.fase === 'nada' && item && (
         <div className="cn-pregunta">
-          <p className="cn-texto-grande">¿Cuántas {u.plural} faltaron?</p>
+          <p className="cn-texto-grande">¿{cuantos(u.plural)} {u.plural} faltaron?</p>
           <Cantidad valor={faltante} max={item.cantidad} onCambio={setFaltante} etiqueta="Cantidad que faltó" />
           <div className="cn-acciones">
             <button type="button" className="boton" onClick={() => reclamo.pedir({ faltante })}>Seguir</button>
@@ -502,15 +504,14 @@ function TarjetaPedido({ api, token, orden, yo, proveedor, config, alCambiar }: 
           sii
           titulo="¿Reclamamos la factura en el SII?"
           si="Sí, reclámala"
-          no="No"
           enviando={reclamo.estado.fase === 'enviando'}
           error={reclamo.estado.fase === 'error' ? reclamo.estado.mensaje : undefined}
           onSi={reclamo.confirmar}
           onNo={reclamo.cancelar}
         >
           <p>
-            Vamos a reclamar la factura{factura?.folio ? ` folio ${factura.folio}` : ''} en el SII por falta parcial: faltaron{' '}
-            {reclamo.estado.accion.faltante} de {cantidadEn(item.cantidad, u)}. Es un trámite legal.
+            Reclamamos la factura{factura?.folio ? ` folio ${factura.folio}` : ''} por falta parcial:{' '}
+            {reclamo.estado.accion.faltante === 1 ? 'faltó' : 'faltaron'} {reclamo.estado.accion.faltante} de {cantidadEn(item.cantidad, u)}.
           </p>
           <p>{proveedor?.nombre ?? 'El proveedor'} tendrá que emitirte una nota de crédito por {dinero(reclamo.estado.accion.faltante * item.precioUnitario)}.</p>
         </Confirmar>

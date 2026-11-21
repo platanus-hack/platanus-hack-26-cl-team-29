@@ -196,7 +196,7 @@ function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAcc
           onNo={c.cancelar}
         >
           <p className="cn-cifra-confirmar">{dinero(c.estado.accion.total)} neto en total</p>
-          <p>Una factura por negocio, con la orden de compra como referencia, en un solo envío al SII. Es un trámite legal y le avisamos a cada negocio con su folio.</p>
+          <p>Una factura por negocio, con la orden de compra como referencia, en un solo envío al SII. Le avisamos a cada negocio con su folio.</p>
         </Confirmar>
       )}
     </section>
@@ -240,7 +240,7 @@ function PedidoNuevo({ api, token, alCambiar, orden, comprador, config }: PropsA
           onNo={c.cancelar}
         >
           <p className="cn-cifra-confirmar">1 factura · {dinero(total)} neto</p>
-          <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Es un trámite legal y le avisamos a {quien}.</p>
+          <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Le avisamos a {quien}.</p>
         </Confirmar>
       )}
     </article>
@@ -289,7 +289,7 @@ function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }
           onNo={c.cancelar}
         >
           <p className="cn-cifra-confirmar">Nota de crédito · {dinero(monto)} neto</p>
-          <p>Queda amarrada a la factura{factura?.folio ? ` folio ${factura.folio}` : ''} en el SII. Es un trámite legal y le avisamos a {quien}.</p>
+          <p>Queda amarrada a la factura{factura?.folio ? ` folio ${factura.folio}` : ''} en el SII. Le avisamos a {quien}.</p>
         </Confirmar>
       )}
     </article>

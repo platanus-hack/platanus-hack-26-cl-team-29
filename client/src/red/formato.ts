@@ -29,6 +29,11 @@ export function cuentaRegresiva(ms: number): string {
   return hh > 0 ? `${hh}:${mmss}` : mmss;
 }
 
+/** "¿Cuántas cajas?" o "¿Cuántos sacos?": el género sale del plural de la unidad. */
+export function cuantos(plural: string): string {
+  return /(as|des)$/i.test(plural) ? 'Cuántas' : 'Cuántos';
+}
+
 /** Cómo se cuenta el producto en pantalla: la harina va en sacos, el aceite en bidones. */
 export function unidadDe(producto: string): { singular: string; plural: string } {
   if (/harina|az[uú]car/i.test(producto)) return { singular: 'saco', plural: 'sacos' };
