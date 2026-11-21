@@ -341,5 +341,5 @@ function interpreteDesdeEnv(env: NodeJS.ProcessEnv): Interprete {
     console.warn('[agente] sin ANTHROPIC_API_KEY: interpreto mensajes con reglas fijas');
     return interpreteDeReglas;
   }
-  return crearInterpreteClaude(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || 'claude-opus-5-5');
+  return crearInterpreteClaude(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || 'claude-sonnet-5-5');
 }
