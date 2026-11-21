@@ -1,11 +1,11 @@
 # pantalla-en-vivo
-Actualizado: 2026-11-21 14:45
+Actualizado: 2026-11-21 15:10
 
 ## Estado
-libre
+trabajando
 
 ## Trabajando en
-- (nada)
+- Pulido de la pantalla: que `/red` y `/licitacion` quepan en una pantalla proyectada, QR más grande, plurales, botón fijo en `/unirse` y campos nuevos del backend (`precioSolo`, `en`, `documento.actualizado`)
 
 ## Archivos que estoy tocando
 - client/
