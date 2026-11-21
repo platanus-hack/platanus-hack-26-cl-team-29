@@ -42,6 +42,8 @@ export interface AlmacenFolios {
   guardar(registro: RegistroFolio): Promise<void>;
   buscar(tipo: number, folio: number): Promise<RegistroFolio | undefined>;
   deOrden(ordenId: string, tipo: number): Promise<RegistroFolio[]>;
+  /** Mayor folio ya tomado del tipo, o 0 si no hay ninguno. */
+  ultimo(tipo: number): Promise<number>;
 }
 
 const agotado = (tipo: number, rango: RangoFolios) =>
@@ -72,6 +74,9 @@ export function crearAlmacenFoliosMemoria(): AlmacenFolios {
     },
     async deOrden(ordenId, tipo) {
       return [...registros.values()].filter(r => r.ordenId === ordenId && r.tipo === tipo).map(r => structuredClone(r));
+    },
+    async ultimo(tipo) {
+      return Math.max(0, ...[...registros.values()].filter(r => r.tipo === tipo).map(r => r.folio));
     },
   };
 }
@@ -115,6 +120,10 @@ export async function crearAlmacenFoliosPostgres(db: pg.Pool): Promise<AlmacenFo
         `select datos from sii_folios where orden_id = $1 and tipo = $2 order by folio`, [ordenId, tipo],
       );
       return rows.map(r => r.datos);
+    },
+    async ultimo(tipo) {
+      const { rows } = await db.query(`select coalesce(max(folio), 0) as folio from sii_folios where tipo = $1`, [tipo]);
+      return Number(rows[0]?.folio ?? 0);
     },
   };
 }

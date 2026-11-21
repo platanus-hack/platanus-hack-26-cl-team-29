@@ -16,13 +16,15 @@ import type { Negocio, OrdenCompra } from './tipos.ts';
 export interface OpcionesWeb {
   sesiones: Sesiones;
   limitar: RequestHandler;
+  /** Rutas "Conectar mi SII" (server/conexion-sii), montadas en /proveedor/sii detrás de la sesión del proveedor. */
+  conexionSii?: express.Router;
 }
 
 interface ConSesion extends Request {
   sesion?: Sesion & { negocio: Negocio };
 }
 
-export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limitar }: OpcionesWeb): express.Router {
+export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limitar, conexionSii }: OpcionesWeb): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
   const cuerpo = (req: Request): Record<string, unknown> => (req.body && typeof req.body === 'object' ? req.body : {});
@@ -165,6 +167,8 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, limi
     exigirConfirmado(req);
     res.status(201).json(await red.emitirNotaCredito(id(req)));
   });
+
+  if (conexionSii) rutas.use('/proveedor/sii', exigir('proveedor'), conexionSii);
 
   return rutas;
 }

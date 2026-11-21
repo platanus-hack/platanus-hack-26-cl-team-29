@@ -3,7 +3,8 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import pg from 'pg';
 import { createWhatsApp } from './whatsapp/index.ts';
-import { conectarSiiReal, crearRutasRed, iniciarRed } from './red/index.ts';
+import { crearRutasRed, iniciarRed } from './red/index.ts';
+import { iniciarConexionSii } from './conexion-sii/index.ts';
 import { conectarAgente } from './agente/index.ts';
 
 const app = express();
@@ -12,8 +13,10 @@ const io = new Server(http);
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const dbRed = process.env.DATABASE_URL ? db : null;
 export const whatsapp = await createWhatsApp({ db: dbRed });
-// Con certificado, la red emite en el SII de certificación; sin él, usa su SII falso.
-export const red = await iniciarRed(dbRed, process.env.SII_PFX_BASE64 ? await conectarSiiReal(dbRed) : undefined);
+// SII de certificación: la conexión hecha por el proveedor desde el panel; si no está completa, las variables SII_*;
+// sin ninguna de las dos, el SII falso de la red.
+const conexionSii = await iniciarConexionSii(dbRed);
+export const red = await iniciarRed(dbRed, conexionSii.sii);
 red.escuchar(evento => io.emit('red:evento', evento));
 export const agente = conectarAgente(whatsapp, red);
 
@@ -23,7 +26,7 @@ app.use(express.json());
 app.get('/api/health', async (_req, res) => {
   res.json((await db.query('select now()')).rows[0]);
 });
-app.use('/api/red', crearRutasRed(red));
+app.use('/api/red', crearRutasRed(red, process.env, { conexionSii: conexionSii.rutas }));
 app.use(express.static('dist'));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' })); // fallback SPA (Express 5: no usar app.get('*'))
 

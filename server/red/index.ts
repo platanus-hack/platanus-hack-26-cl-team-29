@@ -41,7 +41,7 @@ export type * from './tipos.ts';
  * siembra la demo si está vacía y usa el SII falso salvo que se entregue otro. Con DEMO_COMPETENCIA
  * distinto de 0, los proveedores ficticios compiten en vivo por la compra conjunta.
  */
-export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<Red> {
+export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii | ((falso: PuertoSii) => PuertoSii)): Promise<Red> {
   let repo: Repositorio = crearRepositorioMemoria();
   if (db) {
     try {
@@ -52,7 +52,8 @@ export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<R
   }
   await sembrarSiVacio(repo);
   await aplicarDatosDemo(repo);
-  const red = await crearRed({ repo, sii: sii ?? crearSiiFalso((await repo.cargar()).documentos) });
+  const falso = crearSiiFalso((await repo.cargar()).documentos);
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }
@@ -62,6 +63,11 @@ export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<R
  * Se usa solo cuando hay SII_PFX_BASE64; sin él la red sigue con su SII falso.
  */
 export async function conectarSiiReal(db: pg.Pool | null): Promise<SiiReal> {
+  return crearSiiReal({ sii: crearSii(), folios: await crearAlmacenFolios(db) });
+}
+
+/** Folios del SII real en Postgres si hay base (si falla, memoria). Uno por proceso: lo comparten todas las conexiones. */
+export async function crearAlmacenFolios(db: pg.Pool | null): Promise<AlmacenFolios> {
   let folios: AlmacenFolios | null = null;
   if (db) {
     try {
@@ -74,5 +80,5 @@ export async function conectarSiiReal(db: pg.Pool | null): Promise<SiiReal> {
     console.warn('[red] folios del SII en memoria: tras un reinicio vuelven al inicio del CAF y el SII rechazará los repetidos. Configura DATABASE_URL.');
     folios = crearAlmacenFoliosMemoria();
   }
-  return crearSiiReal({ sii: crearSii(), folios });
+  return folios;
 }

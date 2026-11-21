@@ -13,14 +13,14 @@ export const RUT_FIRMANTE = '11111111-1';
 export const RUT_EMPRESA = '22222222-2';
 export const CLAVE_PFX = 'clave-de-prueba';
 
-export function generarPfx(rut = RUT_FIRMANTE): Buffer {
+export function generarPfx(rut = RUT_FIRMANTE, vence = new Date(Date.now() + 365 * 86_400_000)): Buffer {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const llave = forge.pki.privateKeyFromPem(privateKey.export({ type: 'pkcs1', format: 'pem' }).toString());
   const cert = forge.pki.createCertificate();
   cert.publicKey = forge.pki.setRsaPublicKey(llave.n, llave.e);
   cert.serialNumber = '01';
-  cert.validity.notBefore = new Date(Date.now() - 86_400_000);
-  cert.validity.notAfter = new Date(Date.now() + 365 * 86_400_000);
+  cert.validity.notBefore = new Date(Math.min(Date.now(), vence.getTime()) - 86_400_000);
+  cert.validity.notAfter = vence;
   const sujeto = [{ name: 'commonName', value: 'Firmante de Prueba' }, { name: 'serialNumber', value: rut }];
   cert.setSubject(sujeto);
   cert.setIssuer(sujeto);
