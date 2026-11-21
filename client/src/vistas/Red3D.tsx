@@ -118,10 +118,10 @@ function capasDeck(escena: Escena, locales: LocalMapa[], animaciones: Animacion[
       getPosition: d => d.p, getFillColor: d => conAlfa(C_MAGENTA, d.a), radiusUnits: 'pixels', getRadius: 3.5,
     }),
     new ColumnLayer<Proveedor>({
-      id: 'proveedores', data: escena.proveedores, getPosition: p => p.punto, diskResolution: 4, radius: 260, angle: 45, extruded: true,
+      id: 'proveedores', data: escena.proveedores, getPosition: p => p.punto, diskResolution: 4, radius: 180, angle: 45, extruded: true,
       getElevation: p => {
         const n = p.conectados.filter(x => x <= t).length;
-        return entre(t, p.aparece, p.aparece + APARECER_MS) * (500 + 900 * Math.sqrt(n));
+        return entre(t, p.aparece, p.aparece + APARECER_MS) * (250 + 380 * Math.sqrt(n));
       },
       getFillColor: p => {
         const visible = entre(t, p.aparece, p.aparece + APARECER_MS);

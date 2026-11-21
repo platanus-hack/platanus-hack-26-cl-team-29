@@ -1,7 +1,9 @@
 /* ---------- /red-3d: la red crece, en 3D sobre Santiago ---------- */
 /* Pantalla completa: el mapa ocupa todo y los textos flotan encima, en las esquinas (arriba a la derecha va el menú). */
 .r3d { position: fixed; inset: 0; overflow: hidden; background: #000; color: var(--color-text); }
-.r3d-lienzo { position: absolute; inset: 0; }
+.r3d-lienzo { position: absolute; inset: 0; z-index: 0; }
+/* deck.gl dibuja en un control de MapLibre (z-index 2): las etiquetas van encima de sus columnas y arcos. */
+.r3d-lienzo .maplibregl-marker { z-index: 3; }
 
 .r3d-arriba {
   position: absolute; left: var(--relleno); top: var(--relleno); right: 140px; pointer-events: none;
