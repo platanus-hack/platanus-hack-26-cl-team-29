@@ -33,6 +33,8 @@ export interface OpcionesSala {
   readonly vigilarCierreMs: number;
   /** "El SII aceptó tu factura" solo si el veredicto llega dentro de este plazo desde el folio; 0 desactiva. */
   readonly avisoAceptadaMs: number;
+  /** Link privado para conectar el certificado digital (server/certificados). Sin él, solo se pide el RUT. */
+  readonly enlaceCertificado?: (telefono: string) => string;
   /** Deja la pregunta de facturar en la cola de confirmaciones del agente. */
   pedirConfirmacion(proveedor: Negocio, licitacionId: string, mensaje: string): Promise<void>;
 }
@@ -74,6 +76,8 @@ interface Borrador {
   razonSocial?: string;
   /** Se le preguntó el RUT: un mensaje solo con números se lee como RUT. */
   esperandoRut?: boolean;
+  /** Eligió "No (demo)": se suma sin RUT y su factura va al receptor de prueba. */
+  demo?: boolean;
   pregunta: string;
 }
 
@@ -162,6 +166,9 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     return m.SALISTE;
   }
 
+  /** Con el certificado disponible, la pregunta del RUT ofrece conectarlo o seguir en modo demo. */
+  const preguntaRut = (nombre?: string) => (o.enlaceCertificado ? m.pedirRutOCertificado(nombre) : m.pedirRut(nombre));
+
   async function atenderPublico(telefono: string, texto: string, nombreConocido?: string): Promise<string> {
     const clave = claveTelefono(telefono);
     const l = await abierta();
@@ -172,6 +179,20 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const confirmandoSalida = salidas.delete(clave);
     const pregunta = confirmandoSalida ? m.confirmarSalida(false)
       : yo ? m.resumenCarrito(yo.nombre, yo.items, l) : borrador?.pregunta ?? m.preguntaSala(l);
+
+    // Respuesta a "conecta tu certificado o escribe tu RUT": 1 = el link, 2 = modo demo. Va antes del RUT porque
+    // "1" o "2" también se leerían como un RUT inválido.
+    if (borrador?.esperandoRut && o.enlaceCertificado) {
+      const t = normalizar(texto);
+      if (t === '1' || /\b(conectar|certificado)\b/.test(t)) return m.enlaceCertificado(o.enlaceCertificado(telefono));
+      if (t === '2' || t === 'no' || /\b(demo|saltar|saltarlo|omitir)\b/.test(t)) {
+        const demo: Borrador = { ...borrador, esperandoRut: false, demo: true };
+        o.log.info(`[sala] ${enmascarar(telefono)} sigue en modo demo, sin RUT`);
+        if (demo.nombre && demo.items.length) return `${m.MODO_DEMO}\n\n${await guardar(telefono, demo.nombre, demo.items, l, false)}`;
+        borradores.set(clave, { ...demo, pregunta: m.preguntaSala(l) });
+        return `${m.MODO_DEMO}\n\n${m.preguntaSala(l)}`;
+      }
+    }
 
     // El RUT, antes de sumarse: se saca del mensaje (sus números no son cantidades) y se consulta en el SII.
     let delRut: { rut: string; razonSocial: string } | undefined;
@@ -185,7 +206,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
           o.log.info(`[sala] ${enmascarar(telefono)} dio un RUT válido`);
         } catch (e) {
           if (!esErrorDeRut(e)) throw e;
-          borradores.set(clave, { ...(borrador ?? { items: [] }), esperandoRut: true, pregunta: m.pedirRut(borrador?.nombre ?? nombreConocido) });
+          borradores.set(clave, { ...(borrador ?? { items: [] }), esperandoRut: true, pregunta: preguntaRut(borrador?.nombre ?? nombreConocido) });
           return m.rutConError(e.message);
         }
       }
@@ -221,11 +242,11 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const rut = delRut?.rut ?? borrador?.rut;
     const razonSocial = delRut?.razonSocial ?? borrador?.razonSocial;
     const conocido = { ...(rut ? { rut } : {}), ...(razonSocial ? { razonSocial } : {}) };
-    const guardado = { ...(nombre ? { nombre } : {}), items: base, ...conocido };
+    const guardado = { ...(nombre ? { nombre } : {}), items: base, ...conocido, ...(borrador?.demo ? { demo: true } : {}) };
     /** Se suma a la compra; si la red pide RUT y todavía no lo tiene, lo pregunta primero. */
     const sumar = async (nombre: string, items: readonly ItemCarrito[]) => {
-      if (red.consultarRut && !rut && !(await red.negocioPorTelefono(telefono))?.rut) {
-        return preguntar({ ...guardado, nombre, items, esperandoRut: true, pregunta: m.pedirRut(nombre) });
+      if (red.consultarRut && !rut && !borrador?.demo && !(await red.negocioPorTelefono(telefono))?.rut) {
+        return preguntar({ ...guardado, nombre, items, esperandoRut: true, pregunta: preguntaRut(nombre) });
       }
       return conRut(await guardar(telefono, nombre, items, l, false, rut));
     };
