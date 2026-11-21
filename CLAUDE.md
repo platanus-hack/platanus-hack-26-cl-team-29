@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-App web multiplayer en tiempo real para Platanus Hack 26 (track Multiplayer). Un solo servicio en Render: Express sirve la API, Socket.io y el front compilado.
+App web multiplayer en tiempo real para Platanus Hack 26 (track Multiplayer). **Monolito**: un solo servicio en Render. El backend (`server/`) sirve la API, Socket.io y el front compilado (`client/` → `dist/`). Front y back nunca importan código uno del otro; se hablan solo por HTTP y Socket.io.
 
 Contexto de la hackathon (rúbrica, flujo de PR, repo público): @AGENTS.md
 
@@ -13,12 +13,11 @@ Contexto de la hackathon (rúbrica, flujo de PR, repo público): @AGENTS.md
 
 ## Estructura
 ```
-server/index.ts    # backend: Express + Socket.io + pg; sirve dist/
-src/               # frontend React (main.tsx; componentes en src/components/ cuando existan)
+server/            # BACKEND: index.ts = Express + Socket.io + pg; sirve dist/
+client/            # FRONTEND: index.html + src/ (React; componentes en client/src/components/)
 test/              # tests con node:test (*.test.ts)
 agents/            # estado de cada agente (ver agents/README.md)
-index.html         # entrada de Vite
-vite.config.ts     # proxy de /api y /socket.io a :3000 en dev
+vite.config.ts     # root: client/, compila a dist/; proxy de /api y /socket.io a :3000 en dev
 render.yaml        # Blueprint de Render: servicio web (starter) + Postgres
 README.md, platanus-hack-project.jsonc, project-description.md, project-logo.png  # exigidos por la hackathon, no mover
 ```
