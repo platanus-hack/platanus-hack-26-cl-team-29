@@ -21,6 +21,7 @@ Para cargar proveedores y precios de referencia (docs/decisiones/20261121-1546-m
 - La categoría con sus niveles va en `tender.items[]` (mismo `id` del ítem); en `awards` va el texto libre.
 - Convenio Marco (`-CM` en el ocid, más de la mitad de las líneas) viene con `classification.id = "0"`, sin UNSPSC.
 - Los alimentos son pocos: ~1 de cada 150 licitaciones tiene un ítem UNSPSC 50. Filtrar el texto de la línea antes de `JSON.parse` evita parsear casi todo el archivo.
+- Leído completo (2026, menos de 15 min en un portátil): miles de precios de alimentos (arroz ~3.900, aceite ~4.000), con medianas creíbles (arroz $1.683 por unidad, aceite $1.891 por litro). Aun así hay totales de contrato con unidad "Unidad" (hasta $222.582.500): por eso el resumen usa la mediana, no el promedio.
 - Muchos proveedores son personas naturales (RUT bajo 50.000.000) y los contactos traen nombres: no se guardan.
 
 **Endpoint OCDS en vivo** (`https://apis.mercadopublico.cl/OCDS/data/listaA%C3%B1oMes/AAAA/MM/offset/limit`): existe y no pide ticket, pero hoy responde HTTP 500 `"Unable to connect to the remote server"` (error interno de ChileCompra al ir a su base). No se implementó porque no se puede ver la forma de su respuesta; queda como siguiente fuente cuando vuelva.
