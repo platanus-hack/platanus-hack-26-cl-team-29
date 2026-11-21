@@ -63,6 +63,8 @@ export interface EventoReputacion {
 
 export interface Participante {
   negocioId?: string;
+  /** Solo interno (WhatsApp): nunca sale en la foto pública ni en eventos. */
+  telefono?: string;
   nombre: string;
   comuna?: string;
   cantidad: number;
@@ -83,9 +85,23 @@ export interface Ganadora extends Oferta {
   precioAjustado: number;
 }
 
+/** Desde cuántas unidades totales del grupo rige `precioUnitario`. */
+export interface Tramo {
+  desde: number;
+  precioUnitario: number;
+}
+
+export interface SiguienteTramo extends Tramo {
+  /** Unidades que le faltan al grupo para llegar a este tramo. */
+  faltan: number;
+}
+
 export interface Licitacion {
   id: string;
   producto: string;
+  /** Unidad de venta, singular y plural ("caja", "cajas"). */
+  unidad: string;
+  unidadPlural: string;
   comuna: string;
   cierraEn: string;
   /** Precio unitario que paga cada comprador si compra solo, para mostrar el ahorro del grupo. */
@@ -94,6 +110,19 @@ export interface Licitacion {
   ofertas: Oferta[];
   estado: 'abierta' | 'cerrada';
   ganadora?: Ganadora;
+  /** Compra conjunta: el proveedor único que vende a todo el grupo. Sin él, gana la mejor oferta (`ganadora`). */
+  proveedorId?: string;
+  /** Precio por volumen total del grupo, de menor a mayor `desde`. */
+  tramos: Tramo[];
+  /** Órdenes creadas al cerrar, una por participante. */
+  ordenIds?: string[];
+}
+
+/** Licitación con lo que se deriva de sus participantes y tramos. */
+export interface LicitacionVista extends Licitacion {
+  totalUnidades: number;
+  precioActual: number;
+  siguienteTramo: SiguienteTramo | null;
 }
 
 /** Todo lo que se persiste, por colección. */
@@ -113,7 +142,7 @@ export interface EstadoRed {
   ordenes: OrdenCompra[];
   documentos: Documento[];
   notas: Record<string, number>;
-  licitaciones: Licitacion[];
+  licitaciones: LicitacionVista[];
 }
 
 export type TipoEventoRed =
@@ -128,6 +157,8 @@ export type TipoEventoRed =
   | 'licitacion.participante'
   | 'licitacion.oferta'
   | 'licitacion.cerrada'
+  | 'licitacion.precio_bajo'
+  | 'licitacion.facturada'
   | 'red.reiniciada';
 
 /** Lo que viaja en `red:evento` por Socket.io. */

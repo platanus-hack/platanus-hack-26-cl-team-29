@@ -20,15 +20,24 @@ test('la foto pública y los eventos nunca llevan teléfonos', async () => {
   const red = await crearRed({ repo, sii: crearSiiFalso() });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));
-  const telefonos = red.estadoDeLaRed().negocios.map(n => n.telefono).filter(Boolean);
-  assert.ok(telefonos.length > 0, 'la foto interna sí tiene los teléfonos');
+  const deLaSala = '+56 9 8765 4321';
+  const telefonos = [deLaSala, ...red.estadoDeLaRed().negocios.map(n => n.telefono).filter(Boolean)];
 
   const orden = await red.crearOrden({ compradorId: COMPRADOR_DEMO, proveedorId: PROVEEDOR_DEMO, items: [{ producto: 'harina', cantidad: 2 }] });
   await red.confirmarOrden(orden.id);
-  await red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 1 });
+  const union = await red.unirseALicitacion('L-1', { telefono: deLaSala, nombre: 'Ana', cantidad: 12 });
+  await red.unirseALicitacion('L-1', { telefono: deLaSala, nombre: 'Ana', cantidad: 13 });
+  sinTelefonos(union, telefonos);
+  sinTelefonos(red.licitacionAbierta(), telefonos);
+  assert.ok(JSON.stringify(red.estadoDeLaRed()).includes('8765 4321'), 'la foto interna sí guarda el teléfono');
+  sinTelefonos(red.estadoPublico(), telefonos);
+  await red.cerrarLicitacion('L-1');
+  await red.confirmarOrdenesDeLicitacion('L-1');
+  sinTelefonos(red.estadoPublico(), telefonos);
   await red.reiniciarDemo();
 
   sinTelefonos(red.estadoPublico(), telefonos);
+  assert.ok(eventos.some(e => e.tipo === 'licitacion.precio_bajo') && eventos.some(e => e.tipo === 'licitacion.facturada'));
   assert.ok(eventos.length > 0);
   for (const e of eventos) sinTelefonos(e, telefonos);
 });

@@ -1,12 +1,17 @@
+import { configDemo } from './config-demo.ts';
+import type { ConfigDemo } from './config-demo.ts';
 import type { Repositorio } from './repositorio.ts';
 import type { DatosRed, EventoReputacion, Licitacion, Negocio } from './tipos.ts';
 
-// Datos de demo, todos ficticios. Los teléfonos son de mentira (+56 9 0000 00xx);
-// para la demo por WhatsApp se reemplazan con DEMO_TELEFONO_COMPRADOR y
-// DEMO_TELEFONO_PROVEEDOR, sin commitear números reales.
+// Datos de demo. Los negocios de la historia de /red son ficticios, con teléfonos de mentira
+// (+56 9 0000 00xx); DEMO_TELEFONO_COMPRADOR reemplaza el del comprador de demo.
+// El proveedor de "la sala compra junta" (`PROVEEDOR_SALA`) es una empresa real: su nombre, comuna
+// y WhatsApp (DEMO_TELEFONO_PROVEEDOR) salen solo de variables de entorno.
 
 export const COMPRADOR_DEMO = 'n-pica-nunoa';
 export const PROVEEDOR_DEMO = 'n-panificadora-nuble';
+export const PROVEEDOR_SALA = 'n-proveedor-demo';
+export const LICITACION_SALA = 'L-1';
 
 const negocios: Negocio[] = [
   { id: PROVEEDOR_DEMO, nombre: 'Panificadora Ñuble', comuna: 'San Miguel', rol: 'proveedor', telefono: '+56 9 0000 0001' },
@@ -29,63 +34,62 @@ const historial: [string, EventoReputacion['tipo'], number][] = [
 ];
 
 const MINUTO = 60_000;
-/** Lo que paga cada comprador si compra solo la harina; la licitación muestra cuánto ahorra el grupo. */
+/** Lo que paga cada comprador si compra solo la harina (historia de /red). */
 export const PRECIO_SOLO_HARINA = 21500;
-export const DURACION_LICITACION_MS = 5 * MINUTO;
 
-/** Licitación de demo: compradores que se fueron sumando y ofertas que llegaron entre medio. */
-export function licitacionDemo(ahora: Date): Licitacion {
-  const hace = (minutos: number) => new Date(ahora.getTime() - minutos * MINUTO).toISOString();
+const proveedorSala = (c: ConfigDemo): Negocio =>
+  ({ id: PROVEEDOR_SALA, nombre: c.proveedor.nombre, comuna: c.proveedor.comuna, rol: 'proveedor', telefono: c.proveedor.telefono });
+
+/** "La sala compra junta": abierta, sin participantes, el proveedor real vende a todo el grupo por tramos. */
+export function licitacionDemo(ahora: Date, c: ConfigDemo = configDemo()): Licitacion {
   return {
-    id: 'L-1',
-    producto: 'Harina 25 kg',
-    comuna: 'Ñuñoa',
-    cierraEn: new Date(ahora.getTime() + DURACION_LICITACION_MS).toISOString(),
-    precioSolo: PRECIO_SOLO_HARINA,
-    participantes: [
-      { negocioId: 'n-almacen-don-tito', nombre: 'Almacén Don Tito', comuna: 'Ñuñoa', cantidad: 4, en: hace(14) },
-      { negocioId: 'n-minimarket-los-aromos', nombre: 'Minimarket Los Aromos', comuna: 'Ñuñoa', cantidad: 2, en: hace(11) },
-      { negocioId: 'n-amasanderia-la-esquina', nombre: 'Amasandería La Esquina', comuna: 'Providencia', cantidad: 6, en: hace(7) },
-    ],
-    // Molinos del Sur es el más barato, pero con su nota pierde contra Panificadora Ñuble.
-    ofertas: [
-      { proveedorId: 'n-distribuidora-sur', precioUnitario: 17900, plazoDias: 1, en: hace(12) },
-      { proveedorId: 'n-harinas-andes', precioUnitario: 17450, plazoDias: 2, en: hace(9) },
-      { proveedorId: 'n-molinos-del-sur', precioUnitario: 17100, plazoDias: 2, en: hace(5) },
-      { proveedorId: PROVEEDOR_DEMO, precioUnitario: 17200, plazoDias: 1, en: hace(3) },
-    ],
+    id: LICITACION_SALA,
+    producto: c.producto,
+    unidad: c.unidad,
+    unidadPlural: c.unidadPlural,
+    comuna: c.proveedor.comuna,
+    cierraEn: new Date(ahora.getTime() + c.minutos * MINUTO).toISOString(),
+    precioSolo: c.precioSolo,
+    proveedorId: PROVEEDOR_SALA,
+    tramos: structuredClone(c.tramos),
+    participantes: [],
+    ofertas: [],
     estado: 'abierta',
   };
 }
 
 /** Siembra la demo completa sobre un repositorio vacío. */
 export async function sembrar(repo: Repositorio, ahora = new Date(), env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const c = configDemo(env);
   const en = ahora.toISOString();
   for (const n of negocios) await repo.guardar('negocios', n);
+  await repo.guardar('negocios', proveedorSala(c));
   let i = 0;
   for (const [proveedorId, tipo, veces] of historial) {
     for (let k = 0; k < veces; k++) {
       await repo.guardar('eventosReputacion', { id: `historial-${++i}`, proveedorId, ordenId: 'historial', tipo, en });
     }
   }
-  await repo.guardar('licitaciones', licitacionDemo(ahora));
-  await aplicarTelefonosDemo(repo, env);
+  await repo.guardar('licitaciones', licitacionDemo(ahora, c));
+  await aplicarDatosDemo(repo, env);
 }
 
-export async function sembrarSiVacio(repo: Repositorio, ahora = new Date()): Promise<void> {
+export async function sembrarSiVacio(repo: Repositorio, ahora = new Date(), env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const actuales: DatosRed = await repo.cargar();
-  if (actuales.negocios.length === 0) await sembrar(repo, ahora);
+  if (actuales.negocios.length === 0) await sembrar(repo, ahora, env);
 }
 
-/** Asigna los teléfonos reales de la demo (si vienen por entorno) a los dos negocios de demo. */
-export async function aplicarTelefonosDemo(repo: Repositorio, env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const telefonos: Record<string, string | undefined> = {
-    [COMPRADOR_DEMO]: env.DEMO_TELEFONO_COMPRADOR,
-    [PROVEEDOR_DEMO]: env.DEMO_TELEFONO_PROVEEDOR,
-  };
+/**
+ * Aplica lo que viene por entorno sobre una base ya sembrada: el teléfono del comprador de demo y el
+ * proveedor real de la sala (lo crea si falta, p. ej. en una base sembrada antes de existir).
+ */
+export async function aplicarDatosDemo(repo: Repositorio, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const { negocios: actuales } = await repo.cargar();
-  for (const n of actuales) {
-    const telefono = telefonos[n.id];
-    if (telefono && telefono !== n.telefono) await repo.guardar('negocios', { ...n, telefono });
+  const comprador = actuales.find(n => n.id === COMPRADOR_DEMO);
+  if (comprador && env.DEMO_TELEFONO_COMPRADOR && env.DEMO_TELEFONO_COMPRADOR !== comprador.telefono) {
+    await repo.guardar('negocios', { ...comprador, telefono: env.DEMO_TELEFONO_COMPRADOR });
   }
+  const deseado = proveedorSala(configDemo(env));
+  const actual = actuales.find(n => n.id === PROVEEDOR_SALA);
+  if (!actual || JSON.stringify(actual) !== JSON.stringify(deseado)) await repo.guardar('negocios', deseado);
 }
