@@ -14,6 +14,9 @@ export interface OpcionesConmutable {
   env?: NodeJS.ProcessEnv;
 }
 
+/** Estado RCT de QueryEstUp ("Rechazado por Error en Carátula"). */
+export const esRechazoDeCaratula = (detalle: string | undefined): boolean => /<(?:[\w-]+:)?ESTADO>\s*RCT\s*<\//i.test(detalle ?? '');
+
 export function crearSiiConmutable({ falso, respaldo, conexion, crearReal, env = process.env }: OpcionesConmutable): PuertoSii {
   const oyentes = new Set<(cambio: CambioEstadoSii) => void>();
   const avisar = (cambio: CambioEstadoSii) => { for (const o of oyentes) o(cambio); };
@@ -27,7 +30,11 @@ export function crearSiiConmutable({ falso, respaldo, conexion, crearReal, env =
     if (!variables) return respaldo ?? falso;
     // Una instancia por versión de la conexión: los folios viven en el almacén compartido, no en la instancia.
     const sii = crearReal(variables);
-    sii.alCambiarEstado?.(avisar);
+    sii.alCambiarEstado?.(cambio => {
+      // RCT: la carátula (resolución) está mal. Se marca para no seguir enviando con ella; el folio queda libre en el SII.
+      if (cambio.estadoSii === 'rechazado' && esRechazoDeCaratula(cambio.detalle)) void conexion.marcarRechazoCaratula();
+      avisar(cambio);
+    });
     real = { version, sii };
     return sii;
   }

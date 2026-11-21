@@ -16,7 +16,12 @@ export function crearRutasConexionSii(conexion: ConexionSii): express.Router {
 
   rutas.post('/certificado', async (req, res) => {
     const b = cuerpo(req);
-    res.json(await conexion.subirCertificado(b.pfxBase64, b.clave));
+    res.json(await conexion.subirCertificado(b.pfxBase64, b.clave, b.rutEmisor));
+  });
+
+  // Vuelve a correr la conexión automática (ficha, resolución y CAF desde el portal del SII).
+  rutas.post('/automatico', async (req, res) => {
+    res.json(await conexion.conectarAutomatico(cuerpo(req).rutEmisor));
   });
 
   rutas.post('/empresa/consultar', async (req, res) => {

@@ -6,7 +6,7 @@ import express from 'express';
 import {
   buscarPrimerLibre, cifrar, crearAlmacenConexionMemoria, crearConexionSii, crearRutasConexionSii, crearSiiConmutable, descifrar, leerFicha,
 } from '../server/conexion-sii/index.ts';
-import type { OpcionesConexion } from '../server/conexion-sii/index.ts';
+import type { OpcionesConexion, PortalConexion } from '../server/conexion-sii/index.ts';
 import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso } from '../server/red/index.ts';
 import type { PuertoSii, SiiReal } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
@@ -27,12 +27,14 @@ const consultaFalsa = (usados: Set<number>, consultados: number[] = []): Opcione
   return { codigo, glosa: null, codigoError: null, glosaError: null, respuesta: `<ESTADO>${codigo}</ESTADO>` };
 };
 
+const sinPortal: PortalConexion = new Proxy({} as PortalConexion, { get: () => async () => { throw new Error('sin portal en los tests'); } });
+
 function conexionDePrueba(opciones: Partial<OpcionesConexion> = {}) {
   return crearConexionSii({
     almacen: crearAlmacenConexionMemoria(),
     env: { SII_LLAVE_CIFRADO: LLAVE },
     log: silencioso,
-    leerEmpresa: async () => { throw new Error('sin portal en los tests'); },
+    portal: sinPortal,
     crearConsulta: consultaFalsa(new Set()),
     ...opciones,
   });
@@ -66,6 +68,7 @@ test('el certificado se abre, se rechaza con clave mala o vencido, y solo se exp
 test('el CAF de otra empresa o de otro tipo se rechaza', async () => {
   const conexion = conexionDePrueba();
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX);
+  await conexion.esperarBusquedas();
   await conexion.guardarEmpresa({ ...empresa, rutEmisor: '11111111-1' });
   await assert.rejects(conexion.subirCaf(generarCaf(33).bytes.toString('base64')), /es de la empresa 22222222-2/);
   await conexion.guardarEmpresa(empresa);
@@ -78,6 +81,7 @@ test('el primer folio libre es el inicio de la primera racha de 3 FAU, y nunca b
   const consultados: number[] = [];
   const conexion = conexionDePrueba({ crearConsulta: consultaFalsa(new Set([1, 2, 3, 4, 6]), consultados) });
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX);
+  await conexion.esperarBusquedas();
   await conexion.guardarEmpresa(empresa);
   await conexion.subirCaf(generarCaf(33, { desde: 1, hasta: 20 }).bytes.toString('base64'));
   await conexion.esperarBusquedas();
@@ -112,7 +116,7 @@ test('la ficha del portal se separa en sus campos', () => {
     rut: '22222222-2', razonSocial: 'COMERCIAL DE PRUEBA SPA', giro: 'VENTA AL POR MAYOR', acteco: 461000,
     direccion: 'CALLE FALSA 123', comuna: 'PROVIDENCIA', ciudad: 'SANTIAGO', actividades: 1,
   });
-  assert.throws(() => leerFicha('<html>Transaccion Rechazada</html>'), /Transaccion Rechazada/);
+  assert.throws(() => leerFicha('<html>Transaccion Rechazada</html>'), (e: Error & { mensajeSii?: string }) => /Transaccion Rechazada/.test(e.mensajeSii ?? ''));
 });
 
 test('con la conexión completa la red emite con el SII de la app; sin ella, con el falso', async () => {
@@ -128,6 +132,7 @@ test('con la conexión completa la red emite con el SII de la app; sin ella, con
   const datos = {} as Parameters<PuertoSii['emitirFactura']>[0];
   await sii.emitirFactura(datos);
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX);
+  await conexion.esperarBusquedas();
   await conexion.guardarEmpresa(empresa);
   await conexion.subirCaf(generarCaf(33).bytes.toString('base64'));
   await conexion.esperarBusquedas();

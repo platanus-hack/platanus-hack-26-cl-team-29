@@ -1,15 +1,16 @@
 // "Conectar mi SII" sin backend: el mismo contrato en memoria, con datos ficticios. No abre el certificado (el navegador
 // no lo necesita): solo exige un archivo y una clave. Del CAF lee tipo, emisor y rango, y simula la búsqueda del
-// primer folio libre (un folio cada 200 ms).
+// primer folio libre (un folio cada 200 ms). La conexión automática se simula paso a paso, con la resolución sin
+// entregar (como el portal de certificación hoy) para mostrar el camino manual.
 
 import { ErrorCanal, type CanalApi } from './api.ts';
-import type { CafSii, ConexionSii } from './tipos.ts';
+import type { CafSii, ConexionSii, PasoSii } from './tipos.ts';
 
-type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiDesconectar'>;
+type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiDesconectar'>;
 
 const vacia = (): ConexionSii => ({
   conectado: false, respaldoVariables: false, puedeGuardar: true, titular: null, venceEl: null,
-  rutEmisor: null, empresa: null, origenEmpresa: null, resolucion: null, cafs: [],
+  rutEmisor: null, empresa: null, origenEmpresa: null, resolucion: null, cafs: [], automatico: null, sesionPersistente: false,
 });
 
 const espera = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -54,19 +55,58 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
     setTimeout(paso, 200);
   }
 
+  /** Pasos ficticios con la misma forma que el servidor: cada uno tarda un poco. */
+  function automatico(rut: string) {
+    const pasos: PasoSii[] = (['empresa', 'resolucion', 'caf_33', 'caf_52', 'caf_61'] as const).map(id => ({ id, estado: 'pendiente', detalle: null, mensajeSii: null }));
+    c.automatico = { activo: true, pasos };
+    const resultados: Record<PasoSii['id'], () => void> = {
+      empresa: () => {
+        c.rutEmisor = rut;
+        c.empresa = { razonSocial: 'Papelera del Centro SpA', giro: 'Venta al por mayor de artículos de papelería', acteco: 464903, direccion: 'Avenida de Prueba 1234', comuna: 'Santiago' };
+        c.origenEmpresa = 'sii';
+        Object.assign(pasos[0]!, { estado: 'listo', detalle: 'Papelera del Centro SpA' });
+      },
+      resolucion: () => Object.assign(pasos[1]!, { estado: 'error', detalle: 'El SII no entregó la resolución. Escríbela en "Tu empresa".' }),
+      caf_33: () => cafFicticio(2, 33, 'Reobtenido', 5139, 5162),
+      caf_52: () => cafFicticio(3, 52, 'Reobtenido', 2744, 2793),
+      caf_61: () => cafFicticio(4, 61, 'Pedido al SII', 901, 905),
+    };
+    const cafFicticio = (i: number, tipo: CafSii['tipo'], origen: string, desde: number, hasta: number) => {
+      const caf: CafSii = { tipo, desde, hasta, fa: new Date().toISOString().slice(0, 10), primerLibre: null, libres: null, escaneando: false, progreso: null, error: null };
+      c.cafs = [...c.cafs.filter(f => f.tipo !== tipo), caf].sort((a, b) => a.tipo - b.tipo);
+      buscar(caf);
+      Object.assign(pasos[i]!, { estado: 'listo', detalle: `${origen}: folios ${desde} a ${hasta}.` });
+    };
+    pasos.forEach((p, i) => setTimeout(() => {
+      p.estado = 'en_curso';
+      setTimeout(() => {
+        resultados[p.id]();
+        if (i === pasos.length - 1 && c.automatico) c.automatico.activo = false;
+      }, 500);
+    }, i * 700));
+  }
+
   return {
     async siiEstado(token) {
       verificar(token);
       return copia();
     },
 
-    async siiCertificado(token, pfxBase64, clave) {
+    async siiCertificado(token, pfxBase64, clave, rutEmisor) {
       verificar(token);
       await espera(400);
       exigir(!!pfxBase64, 'Sube el archivo .pfx de tu certificado digital.');
       exigir(!!clave, 'Escribe la clave de tu certificado.');
       c.titular = '11111111-1';
       c.venceEl = new Date(Date.now() + 300 * 86_400_000).toISOString();
+      automatico(rutValido(rutEmisor) ?? c.titular);
+      return copia();
+    },
+
+    async siiAutomatico(token, rutEmisor) {
+      verificar(token);
+      exigir(!!c.titular, 'Primero sube tu certificado digital.');
+      if (!c.automatico?.activo) automatico(rutValido(rutEmisor) ?? c.rutEmisor ?? c.titular!);
       return copia();
     },
 
@@ -96,7 +136,7 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
       c.rutEmisor = rut;
       c.empresa = { razonSocial: d.razonSocial, giro: d.giro, acteco: Number(d.acteco), direccion: d.direccion, comuna: d.comuna, ...(d.ciudad ? { ciudad: d.ciudad } : {}) };
       c.origenEmpresa = d.origen;
-      c.resolucion = { fecha: d.fchResol, numero: d.nroResol };
+      c.resolucion = { fecha: d.fchResol, numero: d.nroResol, origen: 'manual', rechazada: false };
       return copia();
     },
 

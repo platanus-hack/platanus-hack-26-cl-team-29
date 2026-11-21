@@ -6,7 +6,7 @@ Autor: javier-whatsapp
 ## Contexto
 Los dos usuarios necesitan su certificado digital (.pfx y clave) en Bando: el proveedor para emitir factura, guía y nota de crédito; el comprador para aceptar o reclamar facturas (`server/sii/reclamo.ts` autentica con un certificado autorizado para la empresa receptora). Sin certificado, el comprador igual recibe su factura, pero se acepta sola a los 8 días y el reclamo se hace en el sitio del SII.
 
-Hoy el certificado se sube desde el panel del proveedor (`server/conexion-sii/`, ver `20261121-1830-conectar-sii-desde-el-panel.md`). Siguiendo `20261121-1930-whatsapp-primero.md`, también tiene que poder hacerse por WhatsApp, sin que el archivo ni la clave queden en `whatsapp_messages`, en logs ni en Claude.
+Hoy el certificado se sube desde el panel del proveedor (`server/conexion-sii/`, ver `20261121-1406-conectar-sii-desde-el-panel.md`). Siguiendo `20261121-1930-whatsapp-primero.md`, también tiene que poder hacerse por WhatsApp, sin que el archivo ni la clave queden en `whatsapp_messages`, en logs ni en Claude.
 
 ## Decisión (propuesta, pendiente de la prueba de abajo)
 - **El .pfx va como documento en el chat.** El chat acepta cualquier tipo de archivo y se puede mandar desde WhatsApp Web, donde suele estar el certificado. El archivo viene cifrado con su clave: solo no sirve.
