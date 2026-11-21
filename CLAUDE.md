@@ -14,6 +14,7 @@ Contexto de la hackathon (rúbrica, flujo de PR, repo público): @AGENTS.md
 ## Estructura
 ```
 server/            # BACKEND: index.ts = Express + Socket.io + pg; sirve dist/
+server/whatsapp/   # módulo de WhatsApp (Kapso), con dueño: se usa vía index.ts, no se edita (ver su README)
 client/            # FRONTEND: index.html + src/ (React; componentes en client/src/components/)
 test/              # tests con node:test (*.test.ts)
 agents/            # estado de cada agente (ver agents/README.md)
