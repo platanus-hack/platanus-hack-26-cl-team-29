@@ -1081,7 +1081,7 @@ export function detalleEvento(e: EventoRed, estado: EstadoRed, eventos: readonly
       const plazo = numero(o.plazoDias);
       const notaOferta = numero(o.nota) ?? numero(e.datos.nota);
       return {
-        resumen: unir([producto?.nombre, precios, e.datos.mejor === true && 'mejor oferta']),
+        resumen: unir([producto && nombreCorto(producto.nombre, producto.unidad), precios, e.datos.mejor === true && 'mejor oferta']),
         filas: [
           ...fila('Proveedor', proveedor),
           ...fila('Producto', producto?.nombre),
@@ -1098,7 +1098,7 @@ export function detalleEvento(e: EventoRed, estado: EstadoRed, eventos: readonly
       const u = producto ? { singular: producto.unidad, plural: producto.unidadPlural } : lic ? unidadDeLicitacion(lic) : { singular: 'unidad', plural: 'unidades' };
       const precios = `${flecha(a === undefined ? undefined : dinero(a), dinero(n))} ${porUnidad}`;
       const grupo = unidades !== undefined && `el grupo lleva ${contar(unidades, u.singular, u.plural)}`;
-      return { resumen: unir([producto?.nombre, precios, grupo]), filas: [...fila('Producto', producto?.nombre), ...fila('Precio', precios), ...fila('Volumen', grupo)] };
+      return { resumen: unir([precios, grupo]), filas: [...fila('Producto', producto?.nombre), ...fila('Precio', precios), ...fila('Volumen', grupo)] };
     }
     case 'licitacion.cerrada': {
       const l = objeto(e.datos.licitacion);
