@@ -22,6 +22,8 @@ export type {
 } from './dominio.ts';
 export { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
+export { crearSesiones } from './sesiones.ts';
+export type { Sesiones } from './sesiones.ts';
 export { sinTelefonos } from './publico.ts';
 export { enlacePdf, nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
 export type { SinTelefono } from './publico.ts';

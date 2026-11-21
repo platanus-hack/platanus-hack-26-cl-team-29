@@ -3,22 +3,27 @@
 //                                                           ya compró esos productos, participó, es de la comuna o del rubro
 //   responde SÍ --> el agente lo suma con el flujo de siempre de la sala
 //   responde BASTA o "no más avisos" --> no recibe más avisos, nunca (queda guardado aparte de la red)
+// "Trae a tu vecino" (invitaciones con código y su atribución) vive en vecinos.ts y comparte estos contactos.
 // Solo a quien se registró solo (escribió al bot o entró en la web con su RUT): nunca a teléfonos de facturas,
 // locales de OpenStreetMap ni otra fuente. Decisión: docs/decisiones/20261121-1604-avisos-de-compra-abierta.md
 import type pg from 'pg';
 import { resumenCompraAbierta } from '../../shared/avisos.ts';
 import { sinTildes } from '../../shared/texto.ts';
-import { sinTelefonos } from '../red/index.ts';
+import { configDemo, sinTelefonos } from '../red/index.ts';
 import type { Red } from '../red/index.ts';
 import type { EventoRed, LicitacionVista, Negocio, TipoEventoRed } from '../red/tipos.ts';
-import { claveTelefono, crearEnvios, enmascarar } from '../agente/envios.ts';
+import { crearEnvios, enmascarar } from '../agente/envios.ts';
 import type { Log, OpcionesEnvios, WhatsAppDeEnvios } from '../agente/envios.ts';
-import { crearAlmacenContactos } from './almacen.ts';
+import { claveDe, contactoVacio, crearAlmacenContactos, ronda } from './almacen.ts';
 import type { AlmacenContactos, Contacto } from './almacen.ts';
 import { audienciaDelAviso } from './audiencia.ts';
+import { crearVecinos } from './vecinos.ts';
+import type { InvitacionPublica, InvitacionWeb } from './vecinos.ts';
 
-export { crearAlmacenContactosMemoria } from './almacen.ts';
+export { crearAlmacenContactosMemoria, ronda } from './almacen.ts';
 export type { AlmacenContactos, Contacto } from './almacen.ts';
+export { ofrecerInvitacion, sumoConTuInvitacion } from './vecinos.ts';
+export type { InvitacionPublica, InvitacionWeb } from './vecinos.ts';
 
 /** Lo que el agente hace con un mensaje que es para los avisos: responder esto, o sumarlo a la compra con su nombre. */
 export type RespuestaAviso = { respuesta: string } | { sumarse: string };
@@ -28,6 +33,12 @@ export interface Avisos {
   atender(telefono: string, texto: string): Promise<RespuestaAviso | null>;
   /** Avisa la compra abierta a quien corresponde (idempotente: un aviso por negocio y por compra). */
   avisarCompraAbierta(): Promise<void>;
+  /** Su invitación para compartir desde /app. */
+  invitacionWeb(negocio: Negocio): Promise<InvitacionWeb | null>;
+  /** Entró por la web con `?ref=<código>`: queda invitado por ese negocio (y si ya está en la compra, se cuenta ahora). */
+  invitadoWeb(negocio: Negocio, codigo: string): Promise<boolean>;
+  /** Quién invitó a quién, solo nombres e ids de negocio (para /red). */
+  invitaciones(): InvitacionPublica[];
   /** Espera a que se procesen los eventos de la red recibidos hasta ahora (tests). */
   alDia(): Promise<void>;
   detener(): void;
@@ -35,6 +46,8 @@ export interface Avisos {
 
 export interface OpcionesAvisos {
   red: Pick<Red, 'escuchar' | 'estadoDeLaRed'>;
+  /** De aquí salen el número del bot (DEMO_WHATSAPP_NUMERO) y la URL pública (PUBLIC_URL) de las invitaciones. */
+  env?: NodeJS.ProcessEnv;
   whatsapp: WhatsAppDeEnvios;
   /** Por defecto, Postgres si hay `db` (si no, memoria). */
   almacen?: AlmacenContactos;
@@ -52,18 +65,11 @@ export const avisoCompraAbierta = (resumen: string, primero: boolean) =>
   + (primero ? '\nSi no quieres más avisos, responde BASTA.' : '');
 
 const BASTA = /^(basta|stop|no mas avisos|no quiero (mas )?avisos|sin avisos|no me (avises|envies) mas)\b/;
+const INVITAR = /^(invitar|invita|invitacion|mi invitacion|trae a tu vecino)\b/;
 const SI = /^(si|sii|si quiero|me sumo|sumame|quiero sumarme|dale|ok)\b/;
 /** Avisos recordados por contacto: alcanza para no repetir y no crece sin fin. */
 const MAX_AVISADAS = 20;
 
-/** Una compra conjunta: su id se repite tras cada reinicio de la demo (`L-1`), su cierre no. */
-export const ronda = (l: Pick<LicitacionVista, 'id' | 'cierraEn'>) => `${l.id}@${l.cierraEn}`;
-
-/** Clave del contacto de un negocio: su teléfono o, si entró por la web sin teléfono, su RUT. */
-const claveDe = (n: Pick<Negocio, 'telefono' | 'rut'>) =>
-  (n.telefono && claveTelefono(n.telefono) ? `tel:${claveTelefono(n.telefono)}` : n.rut ? `rut:${n.rut}` : null);
-
-const vacio = (id: string): Contacto => ({ id, nombre: '', registrado: false, productos: [], rondas: [], avisadas: [] });
 const unir = (a: readonly string[], b: Iterable<string>) => [...new Set([...a, ...b])];
 
 export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
@@ -71,11 +77,12 @@ export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
   const log = o.log ?? console;
   const reloj = o.reloj ?? (() => new Date());
   const envios = crearEnvios(o.whatsapp, { concurrencia: 5, minimoDifusionMs: 5000, log, ...o.envios });
+  const env = o.env ?? process.env;
 
   /** Cambia un contacto y lo guarda solo si cambió algo. */
   async function actualizar(id: string, cambiar: (c: Contacto) => Contacto): Promise<Contacto> {
     const antes = almacen.buscar(id);
-    const despues = cambiar(antes ?? vacio(id));
+    const despues = cambiar(antes ?? contactoVacio(id));
     if (JSON.stringify(antes) !== JSON.stringify(despues)) await almacen.guardar(despues);
     return despues;
   }
@@ -139,6 +146,19 @@ export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
     emitir('avisos.enviados', { licitacionId: l.id, negocios: lista.length });
   }
 
+  const vecinos = crearVecinos({
+    almacen, actualizar, envios, emitir, log, reloj, negocios: () => o.red.estadoDeLaRed().negocios,
+    whatsappNumero: configDemo(env).whatsappNumero, urlPublica: env.PUBLIC_URL || null,
+  });
+
+  /** Un negocio que entró a la compra abierta (`licitacion.participante` con `entra`). */
+  async function alEntrar(negocioId: unknown, licitacionId: unknown) {
+    const { negocios, licitaciones } = o.red.estadoDeLaRed();
+    const n = negocios.find(x => x.id === negocioId);
+    const l = licitaciones.find(x => x.id === licitacionId && x.estado === 'abierta');
+    if (n && l?.participantes.some(p => p.negocioId === n.id)) await vecinos.alSumarse(n, l);
+  }
+
   function emitir(tipo: TipoEventoRed, datos: Record<string, unknown>) {
     o.emitir?.({ tipo, datos: sinTelefonos(datos), en: reloj().toISOString() });
   }
@@ -151,6 +171,11 @@ export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
       await actualizar(id, c => ({ ...c, telefono: c.telefono ?? telefono, sinAvisos: c.sinAvisos ?? reloj().toISOString(), esperaSi: undefined }));
       log.info(`[avisos] ${enmascarar(telefono)} no quiere más avisos`);
       return { respuesta: SIN_AVISOS };
+    }
+    if (await vecinos.llegoConCodigo(id, telefono, texto)) return { sumarse: almacen.buscar(id)?.nombre ?? '' };
+    if (INVITAR.test(t)) {
+      const invitacion = await vecinos.pedirPorWhatsapp(id, telefono);
+      if (invitacion) return { respuesta: invitacion };
     }
     const c = almacen.buscar(id);
     if (!c?.esperaSi) return null;
@@ -168,18 +193,29 @@ export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
     fila = fila.then(tarea).catch(e => log.error('[avisos] falló:', e instanceof Error ? e.message : e));
     return fila;
   };
+  /** Una tarea en la fila que devuelve su resultado (o su error) a quien la pidió. */
+  const conResultado = <T>(tarea: () => Promise<T>) => new Promise<T>((listo, fallo) => {
+    void enFila(() => tarea().then(listo, fallo));
+  });
   const dejarDeEscuchar = o.red.escuchar(evento => {
     void enFila(async () => {
       await sincronizar();
       if (evento.tipo === 'red.reiniciada') await avisarCompraAbierta();
+      const datos = evento.datos as { accion?: string; licitacionId?: string; participante?: { negocioId?: string } } | null;
+      if (evento.tipo === 'licitacion.participante' && datos?.accion === 'entra') await alEntrar(datos.participante?.negocioId, datos.licitacionId);
     });
   });
 
   return {
-    atender: (telefono, texto) => new Promise((listo, fallo) => {
-      void enFila(() => atender(telefono, texto).then(listo, fallo));
-    }),
+    atender: (telefono, texto) => conResultado(() => atender(telefono, texto)),
     avisarCompraAbierta: () => enFila(async () => { await sincronizar(); await avisarCompraAbierta(); }),
+    invitacionWeb: n => conResultado(() => vecinos.paraLaWeb(n)),
+    invitadoWeb: (n, codigo) => conResultado(async () => {
+      const invitado = await vecinos.invitadoEnLaWeb(n, codigo);
+      if (invitado) await alEntrar(n.id, compraAbierta()?.id);
+      return invitado;
+    }),
+    invitaciones: () => vecinos.invitaciones(),
     alDia: () => fila,
     detener() {
       dejarDeEscuchar();

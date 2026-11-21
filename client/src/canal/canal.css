@@ -418,3 +418,14 @@
 .cn-aviso-cerrar {
   width: 44px; height: 44px; margin: -10px 0 0; border: 0; background: none; color: var(--color-muted); font-size: 24px; line-height: 1; cursor: pointer;
 }
+
+/* ---------- Trae a tu vecino (/app) ---------- */
+.cn-invitar {
+  display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: start; padding: 14px;
+  border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface);
+}
+.cn-invitar > svg { color: var(--color-primary); margin-top: 2px; }
+.cn-invitar strong { display: block; font-size: 17px; line-height: 1.25; }
+.cn-invitar p { margin: 6px 0 12px; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: var(--color-muted); }
+.cn-invitar .boton { min-height: 48px; padding: 0 18px; font-size: 18px; }
+.cn-invitar .cn-invitar-estado { margin: 10px 0 0; color: var(--color-green); overflow-wrap: anywhere; }

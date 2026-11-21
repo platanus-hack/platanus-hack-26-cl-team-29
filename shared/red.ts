@@ -47,4 +47,6 @@ export type TipoEventoRed =
   // Se avisó por WhatsApp a los compradores registrados que abrió una compra conjunta: `{ licitacionId, negocios }` (solo el conteo).
   | 'avisos.enviados'
   // Llegaron giros del SII o clasificaciones de proveedores al buscador (server/proveedores/).
-  | 'proveedores.actualizado';
+  | 'proveedores.actualizado'
+  // Un negocio se sumó con la invitación de otro: `{ licitacionId, invita, invitado, invitaId?, invitadoId? }` (solo nombres e ids de negocio).
+  | 'invitacion.sumada';
