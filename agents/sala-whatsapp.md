@@ -13,7 +13,7 @@ libre (PR #20 listo para revisión)
 - server/index.ts (solo si el cableado cambia, mínimo)
 
 ## Hecho
-- Sala por WhatsApp en `server/agente/sala.ts` y `envios.ts`: onboarding del público, cascada agrupada con freno por teléfono, cierre con sí del proveedor e idempotente, folio a cada comprador, logs enmascarados. Decisión: docs/decisiones/20261121-1600-sala-compra-junta-por-whatsapp.md
+- Sala por WhatsApp en `server/agente/sala.ts` y `envios.ts`: onboarding del público, cascada agrupada con freno por teléfono, cierre con sí del proveedor e idempotente, folio a cada comprador, logs enmascarados. Decisión: docs/decisiones/20261121-1200-sala-compra-junta-por-whatsapp.md
 
 ## Bloqueos
 - (ninguno; codifico contra el puerto con una red falsa)

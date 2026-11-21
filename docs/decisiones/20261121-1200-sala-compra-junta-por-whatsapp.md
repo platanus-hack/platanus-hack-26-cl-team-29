@@ -1,6 +1,6 @@
 # La sala compra junta por WhatsApp: onboarding, cascada con freno y facturación con un solo sí
 
-Fecha: 2026-11-21 16:00
+Fecha: 2026-11-21 12:00
 Autor: sala-whatsapp
 
 ## Contexto
