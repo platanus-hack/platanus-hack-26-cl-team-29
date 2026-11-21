@@ -219,6 +219,29 @@ test('por WhatsApp, si el SII rechaza la consulta de un RUT válido, se suma con
   });
 });
 
+test('lo declarado sirve de respaldo y se reemplaza por lo del SII cuando vuelve a responder, conservando la dirección', async () => {
+  let caido = true;
+  const consultar: ConsultarContribuyente = async () => {
+    if (caido) throw new Error('El SII no respondió');
+    return { ...ficha('Comercial Javier SpA'), direccion: '', comuna: '' };
+  };
+  const { red } = await redDePrueba(consultar);
+  const l = red.licitacionAbierta()!;
+  const telefono = '56977700002';
+  const carrito = { telefono, nombre: 'Almacén Javier', rut: '77.865.227-7', items: [{ productoId: l.productos[0]!.id, cantidad: 2 }] };
+  await red.actualizarCarrito(l.id, { ...carrito, direccionFactura: { direccion: 'Av. Escuela Agrícola 1710', comuna: 'Macul' } });
+
+  // Con el SII aún caído, lo declarado responde en vez de fallar.
+  assert.equal((await red.consultarRut('77.865.227-7', telefono)).razonSocial, 'Almacén Javier');
+
+  caido = false;
+  await red.actualizarCarrito(l.id, carrito);
+  const c = red.negocioPorTelefono(telefono)!.contribuyente!;
+  assert.equal(c.razonSocial, 'Comercial Javier SpA');
+  assert.equal(c.declarado, undefined);
+  assert.deepEqual([c.direccion, c.comuna], ['Av. Escuela Agrícola 1710', 'Macul']);
+});
+
 test('un RUT es del teléfono que lo registró: otro teléfono no lo usa ni ve sus datos', async () => {
   const { consultar } = consultaContada({ [RUT_A]: ficha('Comercial Prueba Limitada') });
   const { red } = await redDePrueba(consultar);

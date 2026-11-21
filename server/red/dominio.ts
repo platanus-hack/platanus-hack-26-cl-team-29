@@ -495,11 +495,13 @@ export async function crearRed({
     if (!rut) throw new ErrorRed('datos_invalidos', RUT_INVALIDO);
     exigirRutDelTelefono(rut, telefono);
     const conocido = datos.negocios.find(n => n.rut === rut && n.contribuyente)?.contribuyente;
-    if (conocido) return { rut, ...structuredClone(conocido) };
+    if (conocido && !conocido.declarado) return { rut, ...structuredClone(conocido) };
     let encontrado: DatosContribuyente | null;
     try {
       encontrado = await consultarContribuyente(rut);
     } catch (error) {
+      // Lo declarado antes sirve de respaldo mientras el SII no responda.
+      if (conocido) return { rut, ...structuredClone(conocido) };
       // El texto del SII (página pública, sin datos de sesión) dice por qué rechazó: sin él no se puede diagnosticar.
       const delSii = (error as { mensajeSii?: unknown } | null)?.mensajeSii;
       const detalle = typeof delSii === 'string' && delSii ? ` | SII: ${delSii.replace(/\s+/g, ' ').slice(0, 300)}` : '';
@@ -507,14 +509,16 @@ export async function crearRed({
       throw new ErrorRed('sii_no_disponible', SII_NO_DISPONIBLE);
     }
     if (!encontrado) throw new ErrorRed('datos_invalidos', RUT_DESCONOCIDO);
-    return { rut, ...structuredClone(encontrado) };
+    // El SII manda en razón social y giro; la dirección que dio la persona se queda si el SII no trae una.
+    const direccion = encontrado.direccion && encontrado.comuna ? {} : conocido ? { direccion: conocido.direccion, comuna: conocido.comuna } : {};
+    return { rut, ...structuredClone(encontrado), ...direccion };
   }
 
   const camposRut = ({ rut, ...contribuyente }: ContribuyenteDeRut): Pick<Negocio, 'rut' | 'contribuyente'> => ({ rut, contribuyente });
 
-  /** Deja el RUT y sus datos del SII en el negocio (si cambió) y lo guarda. */
+  /** Deja el RUT y sus datos del SII en el negocio (si cambió o reemplazan a los declarados) y lo guarda. */
   async function asignarRut(n: Negocio, delSii: ContribuyenteDeRut) {
-    if (n.rut === delSii.rut && n.contribuyente) return;
+    if (n.rut === delSii.rut && n.contribuyente && (delSii.declarado || !n.contribuyente.declarado)) return;
     exigirRutDelTelefono(delSii.rut, n.telefono);
     Object.assign(n, camposRut(delSii));
     await guardar('negocios', n);
@@ -582,7 +586,7 @@ export async function crearRed({
       if (!(error instanceof ErrorRed) || error.codigo !== 'sii_no_disponible' || !rut || !d) throw error;
       return {
         rut, razonSocial: textoCorto(q.nombre) || 'Sin razón social', giro: 'Sin informar',
-        direccion: textoCorto(d.direccion), comuna: textoCorto(d.comuna), actividades: [],
+        direccion: textoCorto(d.direccion), comuna: textoCorto(d.comuna), actividades: [], declarado: true,
       };
     }
   }
