@@ -26,6 +26,7 @@
 .r3d-leyenda .punto.verde { background: var(--color-green); }
 .r3d-leyenda .punto.amarillo { background: var(--color-primary); }
 .r3d-leyenda .punto.local { width: 6px; height: 6px; background: #9adfff; }
+.r3d-leyenda .punto.mp { background: rgb(242 255 0 / 0.18); border: 1px solid var(--color-primary); }
 
 /* Lo que va pegado a un punto del mapa: el JS pone el translate de cada ancla en cada cuadro. */
 .r3d-sobre { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
@@ -61,22 +62,6 @@
 }
 
 /* Ficha del proveedor elegido con un clic (sobre .tarjeta). */
-.r3d-ficha {
-  position: absolute; right: var(--relleno); top: calc(var(--relleno) + 60px); width: min(340px, calc(100vw - 32px));
-  background: rgb(10 10 10 / 0.92); font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted);
-}
-.r3d-ficha h2 { display: flex; align-items: center; gap: 10px; margin: 0 28px 8px 0; font-family: var(--font-display); font-size: clamp(18px, 2.4vh, 26px); color: var(--color-text); }
-.r3d-ficha p { margin: 4px 0; }
-.r3d-nota b { font-size: clamp(22px, 3vh, 32px); color: var(--color-primary); margin-right: 6px; }
-.r3d-ficha ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-.r3d-ficha li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--color-border); padding-top: 4px; }
-.r3d-ficha li b { color: var(--color-text); }
-.r3d-cerrar {
-  position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; border: 0; background: transparent;
-  color: var(--color-muted); font-size: 22px; cursor: pointer;
-}
-.r3d-cerrar:hover { color: var(--color-text); }
-
 .r3d .maplibregl-ctrl-attrib { background: rgb(0 0 0 / 0.6); color: var(--color-tenue); font-size: 10px; }
 .r3d .maplibregl-ctrl-attrib a { color: inherit; }
 

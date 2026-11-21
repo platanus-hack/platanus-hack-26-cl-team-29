@@ -4,6 +4,7 @@
 import { categoriaDeGiro, categoriaDeTexto, nombreCategoria, type IdCategoria } from '../../shared/categorias.ts';
 import { puedeVender } from '../../shared/red.ts';
 import { sinTildes } from '../../shared/texto.ts';
+import { ubicarProveedor, type ProveedorMapa } from '../../shared/ubicacion.ts';
 import type { FotoMercadoPublico, OrdenLimpia } from '../mercado-publico/index.ts';
 import { rangoDe } from '../mercado-publico/index.ts';
 import { rutDeEmpresa } from '../mercado-publico/normalizar.ts';
@@ -212,4 +213,19 @@ export function buscar(indice: Indice, o: { q?: string; categoria?: string; pagi
     total: filtradas.length, pagina, paginas, conteos,
     resultados: filtradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map(resumen),
   };
+}
+
+/** Tope de proveedores en los mapas (los que más organismos tienen primero): sobre esto el mapa se satura. */
+export const MAX_MAPA = 2000;
+
+/** Los proveedores que se pueden ubicar (comuna o región conocida), sin productos ni giros. */
+export function paraElMapa(fichas: FichaProveedor[]): ProveedorMapa[] {
+  return fichas.flatMap(f => {
+    const donde = ubicarProveedor(f);
+    if (!donde) return [];
+    return [{
+      clave: f.clave, nombre: f.nombre, categoria: f.categoria?.nombre ?? null, region: f.region, comuna: f.comuna,
+      organismos: f.organismos, enBando: f.fuentes.some(x => x.tipo === 'bando'), nota: f.nota, ...donde,
+    }];
+  }).sort((a, b) => b.organismos - a.organismos).slice(0, MAX_MAPA);
 }

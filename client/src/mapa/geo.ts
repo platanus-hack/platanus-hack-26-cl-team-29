@@ -4,53 +4,13 @@
 import type { CambioNota } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed, Negocio } from '../red/tipos.ts';
 import type { EventoVisto } from '../red/useRed.ts';
-import { sinTildes } from '../../../shared/texto.ts';
+import { ubicarEnComuna, type Punto } from '../../../shared/ubicacion.ts';
 
-export type Punto = [lng: number, lat: number];
-
-/** Centro del mapa: el MUT (Mercado Urbano Tobalaba). Coordenada aproximada. */
-export const MUT: Punto = [-70.601, -33.4178];
+export type { Punto } from '../../../shared/ubicacion.ts';
+export { MUT } from '../../../shared/ubicacion.ts';
 export const RADIO_KM = 30;
 
-// ponytail: centros aproximados por comuna, puestos a mano. La red solo sabe la comuna de cada negocio;
-// cuando el contrato traiga dirección o coordenadas, se ubica con eso y esta tabla sobra.
-const COMUNAS: Record<string, Punto> = {
-  santiago: [-70.66, -33.45], providencia: [-70.615, -33.43], 'las condes': [-70.56, -33.41], vitacura: [-70.575, -33.385],
-  'lo barnechea': [-70.52, -33.35], nunoa: [-70.6, -33.456], 'la reina': [-70.54, -33.447], macul: [-70.6, -33.49],
-  penalolen: [-70.54, -33.485], 'la florida': [-70.58, -33.53], 'puente alto': [-70.575, -33.61], 'san joaquin': [-70.63, -33.495],
-  'san miguel': [-70.65, -33.497], 'la cisterna': [-70.66, -33.53], 'san ramon': [-70.64, -33.54], 'la granja': [-70.625, -33.535],
-  'el bosque': [-70.675, -33.565], 'san bernardo': [-70.7, -33.59], 'la pintana': [-70.63, -33.585], 'lo espejo': [-70.69, -33.52],
-  'pedro aguirre cerda': [-70.675, -33.49], cerrillos: [-70.71, -33.5], maipu: [-70.76, -33.51], 'estacion central': [-70.7, -33.46],
-  'lo prado': [-70.725, -33.445], pudahuel: [-70.76, -33.44], 'cerro navia': [-70.74, -33.425], 'quinta normal': [-70.7, -33.43],
-  renca: [-70.72, -33.405], quilicura: [-70.73, -33.36], conchali: [-70.675, -33.385], independencia: [-70.665, -33.415],
-  recoleta: [-70.64, -33.4], huechuraba: [-70.64, -33.37],
-};
-
-/** Cuánto se separan los negocios de una misma comuna, en grados (cerca de 1 km). */
-const DISPERSION = 0.012;
-
-
-function centroDe(comuna: string): Punto {
-  const c = sinTildes(comuna).trim();
-  // "Ñuñoa y alrededores" también es Ñuñoa. Una comuna desconocida cae junto al MUT.
-  const clave = Object.keys(COMUNAS).find(k => c.startsWith(k));
-  return clave ? COMUNAS[clave] : MUT;
-}
-
-/** Dos números estables entre -1 y 1 a partir del id: el mismo negocio cae siempre en el mismo punto. */
-function ruido(id: string): [number, number] {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
-  const a = (h >>> 0) % 2001;
-  const b = (Math.imul(h, 2654435761) >>> 0) % 2001;
-  return [a / 1000 - 1, b / 1000 - 1];
-}
-
-export function ubicar(negocio: Pick<Negocio, 'id' | 'comuna'>): Punto {
-  const [lng, lat] = centroDe(negocio.comuna);
-  const [a, b] = ruido(negocio.id);
-  return [lng + a * DISPERSION, lat + b * DISPERSION];
-}
+export const ubicar = (negocio: Pick<Negocio, 'id' | 'comuna'>): Punto => ubicarEnComuna(negocio.id, negocio.comuna);
 
 const KM_POR_GRADO = 111.19;
 
