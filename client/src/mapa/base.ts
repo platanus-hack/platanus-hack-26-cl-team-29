@@ -46,6 +46,20 @@ export function crearMapa(contenedor: HTMLElement, opciones: Omit<MapOptions, 'c
   return m;
 }
 
+/** Edificios en 3D (capa `building` de OpenMapTiles), gris oscuro: la toma inicial parte a nivel de calle entre ellos. */
+export function ponerEdificios(m: MapaLibre) {
+  if (!m.getSource('openmaptiles') || m.getLayer('edificios-3d')) return;
+  m.addLayer({
+    id: 'edificios-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
+    paint: {
+      'fill-extrusion-color': '#2b2b2b',
+      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+      'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, 0.92],
+    },
+  });
+}
+
 /** Elemento HTML para un marcador del mapa. */
 export function crear(clase: string, html = ''): HTMLDivElement {
   const el = document.createElement('div');

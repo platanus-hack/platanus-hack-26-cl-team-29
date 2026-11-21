@@ -3,6 +3,7 @@
 // proveedores y los arcos. Encima, pocas tarjetas efímeras (máximo tres) cuentan lo que pasa en cada punto, con el
 // mismo texto e ícono que el feed de /red. Pantalla de presentación: no está en el menú.
 // Los datos son los de /red y /mapa (useRed, useLocales): cada `red:evento` también se anima aquí.
+// /red-3d#video: secuencia guionada con marcas ilustrativas, solo para grabar el video del pitch.
 // /red-3d#recorrido: cámara automática y determinista para grabar. Sin hash: modo libre (arrastrar, girar, inclinar).
 
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +14,8 @@ import type { Layer } from '@deck.gl/core';
 import './red3d.css';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { Monograma } from '../components/Iconos.tsx';
-import { AMARILLO, AZUL_LOCAL, crearMapa, MAGENTA, VERDE } from '../mapa/base.ts';
+import { AMARILLO, AZUL_LOCAL, crearMapa, MAGENTA, ponerEdificios, VERDE } from '../mapa/base.ts';
+import { Red3DVideo } from './Red3DVideo.tsx';
 import {
   camara, capitulo, DURACION_HISTORIA, guion, historia, INICIO_LOCALES, relaciones, sumarTarjeta, VIDA_TARJETA,
   type NodoHistoria, type PasoGuion, type Tarjeta,
@@ -24,12 +26,9 @@ import { describirEventoCorto, notaDe } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed } from '../red/tipos.ts';
 import { useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, IconoEvento } from './RedEnVivo.tsx';
+import { anclarAlMapa, C_AMARILLO, C_BLANCO, C_LOCAL, C_MAGENTA, C_VERDE, conAlfa, LeyendaRed3D, type Color } from './red3dComun.tsx';
 import { miles, nota } from '../../../shared/formato.ts';
 
-type Color = [number, number, number, number];
-const rgb = (hex: string): Color => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).concat(255) as Color;
-const [C_VERDE, C_AMARILLO, C_MAGENTA, C_LOCAL, C_BLANCO] = [VERDE, AMARILLO, MAGENTA, AZUL_LOCAL, '#ffffff'].map(rgb);
-const conAlfa = (c: Color, a: number): Color => [c[0], c[1], c[2], Math.round(255 * Math.min(1, Math.max(0, a)))];
 const mezcla = (a: Color, b: Color, k: number): Color => a.map((x, i) => x + (b[i] - x) * k) as Color;
 
 /** Si los locales no llegan (sin backend), la secuencia parte igual con la red sola. */
@@ -142,20 +141,6 @@ function capasDeck(escena: Escena, locales: LocalMapa[], animaciones: Animacion[
   ];
 }
 
-/** Edificios en 3D (capa `building` de OpenMapTiles), gris oscuro: la toma inicial parte a nivel de calle entre ellos. */
-function ponerEdificios(m: MapaLibre) {
-  if (!m.getSource('openmaptiles') || m.getLayer('edificios-3d')) return;
-  m.addLayer({
-    id: 'edificios-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
-    paint: {
-      'fill-extrusion-color': '#2b2b2b',
-      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
-      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-      'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, 0.92],
-    },
-  });
-}
-
 interface Datos {
   estado: EstadoRed;
   locales: LocalMapa[];
@@ -241,10 +226,7 @@ function Lienzo({ estado, eventos, locales, recorrido, alElegir, alAvanzar }: {
       d.animaciones = d.animaciones.filter(a => ahora - a.inicio < DURACION[a.tipo]);
       overlay.setProps({ layers: capasDeck(d.escena, d.locales, d.animaciones, tt, ahora, id => elegir.current(id)) });
       // Tarjetas y etiquetas siguen a su punto del mapa en cada cuadro.
-      for (const el of Array.from(sobre.current?.children ?? []) as HTMLElement[]) {
-        const p = m.project([Number(el.dataset.lng), Number(el.dataset.lat)]);
-        el.style.transform = `translate(${p.x}px, ${p.y}px)`;
-      }
+      anclarAlMapa(m, sobre.current);
       if (ahora - ultimoAviso > 200) {
         ultimoAviso = ahora;
         setT(tt);
@@ -349,7 +331,12 @@ function FichaProveedor({ estado, id, alCerrar }: { estado: EstadoRed; id: strin
   );
 }
 
+/** #video: secuencia guionada para el video del pitch, sin la BD (ver Red3DVideo). */
 export function Red3D() {
+  return location.hash === '#video' ? <Red3DVideo /> : <Red3DRed />;
+}
+
+function Red3DRed() {
   const { estado, eventos, fuente } = useRed();
   const locales = useLocales();
   const [recorrido] = useState(() => location.hash === '#recorrido');
@@ -372,11 +359,7 @@ export function Red3D() {
         {!recorrido && <p className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</p>}
       </div>
       <div className="r3d-cifra" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} color="verde" /></div>
-      <ul className="r3d-leyenda" aria-label="Leyenda">
-        <li><i className="punto verde" /> negocio</li>
-        <li><i className="punto amarillo" /> proveedor</li>
-        <li><i className="punto local" /> local real (OpenStreetMap)</li>
-      </ul>
+      <LeyendaRed3D />
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
     </main>
   );
