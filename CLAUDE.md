@@ -2,6 +2,8 @@
 
 App web multiplayer en tiempo real para Platanus Hack 26 (track Multiplayer). Un solo servicio en Render: Express sirve la API, Socket.io y el front compilado.
 
+Contexto de la hackathon (rúbrica, flujo de PR, repo público): @AGENTS.md
+
 ## Stack (no cambiar sin preguntar)
 - **TypeScript en todo** (`strict`). No se agrega código en JS plano.
 - Backend: Node ≥ 24 (ejecuta `.ts` directo, sin compilar) + Express 5 + Socket.io + `pg`.
