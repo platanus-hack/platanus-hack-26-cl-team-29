@@ -24,12 +24,13 @@ async function pedirEstado(): Promise<EstadoRed> {
 export type EventoVisto = EventoRed & { clave: number; recibido: number };
 
 /** Acciones del panel del presentador. Todas exigen el token de la demo. */
-export type AccionDemo = 'reiniciar' | 'cerrar' | 'confirmar';
+export type AccionDemo = 'reiniciar' | 'cerrar' | 'confirmar' | 'cobrar';
 
 const RUTA_ACCION: Record<AccionDemo, (id: string) => string> = {
   reiniciar: () => '/api/red/demo/reiniciar',
   cerrar: id => `/api/red/licitaciones/${encodeURIComponent(id)}/cerrar`,
   confirmar: id => `/api/red/licitaciones/${encodeURIComponent(id)}/confirmar`,
+  cobrar: () => '/api/pagos/demo/cobrar',
 };
 
 async function mensajeDeError(r: Response, porDefecto: string): Promise<string> {
@@ -149,10 +150,15 @@ export function useRed() {
     if (!r.ok) throw new Error(await mensajeDeError(r, 'No pudimos sumarte'));
   }, []);
 
-  const accionDemo = useCallback(async (accion: AccionDemo, token: string, licitacionId = '') => {
-    if (falsa.current) return falsa.current[accion](licitacionId);
+  /** Devuelve lo que responde el backend (por ejemplo `{ cobrados, fallidos }` al cobrar). */
+  const accionDemo = useCallback(async (accion: AccionDemo, token: string, licitacionId = ''): Promise<unknown> => {
+    if (falsa.current) {
+      if (accion === 'cobrar') throw new Error('El cobro funciona solo con la red real.');
+      return falsa.current[accion](licitacionId);
+    }
     const r = await fetch(RUTA_ACCION[accion](licitacionId), { method: 'POST', headers: { 'x-demo-token': token } });
     if (!r.ok) throw new Error(await mensajeDeError(r, 'No se pudo'));
+    return r.json().catch(() => null);
   }, []);
 
   return { estado, eventos, cambios, fuente, unirse, accionDemo };

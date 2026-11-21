@@ -11,6 +11,7 @@ import type { CanalApi } from './api.ts';
 import { Icono } from './iconos.tsx';
 import { Vacio } from './piezas.tsx';
 import type { FotoRed } from './tipos.ts';
+import type { Documento } from '../red/tipos.ts';
 
 interface CreditoComprador {
   id: string;
@@ -172,5 +173,42 @@ export function PedirTarjeta({ token }: { token: string }) {
       <button type="button" className="boton" disabled={abriendo} onClick={inscribir}>{abriendo ? 'Abriendo Transbank...' : 'Inscribir tarjeta'}</button>
       {error && <p className="error">{error}</p>}
     </div>
+  );
+}
+
+/** Los pagos más recientes que se listan; el total los cuenta todos. */
+const PAGOS_A_LA_VISTA = 5;
+
+/** /proveedor: lo que Bando le pagó al proveedor por cada factura, al instante. Sin datos del comprador. */
+export function BandoTePago({ api, token, documentos, cambio }: { api: CanalApi; token: string; documentos: Documento[]; cambio: number }) {
+  const [pagos, setPagos] = useState<{ documentoId: string; monto: number; en: string }[]>([]);
+  useEffect(() => {
+    if (api.modo !== 'real') return;
+    let activo = true;
+    pedir<{ pagos: typeof pagos }>('/api/pagos/proveedor', token)
+      .then(d => { if (activo) setPagos(d.pagos); })
+      .catch(() => {});
+    return () => { activo = false; };
+  }, [api.modo, token, cambio]);
+
+  if (!pagos.length) return null;
+  const folio = (documentoId: string) => documentos.find(d => d.id === documentoId)?.folio;
+  const total = pagos.reduce((s, p) => s + p.monto, 0);
+  return (
+    <section className="cn-seccion">
+      <h2 className="cn-titulo"><Icono nombre="tarjeta" /> Pagos de Bando</h2>
+      <ul className="tarjeta cn-documentos">
+        {pagos.slice(0, PAGOS_A_LA_VISTA).map(p => (
+          <li key={p.documentoId}>
+            <Icono nombre="documento" />
+            <div className="cn-doc-izq">
+              <strong>Bando te pagó {dinero(p.monto)} al instante</strong>
+              <span className="mono tenue nombre">{folio(p.documentoId) ? `Factura ${folio(p.documentoId)} · ` : ''}{fechaCorta(p.en)}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="mono tenue cn-texto">{contar(pagos.length, 'pago')} por {dinero(total)} en total. El negocio le paga a Bando a plazo; tú no esperas.</p>
+    </section>
   );
 }

@@ -15,6 +15,7 @@ import type { Documento, Licitacion, Negocio, ProductoCompra } from '../red/tipo
 import type { CanalApi } from './api.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import { MiCatalogo } from './MiCatalogo.tsx';
+import { BandoTePago } from './MiCredito.tsx';
 import { RutaReparto } from './RutaReparto.tsx';
 import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad,
@@ -91,6 +92,7 @@ export function Proveedor() {
           <ConectarSii api={api} token={tokenValido} />
           <MiCatalogo api={api} token={tokenValido} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />
           <MiNota yo={yo} />
+          <BandoTePago api={api} token={tokenValido} documentos={yo.documentos} cambio={cambio} />
           <MisDocumentos yo={yo} comprador={comprador} />
         </div>
       </main>

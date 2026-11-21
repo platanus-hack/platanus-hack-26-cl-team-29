@@ -119,3 +119,13 @@ test('los avisos de WhatsApp dicen monto, proveedor, fecha y tarjeta', async () 
   assert.match(a.cobrado({ ...d, disponible: 300_000, subioA: 'Confiable' }), /Cupo disponible: \$300\.000\. Subiste a Confiable/);
   assert.match(a.pagoAlProveedor({ monto: 114_240, folio: 1234 }), /^Bando te pagó \$114\.240 por la factura folio 1234/);
 });
+
+test('el proveedor ve lo que Bando le pagó por cada factura, sin datos del comprador', async () => {
+  const libro = await crearLibro({
+    tarjetas: tablaMemoria<Tarjeta>(), creditos: tablaMemoria<Credito>(), pasarela: crearPasarelaFalsa(),
+    avisar: () => {}, ahora: () => new Date('2026-11-21T15:00:00Z'),
+  });
+  await libro.otorgar({ rut: '76000000-0', negocioId: 'n-1', proveedorId: 'p-1', ordenId: 'o-1', documentoId: 'd-1', monto: 59_500 });
+  await libro.otorgar({ rut: '76000000-0', negocioId: 'n-1', proveedorId: 'p-2', ordenId: 'o-2', documentoId: 'd-2', monto: 10_000 });
+  assert.deepEqual(libro.pagosAlProveedor('p-1'), [{ ordenId: 'o-1', documentoId: 'd-1', monto: 59_500, en: '2026-11-21T15:00:00.000Z' }]);
+});

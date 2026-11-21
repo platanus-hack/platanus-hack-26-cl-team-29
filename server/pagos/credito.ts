@@ -203,12 +203,21 @@ export async function crearLibro(o: {
       o.avisar({ tipo: 'tarjeta.inscrita', rut: quien.rut, tarjeta: t });
       return true;
     },
+    /** Lo que Bando le pagó a un proveedor, factura por factura, sin datos del comprador. */
+    pagosAlProveedor(proveedorId: string) {
+      return creditos.filter(c => c.proveedorId === proveedorId)
+        .map(c => ({ ordenId: c.ordenId, documentoId: c.documentoId, monto: c.monto, en: c.pagadoAlProveedorEn }))
+        .sort((a, b) => b.en.localeCompare(a.en));
+    },
     /** Para la pantalla de la sala: totales de los negocios dados (los de la ronda actual), sin nombres ni RUT. */
     totales(negocioIds: ReadonlySet<string>) {
       const deLaRonda = creditos.filter(c => negocioIds.has(c.negocioId));
       return {
         pagadoAProveedores: deLaRonda.reduce((s, c) => s + c.monto, 0),
         creditos: deLaRonda.length,
+        negocios: new Set(deLaRonda.map(c => c.negocioId)).size,
+        /** Plazos distintos de la ronda, de menor a mayor (sin los que se cobran el mismo día). */
+        plazos: [...new Set(deLaRonda.map(c => c.plazoDias).filter(d => d > 0))].sort((a, b) => a - b),
         porCobrar: deLaRonda.filter(c => c.estado !== 'pagado').reduce((s, c) => s + c.monto, 0),
         cobrado: deLaRonda.filter(c => c.estado === 'pagado').reduce((s, c) => s + c.monto, 0),
       };

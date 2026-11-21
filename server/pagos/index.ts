@@ -5,6 +5,7 @@
 // POST /api/pagos/yo/tarjeta         → { token, url } para inscribir la tarjeta en Transbank (POST de TBK_TOKEN a url).
 // GET  /api/pagos/inscribir/:rut?t=  → enlace firmado (el que va por WhatsApp): abre la inscripción en Transbank sin sesión.
 // ALL  /api/pagos/tarjeta/vuelta     → vuelta de Transbank (TBK_TOKEN) → /app#compra (web) o una página de listo (WhatsApp).
+// GET  /api/pagos/proveedor         → (sesión de proveedor) { pagos: { ordenId, documentoId, monto, en }[] }, sin datos del comprador.
 // GET  /api/pagos/resumen            → totales de la ronda para las pantallas, sin nombres ni RUT.
 // POST /api/pagos/demo/cobrar        → (x-demo-token) cobra ya todo lo pendiente: adelanta el tiempo en la demo.
 // `red:evento`: credito.otorgado, credito.cobrado, tarjeta.inscrita. Por WhatsApp: al comprador (crédito, recordatorio 3 días
@@ -14,6 +15,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type pg from 'pg';
 import { ivaDe } from '../../shared/precios.ts';
+import { puedeVender } from '../../shared/red.ts';
 import { crearLibro, tablaMemoria, tablaPostgres, type AvisoCredito, type Credito, type Libro, type Tabla, type Tarjeta } from './credito.ts';
 import { pasarelaDesdeEnv, type PasarelaTarjetas } from './oneclick.ts';
 import { ErrorRed, mismoSecreto, tokenPdf, tokenPdfValido, type Documento, type EventoRed, type Negocio, type Red, type Sesiones } from '../red/index.ts';
@@ -114,10 +116,14 @@ export async function iniciarPagos(o: {
 
   function rutas(sesiones: Sesiones) {
     const r = express.Router();
+    /** El negocio de la sesión (Bearer), si hay. */
+    const deSesion = (req: Request) => {
+      const s = sesiones.buscar(/^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1]);
+      return s ? o.red.negocioPorId(s.negocioId) : undefined;
+    };
     /** El comprador con sesión y RUT, o responde 401. */
     const comprador = (req: Request, res: Response) => {
-      const s = sesiones.buscar(/^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1]);
-      const n = s && o.red.negocioPorId(s.negocioId);
+      const n = deSesion(req);
       if (!n?.rut) res.status(401).json({ error: 'no_autorizado', mensaje: 'Necesitas iniciar sesión con tu RUT' });
       return n?.rut ? n : null;
     };
@@ -159,6 +165,11 @@ export async function iniciarPagos(o: {
       const ok = await libro.terminarInscripcion(token).catch(error => (console.error('[pagos] cierre de inscripción', error), false));
       if (desdeWhatsapp.delete(token)) return void res.type('html').send(paginaListo(ok));
       res.redirect(303, `/app?tarjeta=${ok ? 'ok' : 'error'}#${ok ? 'compra' : 'credito'}`);
+    });
+    r.get('/proveedor', (req, res) => {
+      const n = deSesion(req);
+      if (!n || !puedeVender(n)) return void res.status(401).json({ error: 'no_autorizado', mensaje: 'Necesitas iniciar sesión como proveedor' });
+      res.json({ pagos: libro.pagosAlProveedor(n.id) });
     });
     r.get('/resumen', (_req, res) => {
       res.json({ ...libro.totales(new Set(o.red.estadoDeLaRed().negocios.map(n => n.id))), ambiente: pasarela.ambiente });
