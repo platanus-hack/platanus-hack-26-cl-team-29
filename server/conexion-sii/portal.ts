@@ -9,8 +9,11 @@ import type { FichaSii } from '../../shared/conexion-sii.ts';
 export interface PortalConexion {
   ficha(certificado: CertificadoPortal, rutEmpresa: string): Promise<FichaSii>;
   resolucion(certificado: CertificadoPortal, rutEmpresa: string): Promise<Resolucion>;
-  /** Rangos ya autorizados que se pueden volver a descargar, los más recientes primero. Solo lectura. */
-  reobtenibles(certificado: CertificadoPortal, rutEmpresa: string, tipo: number): Promise<RangoFolios[]>;
+  /**
+   * Rangos ya autorizados que se pueden volver a descargar, los más recientes primero: hasta `maxFilas` de los que
+   * cumplen `incluir`. Solo lectura.
+   */
+  reobtenibles(certificado: CertificadoPortal, rutEmpresa: string, tipo: number, maxFilas?: number, incluir?: (r: RangoFolios) => boolean): Promise<RangoFolios[]>;
   /** XML del CAF de un rango ya autorizado (no gasta cupo). */
   reobtener(certificado: CertificadoPortal, rutEmpresa: string, rango: RangoFolios): Promise<string>;
   tope(certificado: CertificadoPortal, rutEmpresa: string, tipo: number): Promise<TopeFolios>;
@@ -23,7 +26,7 @@ export function crearPortalConexion(portal: PortalSii): PortalConexion {
   return {
     ficha: (c, rut) => portal.conSesion(c, 'ficha', s => consultarFicha(s, rut)),
     resolucion: (c, rut) => portal.conSesion(c, 'resolucion', s => consultarResolucion(s, rut)),
-    reobtenibles: (c, rut, tipo) => portal.conSesion(c, `reobtenibles_${tipo}`, s => listarReobtenibles(s, rut, tipo), folios),
+    reobtenibles: (c, rut, tipo, maxFilas, incluir) => portal.conSesion(c, `reobtenibles_${tipo}`, s => listarReobtenibles(s, rut, tipo, maxFilas, incluir), folios),
     reobtener: (c, rut, rango) => portal.conSesion(c, `reobtener_${rango.tipo}`, s => reobtenerCaf(s, rut, rango), { ...folios, escritura: true }),
     tope: (c, rut, tipo) => portal.conSesion(c, `tope_${tipo}`, s => consultarTope(s, rut, tipo), folios),
     pedir: (c, rut, tipo, cantidad) => portal.conSesion(c, `pedir_${tipo}`, s => pedirCaf(s, rut, tipo, cantidad), { ...folios, escritura: true }),

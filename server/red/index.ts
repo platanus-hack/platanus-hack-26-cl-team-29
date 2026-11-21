@@ -8,11 +8,8 @@ import { iniciarCompetencia } from './competencia.ts';
 import { configDemo } from './config-demo.ts';
 import { crearSiiFalso } from './sii.ts';
 import type { PuertoSii } from './sii.ts';
-import { crearSii } from '../sii/index.ts';
 import { crearAlmacenFoliosMemoria, crearAlmacenFoliosPostgres } from './folios.ts';
 import type { AlmacenFolios } from './folios.ts';
-import { crearSiiReal } from './sii-real.ts';
-import type { SiiReal } from './sii-real.ts';
 import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
 import type { ConsultarContribuyente } from './contribuyente.ts';
 
@@ -33,9 +30,10 @@ export { crearSiiFalso, receptorDelComprador } from './sii.ts';
 export { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
 export type { ActividadEconomica, ConsultarContribuyente, DatosContribuyente, OpcionesFila } from './contribuyente.ts';
 export type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
-export { crearSiiReal } from './sii-real.ts';
+export { crearSiiReal, faltanFolios, receptoresDe } from './sii-real.ts';
 export type { SiiReal } from './sii-real.ts';
-export { crearAlmacenFoliosMemoria } from './folios.ts';
+export { crearAlmacenFoliosMemoria, foliosLibres, siguienteEnRango, siguienteFolio } from './folios.ts';
+export type { RangoFolios } from './folios.ts';
 export type { AlmacenFolios, EstadoFolio, RegistroFolio } from './folios.ts';
 export { COMPETIDORES_SALA, COMPRADOR_DEMO, LICITACION_SALA, PROVEEDOR_DEMO, PROVEEDOR_SALA } from './semilla.ts';
 export { iniciarCompetencia, PASO_REAL, pisosDeProducto } from './competencia.ts';
@@ -78,14 +76,6 @@ export async function iniciarRed(
   const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
-}
-
-/**
- * SII real (certificación) para la red, con los folios en Postgres si hay base (si falla, memoria).
- * Se usa solo cuando hay SII_PFX_BASE64; sin él la red sigue con su SII falso.
- */
-export async function conectarSiiReal(db: pg.Pool | null): Promise<SiiReal> {
-  return crearSiiReal({ sii: crearSii(), folios: await crearAlmacenFolios(db) });
 }
 
 /** Folios del SII real en Postgres si hay base (si falla, memoria). Uno por proceso: lo comparten todas las conexiones. */

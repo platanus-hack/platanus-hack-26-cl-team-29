@@ -21,6 +21,9 @@ export const whatsapp = await createWhatsApp({ db: dbRed });
 const conexionSii = await iniciarConexionSii(dbRed);
 export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente });
 red.escuchar(evento => io.emit('red:evento', evento));
+// Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
+conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
+conexionSii.escuchar(evento => io.emit('red:evento', evento));
 const certificados = await crearCertificados({ db: dbRed });
 export const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env, red), certificados });
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));

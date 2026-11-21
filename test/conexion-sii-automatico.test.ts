@@ -51,8 +51,8 @@ test('conectar con certificado y RUT: ficha, resolución y CAF reobteniendo prim
   assert.equal(e.empresa?.razonSocial, 'Comercial de Prueba SpA');
   assert.deepEqual(e.resolucion, { fecha: '2026-10-07', numero: 0, origen: 'sii', rechazada: false });
   assert.deepEqual(e.cafs.map(c => [c.tipo, c.desde, c.hasta]), [[33, 5139, 5162], [52, 2744, 2793], [61, 901, 903]]);
-  assert.match(paso(e, 'caf_33').detalle!, /Reobtenido/);
-  assert.match(paso(e, 'caf_61').detalle!, /Pedido/);
+  assert.match(paso(e, 'caf_33').detalle!, /reobtuvieron 24 folios/);
+  assert.match(paso(e, 'caf_61').detalle!, /pidieron 3 folios nuevos al SII/);
   const r = rutas();
   // Del 33 y 52 nunca se piden folios; del 61 se pide recién después de revisar el listado de reobtención, y dentro del tope (3).
   assert.equal(r.filter(x => x === 'of_genera_folio').length, 1);
@@ -62,14 +62,22 @@ test('conectar con certificado y RUT: ficha, resolución y CAF reobteniendo prim
   assert.equal(e.conectado, true);
 });
 
-test('un rango cuyo último folio ya está en el SII o que venció no se reobtiene', async () => {
+test('un rango sin folios libres en el SII se recuerda y no se vuelve a revisar; uno vencido se salta; recién entonces se pide', async () => {
   const vencido = '2026-01-10';
-  const { conexion, rutas, consultados } = montar({ rangos: { 33: [{ desde: 10, hasta: 20, fecha: hoy }, { desde: 1, hasta: 5, fecha: vencido }] } }, new Set([20]));
+  const usados = new Set(Array.from({ length: 11 }, (_, i) => 10 + i));
+  const { conexion, rutas, consultados } = montar({ rangos: { 33: [{ desde: 10, hasta: 20, fecha: hoy }, { desde: 1, hasta: 5, fecha: vencido }] } }, usados);
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX, RUT_EMPRESA);
   await conexion.esperarBusquedas();
-  assert.ok(consultados.includes(20));
+  assert.deepEqual(consultados.filter(f => f <= 20), [...usados], 'se pregunta el tramo completo: el uso no va en orden');
+  assert.ok(!consultados.some(f => f < 10), 'el rango vencido no se consulta');
   assert.ok(!rutas().includes('rf_reobtencion3_folios'), 'no se abre ningún rango');
-  assert.equal((await conexion.estado()).cafs.find(c => c.tipo === 33)?.desde, 901, 'se pidieron folios nuevos');
+  assert.deepEqual((await conexion.estado()).cafs.filter(c => c.tipo === 33).map(c => [c.desde, c.hasta]), [[901, 910]], 'se pidieron solo los que faltan');
+
+  // Otra reposición: el rango barrido no se vuelve a preguntar.
+  const antes = consultados.length;
+  await conexion.folios.reponer(33, { demanda: 20 });
+  assert.ok(consultados.slice(antes).every(f => f > 20), 'nada del rango 10-20 otra vez');
+  assert.equal(rutas().filter(x => x.startsWith('af_anular')).length, 0);
 });
 
 test('con el timbraje bloqueado se muestra el texto del SII y no se anula ni se insiste', async () => {
@@ -84,6 +92,13 @@ test('con el timbraje bloqueado se muestra el texto del SII y no se anula ni se 
   }
   assert.equal(rutas().filter(x => x === 'of_solicita_folios_dcto').length, 3, 'un intento por tipo, sin repetir');
   assert.equal(rutas().filter(x => x.startsWith('af_anular') || x === 'of_genera_folio').length, 0);
+  // Enfriamiento: mientras dura, nadie vuelve a tocar el SII (ni la reposición ni el botón del panel).
+  const antes = rutas().length;
+  const f = await conexion.folios.reponer(33, { demanda: 3 });
+  assert.equal(f.estado, 'en_espera');
+  assert.match(f.mensajeSii ?? '', /NO SE AUTORIZA TIMBRAJE/);
+  await assert.rejects(conexion.traerFolios(33), /pidió esperar.*NO SE AUTORIZA TIMBRAJE/);
+  assert.equal(rutas().length, antes, 'ninguna solicitud nueva al SII');
 });
 
 test('con el límite de sesiones del SII la conexión se detiene en el primer paso, con un solo intento de login', async () => {
@@ -112,7 +127,7 @@ test('un RCT (error en carátula) deja la conexión sin emitir hasta corregir la
   const { conexion } = montar({ rangos: { 33: [{ desde: 1, hasta: 9, fecha: hoy }] } });
   const oyentes: ((c: CambioEstadoSii) => void)[] = [];
   const real = { ...crearSiiFalso(), emitirFactura: async () => ({ folio: 1, trackId: 'T1', estadoSii: 'recibido' }), alCambiarEstado: (o: (c: CambioEstadoSii) => void) => { oyentes.push(o); } } as unknown as SiiReal;
-  const sii = crearSiiConmutable({ falso: crearSiiFalso(), conexion, env: {}, crearReal: () => real });
+  const sii = crearSiiConmutable({ falso: crearSiiFalso(), conexion, crearReal: () => real });
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX, RUT_EMPRESA);
   await conexion.esperarBusquedas();
   assert.equal((await conexion.estado()).conectado, true);

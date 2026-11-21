@@ -5,7 +5,7 @@ import type { EmpresaSii } from '../../../shared/conexion-sii.ts';
 import type { Documento, EstadoRed, Licitacion, Negocio, OrdenCompra, Tramo } from '../red/tipos.ts';
 
 export type { Tramo };
-export type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, PasoSii } from '../../../shared/conexion-sii.ts';
+export type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, FoliosSii, PasoSii } from '../../../shared/conexion-sii.ts';
 
 /** `GET /api/red/config`. El producto y sus unidades salen de aquí, nunca escritos a mano. */
 export interface ConfigRed {

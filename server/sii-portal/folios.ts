@@ -109,11 +109,16 @@ async function recorrerReobtenibles(
   }
 }
 
-/** Rangos ya autorizados que el SII deja volver a descargar, los más recientes primero, hasta `maxFilas`. Solo lectura. */
-export async function listarReobtenibles(sesion: SesionPortal, rutEmpresa: string, tipo: number, maxFilas = 15): Promise<RangoFolios[]> {
+/**
+ * Rangos ya autorizados que el SII deja volver a descargar, los más recientes primero, hasta `maxFilas` de los que
+ * cumplen `incluir` (así un rango ya revisado no ocupa un lugar y se pagina hacia los más antiguos). Solo lectura.
+ */
+export async function listarReobtenibles(
+  sesion: SesionPortal, rutEmpresa: string, tipo: number, maxFilas = 15, incluir: (r: RangoFolios) => boolean = () => true,
+): Promise<RangoFolios[]> {
   const rangos: RangoFolios[] = [];
   await recorrerReobtenibles(sesion, rutEmpresa, tipo, filas => {
-    rangos.push(...filas.map(f => f.rango).filter(x => x.tipo === tipo));
+    rangos.push(...filas.map(f => f.rango).filter(x => x.tipo === tipo && incluir(x)));
     return rangos.length >= maxFilas;
   });
   return rangos.slice(0, maxFilas);

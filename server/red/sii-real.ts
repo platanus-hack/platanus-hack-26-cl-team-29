@@ -1,21 +1,23 @@
 import { nombreEnFrase } from '../../shared/documentos.ts';
 import { fechaEnChile } from '../../shared/fecha.ts';
+import { contar, segun } from '../../shared/texto.ts';
 import { ErrorSii } from '../sii/index.ts';
 import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
+import { foliosLibres } from './folios.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
+import { ErrorRed } from './dominio.ts';
 import { guiaDeOrden, itemsSii, ordenCompraSii, receptorDelComprador } from './sii.ts';
 import type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
 import type { Negocio, OrdenCompra } from './tipos.ts';
 
-// Adaptador de PuertoSii sobre el módulo SII (server/sii/index.ts), solo certificación.
-// Demo: el proveedor de la red es la empresa SII_RUT_EMISOR (configurada en server/sii). Cada comprador que
-// dio su RUT recibe sus documentos a ese RUT, con su razón social, giro, dirección y comuna del SII
-// (`receptorDelComprador`); sin RUT (o con datos simulados) el receptor es SII_RUT_RECEPTOR. Los nombres de
-// fantasía de la red no viajan al SII.
+// Adaptador de PuertoSii sobre el módulo SII (server/sii/index.ts), solo certificación, con la empresa que el
+// proveedor conectó en el panel (server/conexion-sii). Cada comprador recibe sus documentos a su RUT, con su razón
+// social, giro, dirección y comuna del SII (`receptorDelComprador`); un comprador sin RUT verificado no se puede
+// facturar en el SII y se rechaza antes de tomar ningún folio. Los nombres de fantasía de la red no viajan al SII.
 //
-// Folios: se toman del rango del CAF en el almacén ANTES de armar el documento y nunca se reusan.
-// Un envío `incierto` (corte de red) queda marcado así: no se reenvía ni se toma otro folio; se revisa
-// con `consultarDocumento` (QueryEstDte). Nada se anula.
+// Folios: se toman de los rangos de los CAF de la conexión (varios por tipo) en el almacén ANTES de armar el
+// documento y nunca se reusan. Un envío `incierto` (corte de red) queda marcado así: no se reenvía ni se toma otro
+// folio; se revisa con `consultarDocumento` (QueryEstDte). Nada se anula.
 
 export interface SiiReal extends PuertoSii {
   /**
@@ -28,7 +30,8 @@ export interface SiiReal extends PuertoSii {
 export interface OpcionesSiiReal {
   sii: Sii;
   folios: AlmacenFolios;
-  env?: NodeJS.ProcessEnv;
+  /** Rangos utilizables de los CAF del tipo (desde el primer folio libre conocido de cada uno). */
+  rangos: (tipo: number) => readonly RangoFolios[];
   log?: Log;
   /** Consulta en segundo plano el veredicto de cada envío recibido. Por defecto sí; los tests lo apagan. */
   seguirEnvios?: boolean;
@@ -47,37 +50,28 @@ const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'incierto', 'recib
 /** "factura 33", para los logs. */
 const nombreConTipo = (tipo: number) => `${nombreEnFrase(tipo)} ${tipo}`;
 
+/** Motivo para la persona cuando no alcanzan los folios de un lote. */
+export const faltanFolios = (tipo: number, necesarios: number, libres: number) =>
+  `Faltan folios de ${nombreEnFrase(tipo)}: se necesitan ${contar(necesarios, 'folio')} y ${segun(libres, 'queda', 'quedan')} ${libres}. No se envió nada al SII.`;
+
 const detalleDe = (error: unknown) =>
   error instanceof ErrorSii ? `${error.message}\n${error.respuesta}` : String(error instanceof Error ? error.message : error);
 const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
 
-/**
- * Rango de folios del CAF del tipo (variable `SII_CAF_<tipo>_BASE64`). Solo lee `TD` y `RNG`; server/sii valida el resto al timbrar.
- * `SII_FOLIO_DESDE_<tipo>` adelanta el inicio cuando el CAF ya tiene folios usados fuera de esta app (nunca lo atrasa).
- */
-export function rangoDelCaf(env: NodeJS.ProcessEnv, tipo: number): RangoFolios {
-  const base64 = env[`SII_CAF_${tipo}_BASE64`];
-  if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir la ${nombreConTipo(tipo)}`);
-  const xml = Buffer.from(base64, 'base64').toString('latin1');
-  const td = /<TD>\s*(\d+)\s*<\/TD>/.exec(xml)?.[1];
-  const rango = /<RNG>\s*<D>\s*(\d+)\s*<\/D>\s*<H>\s*(\d+)\s*<\/H>\s*<\/RNG>/.exec(xml);
-  if (Number(td) !== tipo || !rango) throw new Error(`[sii] SII_CAF_${tipo}_BASE64 no es un CAF del tipo ${tipo}`);
-  const desde = Math.max(Number(rango[1]), Number(env[`SII_FOLIO_DESDE_${tipo}`]) || 0);
-  return { desde, hasta: Number(rango[2]) };
-}
+/** Motivo para la persona cuando un comprador no tiene RUT verificado en el SII. */
+export const compradorSinRut = (nombre: string) =>
+  `${nombre} no tiene su RUT verificado en el SII: su factura no se puede emitir. Pídele su RUT y vuelve a intentarlo. No se envió nada al SII.`;
 
-/** Receptor de respaldo: el de los compradores que no dieron su RUT (el comprador de la demo). */
-export function receptorDesdeEnv(env: NodeJS.ProcessEnv): Receptor {
-  const nombres = ['SII_RUT_RECEPTOR', 'SII_RECEPTOR_RAZON_SOCIAL', 'SII_RECEPTOR_GIRO', 'SII_RECEPTOR_DIRECCION', 'SII_RECEPTOR_COMUNA'];
-  const faltan = nombres.filter(n => !env[n]);
-  if (faltan.length > 0) throw new Error(`[sii] faltan variables de entorno del receptor: ${faltan.join(', ')}`);
-  return {
-    rut: env.SII_RUT_RECEPTOR ?? '',
-    razonSocial: env.SII_RECEPTOR_RAZON_SOCIAL ?? '',
-    giro: env.SII_RECEPTOR_GIRO ?? '',
-    direccion: env.SII_RECEPTOR_DIRECCION ?? '',
-    comuna: env.SII_RECEPTOR_COMUNA ?? '',
-  };
+/**
+ * Receptor de cada documento del lote, o falla ANTES de tomar folios si algún comprador no tiene RUT verificado:
+ * nunca sale un sobre a medias ni una factura a un receptor inventado.
+ */
+export function receptoresDe(lista: readonly Pick<DatosEmision, 'receptor'>[]): Receptor[] {
+  return lista.map(({ receptor }) => {
+    const r = receptorDelComprador(receptor);
+    if (!r) throw new ErrorRed('datos_invalidos', compradorSinRut(receptor.nombre));
+    return r;
+  });
 }
 
 /**
@@ -92,9 +86,7 @@ export function veredictoDelSobre(estado: EstadoEnvio, tipo: number, n: number):
   return conteo.reparos >= n ? 'reparo' : undefined;
 }
 
-export function crearSiiReal({ sii, folios, env = process.env, log = console, seguirEnvios = true }: OpcionesSiiReal): SiiReal {
-  const respaldo = receptorDesdeEnv(env);
-  const receptor = (comprador: Negocio) => receptorDelComprador(comprador) ?? respaldo;
+export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seguirEnvios = true }: OpcionesSiiReal): SiiReal {
   // Una emisión a la vez: el folio se toma y se usa en orden, sin dos pedidos peleando por el mismo.
   let cola: Promise<unknown> = Promise.resolve();
   const enCola = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -128,8 +120,8 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     return previo;
   }
 
-  const entradaFactura = ({ orden, receptor: comprador }: DatosEmision, folio: number): EntradaFactura =>
-    ({ folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompraSii(orden) });
+  const entradaFactura = ({ orden }: DatosEmision, folio: number, receptor: Receptor): EntradaFactura =>
+    ({ folio, receptor, items: itemsSii(orden.items, i => i.cantidad), ordenCompra: ordenCompraSii(orden) });
 
   // Cierre de la compra conjunta: las facturas de todas las órdenes en UN sobre y una sola subida.
   // Mismas reglas que una factura suelta, folio por folio: se reservan en orden (consecutivos) antes de
@@ -138,16 +130,24 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
   function emitirFacturas(lista: readonly DatosEmision[]) {
     return enCola(async () => {
       const resultados: ResultadoSii[] = new Array(lista.length);
-      const nuevos: { posicion: number; datos: DatosEmision; orden: OrdenCompra; registro: RegistroFolio }[] = [];
+      const nuevos: { posicion: number; datos: DatosEmision; orden: OrdenCompra; receptor: Receptor; registro: RegistroFolio }[] = [];
       const fallar = async (detalle: string) => {
         for (const n of nuevos) await guardar(n.registro, { estado: 'fallido', detalle });
       };
       try {
+        const pendientes: { posicion: number; datos: DatosEmision }[] = [];
         for (const [posicion, datos] of lista.entries()) {
-          const { orden } = datos;
-          const previo = await folioVivo(33, orden.id);
+          const previo = await folioVivo(33, datos.orden.id);
           if (previo) resultados[posicion] = resultado(previo);
-          else nuevos.push({ posicion, datos, orden, registro: await folios.reservar(33, rangoDelCaf(env, 33), orden.id) });
+          else pendientes.push({ posicion, datos });
+        }
+        // Sin receptor válido o sin folios para todo el lote no se reserva ninguno: nunca sale un sobre a medias.
+        const receptores = receptoresDe(pendientes.map(p => p.datos));
+        const rangos = rangosDe(33);
+        const libres = foliosLibres(rangos, await folios.tomados(33));
+        if (libres < pendientes.length) throw new ErrorRed('sin_folios', faltanFolios(33, pendientes.length, libres));
+        for (const [k, { posicion, datos }] of pendientes.entries()) {
+          nuevos.push({ posicion, datos, orden: datos.orden, receptor: receptores[k]!, registro: await folios.reservar(33, rangos, datos.orden.id) });
         }
       } catch (error) {
         await fallar(detalleDe(error));
@@ -161,7 +161,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
 
       let emision: ResultadoLote;
       try {
-        emision = await sii.emitirFacturas(nuevos.map(n => entradaFactura(n.datos, n.registro.folio)));
+        emision = await sii.emitirFacturas(nuevos.map(n => entradaFactura(n.datos, n.registro.folio, n.receptor)));
       } catch (error) {
         await fallar(detalleDe(error));
         log.error(`[sii] ${nombre}: falló antes de subir, los folios quedan usados. ${detalleDe(error)}`);
@@ -193,16 +193,19 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     });
   }
 
-  function emitir(tipo: 33 | 52 | 61, ordenId: string, armar: (folio: number) => Promise<ResultadoEmision>) {
+  function emitir(tipo: 33 | 52 | 61, datos: DatosEmision, armar: (folio: number, receptor: Receptor) => Promise<ResultadoEmision>) {
+    const ordenId = datos.orden.id;
     return enCola(async () => {
       const nombre = `${nombreConTipo(tipo)} de ${ordenId}`;
       const previo = await folioVivo(tipo, ordenId);
       if (previo) return resultado(previo);
-      const registro = await folios.reservar(tipo, rangoDelCaf(env, tipo), ordenId);
+      // Antes de tomar el folio: sin receptor válido no se arma nada.
+      const [paraQuien] = receptoresDe([datos]);
+      const registro = await folios.reservar(tipo, rangosDe(tipo), ordenId);
       log.info(`[sii] ${nombre}: folio ${registro.folio} reservado`);
       let emision: ResultadoEmision;
       try {
-        emision = await armar(registro.folio);
+        emision = await armar(registro.folio, paraQuien!);
       } catch (error) {
         const detalle = detalleDe(error);
         await guardar(registro, { estado: 'fallido', detalle });
@@ -261,20 +264,21 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
       oyentes.add(oyente);
     },
 
-    emitirFactura: datos => emitir(33, datos.orden.id, folio => sii.emitirFactura(entradaFactura(datos, folio))),
+    emitirFactura: datos => emitir(33, datos, (folio, receptor) => sii.emitirFactura(entradaFactura(datos, folio, receptor))),
 
     emitirFacturas,
 
-    emitirGuia: ({ orden, receptor: comprador }) => emitir(52, orden.id, folio => sii.emitirGuia({
-      folio, receptor: receptor(comprador), ...guiaDeOrden(orden),
+    emitirGuia: datos => emitir(52, datos, (folio, receptor) => sii.emitirGuia({
+      folio, receptor, ...guiaDeOrden(datos.orden),
     })),
 
     // La nota de crédito va al mismo receptor que la factura que corrige.
-    emitirNotaCredito: ({ orden, receptor: comprador, factura, items }) => emitir(61, orden.id, async folio => {
+    emitirNotaCredito: datos => emitir(61, datos, async (folio, receptor) => {
+      const { factura, items } = datos;
       const registro33 = await folios.buscar(33, factura.folio);
       const fecha = registro33?.fechaEmision ?? fechaEnChile(factura.emitidoEn);
       return sii.emitirNotaCredito({
-        folio, receptor: receptor(comprador), items: itemsSii(items, i => i.cantidad), factura: { folio: factura.folio, fecha },
+        folio, receptor, items: itemsSii(items, i => i.cantidad), factura: { folio: factura.folio, fecha },
       });
     }),
 

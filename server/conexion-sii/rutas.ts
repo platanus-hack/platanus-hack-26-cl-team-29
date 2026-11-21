@@ -14,6 +14,11 @@ export function crearRutasConexionSii(conexion: ConexionSii): express.Router {
     res.json(await conexion.estado());
   });
 
+  // "Traer más folios": la misma reposición automática (reobtener primero, pedir solo lo que falta, nunca anular).
+  rutas.post('/folios/:tipo', async (req, res) => {
+    res.json(await conexion.traerFolios(req.params.tipo));
+  });
+
   rutas.post('/certificado', async (req, res) => {
     const b = cuerpo(req);
     res.json(await conexion.subirCertificado(b.pfxBase64, b.clave, b.rutEmisor));

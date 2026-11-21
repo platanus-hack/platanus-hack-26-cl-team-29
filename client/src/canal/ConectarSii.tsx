@@ -4,14 +4,14 @@
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
-import { fechaCorta } from '../../../shared/fecha.ts';
+import { fechaCorta, horaEnChile } from '../../../shared/fecha.ts';
 import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../shared/documentos.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
 import { LogoSii } from './iconos.tsx';
 import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
-import type { CafSii, EstadoConexionSii, DatosEmpresaSii, PasoSii } from './tipos.ts';
+import type { CafSii, EstadoConexionSii, DatosEmpresaSii, FoliosSii, PasoSii } from './tipos.ts';
 
 const POLEO_MS = 1500;
 const NOMBRE_PASO: Record<PasoSii['id'], string> = {
@@ -50,9 +50,12 @@ export function ConectarSii({ api, token }: Props) {
   }, [api, token]);
 
   useEffect(() => { void recargar(); }, [recargar]);
+  // Folios repuestos, bajos o en espera llegan en vivo por `red:evento` (`sii.folios`).
+  useEffect(() => api.escuchar(e => { if (!e || e.tipo === 'sii.folios') void recargar(); }), [api, recargar]);
 
-  // Mientras la conexión automática corre o se busca el primer folio libre de algún CAF, se consulta el avance.
-  const buscando = !!estado?.automatico?.activo || !!estado?.cafs.some(c => c.escaneando);
+  // Mientras la conexión automática corre, se busca el primer folio libre de algún CAF o se reponen folios, se
+  // consulta el avance (respaldo del evento, y lo único que tiene la red falsa del navegador).
+  const buscando = !!estado?.automatico?.activo || !!estado?.cafs.some(c => c.escaneando) || !!estado?.folios.some(f => f.estado === 'reponiendo');
   useEffect(() => {
     if (!buscando) return;
     const t = setInterval(() => { void recargar(); }, POLEO_MS);
@@ -63,7 +66,7 @@ export function ConectarSii({ api, token }: Props) {
     return error ? <p className="error">{error}</p> : null;
   }
 
-  const factura = estado.cafs.find(c => c.tipo === 33);
+  const factura = estado.folios.find(f => f.tipo === 33);
   return (
     <section className="tarjeta cn-sii-conexion">
       <div className="cn-fila-meta">
@@ -73,14 +76,13 @@ export function ConectarSii({ api, token }: Props) {
       {estado.conectado && estado.empresa ? (
         <>
           <p className="cn-texto-grande cn-sub">{estado.empresa.razonSocial}</p>
-          <p className="mono tenue cn-texto">{contar(factura?.libres ?? 0, 'folio libre', 'folios libres')} de factura</p>
+          {factura && <FoliosFactura api={api} token={token} folios={factura} alCambiar={setEstado} />}
         </>
       ) : (
         <>
           <h2 className="cn-producto cn-con-icono"><LogoSii tam={28} /><span>Conectar mi SII</span></h2>
           <p className="mono tenue cn-texto">
             Sube tu certificado digital y el RUT de tu empresa. Traemos del SII tus datos y tus folios (CAF), sin anular nada. Así tus facturas, guías y notas de crédito salen a tu nombre.
-            {estado.respaldoVariables && ' Mientras no termines, la red usa el SII configurado en el servidor.'}
           </p>
         </>
       )}
@@ -151,7 +153,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
             Los traemos solos del SII. Si falta alguno, sube el XML del CAF. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
           </p>
           {TIPOS_DOCUMENTO.map(tipo => (
-            <FilaCaf key={tipo} api={api} token={token} tipo={tipo} caf={estado.cafs.find(c => c.tipo === tipo)} alCambiar={alCambiar} />
+            <FilaCaf key={tipo} api={api} token={token} tipo={tipo} cafs={estado.cafs.filter(c => c.tipo === tipo)} alCambiar={alCambiar} />
           ))}
         </article>
       )}
@@ -317,7 +319,8 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
   );
 }
 
-function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocumento; caf?: CafSii; alCambiar: (e: EstadoConexionSii) => void }) {
+/** Los CAF de un tipo: puede haber varios rangos (la reposición suma los que reobtiene o pide). */
+function FilaCaf({ api, token, tipo, cafs, alCambiar }: Props & { tipo: TipoDocumento; cafs: CafSii[]; alCambiar: (e: EstadoConexionSii) => void }) {
   const { enviando, error, setError, enviar } = useEnvio();
   const [avisos, setAvisos] = useState<string[]>([]);
   const [manual, setManual] = useState('');
@@ -346,31 +349,34 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocum
     }
   };
 
-  const p = caf?.progreso;
+  const caf = cafs.at(-1);
+  const enBusqueda = cafs.find(c => c.escaneando);
+  const p = enBusqueda?.progreso;
+  const libres = cafs.reduce((n, c) => n + (c.libres ?? 0), 0);
   return (
     <div className="cn-caf">
       <div className="cn-caf-cabecera">
         <div>
           <strong>{nombreDocumento(tipo)} ({tipo})</strong>
-          <p className="mono tenue">
-            {!caf ? 'Sin CAF' : `Folios ${caf.desde} a ${caf.hasta} · autorizado el ${fechaCorta(caf.fa)}`}
-          </p>
+          {cafs.length === 0 && <p className="mono tenue">Sin CAF</p>}
+          {cafs.slice(-3).map(c => <p key={c.desde} className="mono tenue">Folios {c.desde} a {c.hasta} · autorizado el {fechaCorta(c.fa)}</p>)}
+          {cafs.length > 3 && <p className="mono tenue">y {contar(cafs.length - 3, 'rango anterior', 'rangos anteriores')}</p>}
         </div>
         <label className={`boton secundario cn-boton-archivo${enviando ? ' deshabilitado' : ''}`}>
-          {enviando ? 'Subiendo...' : caf ? 'Cambiar' : 'Subir CAF'}
+          {enviando ? 'Subiendo...' : caf ? 'Subir otro' : 'Subir CAF'}
           <input type="file" accept=".xml,text/xml,application/xml" onChange={e => { void subir(e); }} disabled={enviando} hidden />
         </label>
       </div>
-      {caf?.escaneando && p && (
+      {enBusqueda && p && (
         <div className="cn-progreso" role="status">
           <p className="mono">Buscando el primer folio libre en el SII: folio {p.folio}, {contar(p.revisados, 'revisado')}</p>
           <div className="cn-barra" aria-hidden="true"><span /></div>
         </div>
       )}
-      {caf && !caf.escaneando && caf.primerLibre !== null && (
-        <p className="cn-ok cn-con-sii"><LogoSii />Primer folio libre: {caf.primerLibre} · {contar(caf.libres ?? 0, 'folio libre', 'folios libres')}</p>
+      {caf && !enBusqueda && cafs.some(c => c.primerLibre !== null) && (
+        <p className="cn-ok cn-con-sii"><LogoSii />{cafs.length === 1 && caf.primerLibre !== null ? `Primer folio libre: ${caf.primerLibre} · ` : ''}{contar(libres, 'folio libre', 'folios libres')}</p>
       )}
-      {caf?.error && <p className="error">{caf.error}</p>}
+      {cafs.filter(c => c.error).map(c => <p key={c.desde} className="error">{c.error}</p>)}
       {avisos.map(a => <p key={a} className="mono tenue cn-nota-pie">{a}</p>)}
       {error && <p className="error">{error}</p>}
       {caf && (aMano ? (
@@ -384,6 +390,35 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: TipoDocum
       ) : (
         <button type="button" className="cn-boton-texto" onClick={() => setAMano(true)}>Indicar el primer folio a mano</button>
       ))}
+    </div>
+  );
+}
+
+const ESTADO_FOLIOS: Record<FoliosSii['estado'], string> = {
+  suficiente: 'Al día', bajo: 'Bajo el mínimo', reponiendo: 'Trayendo folios del SII...', en_espera: 'El SII pidió esperar', sin_caf: 'Sin CAF',
+};
+
+/**
+ * Folios de factura libres y su reposición automática (reobtener primero, pedir solo lo que falta, nunca anular).
+ * "Traer más folios" corre la misma reposición; en espera tras un rechazo del SII no se puede insistir.
+ */
+function FoliosFactura({ api, token, folios, alCambiar }: Props & { folios: FoliosSii; alCambiar: (e: EstadoConexionSii) => void }) {
+  const { enviando, error, enviar } = useEnvio();
+  const ocupado = enviando || folios.estado === 'reponiendo' || folios.estado === 'en_espera';
+  const traer = () => enviar(async () => { alCambiar(await api.siiTraerFolios(token, 33)); });
+  return (
+    <div className="cn-folios" aria-live="polite">
+      <p className="mono cn-texto cn-con-sii">
+        <LogoSii tam={14} />
+        <span>Folios de factura: {contar(folios.libres, 'libre')} · <span className={`cn-folios-estado ${folios.estado}`}>{ESTADO_FOLIOS[folios.estado]}</span></span>
+      </p>
+      {folios.estado === 'bajo' && <p className="mono tenue cn-nota-pie">Se mantienen al menos {contar(folios.minimo, 'folio')}: se repondrán al emitir.</p>}
+      {folios.esperaHasta && <p className="mono tenue cn-nota-pie">Se vuelve a intentar a las {horaEnChile(Date.parse(folios.esperaHasta))}.</p>}
+      {folios.mensajeSii && <p className="mono tenue cn-nota-pie">El SII dice: «{folios.mensajeSii}»</p>}
+      {error && <p className="error">{error}</p>}
+      <button type="button" className="boton secundario cn-secundario cn-ancho" onClick={() => { void traer(); }} disabled={ocupado}>
+        <LogoSii /> {folios.estado === 'reponiendo' || enviando ? 'Trayendo folios...' : 'Traer más folios'}
+      </button>
     </div>
   );
 }

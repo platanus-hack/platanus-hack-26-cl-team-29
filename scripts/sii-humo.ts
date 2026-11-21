@@ -1,12 +1,12 @@
 // Prueba de humo contra el SII de CERTIFICACIÓN (maullin y ws2): emite una factura 33 con referencia a una orden
 // de compra, la sube, consulta su estado hasta que el SII la procese y, con --rfp, registra un reclamo por falta
-// parcial como receptor. Imprime las respuestas del SII completas. Lee todo de variables de entorno.
+// parcial como receptor. Imprime las respuestas del SII completas. Lee todo de un .env local (el servidor no usa
+// variables SII_*: emite con la conexión del panel).
 //
 //   node --env-file=.env scripts/sii-humo.ts --folio 12 [--oc OC-123] [--rfp]
 //
 // El folio debe estar dentro del CAF de SII_CAF_33_BASE64 y no haberse usado antes.
 import { crearSii, ErrorSii, type ResultadoEmision, type Sii } from '../server/sii/index.ts';
-import { receptorDesdeEnv } from '../server/red/sii-real.ts';
 import { fechaEnChile } from '../shared/fecha.ts';
 
 const args = process.argv.slice(2);
@@ -20,14 +20,17 @@ if (!Number.isSafeInteger(folio) || folio <= 0) {
   process.exit(2);
 }
 const env = process.env;
-const receptor = (() => {
-  try {
-    return receptorDesdeEnv(env);
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : error);
-    return process.exit(2);
-  }
-})();
+// El receptor de prueba sale del .env local de quien corre el script (el servidor nunca lo lee: factura al RUT de cada comprador).
+const RECEPTOR = ['SII_RUT_RECEPTOR', 'SII_RECEPTOR_RAZON_SOCIAL', 'SII_RECEPTOR_GIRO', 'SII_RECEPTOR_DIRECCION', 'SII_RECEPTOR_COMUNA'] as const;
+const faltan = RECEPTOR.filter(n => !env[n]);
+if (faltan.length > 0) {
+  console.error(`Faltan en el .env: ${faltan.join(', ')}`);
+  process.exit(2);
+}
+const receptor = {
+  rut: env.SII_RUT_RECEPTOR!, razonSocial: env.SII_RECEPTOR_RAZON_SOCIAL!, giro: env.SII_RECEPTOR_GIRO!,
+  direccion: env.SII_RECEPTOR_DIRECCION!, comuna: env.SII_RECEPTOR_COMUNA!,
+};
 
 /** Estados de QueryEstUp en que el SII todavía no termina de procesar el sobre. */
 const EN_PROCESO = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD', 'LSO']);

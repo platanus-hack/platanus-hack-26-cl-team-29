@@ -1,20 +1,23 @@
 // "Conectar mi SII": el proveedor sube su certificado y el RUT de su empresa; el servidor obtiene solo, por el portal
 // del SII, los datos de la empresa, la resolución y los CAF (reobteniendo primero, pidiendo solo si no hay, nunca
-// anulando). Lo que el SII no entrega se puede escribir o subir a mano. Con eso la red emite en el SII de
+// anulando), y después mantiene los folios repuestos (reposicion.ts). Lo que el SII no entrega se puede escribir o subir a mano. Con eso la red emite en el SII de
 // certificación sin variables de entorno. Los secretos se guardan cifrados (cifrado.ts) y nunca salen en una
 // respuesta, un evento ni el log.
-import type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, IdPasoSii, PasoSii } from '../../shared/conexion-sii.ts';
+import type { CafSii, EmpresaSii, EstadoConexionSii, FichaSii, FoliosSii, IdPasoSii, PasoSii } from '../../shared/conexion-sii.ts';
 import { nombreEnFrase, TIPOS_DOCUMENTO, type TipoDocumento } from '../../shared/documentos.ts';
 import { fechaEnChile } from '../../shared/fecha.ts';
+import { contar } from '../../shared/texto.ts';
 import { normalizarRut } from '../../shared/rut.ts';
 import { abrirCertificado, leerCaf, primerDiaVencido } from '../sii/index.ts';
-import type { ConsultaDocumento, EstadoDocumento, Log } from '../sii/index.ts';
+import type { ConfigSii, ConsultaDocumento, EstadoDocumento, Log } from '../sii/index.ts';
 import type { AlmacenConexion, CafGuardado, ConexionGuardada } from './almacen.ts';
 import { cifrar, descifrar, llaveDesdeEnv } from './cifrado.ts';
 import { esErrorPortal } from '../sii-portal/index.ts';
-import { conseguirCaf } from './automatico.ts';
+import { siguienteEnRango, type RangoFolios } from '../red/index.ts';
+import { demandaManual } from '../../shared/folios.ts';
 import type { PortalConexion } from './portal.ts';
-import { buscarPrimerLibre } from './primer-libre.ts';
+import { buscarPrimerLibre, type RespuestaFolio } from './primer-libre.ts';
+import { crearReposicion, GESTION_INICIAL, type FuenteFolios, type Reposicion } from './reposicion.ts';
 
 export class ErrorConexion extends Error {
   readonly status: number;
@@ -35,8 +38,8 @@ export interface OpcionesConexion {
   /** La sesión del portal sobrevive a reinicios. */
   sesionPersistente?: boolean;
   crearConsulta: CrearConsulta;
-  /** Mayor folio que la red ya tomó del tipo (almacén de folios), para no contarlo como libre. */
-  ultimoUsado?: (tipo: number) => Promise<number>;
+  /** Folios que la red ya tomó del tipo (almacén de folios), para no contarlos como libres. */
+  tomados?: (tipo: number) => Promise<number[]>;
   /** `AAAA-MM-DD` en Chile. */
   hoy?: () => string;
 }
@@ -56,12 +59,13 @@ export interface ConexionSii {
   guardarEmpresa(datos: Record<string, unknown>): Promise<EstadoConexionSii>;
   subirCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexionSii; avisos: string[] }>;
   fijarFolio(tipo: unknown, folio: unknown): Promise<EstadoConexionSii>;
+  /** "Traer más folios" del panel: la misma reposición automática, en segundo plano (avisa con `sii.folios`). */
+  traerFolios(tipo: unknown): Promise<EstadoConexionSii>;
+  /** Reposición automática de folios de esta conexión (antes de facturar, después de emitir). */
+  readonly folios: Reposicion;
   desconectar(): Promise<EstadoConexionSii>;
-  /**
-   * Variables SII_* para emitir con esta conexión, sobre `base` sin las del emisor configurado por entorno (si ambos
-   * existen, gana la app). `null` si la conexión está incompleta.
-   */
-  entorno(base: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv | null>;
+  /** Lo que la red necesita para emitir con esta conexión; `null` si está incompleta (entonces la red usa el SII falso). */
+  configuracion(): Promise<ConfiguracionEmision | null>;
   /** Cambia cada vez que cambia algo que afecta la emisión. */
   version(): number;
   /**
@@ -69,16 +73,21 @@ export interface ConexionSii {
    * de emitir hasta que el proveedor la corrija. Los folios de un envío RCT quedan libres en el SII.
    */
   marcarRechazoCaratula(): Promise<void>;
-  /** Espera a que terminen la conexión automática y las búsquedas de folio en curso (tests). */
+  /** Espera a que terminen la conexión automática, las búsquedas de folio y las reposiciones en curso (tests). */
   esperarBusquedas(): Promise<void>;
+}
+
+/** Configuración del SII real de la red: la de server/sii y los rangos de folios utilizables por tipo. */
+export interface ConfiguracionEmision {
+  sii: ConfigSii;
+  /** Desde el primer folio libre conocido de cada CAF: la red nunca toma uno anterior. */
+  rangos: Partial<Record<TipoDocumento, RangoFolios[]>>;
 }
 
 /** Un .pfx real pesa entre 3 y 10 KB; con holgura para cadenas largas. */
 const MAX_PFX_BASE64 = 40_000;
 const MAX_CAF_BASE64 = 20_000;
 const SEIS_MESES_MS = 182 * 86_400_000;
-/** Variables del emisor por entorno que la conexión de la app reemplaza completas (no se mezclan dos empresas). */
-const DEL_EMISOR = /^SII_(PFX_|RUT_EMISOR$|FCH_RESOL$|EMISOR_|CAF_|FOLIO_DESDE_)/;
 
 const hoyEnChile = () => fechaEnChile(new Date());
 const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
@@ -101,13 +110,31 @@ function campo(datos: Record<string, unknown>, nombre: string, etiqueta: string,
 
 const PASOS: IdPasoSii[] = ['empresa', 'resolucion', 'caf_33', 'caf_52', 'caf_61'];
 
+/** Una conexión guardada antes de admitir varios CAF por tipo traía uno solo por tipo: se lee como lista. */
+function normalizar(c: ConexionGuardada | null): ConexionGuardada | null {
+  if (!c) return null;
+  for (const tipo of TIPOS_DOCUMENTO) {
+    const v: unknown = c.cafs[tipo];
+    if (v && !Array.isArray(v)) c.cafs[tipo] = [v as CafGuardado];
+  }
+  return c;
+}
+
 export function crearConexionSii({
-  almacen, env = process.env, log = console, portal, sesionPersistente = false, crearConsulta, ultimoUsado = async () => 0, hoy = hoyEnChile,
+  almacen, env = process.env, log = console, portal, sesionPersistente = false, crearConsulta, tomados = async () => [], hoy = hoyEnChile,
 }: OpcionesConexion): ConexionSii {
   let automatico: { activo: boolean; pasos: PasoSii[]; promesa: Promise<void> } | null = null;
   let version = 0;
-  const busquedas = new Map<TipoDocumento, { generacion: number; revisados: number; folio: number; total: number; error: string | null; activa: boolean; promesa: Promise<void> }>();
+  /** Búsquedas del primer folio libre, por CAF (`tipo:desde`). */
+  const busquedas = new Map<string, { generacion: number; revisados: number; folio: number; total: number; error: string | null; activa: boolean; promesa: Promise<void> }>();
   let generacion = 0;
+
+  /** Otra empresa: ni sus CAF ni lo aprendido de sus folios (espera, rangos barridos) sirven. */
+  const olvidarFolios = (c: ConexionGuardada) => {
+    c.cafs = {};
+    delete c.folios;
+    busquedas.clear();
+  };
 
   const llave = () => {
     try {
@@ -120,8 +147,15 @@ export function crearConexionSii({
     try { llaveDesdeEnv(env); return true; } catch { return false; }
   };
 
-  const leer = async (): Promise<ConexionGuardada> =>
-    (await almacen.leer()) ?? { cafs: {}, actualizadoEn: new Date().toISOString() };
+  const leer = async (): Promise<ConexionGuardada> => normalizar(await almacen.leer()) ?? { cafs: {}, actualizadoEn: new Date().toISOString() };
+  const cafsDe = (c: ConexionGuardada, tipo: TipoDocumento): CafGuardado[] => c.cafs[tipo] ?? [];
+  const claveBusqueda = (tipo: TipoDocumento, caf: { desde: number }) => `${tipo}:${caf.desde}`;
+  /** Primer folio que la red puede tomar del CAF (null si aún no se sabe) y cuántos le quedan. */
+  const usoDe = (caf: CafGuardado, tomadosDelTipo: readonly number[]) => {
+    if (caf.primerLibre === undefined) return { siguiente: null, libres: null };
+    const siguiente = siguienteEnRango({ desde: caf.primerLibre, hasta: caf.hasta }, tomadosDelTipo);
+    return { siguiente, libres: siguiente === null ? 0 : caf.hasta - siguiente + 1 };
+  };
   const guardar = async (c: ConexionGuardada) => {
     c.actualizadoEn = new Date().toISOString();
     await almacen.guardar(c);
@@ -138,22 +172,22 @@ export function crearConexionSii({
     const c = await leer();
     const cafs: CafSii[] = [];
     for (const tipo of TIPOS_DOCUMENTO) {
-      const g = c.cafs[tipo];
-      if (!g) continue;
-      const b = busquedas.get(tipo);
-      const primerLibre = g.primerLibre ?? null;
-      const siguiente = primerLibre === null ? null : Math.max(primerLibre, (await ultimoUsado(tipo)) + 1);
-      cafs.push({
-        tipo, desde: g.desde, hasta: g.hasta, fa: g.fa, primerLibre,
-        libres: siguiente === null ? null : Math.max(0, g.hasta - siguiente + 1),
-        escaneando: !!b?.activa,
-        progreso: b ? { revisados: b.revisados, folio: b.folio, total: b.total } : null,
-        error: b?.error ?? null,
-      });
+      const usados = await tomados(tipo);
+      for (const g of cafsDe(c, tipo)) {
+        const b = busquedas.get(claveBusqueda(tipo, g));
+        cafs.push({
+          tipo, desde: g.desde, hasta: g.hasta, fa: g.fa, primerLibre: g.primerLibre ?? null,
+          libres: usoDe(g, usados).libres,
+          escaneando: !!b?.activa,
+          progreso: b ? { revisados: b.revisados, folio: b.folio, total: b.total } : null,
+          error: b?.error ?? null,
+        });
+      }
     }
+    const folios: FoliosSii[] = [];
+    if (c.certificado) for (const tipo of TIPOS_DOCUMENTO) folios.push(await reposicion.estado(tipo));
     return {
       conectado: listo(c),
-      respaldoVariables: !!env.SII_PFX_BASE64,
       puedeGuardar: puedeGuardar(),
       titular: c.certificado?.rut ?? null,
       venceEl: c.certificado?.venceEl ?? null,
@@ -164,21 +198,33 @@ export function crearConexionSii({
         ? { fecha: c.resolucion.fecha, numero: c.resolucion.numero, origen: c.resolucion.origen ?? 'manual', rechazada: !!c.resolucion.rechazadaEn }
         : null,
       cafs,
+      folios,
       automatico: automatico && { activo: automatico.activo, pasos: automatico.pasos.map(p => ({ ...p })) },
       sesionPersistente,
     };
   }
 
   const listo = (c: ConexionGuardada) =>
-    !!(c.certificado && c.rutEmisor && c.empresa && c.resolucion && !c.resolucion.rechazadaEn && c.cafs[33]?.primerLibre !== undefined);
+    !!(c.certificado && c.rutEmisor && c.empresa && c.resolucion && !c.resolucion.rechazadaEn && cafsDe(c, 33).some(g => g.primerLibre !== undefined));
+
+  /** QueryEstDte de un folio propio con el certificado conectado (los datos del documento no importan para saber si está libre). */
+  const consultaDeFolios = (cert: { pfx: Buffer; clave: string }, rutEmisor: string) => {
+    const consulta = crearConsulta(cert.pfx, cert.clave, rutEmisor);
+    return async (tipo: number, folio: number): Promise<RespuestaFolio> => {
+      const r = await consulta({ tipo, folio, fechaEmision: hoy(), montoTotal: 1, rutReceptor: rutEmisor });
+      log.info(`[conexion-sii] QueryEstDte tipo ${tipo} folio ${folio}: ${r.codigo} ${r.glosa ?? ''}`);
+      return { codigo: r.codigo, detalle: r.respuesta };
+    };
+  };
 
   /** Busca en segundo plano el primer folio libre del CAF del tipo, desde `desde`. Nunca baja el ya conocido. */
   function buscar(tipo: TipoDocumento, cert: { pfx: Buffer; clave: string }, rutEmisor: string, caf: CafGuardado, desde: number) {
     const mia = ++generacion;
+    const clave = claveBusqueda(tipo, caf);
     const b = { generacion: mia, revisados: 0, folio: desde, total: caf.hasta - desde + 1, error: null as string | null, activa: true, promesa: Promise.resolve() };
-    busquedas.set(tipo, b);
-    const vigente = () => busquedas.get(tipo)?.generacion === mia;
-    const consulta = crearConsulta(cert.pfx, cert.clave, rutEmisor);
+    busquedas.set(clave, b);
+    const vigente = () => busquedas.get(clave)?.generacion === mia;
+    const consultar = consultaDeFolios(cert, rutEmisor);
     log.info(`[conexion-sii] buscando el primer folio libre del tipo ${tipo} desde ${desde} (rango ${caf.desde} a ${caf.hasta})`);
     b.promesa = (async () => {
       try {
@@ -186,11 +232,7 @@ export function crearConexionSii({
           desde, hasta: caf.hasta,
           cancelada: () => !vigente(),
           alProgreso: p => { b.revisados = p.revisados; b.folio = p.folio; },
-          consultar: async folio => {
-            const r = await consulta({ tipo, folio, fechaEmision: hoy(), montoTotal: 1, rutReceptor: rutEmisor });
-            log.info(`[conexion-sii] QueryEstDte tipo ${tipo} folio ${folio}: ${r.codigo} ${r.glosa ?? ''}`);
-            return { codigo: r.codigo, detalle: r.respuesta };
-          },
+          consultar: folio => consultar(tipo, folio),
         });
         if (!vigente()) return;
         if (libre === null) {
@@ -198,8 +240,8 @@ export function crearConexionSii({
           return;
         }
         const c = await leer();
-        const actual = c.cafs[tipo];
-        if (!actual || actual.desde !== caf.desde || actual.hasta !== caf.hasta) return;
+        const actual = cafsDe(c, tipo).find(g => g.desde === caf.desde && g.hasta === caf.hasta);
+        if (!actual) return;
         actual.primerLibre = Math.max(libre, actual.primerLibre ?? 0);
         await guardar(c);
         log.info(`[conexion-sii] tipo ${tipo}: primer folio libre ${actual.primerLibre}`);
@@ -212,8 +254,12 @@ export function crearConexionSii({
     })();
   }
 
-  /** Valida y guarda un CAF (subido o conseguido en el portal) y busca su primer folio libre en segundo plano. */
-  async function guardarCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexionSii; avisos: string[] }> {
+  /**
+   * Valida y guarda un CAF (subido o conseguido en el portal) junto a los otros del tipo: un tipo puede tener varios
+   * rangos. Con `primerLibre` (la reposición ya le preguntó al SII o el rango es nuevo) no se busca; sin él, se busca
+   * en segundo plano. Al guardar se descartan los CAF del tipo vencidos o ya sin folios.
+   */
+  async function guardarCaf(xmlBase64: unknown, primerLibre?: number): Promise<{ estado: EstadoConexionSii; avisos: string[] }> {
     const base64 = texto(xmlBase64);
     if (!base64 || !base64Valido(base64)) throw new ErrorConexion(400, 'Sube el archivo XML del CAF.');
     if (base64.length > MAX_CAF_BASE64) throw new ErrorConexion(413, 'El archivo es demasiado grande para ser un CAF.');
@@ -237,21 +283,57 @@ export function crearConexionSii({
     if (vence === null && Date.parse(hoy()) - Date.parse(caf.fechaAutorizacion) > SEIS_MESES_MS) {
       avisos.push(`El CAF de ${nombreEnFrase(tipo)} se autorizó hace más de 6 meses (${caf.fechaAutorizacion}); puede tener folios usados.`);
     }
-    const previo = c.cafs[tipo];
-    const mismoRango = previo && previo.desde === caf.folioDesde && previo.hasta === caf.folioHasta;
+    const usados = await tomados(tipo);
+    const previo = cafsDe(c, tipo).find(g => g.desde === caf.folioDesde && g.hasta === caf.folioHasta);
+    // Lo ya conocido no se vuelve a preguntar: ni lo que una búsqueda anterior dio por usado ni lo que se sabe libre.
+    const conocido = Math.max(primerLibre ?? 0, previo?.primerLibre ?? 0);
     const guardado: CafGuardado = {
       cifrado: cifrar(k, base64), desde: caf.folioDesde, hasta: caf.folioHasta, fa: caf.fechaAutorizacion,
-      ...(mismoRango && previo.primerLibre !== undefined ? { primerLibre: previo.primerLibre } : {}),
+      ...(conocido > 0 ? { primerLibre: Math.max(conocido, caf.folioDesde) } : {}),
     };
-    c.cafs[tipo] = guardado;
+    const sirve = (g: CafGuardado) => {
+      const fin = primerDiaVencido({ tipo, fechaAutorizacion: g.fa });
+      return (fin === null || hoy() < fin) && usoDe(g, usados).libres !== 0;
+    };
+    c.cafs[tipo] = [...cafsDe(c, tipo).filter(g => g !== previo && sirve(g)), guardado].sort((x, y) => x.desde - y.desde);
     await guardar(c);
-    log.info(`[conexion-sii] CAF tipo ${tipo} guardado (folios ${caf.folioDesde} a ${caf.folioHasta}, FA ${caf.fechaAutorizacion})`);
-    // Lo ya conocido no se vuelve a preguntar: ni lo que la red tomó ni lo que una búsqueda anterior dio por usado.
-    const desde = Math.max(caf.folioDesde, guardado.primerLibre ?? 0, (await ultimoUsado(tipo)) + 1);
-    if (desde > caf.folioHasta) avisos.push(`El CAF de ${nombreEnFrase(tipo)} ya no tiene folios libres.`);
-    else buscar(tipo, cert, c.rutEmisor, guardado, desde);
+    log.info(`[conexion-sii] CAF tipo ${tipo} guardado (folios ${caf.folioDesde} a ${caf.folioHasta}, FA ${caf.fechaAutorizacion}${guardado.primerLibre ? `, libre desde ${guardado.primerLibre}` : ''})`);
+    if (guardado.primerLibre === undefined) {
+      const desde = Math.max(caf.folioDesde, siguienteEnRango(guardado, usados) ?? caf.folioHasta + 1);
+      if (desde > caf.folioHasta) avisos.push(`El CAF de ${nombreEnFrase(tipo)} ya no tiene folios libres.`);
+      else buscar(tipo, cert, c.rutEmisor, guardado, desde);
+    }
     return { estado: await estado(), avisos };
   }
+
+  /** Lo que la reposición de folios lee y escribe de esta conexión. */
+  const fuente: FuenteFolios = {
+    async credenciales() {
+      const c = await leer();
+      if (!c.certificado || !c.rutEmisor || !puedeGuardar()) return null;
+      return { certificado: certificadoDe(c), rutEmpresa: c.rutEmisor };
+    },
+    rangos: async tipo => cafsDe(await leer(), tipo).map(g => ({ desde: g.desde, hasta: g.hasta })),
+    async libres(tipo) {
+      const usados = await tomados(tipo);
+      return cafsDe(await leer(), tipo).reduce((n, g) => n + (usoDe(g, usados).libres ?? 0), 0);
+    },
+    async guardarCaf(xml, primerLibre) {
+      const bytes = Buffer.from(xml, 'latin1');
+      await guardarCaf(bytes.toString('base64'), primerLibre === 'nuevo' ? leerCaf(bytes).folioDesde : primerLibre);
+    },
+    gestion: async tipo => ({ ...GESTION_INICIAL, ...(await leer()).folios?.[tipo] }),
+    async guardarGestion(tipo, g) {
+      const c = await leer();
+      c.folios = { ...c.folios, [tipo]: g };
+      await guardar(c);
+    },
+    async consultarFolio(tipo, folio) {
+      const c = await leer();
+      return consultaDeFolios(certificadoDe(c), c.rutEmisor ?? '')(tipo, folio);
+    },
+  };
+  const reposicion = crearReposicion({ fuente, portal, log, hoy });
 
   const pasoDe = (id: IdPasoSii) => automatico!.pasos.find(p => p.id === id)!;
   const marcar = (id: IdPasoSii, estadoPaso: PasoSii['estado'], detalle: string | null = null, mensajeSii: string | null = null) => {
@@ -283,8 +365,7 @@ export function crearConexionSii({
       const ficha = await portal.ficha(certificado, rut);
       const c = await leer();
       if (c.rutEmisor && c.rutEmisor !== rut) {
-        c.cafs = {};
-        for (const tipo of TIPOS_DOCUMENTO) busquedas.delete(tipo);
+        olvidarFolios(c);
         delete c.resolucion;
       }
       c.rutEmisor = rut;
@@ -320,35 +401,20 @@ export function crearConexionSii({
         `El SII no entregó la resolución (${detalle}). ${previa ? 'Se mantiene la que ya estaba.' : 'Escríbela en "Tu empresa".'}`, mensajeSii);
     }
 
+    // Folios: la misma reposición automática que corre antes de facturar y después de emitir, aquí para todo tipo.
     for (const tipo of TIPOS_DOCUMENTO) {
       const id = `caf_${tipo}` as IdPasoSii;
-      const c = await leer();
-      const previo = c.cafs[tipo];
-      const libres = previo?.primerLibre === undefined ? null : previo.hasta - Math.max(previo.primerLibre, (await ultimoUsado(tipo)) + 1) + 1;
-      if (previo && (busquedas.get(tipo)?.activa || (libres ?? 0) > 0 || libres === null)) {
-        marcar(id, 'omitido', `Ya hay un CAF de ${nombreEnFrase(tipo)} (folios ${previo.desde} a ${previo.hasta}).`);
+      if ([...busquedas.entries()].some(([clave, b]) => clave.startsWith(`${tipo}:`) && b.activa)) {
+        marcar(id, 'omitido', `Se está revisando el CAF de ${nombreEnFrase(tipo)} que subiste.`);
         continue;
       }
       marcar(id, 'en_curso');
-      try {
-        const consulta = crearConsulta(cert.pfx, cert.clave, rut);
-        const conseguido = await conseguirCaf({
-          portal, certificado, rutEmpresa: rut, tipo, hoy: hoy(),
-          consultarFolio: async folio => (await consulta({ tipo, folio, fechaEmision: hoy(), montoTotal: 1, rutReceptor: rut })).codigo,
-          avisar: texto => {
-            log.info(`[conexion-sii] CAF ${tipo}: ${texto}`);
-            Object.assign(pasoDe(id), { detalle: texto });
-            version++;
-          },
-        });
-        await guardarCaf(Buffer.from(conseguido.xml, 'latin1').toString('base64'));
-        const g = (await leer()).cafs[tipo];
-        marcar(id, 'listo', `${conseguido.origen === 'reobtenido' ? 'Reobtenido' : 'Pedido al SII'}: folios ${g?.desde} a ${g?.hasta}.`);
-      } catch (error) {
-        if (detener(error)) return restantes(id, error);
-        const { detalle, mensajeSii } = textoError(error);
-        marcar(id, 'error', detalle, mensajeSii);
-      }
+      const e = await reposicion.reponer(tipo, { conexion: true });
+      const libres = contar(e.libres, 'folio libre', 'folios libres');
+      if (e.estado === 'en_espera') marcar(id, 'error', e.detalle, e.mensajeSii);
+      else if (e.repuestos > 0) marcar(id, 'listo', `${e.detalle ?? ''} Quedan ${libres}.`.trim());
+      else if (e.libres > 0) marcar(id, 'omitido', `Ya hay ${libres}.`);
+      else marcar(id, 'error', e.detalle ?? `El SII no entregó folios de ${nombreEnFrase(tipo)}.`, e.mensajeSii);
     }
   }
 
@@ -418,7 +484,7 @@ export function crearConexionSii({
     },
 
     async consultarContribuyente(rut) {
-      const c = await almacen.leer();
+      const c = normalizar(await almacen.leer());
       if (!c?.certificado || !puedeGuardar()) return undefined;
       const { pfx, clave } = certificadoDe(c);
       try {
@@ -453,9 +519,8 @@ export function crearConexionSii({
       const c = await leer();
       if (!c.certificado) throw new ErrorConexion(409, 'Primero sube tu certificado digital.');
       if (c.rutEmisor && c.rutEmisor !== rut) {
-        // Otra empresa: sus CAF no sirven.
-        c.cafs = {};
-        for (const tipo of TIPOS_DOCUMENTO) busquedas.delete(tipo);
+        // Otra empresa: sus CAF y lo aprendido de sus folios no sirven.
+        olvidarFolios(c);
       }
       c.rutEmisor = rut;
       c.empresa = empresa;
@@ -475,18 +540,32 @@ export function crearConexionSii({
       const tipo = Number(tipoEntrada) as TipoDocumento;
       const folio = Number(folioEntrada);
       const c = await leer();
-      const caf = c.cafs[tipo];
-      if (!caf) throw new ErrorConexion(404, `No hay CAF de ${nombreEnFrase(tipo)}.`);
+      const delTipo = cafsDe(c, tipo);
+      if (delTipo.length === 0) throw new ErrorConexion(404, `No hay CAF de ${nombreEnFrase(tipo)}.`);
+      // El CAF que contiene el folio; si ninguno, el más nuevo (para explicar el rango válido).
+      const caf = delTipo.find(g => folio >= g.desde && folio <= g.hasta) ?? delTipo.at(-1)!;
       const minimo = Math.max(caf.desde, caf.primerLibre ?? 0);
       if (!Number.isInteger(folio) || folio < minimo || folio > caf.hasta) {
         throw new ErrorConexion(400, `El folio debe estar entre ${minimo} y ${caf.hasta}: nunca se vuelve a un folio anterior.`);
       }
-      busquedas.delete(tipo);
+      busquedas.delete(claveBusqueda(tipo, caf));
       caf.primerLibre = folio;
       await guardar(c);
       log.info(`[conexion-sii] tipo ${tipo}: primer folio fijado a mano en ${folio}`);
       return estado();
     },
+
+    async traerFolios(tipoEntrada) {
+      const tipo = Number(tipoEntrada) as TipoDocumento;
+      if (!TIPOS_DOCUMENTO.includes(tipo)) throw new ErrorConexion(400, 'Tipo de documento no válido.');
+      if (!(await fuente.credenciales())) throw new ErrorConexion(409, 'Primero conecta tu certificado y tu empresa.');
+      const e = await reposicion.estado(tipo);
+      if (e.estado === 'en_espera') throw new ErrorConexion(409, `El SII pidió esperar antes de volver a intentarlo.${e.mensajeSii ? ` El SII dice: «${e.mensajeSii}»` : ''}`);
+      void reposicion.reponer(tipo, { demanda: demandaManual(tipo, e.libres), conexion: true });
+      return estado();
+    },
+
+    folios: reposicion,
 
     async desconectar() {
       busquedas.clear();
@@ -496,49 +575,34 @@ export function crearConexionSii({
       return estado();
     },
 
-    async entorno(base) {
-      const c = await almacen.leer();
+    async configuracion() {
+      const c = normalizar(await almacen.leer());
       if (!c || !listo(c)) return null;
-      const { pfx, clave } = certificadoDe(c);
       const k = llave();
       const e = c.empresa!;
-      const env: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(base).filter(([nombre]) => !DEL_EMISOR.test(nombre)));
-      Object.assign(env, {
-        SII_PFX_BASE64: pfx.toString('base64'),
-        SII_PFX_CLAVE: clave,
-        SII_RUT_EMISOR: c.rutEmisor,
-        SII_FCH_RESOL: c.resolucion!.fecha,
-        SII_EMISOR_RAZON_SOCIAL: e.razonSocial,
-        SII_EMISOR_GIRO: e.giro,
-        SII_EMISOR_ACTECO: String(e.acteco),
-        SII_EMISOR_DIRECCION: e.direccion,
-        SII_EMISOR_COMUNA: e.comuna,
-        ...(e.ciudad ? { SII_EMISOR_CIUDAD: e.ciudad } : {}),
-      });
+      const cafs: Partial<Record<number, Buffer[]>> = {};
+      const rangos: Partial<Record<TipoDocumento, RangoFolios[]>> = {};
       for (const tipo of TIPOS_DOCUMENTO) {
-        const caf = c.cafs[tipo];
         // Un CAF cuyo primer folio libre aún no se conoce no se usa: podría repetir un folio ya recibido.
-        if (!caf || caf.primerLibre === undefined) continue;
-        env[`SII_CAF_${tipo}_BASE64`] = descifrar(k, caf.cifrado);
-        env[`SII_FOLIO_DESDE_${tipo}`] = String(caf.primerLibre);
+        const usables = cafsDe(c, tipo).filter(g => g.primerLibre !== undefined);
+        cafs[tipo] = usables.map(g => Buffer.from(descifrar(k, g.cifrado), 'base64'));
+        rangos[tipo] = usables.map(g => ({ desde: g.primerLibre!, hasta: g.hasta }));
       }
-      // Sin comprador configurado, la empresa conectada se factura a sí misma (válido en certificación).
-      if (!env.SII_RUT_RECEPTOR) {
-        Object.assign(env, {
-          SII_RUT_RECEPTOR: c.rutEmisor,
-          SII_RECEPTOR_RAZON_SOCIAL: e.razonSocial,
-          SII_RECEPTOR_GIRO: e.giro.slice(0, 40),
-          SII_RECEPTOR_DIRECCION: e.direccion,
-          SII_RECEPTOR_COMUNA: e.comuna,
-        });
-      }
-      return env;
+      return {
+        sii: {
+          certificado: certificadoDe(c),
+          emisor: { rut: c.rutEmisor!, razonSocial: e.razonSocial, giro: e.giro, acteco: e.acteco, direccion: e.direccion, comuna: e.comuna, ...(e.ciudad ? { ciudad: e.ciudad } : {}) },
+          fchResol: c.resolucion!.fecha,
+          cafs,
+        },
+        rangos,
+      };
     },
 
     version: () => version,
 
     async marcarRechazoCaratula() {
-      const c = await almacen.leer();
+      const c = normalizar(await almacen.leer());
       if (!c?.resolucion || c.resolucion.rechazadaEn) return;
       c.resolucion.rechazadaEn = new Date().toISOString();
       await guardar(c);
@@ -548,6 +612,7 @@ export function crearConexionSii({
     async esperarBusquedas() {
       await automatico?.promesa;
       await Promise.all([...busquedas.values()].map(b => b.promesa));
+      await reposicion.esperarCorridas();
     },
   };
 }

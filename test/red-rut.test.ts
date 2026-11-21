@@ -11,7 +11,7 @@ import {
 import { RUT_INVALIDO } from '../shared/rut.ts';
 import type { ConsultarContribuyente, DatosContribuyente, EventoRed, PuertoSii } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
-import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
+import { RUT_EMPRESA } from './sii-apoyo.ts';
 
 // RUT de prueba sin dueño conocido (dígito verificador correcto).
 const RUT_A = '11111111-1';
@@ -176,32 +176,25 @@ test('el receptor de la factura limpia y corta los datos del SII como exige el X
 });
 
 test('en la compra conjunta cada factura 33 sale al RUT y a los datos del SII de su comprador', async () => {
-  const env = {
-    SII_RUT_EMISOR: RUT_EMPRESA, SII_CAF_33_BASE64: generarCaf(33, { desde: 40, hasta: 99 }).bytes.toString('base64'),
-    SII_RUT_RECEPTOR: '55555555-5', SII_RECEPTOR_RAZON_SOCIAL: 'Receptor de Respaldo', SII_RECEPTOR_GIRO: 'Comercio',
-    SII_RECEPTOR_DIRECCION: 'Calle 1', SII_RECEPTOR_COMUNA: 'Santiago',
-  };
   const silencioso = { info() {}, warn() {}, error() {} };
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   const sobres: EntradaFactura[][] = [];
   const sii = { ...base, emitirFacturas: (e: readonly EntradaFactura[]) => { sobres.push([...e]); return base.emitirFacturas(e); } };
   const giroLargo = 'Venta al por menor de pan, productos de panadería y pastelería';
   const { consultar } = consultaContada({ [RUT_A]: ficha('Comercial Prueba Limitada'), [RUT_B]: ficha('Panadería Prueba SpA', giroLargo) });
-  const { red } = await redDePrueba(consultar, crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), env, log: silencioso, seguirEnvios: false }), env);
+  const { red } = await redDePrueba(consultar, crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), rangos: () => [{ desde: 40, hasta: 99 }], log: silencioso, seguirEnvios: false }));
 
   await red.actualizarCarrito('L-1', { telefono: '+56 9 1111 2222', nombre: 'Ana', rut: '11.111.111-1', items: [{ productoId: 'rollos', cantidad: 2 }] });
   await red.actualizarCarrito('L-1', { telefono: '+56 9 3333 4444', nombre: 'Beto', rut: '22222222-2', items: [{ productoId: 'bolsas', cantidad: 1 }] });
-  // Un comprador de antes, sin RUT: su factura va al receptor de respaldo.
-  await red.actualizarCarrito('L-1', { telefono: '+56 9 5555 6666', nombre: 'Caro', items: [{ productoId: 'guantes', cantidad: 1 }] });
   await red.cerrarLicitacion('L-1');
   const facturas = await red.confirmarOrdenesDeLicitacion('L-1');
 
   assert.equal(sobres.length, 1);
   assert.deepEqual(sobres[0]!.map(e => [e.receptor.rut, e.receptor.razonSocial, e.receptor.comuna]), [
-    [RUT_A, 'Comercial Prueba Limitada', 'Ñuñoa'], [RUT_B, 'Panadería Prueba SpA', 'Ñuñoa'], ['55555555-5', 'Receptor de Respaldo', 'Santiago'],
+    [RUT_A, 'Comercial Prueba Limitada', 'Ñuñoa'], [RUT_B, 'Panadería Prueba SpA', 'Ñuñoa'],
   ]);
   assert.equal(sobres[0]![1]!.receptor.giro, giroLargo.slice(0, 40).trim());
-  assert.deepEqual(facturas.map(f => f.estadoSii), ['recibido', 'recibido', 'recibido'], 'el XML con el giro cortado pasa la validación');
+  assert.deepEqual(facturas.map(f => f.estadoSii), ['recibido', 'recibido'], 'el XML con el giro cortado pasa la validación');
 });
 
 test('por WhatsApp, si el SII rechaza la consulta de un RUT válido, se suma con lo que declaró y su factura sale a ese RUT', async () => {

@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type { EmpresaSii } from '../../shared/conexion-sii.ts';
 import type { TipoDocumento } from '../../shared/documentos.ts';
+import type { GestionFolios } from './reposicion.ts';
 
 // Lo que el proveedor conectó desde la web. Los secretos (el .pfx con su clave y el XML del CAF, que trae la
 // llave privada del rango) van cifrados; el resto son datos públicos de la empresa y del rango de folios.
@@ -12,7 +13,7 @@ export interface CafGuardado {
   hasta: number;
   /** Fecha de autorización (`FA`), `AAAA-MM-DD`. */
   fa: string;
-  /** Primer folio que la app puede usar (equivale a SII_FOLIO_DESDE_<tipo>). Nunca baja. Sin él, falta buscarlo. */
+  /** Primer folio del rango que la app puede usar. Nunca baja. Sin él, falta buscarlo (y el CAF no se usa). */
   primerLibre?: number;
 }
 
@@ -35,7 +36,10 @@ export interface ConexionGuardada {
     /** El SII rechazó la carátula de un envío con esta resolución (RCT): no se emite con ella hasta corregirla. */
     rechazadaEn?: string;
   };
-  cafs: Partial<Record<`${TipoDocumento}`, CafGuardado>>;
+  /** CAF por tipo: puede haber varios rangos (la reposición suma rangos reobtenidos o pedidos), ordenados por folio. */
+  cafs: Partial<Record<`${TipoDocumento}`, CafGuardado[]>>;
+  /** Reposición de folios por tipo: espera tras un rechazo, rangos ya barridos y lo último que pasó. */
+  folios?: Partial<Record<`${TipoDocumento}`, GestionFolios>>;
   actualizadoEn: string;
 }
 
@@ -63,6 +67,7 @@ export function crearAlmacenConexionMemoria(): AlmacenConexion {
 
 /** Tabla `sii_conexion`, una fila: la red tiene un solo proveedor con SII real. */
 export async function crearAlmacenConexionPostgres(db: pg.Pool): Promise<AlmacenConexion> {
+  const id = 'proveedor';
   await db.query(`create table if not exists sii_conexion (
     id text primary key,
     datos jsonb not null,
@@ -70,18 +75,18 @@ export async function crearAlmacenConexionPostgres(db: pg.Pool): Promise<Almacen
   )`);
   return {
     async leer() {
-      const { rows } = await db.query(`select datos from sii_conexion where id = 'proveedor'`);
+      const { rows } = await db.query(`select datos from sii_conexion where id = $1`, [id]);
       return rows[0]?.datos ?? null;
     },
     async guardar(conexion) {
       await db.query(
-        `insert into sii_conexion (id, datos) values ('proveedor', $1::jsonb)
+        `insert into sii_conexion (id, datos) values ($2, $1::jsonb)
          on conflict (id) do update set datos = excluded.datos, actualizado_en = now()`,
-        [JSON.stringify(conexion)],
+        [JSON.stringify(conexion), id],
       );
     },
     async borrar() {
-      await db.query(`delete from sii_conexion where id = 'proveedor'`);
+      await db.query(`delete from sii_conexion where id = $1`, [id]);
     },
   };
 }

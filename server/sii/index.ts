@@ -83,7 +83,22 @@ const OBLIGATORIAS = [
   'SII_EMISOR_RAZON_SOCIAL', 'SII_EMISOR_GIRO', 'SII_EMISOR_ACTECO', 'SII_EMISOR_DIRECCION', 'SII_EMISOR_COMUNA',
 ] as const;
 
-/** Con `SII_PFX_BASE64` habla con el SII de certificación; sin él, usa la implementación falsa en memoria. */
+/** Lo que el SII de certificación necesita para emitir: certificado, emisor, resolución y CAF. */
+export interface ConfigSii {
+  readonly certificado: { readonly pfx: Buffer; readonly clave: string };
+  readonly emisor: Emisor;
+  /** Fecha de la resolución, `AAAA-MM-DD`. */
+  readonly fchResol: string;
+  /** XML de los CAF por tipo: un tipo puede tener varios rangos, cada uno con su CAF. */
+  readonly cafs: Readonly<Partial<Record<number, readonly Buffer[]>>>;
+  readonly oficinaSii?: string;
+}
+
+/**
+ * Con `SII_PFX_BASE64` habla con el SII de certificación; sin él, usa la implementación falsa en memoria. Las variables
+ * SII_* son solo para los scripts locales (scripts/, con un .env propio): el servidor emite con la conexión del panel
+ * (`crearSiiConectado`).
+ */
 export function crearSii(options: SiiOptions = {}): Sii {
   const env = options.env ?? process.env;
   const log = options.log ?? console;
@@ -93,46 +108,59 @@ export function crearSii(options: SiiOptions = {}): Sii {
   }
   const faltan = OBLIGATORIAS.filter(nombre => !env[nombre]);
   if (faltan.length > 0) throw new Error(`[sii] faltan variables de entorno: ${faltan.join(', ')}`);
-  return crearSiiCertificacion(env, options.http ?? crearHttp());
+  const cafs: Record<number, Buffer[]> = {};
+  for (const tipo of [33, 52, 61]) {
+    const base64 = env[`SII_CAF_${tipo}_BASE64`];
+    if (base64) cafs[tipo] = [Buffer.from(base64, 'base64')];
+  }
+  return crearSiiConectado({
+    certificado: { pfx: Buffer.from(env.SII_PFX_BASE64, 'base64'), clave: env.SII_PFX_CLAVE ?? '' },
+    emisor: {
+      rut: env.SII_RUT_EMISOR ?? '',
+      razonSocial: env.SII_EMISOR_RAZON_SOCIAL ?? '',
+      giro: env.SII_EMISOR_GIRO ?? '',
+      acteco: Number(env.SII_EMISOR_ACTECO),
+      direccion: env.SII_EMISOR_DIRECCION ?? '',
+      comuna: env.SII_EMISOR_COMUNA ?? '',
+      ...(env.SII_EMISOR_CIUDAD ? { ciudad: env.SII_EMISOR_CIUDAD } : {}),
+    },
+    fchResol: env.SII_FCH_RESOL ?? '',
+    cafs,
+    ...(env.SII_OFICINA ? { oficinaSii: env.SII_OFICINA } : {}),
+  }, options.http);
 }
 
-function crearSiiCertificacion(env: NodeJS.ProcessEnv, http: Http): Sii {
-  const certificado = abrirCertificado(Buffer.from(env.SII_PFX_BASE64 ?? '', 'base64'), env.SII_PFX_CLAVE ?? '');
+/** SII de certificación con una configuración dada (la conexión del panel del proveedor). */
+export function crearSiiConectado(config: ConfigSii, http: Http = crearHttp()): Sii {
+  const certificado = abrirCertificado(config.certificado.pfx, config.certificado.clave);
   const autenticador = new Autenticador(http, certificado);
-  const emisor: Emisor = {
-    rut: env.SII_RUT_EMISOR ?? '',
-    razonSocial: env.SII_EMISOR_RAZON_SOCIAL ?? '',
-    giro: env.SII_EMISOR_GIRO ?? '',
-    acteco: Number(env.SII_EMISOR_ACTECO),
-    direccion: env.SII_EMISOR_DIRECCION ?? '',
-    comuna: env.SII_EMISOR_COMUNA ?? '',
-    ...(env.SII_EMISOR_CIUDAD ? { ciudad: env.SII_EMISOR_CIUDAD } : {}),
-  };
-  const cafs = new Map<number, Caf>();
-  const caf = (tipo: number): Caf => {
-    const guardado = cafs.get(tipo);
-    if (guardado) return guardado;
-    const base64 = env[`SII_CAF_${tipo}_BASE64`];
-    if (!base64) throw new Error(`[sii] falta SII_CAF_${tipo}_BASE64 para emitir el tipo ${tipo}`);
-    const leido = leerCaf(Buffer.from(base64, 'base64'));
-    cafs.set(tipo, leido);
-    return leido;
+  const { emisor } = config;
+  const cafs = new Map<number, Caf[]>();
+  /** El CAF del tipo cuyo rango contiene el folio: cada folio se timbra con la llave de su propio rango. */
+  const caf = (tipo: number, folio: number): Caf => {
+    let delTipo = cafs.get(tipo);
+    if (!delTipo) {
+      delTipo = (config.cafs[tipo] ?? []).map(xml => leerCaf(xml));
+      cafs.set(tipo, delTipo);
+    }
+    if (delTipo.length === 0) throw new Error(`[sii] no hay CAF para emitir el tipo ${tipo}`);
+    return delTipo.find(c => folio >= c.folioDesde && folio <= c.folioHasta) ?? delTipo[0]!;
   };
 
   /** Arma, firma y sube un sobre con los documentos dados. Una sola subida, nunca se reintenta. */
   async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]): Promise<ResultadoLote> {
     const ahora = new Date();
-    const dtes = entradas.map(entrada => armarDte({ ...entrada, emisor }, caf(entrada.tipo), certificado, ahora));
+    const dtes = entradas.map(entrada => armarDte({ ...entrada, emisor }, caf(entrada.tipo, entrada.folio), certificado, ahora));
     const sobreXml = armarSobre({
       rutEmisor: emisor.rut,
-      fchResol: env.SII_FCH_RESOL ?? '',
+      fchResol: config.fchResol,
       documentos: dtes.map((dte, i) => ({ tipo: entradas[i]!.tipo, xml: dte.xml })),
       certificado,
       ahora,
     });
     const envio = await subirSobre(http, autenticador, { sobreXml, rutEmisor: emisor.rut, rutEnvia: certificado.rut });
-    const resolucion = { numero: 0, fecha: env.SII_FCH_RESOL ?? '' };
-    const oficinaSii = env.SII_OFICINA || undefined;
+    const resolucion = { numero: 0, fecha: config.fchResol };
+    const oficinaSii = config.oficinaSii;
     const documentos = dtes.map((dte, i) => ({
       ...dte.documento,
       impreso: datosImpresos({ ...entradas[i]!, emisor }, { ted: dte.ted, resolucion, simulado: false, oficinaSii }),

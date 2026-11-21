@@ -399,3 +399,9 @@
 .cn-factura-a { margin: 0; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--color-muted); overflow-wrap: anywhere; }
 .cn-factura-a .cn-logo-sii { margin-top: 1px; flex: none; }
 .cn-factura-a strong { color: var(--color-text); }
+
+/* Folios de factura en la tarjeta del SII: conteo, estado de la reposición y "Traer más folios". */
+.cn-folios { display: grid; gap: 6px; margin-top: 8px; }
+.cn-folios .cn-texto { margin: 0; align-items: flex-start; }
+.cn-folios .boton { margin-top: 4px; }
+.cn-folios-estado.bajo, .cn-folios-estado.en_espera { color: var(--color-sii); font-weight: 600; }

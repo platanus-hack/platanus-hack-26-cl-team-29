@@ -4,7 +4,7 @@ import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, N
 import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
-import { contar, mayuscula, pluralDe } from '../../../shared/texto.ts';
+import { contar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
 import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
@@ -794,6 +794,15 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     case 'licitacion.facturada': {
       const docs = numero(e.datos.documentos) ?? lista(e.datos.documentos).length;
       return docs ? `${docs === 1 ? 'Salió' : 'Salieron'} ${contar(docs, 'factura')} de la compra conjunta` : 'La compra conjunta quedó facturada';
+    }
+    case 'sii.folios': {
+      const tipo = numero(e.datos.tipo);
+      const de = esTipoDocumento(tipo) ? ` de ${nombreDocumento(tipo).toLowerCase()}` : '';
+      const libres = numero(e.datos.libres) ?? 0;
+      const repuestos = numero(e.datos.repuestos) ?? 0;
+      if (e.datos.estado === 'reponiendo') return `Reponiendo folios${de} en el SII`;
+      if (e.datos.estado === 'suficiente' && repuestos > 0) return `${segun(repuestos, 'Llegó', 'Llegaron')} ${contar(repuestos, 'folio')}${de} del SII`;
+      return `${segun(libres, 'Queda', 'Quedan')} ${contar(libres, 'folio')}${de}`;
     }
     case 'licitacion.cerrada': {
       const ganadora = negocioPorId(estado, texto(objeto(objeto(e.datos.licitacion).ganadora).proveedorId))?.nombre;

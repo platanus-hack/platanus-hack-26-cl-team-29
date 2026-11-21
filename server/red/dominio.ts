@@ -27,7 +27,9 @@ export type CodigoError =
   // Canal web: sin sesión, sesión de otro negocio, o acción legal sin `confirmado: true`.
   | 'no_autorizado' | 'prohibido' | 'confirmacion_requerida'
   // No se pudo consultar un RUT en el SII (corte o sesión caída): se puede intentar de nuevo.
-  | 'sii_no_disponible';
+  | 'sii_no_disponible'
+  // No alcanzan los folios del SII para emitir (se intentó reponerlos): nada se envió.
+  | 'sin_folios';
 
 export class ErrorRed extends Error {
   codigo: CodigoError;
