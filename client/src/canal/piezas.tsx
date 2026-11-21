@@ -1,7 +1,8 @@
 // Piezas comunes de /app y /proveedor: el paso de confirmación, el estado en el SII y el selector de cantidad.
 
-import { useCallback, useReducer, type ReactNode } from 'react';
+import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
 import { textoEstadoSii } from '../red/formato.ts';
+import { LogoSii } from './iconos.tsx';
 import { confirmacion, SIN_CONFIRMACION, type Confirmacion, type EventoConfirmacion } from './logica.ts';
 
 /** Paso de confirmación en la página: pedir → (sí) → enviando → listo o error. */
@@ -42,9 +43,15 @@ interface PropsConfirmar {
 
 /** Panel de confirmación dentro de la página (nunca un diálogo del navegador). */
 export function Confirmar({ titulo, children, si, no = 'No, volver', sii, enviando, error, onSi, onNo }: PropsConfirmar) {
+  // En el teléfono el panel puede abrirse bajo las pestañas fijas: se trae a la vista entero.
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    panel.current?.scrollIntoView({ block: 'nearest', behavior: quieto ? 'auto' : 'smooth' });
+  }, []);
   return (
-    <div className={`cn-confirmar${sii ? ' sii' : ''}`} role="alertdialog" aria-label={titulo}>
-      {sii && <p className="etiqueta">Trámite legal en el SII</p>}
+    <div ref={panel} className={`cn-confirmar${sii ? ' sii' : ''}`} role="alertdialog" aria-label={titulo}>
+      {sii && <p className="etiqueta cn-con-sii"><LogoSii tam={16} /> Se registra en el SII</p>}
       <h3>{titulo}</h3>
       <div className="cn-confirmar-texto">{children}</div>
       {error && <p className="error">{error}</p>}
@@ -63,7 +70,7 @@ const CLASE_SII: Record<string, string> = { aceptado: 'ok', recibido: 'en-curso'
 export function EstadoSii({ estado }: { estado: string | null | undefined }) {
   const texto = textoEstadoSii(estado);
   if (!texto) return null;
-  return <span className={`cn-sii ${CLASE_SII[estado ?? ''] ?? 'en-curso'}`}>{texto}</span>;
+  return <span className={`cn-sii ${CLASE_SII[estado ?? ''] ?? 'en-curso'}`}><LogoSii tam={12} />{texto}</span>;
 }
 
 export function Cantidad({ valor, min = 1, max, onCambio, etiqueta }: {

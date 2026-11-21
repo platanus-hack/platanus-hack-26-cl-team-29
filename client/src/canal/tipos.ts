@@ -9,6 +9,8 @@ export interface ConfigRed {
   producto: string;
   unidad: string;
   unidadPlural: string;
+  /** Logo del proveedor de la compra conjunta, si se configuró. Opcional: sin él se usa su monograma. */
+  proveedorLogoUrl?: string | null;
 }
 
 /** Tramo de precio por volumen: desde `desde` unidades en total, cada una cuesta `precioUnitario`. */

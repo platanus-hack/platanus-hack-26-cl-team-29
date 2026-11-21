@@ -2,7 +2,7 @@
 // Sin React ni red, para poder probarla con node:test.
 
 import type { Documento } from '../red/tipos.ts';
-import { textoEstadoSii } from '../red/formato.ts';
+import { contar, textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -21,7 +21,9 @@ export function normalizarTramos(raw: unknown): Tramo[] {
     .sort((a, b) => a.desde - b.desde);
 }
 
-export const unidadesDe = (lic: LicitacionCanal) => lic.participantes.reduce((s, p) => s + p.cantidad, 0);
+/** Unidades del producto de la compra conjunta: `productos[0]` si viene la canasta; si no, la suma de los participantes. */
+export const unidadesDe = (lic: LicitacionCanal) =>
+  numero(lic.productos?.[0]?.totalUnidades) ?? lic.participantes.reduce((s, p) => s + p.cantidad, 0);
 
 export interface PrecioGrupo {
   unidades: number;
@@ -34,14 +36,15 @@ export interface PrecioGrupo {
 /** Precio actual de la compra conjunta según las unidades del grupo. Sin tramos, usa la mejor oferta. */
 export function precioDelGrupo(lic: LicitacionCanal): PrecioGrupo {
   const unidades = unidadesDe(lic);
-  const tramos = normalizarTramos(lic.tramos);
+  const p0 = lic.productos?.[0];
+  const tramos = normalizarTramos(p0?.tramos ?? lic.tramos);
   if (tramos.length) {
     const actual = [...tramos].reverse().find(t => t.desde <= unidades) ?? tramos[0];
     const prox = tramos.find(t => t.desde > unidades && t.precioUnitario < actual.precioUnitario);
     return {
       unidades,
-      precio: numero(lic.precioActual) ?? actual.precioUnitario,
-      precioSolo: lic.precioSolo ?? tramos[0].precioUnitario,
+      precio: numero(p0?.precioActual) ?? numero(lic.precioActual) ?? actual.precioUnitario,
+      precioSolo: p0?.precioSolo ?? lic.precioSolo ?? tramos[0].precioUnitario,
       ...(prox ? { siguiente: { faltan: prox.desde - unidades, precio: prox.precioUnitario } } : {}),
     };
   }
@@ -135,7 +138,7 @@ const conEstadoSii = (texto: string, estado: string | null | undefined) => {
 };
 
 /** Los 6 pasos del ciclo, los mismos de la pantalla en vivo, vistos por el comprador. */
-export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento[]): CicloPedido {
+export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento[], unidad?: Unidad): CicloPedido {
   const doc = (tipo: Documento['tipo']) => documentos.find(d => d.ordenId === orden.id && d.tipo === tipo);
   const factura = doc(33);
   const nc = doc(61);
@@ -147,7 +150,7 @@ export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento
     ['Pedido', 'Enviaste la orden de compra'],
     ['Confirmado', avance >= 1 ? 'El proveedor confirmó' : 'Esperando que el proveedor confirme'],
     ['Factura en el SII', factura ? conEstadoSii(`Folio ${factura.folio}`, factura.estadoSii) : 'Llega con la guía de despacho'],
-    ['Recepción', conforme ? 'Llegó todo' : faltante ? `${faltante === 1 ? 'Faltó' : 'Faltaron'} ${faltante}` : '¿Recibiste todo?'],
+    ['Recepción', conforme ? 'Llegó todo' : faltante ? `${faltante === 1 ? 'Faltó' : 'Faltaron'} ${unidad ? contar(faltante, unidad.singular, unidad.plural) : faltante}` : '¿Recibiste todo?'],
     ['Reclamo en el SII', conforme ? 'No hizo falta' : orden.reclamo ? conEstadoSii('Reclamado', orden.reclamo.estadoSii) : 'Solo si falta algo'],
     ['Nota de crédito', conforme ? 'No hizo falta' : nc ? conEstadoSii(`Folio ${nc.folio}`, nc.estadoSii) : 'El proveedor la emite'],
   ];
