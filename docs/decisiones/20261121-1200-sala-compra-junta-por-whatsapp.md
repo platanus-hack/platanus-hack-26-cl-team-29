@@ -20,3 +20,6 @@ En la demo todo el público escribe al mismo número de WhatsApp para sumarse a 
 ## Consecuencias
 - El estado de la conversación de la sala (borradores y participantes) vive en memoria del proceso; tras un reinicio, la red sigue teniendo a los participantes y un mensaje nuevo del mismo teléfono vuelve a la bienvenida. `red.reiniciada` limpia ese estado.
 - El dominio debe crear una orden por participante de WhatsApp y resolver su teléfono con `telefonoDeNegocio(orden.compradorId)` (o traer `negocioId` y `telefono` en los participantes) para que llegue el folio.
+
+## Actualización: canasta (2026-11-21 13:20)
+La compra conjunta ahora es una canasta de varios productos. Por WhatsApp cada persona arma y edita su carrito en lenguaje natural ("4 cajas de rollos y 2 de etiquetas", "agrega 3 bolsas", "quita los guantes", "cambia las etiquetas a 5", "mi pedido", "salir"). El agente siempre envía el carrito completo con `actualizarCarrito`. Salir o vaciar el carrito pide un sí. Las bajadas de precio llegan por producto, agrupadas cuando caen juntas, y la factura de cada comprador lista todas sus líneas. Claude solo interpreta lo que las reglas no entienden con seguridad.
