@@ -9,21 +9,23 @@ Contexto de la hackathon (rúbrica, flujo de PR, repo público): @AGENTS.md
 - Backend: Node ≥ 24 (ejecuta `.ts` directo, sin compilar) + Express 5 + Socket.io + `pg`.
 - Frontend: Vite + React 19, compilado a `dist/` y servido por el mismo Express.
 - BD: Postgres de Render, vía `DATABASE_URL`.
-- Deploy: `render.yaml` (Blueprint). Cada push a `main` vuelve a deployar.
+- Deploy: `render.yaml` (Blueprint). Cada push a `main` vuelve a deployar. Producción: https://app-a2hn.onrender.com
 
 ## Estructura
 ```
-render.yaml        # Blueprint: servicio web (starter) + Postgres
-server.ts          # Express + Socket.io + pg; sirve dist/
+server/index.ts    # backend: Express + Socket.io + pg; sirve dist/
+src/               # frontend React (main.tsx; componentes en src/components/ cuando existan)
+test/              # tests con node:test (*.test.ts)
+agents/            # estado de cada agente (ver agents/README.md)
 index.html         # entrada de Vite
 vite.config.ts     # proxy de /api y /socket.io a :3000 en dev
-src/               # React (main.tsx y componentes)
-test/              # tests con node:test (*.test.ts)
+render.yaml        # Blueprint de Render: servicio web (starter) + Postgres
+README.md, platanus-hack-project.jsonc, project-description.md, project-logo.png  # exigidos por la hackathon, no mover
 ```
-Si el código crece, separar el backend en `server/` (rutas, sockets, db) y el front en `src/components/`. No crear carpetas antes de necesitarlas.
+Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `sockets.ts`, `db.ts`). No crear carpetas antes de necesitarlas.
 
 ## Comandos
-- `node server.ts` + `npm run dev` → desarrollo (front en :5173, backend en :3000).
+- `npm start` + `npm run dev` → desarrollo (front en :5173, backend en :3000).
 - `npm run build` → typecheck (`tsc`) + build de Vite. Tiene que pasar antes de cada commit.
 - `npm test` → tests.
 
@@ -44,3 +46,6 @@ Si el código crece, separar el backend en `server/` (rutas, sockets, db) y el f
 - **Commits en inglés**, en imperativo y cortos (`Add realtime cursor sync`, `Fix reconnect on socket drop`).
 - Commits chicos y atómicos. No commitear `.env`, `node_modules` ni `dist`.
 - `origin` empuja a dos repos: el de la org (para el jurado) y el espejo personal (desde el que deploya Render). Un `git push` actualiza ambos.
+
+## Coordinación entre agentes
+Varios agentes trabajan en paralelo. **Antes de empezar cualquier tarea, lee `agents/*.md`** y sigue el protocolo de `agents/README.md`: un archivo de estado por agente, actualizado al tomar, terminar o quedar bloqueado en una tarea.
