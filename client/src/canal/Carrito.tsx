@@ -3,7 +3,7 @@
 // (PUT /yo/carrito con espera de 400 ms) y una barra fija abajo con el total y el ahorro.
 
 import { PedirTarjeta, useFaltaTarjeta } from './MiCredito.tsx';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { dinero } from '../../../shared/formato.ts';
 import type { CanalApi } from './api.ts';
 import {
@@ -11,95 +11,8 @@ import {
   resumirCarrito, textoCantidades, una, type Carrito, type Envio, type ProductoCanasta,
 } from './carrito.ts';
 import { Icono, iconoDeProducto, LogoSii } from './iconos.tsx';
-import { mensajeDeError } from './logica.ts';
 import { Confirmar, useEnvio } from './piezas.tsx';
-import { formatearRutAlEscribir, validarRut } from '../../../shared/rut.ts';
-import type { DatosEntrada, FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
-
-// ---------- Datos del negocio ----------
-
-const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'Santiago', 'San Joaquín', 'La Florida', 'Las Condes', 'Maipú'];
-const RUBROS: Array<[string, string]> = [
-  ['almacen', 'Almacén'], ['minimarket', 'Minimarket'], ['panaderia', 'Panadería'], ['restaurante', 'Restaurante'],
-  ['cafe', 'Café'], ['botilleria', 'Botillería'], ['farmacia', 'Farmacia'], ['otro', 'Otro'],
-];
-
-const RUT_INVALIDO = 'Revisa tu RUT: el dígito verificador no calza.';
-
-/**
- * Lo que se pide para entrar: el nombre del negocio y el RUT (su factura sale a ese RUT en el SII, ambiente de
- * certificación). Comuna y rubro son opcionales. Al enviar, el servidor consulta el RUT en el SII.
- */
-export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar: (datos: DatosEntrada) => Promise<void> }) {
-  const [nombre, setNombre] = useState('');
-  const [rut, setRut] = useState('');
-  const [rutRevisado, setRutRevisado] = useState(false);
-  /** Error del RUT (formato o respuesta del SII): va bajo su campo, que el botón fijo de abajo nunca tapa. */
-  const [errorRut, setErrorRut] = useState('');
-  const campoRut = useRef<HTMLInputElement>(null);
-  const [comuna, setComuna] = useState('');
-  const [rubro, setRubro] = useState<string>();
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-  const rutMalo = rutRevisado && rut.length > 0 && !validarRut(rut);
-  const avisoRut = errorRut || (rutMalo ? RUT_INVALIDO : '');
-  const marcarRut = (mensaje: string) => {
-    setErrorRut(mensaje);
-    campoRut.current?.focus();
-    campoRut.current?.scrollIntoView({ block: 'center' });
-  };
-
-  const enviar = async (e: FormEvent) => {
-    e.preventDefault();
-    if (enviando) return;
-    if (!nombre.trim()) return setError('Escribe el nombre de tu negocio.');
-    setError('');
-    if (!validarRut(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
-    setEnviando(true);
-    setErrorRut('');
-    try {
-      await onEntrar({ nombre: nombre.trim(), comuna: comuna.trim(), rut, ...(rubro ? { rubro } : {}) });
-    } catch (err) {
-      const mensaje = mensajeDeError(err, 'No pudimos registrarte. Inténtalo de nuevo.');
-      if (/\bRUT\b|SII/.test(mensaje)) marcarRut(mensaje); else setError(mensaje);
-      setEnviando(false);
-    }
-  };
-
-  return (
-    <form className="formulario tarjeta cn-formulario" onSubmit={enviar}>
-      <label className="campo">
-        <span className="etiqueta">Nombre de tu negocio</span>
-        <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Almacén Las Rosas" autoComplete="organization" maxLength={60} required />
-      </label>
-      <label className="campo">
-        <span className="etiqueta">RUT de tu negocio o persona</span>
-        <input ref={campoRut} value={rut} onChange={e => { setRut(formatearRutAlEscribir(e.target.value)); setRutRevisado(false); setErrorRut(''); }} onBlur={() => setRutRevisado(true)}
-          placeholder="12.345.678-5" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={12} required
-          aria-invalid={!!avisoRut} aria-describedby="cn-rut-ayuda" />
-        <span id="cn-rut-ayuda" className={avisoRut ? 'cn-ayuda error' : 'cn-ayuda cn-con-sii'} role={avisoRut ? 'alert' : undefined}>
-          {avisoRut || <><LogoSii tam={14} />Tu factura sale a tu nombre en el SII (ambiente de certificación).</>}
-        </span>
-      </label>
-      <label className="campo">
-        <span className="etiqueta">Comuna (opcional)</span>
-        <input value={comuna} onChange={e => setComuna(e.target.value)} list="cn-comunas" placeholder="Ñuñoa" maxLength={40} />
-        <datalist id="cn-comunas">{COMUNAS.map(c => <option key={c} value={c} />)}</datalist>
-      </label>
-      <fieldset className="campo cn-rubros">
-        <legend className="etiqueta">Rubro (opcional)</legend>
-        <div className="cn-chips">
-          {RUBROS.map(([id, texto]) => (
-            <button key={id} type="button" className={`cn-chip-opcion${rubro === id ? ' elegida' : ''}`} aria-pressed={rubro === id}
-              onClick={() => setRubro(r => (r === id ? undefined : id))}>{texto}</button>
-          ))}
-        </div>
-      </fieldset>
-      {error && <p className="error">{error}</p>}
-      <button className="boton cn-ancho" disabled={enviando}>{enviando ? 'Buscando tu RUT en el SII...' : boton}</button>
-    </form>
-  );
-}
+import type { FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
 
 /** A quién sale la factura del comprador, con el logo del SII. Solo en sus vistas personales, nunca en pantallas proyectadas. */
 export function FacturaANombre({ factura }: { factura?: FacturaA | null }) {

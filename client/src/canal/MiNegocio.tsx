@@ -61,11 +61,8 @@ export function MiNegocio() {
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
   if (!token) {
     return (
-      <>
-        <Acceso api={api} config={config} fuente={fuente} titulo="Compra junto a otros negocios y paga menos"
-          bajada="Tus compras conjuntas, pedidos y facturas del SII en un solo lugar. Entra con tu WhatsApp." onEntrar={entrar} />
-        <BotonWhatsapp numero={config?.whatsappNumero} />
-      </>
+      <Acceso api={api} config={config} fuente={fuente} titulo="Compra junto a otros negocios y paga menos"
+        bajada="Tus compras en grupo, pedidos y facturas del SII en un solo lugar." onEntrar={entrar} />
     );
   }
   if (!yo) return <main className="cn-pagina"><CargandoCuenta error={error} texto="Cargando tu negocio..." onSalir={salir} /></main>;

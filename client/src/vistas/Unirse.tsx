@@ -37,6 +37,10 @@ export function Unirse() {
   }
 
   const abierta = estaAbierta(lic, ahora);
+  if (!token && abierta) {
+    return <Acceso api={api} config={config} fuente={fuente} titulo="Entra para sumarte a la compra en grupo"
+      bajada="Cada producto baja de precio cuando el grupo junta más unidades." onEntrar={entrar} />;
+  }
   const g = resumenGrupo(lic);
   const nuevo = ultimoEnSumarse(lic, yo?.negocio.id, ahora);
   const mia = yo?.participaciones.find(p => p.licitacionId === lic.id);
@@ -55,13 +59,7 @@ export function Unirse() {
       </header>
 
       {!token ? (
-        abierta ? (
-          <>
-            <Acceso api={api} config={config} fuente={fuente} titulo="Entra para elegir tus productos"
-              bajada="Cada producto baja de precio cuando el grupo junta más unidades." onEntrar={entrar} />
-            <BotonWhatsapp numero={config?.whatsappNumero} />
-          </>
-        ) : <p className="vacio">Esta compra conjunta ya cerró.</p>
+        <p className="vacio">Esta compra conjunta ya cerró.</p>
       ) : !yo ? (
         <CargandoCuenta error={error} texto="Cargando tu carrito..." onSalir={salir} />
       ) : (
