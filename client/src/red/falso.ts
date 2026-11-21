@@ -1,18 +1,42 @@
 // Red falsa para desarrollar y ensayar sin backend: una foto sembrada y un guion que emite
 // eventos con el mismo formato que `red:evento`. Todos los nombres son ficticios.
 // Se usa solo mientras GET /api/red/estado no responde.
+//
+// La sala: unos 40 negocios se suman a la compra conjunta en unos 60 s, el precio baja por tramos,
+// la compra cierra, el proveedor dice que sí, salen las facturas una por una y el SII las acepta.
+// Después de un rato vuelve a empezar.
 
-import type { EstadoRed, EventoRed, Licitacion, Negocio, OrdenCompra, Participante, TipoEvento } from './tipos.ts';
+import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, OrdenCompra, Participante, Tramo, TipoEvento } from './tipos.ts';
+import { calcularTramos } from './derivar.ts';
 
 export interface RedFalsa {
   detener(): void;
   unirse(licitacionId: string, datos: { nombre: string; comuna: string; cantidad: number }): void;
+  reiniciar(): void;
+  cerrar(licitacionId: string): void;
+  confirmar(licitacionId: string): void;
 }
 
+const PRODUCTO = 'Caja de rollos térmicos 80 mm (50 un.)';
+const UNIDAD = 'caja';
+const UNIDAD_PLURAL = 'cajas';
+const PRECIO_SOLO = 32_000;
+const TRAMOS: Tramo[] = [
+  { desde: 1, precioUnitario: 32_000 },
+  { desde: 10, precioUnitario: 29_900 },
+  { desde: 25, precioUnitario: 27_900 },
+  { desde: 50, precioUnitario: 25_900 },
+  { desde: 100, precioUnitario: 24_500 },
+];
+const PROVEEDOR_SALA = 'p-austral';
+
+/** Número de relleno, claramente ficticio. */
+export const CONFIG_FALSA: ConfigRed = { whatsappNumero: '56900000000', producto: PRODUCTO, unidad: UNIDAD, unidadPlural: UNIDAD_PLURAL };
+
 const PROVEEDORES: Array<[string, string, string, number]> = [
-  ['p-nuble', 'Panificadora Ñuble', 'Santiago', 4.7],
-  ['p-andes', 'Harinas Andes', 'Las Condes', 4.5],
-  ['p-molinos', 'Molinos del Sur', 'Maipú', 4.6],
+  ['p-austral', 'Papelera Austral', 'Santiago', 4.7],
+  ['p-andes', 'Insumos Andes', 'Las Condes', 4.5],
+  ['p-molinos', 'Rollos del Sur', 'Maipú', 4.6],
   ['p-sur', 'Distribuidora Sur', 'Recoleta', 4.4],
   ['p-centro', 'Comercial Centro', 'La Reina', 3.9],
 ];
@@ -24,57 +48,57 @@ const COMPRADORES: Array<[string, string, string]> = [
   ['c-napoli', 'Pizzería Napoli', 'Macul'],
 ];
 
-const TIPOS = ['Almacén', 'Minimarket', 'Panadería', 'Botillería', 'Cafetería', 'Fuente de soda', 'Pizzería', 'Amasandería'];
+const TIPOS = ['Almacén', 'Minimarket', 'Panadería', 'Botillería', 'Cafetería', 'Fuente de soda', 'Pizzería', 'Amasandería', 'Ferretería', 'Librería', 'Verdulería', 'Farmacia'];
 const NOMBRES = ['Don Lucho', 'La Vecina', 'El Sol', 'Santa Rosa', 'Los Aromos', 'La Pasada', 'Doña Carmen', 'El Roble', 'Las Palmas', 'San José', 'El Puente', 'La Plaza', 'Los Pinos', 'Mi Barrio', 'El Rincón', 'La Estrella', 'Los Andes', 'El Faro', 'La Casona', 'Buen Pan', 'El Paso', 'La Cruz', 'Las Rosas', 'El Molino', 'La Fuente', 'El Cerro', 'Los Olivos'];
 const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'San Joaquín', 'La Florida', 'Santiago', 'Maipú', 'Recoleta'];
+/** Cuántas cajas pide cada negocio: casi siempre pocas, a veces más (de 1 a 20). */
+const CANTIDADES = [1, 1, 2, 2, 2, 3, 3, 4, 5, 6, 8, 12];
 
-const PRODUCTO = 'Harina 25 kg';
-const MINUTO = 60_000;
+const SEGUNDO = 1000;
+const LLEGADA_MS = 1500;
+const DURACION_SALA_MS = 62 * SEGUNDO;
+const ESPERA_SI_MS = 5 * SEGUNDO;
+const FACTURA_MS = 280;
+const ACEPTADA_MS = 180;
+const FINAL_MS = 25 * SEGUNDO;
 
 const aleatorio = <T>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const hace = (ms: number) => new Date(Date.now() - ms).toISOString();
+const ahoraIso = () => new Date().toISOString();
 
 function sembrarNegocios(): Negocio[] {
   const proveedores = PROVEEDORES.map(([id, nombre, comuna]) => ({ id, nombre, comuna, rol: 'proveedor' as const }));
   const compradores = COMPRADORES.map(([id, nombre, comuna]) => ({ id, nombre, comuna, rol: 'comprador' as const }));
-  const relleno: Negocio[] = [];
-  for (let i = 0; relleno.length < 205; i++) {
-    relleno.push({
-      id: `c-${i}`,
-      nombre: `${TIPOS[i % TIPOS.length]} ${NOMBRES[Math.floor(i / TIPOS.length) % NOMBRES.length]}`,
-      comuna: COMUNAS[i % COMUNAS.length],
-      rol: 'comprador',
-    });
-  }
-  return [...proveedores, ...compradores, ...relleno];
+  return [...proveedores, ...compradores];
+}
+
+/** Nombres sin repetir para los negocios que llegan: tipo y nombre barajados. */
+function* nombresDeLaSala(): Generator<[string, string]> {
+  const combos = TIPOS.flatMap(t => NOMBRES.map(n => `${t} ${n}`)).sort(() => Math.random() - 0.5);
+  for (let i = 0; ; i++) yield [combos[i % combos.length], COMUNAS[Math.floor(Math.random() * COMUNAS.length)]];
+}
+
+/** Recalcula lo que el backend deriva de los participantes y los tramos. */
+function conDerivados(lic: Licitacion): Licitacion {
+  return { ...lic, ...calcularTramos(lic.participantes, lic.tramos, lic.precioSolo) };
 }
 
 function sembrarLicitacion(id: string): Licitacion {
-  const participantes: Participante[] = [
-    ...COMPRADORES.map(([negocioId], i) => ({ negocioId, cantidad: [4, 8, 3, 6][i], en: hace((14 - i) * MINUTO) })),
-    ...Array.from({ length: 10 }, (_, i) => ({
-      nombre: `${aleatorio(TIPOS)} ${aleatorio(NOMBRES)}`,
-      comuna: aleatorio(COMUNAS),
-      cantidad: 2 + (i % 5),
-      en: hace((10 - i) * MINUTO),
-    })),
-  ];
-  return {
+  const participantes: Participante[] = COMPRADORES.map(([negocioId], i) => ({ negocioId, cantidad: [2, 3, 1, 2][i], en: hace((4 - i) * 5 * SEGUNDO) }));
+  return conDerivados({
     id,
     producto: PRODUCTO,
     comuna: 'Ñuñoa y alrededores',
-    cierraEn: new Date(Date.now() + 5 * MINUTO).toISOString(),
+    cierraEn: new Date(Date.now() + DURACION_SALA_MS).toISOString(),
     estado: 'abierta',
-    precioSolo: 21_500,
+    precioSolo: PRECIO_SOLO,
+    proveedorId: PROVEEDOR_SALA,
+    unidad: UNIDAD,
+    unidadPlural: UNIDAD_PLURAL,
+    tramos: TRAMOS,
     participantes,
-    ofertas: [
-      { proveedorId: 'p-sur', precioUnitario: 19_100, plazoDias: 1, en: hace(12.5 * MINUTO) },
-      { proveedorId: 'p-andes', precioUnitario: 18_400, plazoDias: 2, en: hace(9.5 * MINUTO) },
-      { proveedorId: 'p-molinos', precioUnitario: 17_100, plazoDias: 3, en: hace(7.5 * MINUTO) },
-      { proveedorId: 'p-nuble', precioUnitario: 17_900, plazoDias: 1, en: hace(6.5 * MINUTO) },
-      { proveedorId: 'p-andes', precioUnitario: 17_650, plazoDias: 2, en: hace(3.5 * MINUTO) },
-    ],
-  };
+    ofertas: [],
+  });
 }
 
 function sembrarEstado(): EstadoRed {
@@ -93,6 +117,7 @@ function sembrarEstado(): EstadoRed {
 /** Un paso del guion: cambia la foto y devuelve el evento que lo anuncia. */
 type Paso = (e: EstadoRed) => Array<[TipoEvento, Record<string, unknown>]>;
 
+/** Ciclo de una orden suelta para la pantalla /red (con o sin reclamo). */
 function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
   const ordenId = `o-${n}`;
   const compradorId = conReclamo ? 'c-esquina' : 'c-trigal';
@@ -102,7 +127,7 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
     e.ordenes = e.ordenes.map(o => (o.id === ordenId ? { ...o, estado } : o));
   };
   const emitir = (e: EstadoRed, tipo: 33 | 52 | 61, f: number) => {
-    const documento = { id: `d-${ordenId}-${tipo}`, ordenId, tipo, folio: f, trackId: null, estadoSii: 'recibido', monto: tipo === 61 ? 37_000 : 74_000, emitidoEn: new Date().toISOString() };
+    const documento = { id: `d-${ordenId}-${tipo}`, ordenId, tipo, folio: f, trackId: null, estadoSii: 'recibido', monto: tipo === 61 ? 59_800 : 119_600, emitidoEn: ahoraIso() };
     e.documentos = [...e.documentos, documento];
     return ['documento.emitido', { documento }] as [TipoEvento, Record<string, unknown>];
   };
@@ -115,8 +140,8 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
   const inicio: Paso[] = [
     e => {
       e.ordenes = [...e.ordenes, {
-        id: ordenId, compradorId, proveedorId: 'p-molinos', estado: 'enviada', creadaEn: new Date().toISOString(),
-        items: [{ producto: PRODUCTO, cantidad: 4, precioUnitario: 18_500 }],
+        id: ordenId, compradorId, proveedorId: 'p-molinos', estado: 'enviada', creadaEn: ahoraIso(),
+        items: [{ producto: PRODUCTO, cantidad: 4, precioUnitario: 29_900 }],
       }];
       return [['orden.creada', { orden: orden(e) }]];
     },
@@ -136,7 +161,7 @@ function guionDeOrden(conReclamo: boolean, n: number): Paso[] {
   return [...inicio,
     e => {
       estadoOrden(e, 'reclamada');
-      e.ordenes = e.ordenes.map(o => (o.id === ordenId ? { ...o, reclamo: { producto: PRODUCTO, faltante: 2, en: new Date().toISOString(), estadoSii: 'simulado' } } : o));
+      e.ordenes = e.ordenes.map(o => (o.id === ordenId ? { ...o, reclamo: { producto: PRODUCTO, faltante: 2, en: ahoraIso(), estadoSii: 'simulado' } } : o));
       return [['recepcion.registrada', { orden: orden(e), conforme: false, faltante: 2 }]];
     },
     e => [['reclamo.registrado', { orden: orden(e), reclamo: orden(e).reclamo, motivo: 'falta parcial' }]],
@@ -154,56 +179,114 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
   let estado = sembrarEstado();
   let vuelta = 0;
   let guion: Paso[] = [];
-  let licitaciones = 1;
+  let numeroLicitacion = 1;
+  let folio = 5001;
+  let nombres = nombresDeLaSala();
+  /** Licitaciones que ya recibieron el sí del proveedor (para no facturar dos veces). */
+  const confirmadas = new Set<string>();
+  let pendientes: Array<ReturnType<typeof setTimeout>> = [];
+  const despues = (ms: number, f: () => void) => pendientes.push(setTimeout(f, ms));
 
   const publicar = (paso: Paso) => {
     const siguiente = { ...estado };
     const eventos = paso(siguiente);
     estado = siguiente;
     if (!eventos.length) alCambiar(estado);
-    for (const [tipo, datos] of eventos) alCambiar(estado, { tipo, datos, en: new Date().toISOString() });
+    for (const [tipo, datos] of eventos) alCambiar(estado, { tipo, datos, en: ahoraIso() });
   };
 
-  const modificarLicitacion = (id: string, cambio: (l: Licitacion) => Licitacion) => (e: EstadoRed) => {
+  const licitacion = (e: EstadoRed, id: string) => e.licitaciones.find(l => l.id === id);
+  const modificarLicitacion = (e: EstadoRed, id: string, cambio: (l: Licitacion) => Licitacion) => {
     e.licitaciones = e.licitaciones.map(l => (l.id === id ? cambio(l) : l));
   };
 
-  const contraoferta = (id: string): Paso => e => {
-    const lic = e.licitaciones.find(l => l.id === id);
+  /** Suma un participante (y el negocio, como lo haría el backend) y anuncia si el precio bajó de tramo. */
+  const sumar = (id: string, datos: { nombre: string; comuna: string; cantidad: number }): Paso => e => {
+    const lic = licitacion(e, id);
     if (!lic || lic.estado !== 'abierta') return [];
-    const proveedorId = aleatorio(['p-nuble', 'p-andes', 'p-sur']);
-    const mejor = Math.min(...lic.ofertas.filter(o => o.proveedorId !== 'p-molinos').map(o => o.precioUnitario));
-    const precioUnitario = Math.max(15_900, mejor - aleatorio([100, 150, 200, 250]));
-    if (precioUnitario >= mejor) return [];
-    const oferta = { proveedorId, precioUnitario, plazoDias: proveedorId === 'p-andes' ? 2 : 1, en: new Date().toISOString() };
-    modificarLicitacion(id, l => ({ ...l, ofertas: [...l.ofertas, oferta] }))(e);
-    const nota = e.notas.find(n => n.proveedorId === proveedorId)?.nota;
-    return [['licitacion.oferta', { licitacion: e.licitaciones.find(l => l.id === id), oferta, nota }]];
+    const negocio: Negocio = { id: `c-sala-${e.negocios.length}`, nombre: datos.nombre, comuna: datos.comuna, rol: 'comprador' };
+    const participante: Participante = { negocioId: negocio.id, nombre: datos.nombre, comuna: datos.comuna, cantidad: datos.cantidad, en: ahoraIso() };
+    e.negocios = [...e.negocios, negocio];
+    modificarLicitacion(e, id, l => conDerivados({ ...l, participantes: [...l.participantes, participante] }));
+    const nueva = licitacion(e, id)!;
+    const eventos: Array<[TipoEvento, Record<string, unknown>]> = [['licitacion.participante', { licitacion: nueva, participante }]];
+    if (lic.precioActual !== undefined && nueva.precioActual !== undefined && nueva.precioActual < lic.precioActual) {
+      eventos.push(['licitacion.precio_bajo', { licitacionId: id, precioAnterior: lic.precioActual, precioNuevo: nueva.precioActual, totalUnidades: nueva.totalUnidades }]);
+    }
+    return eventos;
   };
 
-  const sumar = (id: string, p: Participante): Paso => e => {
-    modificarLicitacion(id, l => ({ ...l, participantes: [...l.participantes, p] }))(e);
-    return [['licitacion.participante', { licitacion: e.licitaciones.find(l => l.id === id), participante: p }]];
+  const cerrar = (id: string) => {
+    publicar(e => {
+      const lic = licitacion(e, id);
+      if (!lic || lic.estado !== 'abierta') return [];
+      modificarLicitacion(e, id, l => ({ ...l, estado: 'cerrada', cierraEn: l.cierraEn > ahoraIso() ? ahoraIso() : l.cierraEn }));
+      return [['licitacion.cerrada', { licitacion: licitacion(e, id), ordenes: [] }]];
+    });
+    despues(ESPERA_SI_MS, () => confirmar(id));
   };
 
-  let pasoLicitacion = 0;
-  const avanzarLicitacion = () => {
-    const lic = estado.licitaciones.find(l => l.estado === 'abierta') ?? estado.licitaciones.at(-1)!;
-    if (lic.estado === 'cerrada') {
-      licitaciones += 1;
-      return publicar(e => { e.licitaciones = [sembrarLicitacion(`l-${licitaciones}`)]; return []; });
-    }
-    if (Date.parse(lic.cierraEn) <= Date.now()) {
-      return publicar(e => {
-        modificarLicitacion(lic.id, l => ({ ...l, estado: 'cerrada' }))(e);
-        return [['licitacion.cerrada', { licitacion: e.licitaciones.find(l => l.id === lic.id), ordenes: [] }]];
-      });
-    }
-    pasoLicitacion += 1;
-    if (pasoLicitacion % 3 === 0) return publicar(contraoferta(lic.id));
-    publicar(sumar(lic.id, {
-      nombre: `${aleatorio(TIPOS)} ${aleatorio(NOMBRES)}`, comuna: aleatorio(COMUNAS), cantidad: 1 + Math.floor(Math.random() * 6), en: new Date().toISOString(),
+  /** El proveedor dijo que sí: una orden por negocio, las facturas una por una y después el SII las acepta. */
+  const confirmar = (id: string) => {
+    const lic = licitacion(estado, id);
+    if (!lic || lic.estado === 'abierta' || confirmadas.has(id)) return;
+    confirmadas.add(id);
+    const precio = lic.precioActual ?? PRECIO_SOLO;
+    const ordenes: OrdenCompra[] = lic.participantes.map((p, i) => ({
+      id: `o-${id}-${i}`, compradorId: p.negocioId ?? '', proveedorId: lic.proveedorId ?? PROVEEDOR_SALA, licitacionId: id,
+      estado: 'confirmada', creadaEn: ahoraIso(), items: [{ producto: PRODUCTO, cantidad: p.cantidad, precioUnitario: precio }],
     }));
+    publicar(e => { e.ordenes = [...e.ordenes, ...ordenes]; return []; });
+
+    const documentos: Documento[] = [];
+    ordenes.forEach((o, i) => despues(i * FACTURA_MS, () => publicar(e => {
+      const item = o.items[0];
+      const documento: Documento = {
+        id: `d-${o.id}`, ordenId: o.id, tipo: 33, folio: folio++, trackId: null, estadoSii: 'recibido',
+        monto: item.cantidad * item.precioUnitario, emitidoEn: ahoraIso(),
+      };
+      documentos.push(documento);
+      e.documentos = [...e.documentos, documento];
+      e.ordenes = e.ordenes.map(x => (x.id === o.id ? { ...x, estado: 'facturada' } : x));
+      return [['documento.emitido', { documento }]];
+    })));
+
+    const finEmision = ordenes.length * FACTURA_MS;
+    despues(finEmision + 600, () => publicar(e => {
+      modificarLicitacion(e, id, l => ({ ...l, estado: 'facturada' }));
+      const total = documentos.reduce((s, d) => s + (d.monto ?? 0), 0);
+      const unidades = lic.totalUnidades ?? 0;
+      return [['licitacion.facturada', { licitacionId: id, documentos, total, ahorroTotal: (PRECIO_SOLO - precio) * unidades }]];
+    }));
+    ordenes.forEach((o, i) => despues(finEmision + 1500 + i * ACEPTADA_MS, () => publicar(e => {
+      e.documentos = e.documentos.map(d => (d.ordenId === o.id ? { ...d, estadoSii: 'aceptado' } : d));
+      return [['documento.actualizado', { documento: e.documentos.find(d => d.ordenId === o.id) }]];
+    })));
+    despues(finEmision + 1500 + ordenes.length * ACEPTADA_MS + FINAL_MS, reiniciar);
+  };
+
+  /** Vuelve al inicio: licitación nueva, sin las órdenes ni facturas de la sala. Como POST /api/red/demo/reiniciar. */
+  function reiniciar() {
+    pendientes.forEach(clearTimeout);
+    pendientes = [];
+    numeroLicitacion += 1;
+    nombres = nombresDeLaSala();
+    guion = [];
+    const semilla = sembrarEstado();
+    estado = { ...semilla, licitaciones: [sembrarLicitacion(`l-${numeroLicitacion}`)] };
+    alCambiar(estado, { tipo: 'red.reiniciada', datos: estado as unknown as Record<string, unknown>, en: ahoraIso() });
+  }
+
+  /** Cada 1,5 s llega uno o dos negocios; al vencer el plazo, la compra cierra. */
+  const avanzarSala = () => {
+    const lic = estado.licitaciones.find(l => l.estado === 'abierta');
+    if (!lic) return;
+    if (Date.parse(lic.cierraEn) <= Date.now()) return cerrar(lic.id);
+    const llegan = Math.random() < 0.25 ? 2 : 1;
+    for (let i = 0; i < llegan; i++) {
+      const [nombre, comuna] = nombres.next().value!;
+      publicar(sumar(lic.id, { nombre, comuna, cantidad: aleatorio(CANTIDADES) }));
+    }
   };
 
   const avanzarOrden = () => {
@@ -215,8 +298,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
   };
 
   alCambiar(estado);
-  const timers = [setInterval(avanzarOrden, 4500), setInterval(avanzarLicitacion, 3500)];
-  const pendientes: Array<ReturnType<typeof setTimeout>> = [];
+  const timers = [setInterval(avanzarOrden, 4500), setInterval(avanzarSala, LLEGADA_MS)];
 
   return {
     detener() {
@@ -224,8 +306,10 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
       pendientes.forEach(clearTimeout);
     },
     unirse(licitacionId, datos) {
-      publicar(sumar(licitacionId, { ...datos, en: new Date().toISOString() }));
-      pendientes.push(setTimeout(() => publicar(contraoferta(licitacionId)), 1500));
+      publicar(sumar(licitacionId, datos));
     },
+    reiniciar,
+    cerrar,
+    confirmar,
   };
 }

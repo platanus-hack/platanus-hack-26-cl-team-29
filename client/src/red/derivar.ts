@@ -1,7 +1,7 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
-import type { Documento, EstadoRed, EventoRed, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante } from './tipos.ts';
-import { cantidadCon, contar, dinero, nota, textoEstadoSii } from './formato.ts';
+import type { Documento, EstadoRed, EventoRed, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
+import { cantidadCon, contar, dinero, nota, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;
@@ -185,6 +185,92 @@ export interface PuntoCurva {
   precio: number;
 }
 
+// ---------- Precio por tramos de volumen ----------
+
+export interface EstadoTramos {
+  tramos: Tramo[];
+  totalUnidades: number;
+  precioActual?: number;
+  siguiente: SiguienteTramo | null;
+  /** Cuántos tramos ya alcanzó el grupo. */
+  alcanzados: number;
+  /** Unidades donde empezó el tramo actual (0 si todavía no alcanza ninguno). */
+  desdeActual: number;
+}
+
+const ordenarTramos = (tramos: Tramo[] | undefined) => [...(tramos ?? [])].sort((a, b) => a.desde - b.desde);
+
+/** Precio con `unidades` en el grupo: el del tramo más alto alcanzado o, si ninguno, el de comprar solo. */
+export function precioConUnidades(tramos: Tramo[], precioSolo: number | undefined, unidades: number): number | undefined {
+  return ordenarTramos(tramos).filter(t => unidades >= t.desde).at(-1)?.precioUnitario ?? precioSolo;
+}
+
+/** Calcula los tramos desde los participantes. Lo usan la pantalla (si el backend no manda los derivados) y la red falsa. */
+export function calcularTramos(participantes: Participante[], tramos: Tramo[] | undefined, precioSolo: number | undefined) {
+  const orden = ordenarTramos(tramos);
+  const totalUnidades = participantes.reduce((s, p) => s + p.cantidad, 0);
+  const alcanzados = orden.filter(t => totalUnidades >= t.desde).length;
+  const sig = orden[alcanzados];
+  return {
+    totalUnidades,
+    precioActual: precioConUnidades(orden, precioSolo, totalUnidades),
+    siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null,
+  };
+}
+
+/** Estado de los tramos: manda lo que calculó el backend; lo que falte se calcula aquí. */
+export function estadoTramos(lic: Licitacion): EstadoTramos {
+  const tramos = ordenarTramos(lic.tramos);
+  const calculado = calcularTramos(lic.participantes, tramos, lic.precioSolo);
+  const totalUnidades = lic.totalUnidades ?? calculado.totalUnidades;
+  const alcanzados = tramos.filter(t => totalUnidades >= t.desde).length;
+  return {
+    tramos,
+    totalUnidades,
+    precioActual: lic.precioActual ?? calculado.precioActual,
+    siguiente: lic.siguienteTramo === undefined ? calculado.siguienteTramo : lic.siguienteTramo,
+    alcanzados,
+    desdeActual: alcanzados ? tramos[alcanzados - 1].desde : 0,
+  };
+}
+
+export const tieneTramos = (lic: Licitacion) => (lic.tramos?.length ?? 0) > 0;
+
+/** Unidad de la licitación, en singular y plural: la del backend o la que se deduce del producto. */
+export function unidadDeLicitacion(lic: Licitacion): { singular: string; plural: string } {
+  return lic.unidad ? { singular: lic.unidad, plural: lic.unidadPlural ?? pluralDe(lic.unidad) } : unidadDe(lic.producto);
+}
+
+/** Participantes en el orden en que se sumaron (si todos traen hora). */
+function porLlegada(lic: Licitacion): Participante[] {
+  return lic.participantes.every(p => p.en)
+    ? [...lic.participantes].sort((a, b) => Date.parse(a.en!) - Date.parse(b.en!))
+    : lic.participantes;
+}
+
+/**
+ * Curva por tramos: recorre a los participantes en el orden en que llegaron y baja un escalón
+ * cada vez que las unidades acumuladas cruzan un tramo. x = compradores en ese momento.
+ */
+function curvaPorTramos(lic: Licitacion): PuntoCurva[] {
+  const ps = porLlegada(lic);
+  const tramos = ordenarTramos(lic.tramos);
+  let precio = precioConUnidades(tramos, lic.precioSolo, 0) ?? tramos[0]?.precioUnitario;
+  if (precio === undefined || !ps.length) return [];
+  const puntos: PuntoCurva[] = [{ compradores: 1, precio }];
+  let unidades = 0;
+  ps.forEach((p, i) => {
+    unidades += p.cantidad;
+    const nuevo = precioConUnidades(tramos, lic.precioSolo, unidades);
+    if (nuevo !== undefined && nuevo < precio!) {
+      precio = nuevo;
+      puntos.push({ compradores: i + 1, precio });
+    }
+  });
+  puntos.push({ compradores: Math.max(ps.length, puntos.at(-1)!.compradores), precio });
+  return puntos;
+}
+
 export interface ResumenLicitacion {
   compradores: number;
   delPublico: number;
@@ -192,14 +278,18 @@ export interface ResumenLicitacion {
   ultimos: Array<{ nombre: string; comuna: string; cantidad: number }>;
   ofertas: OfertaVista[];
   mejor?: OfertaVista;
+  /** Precio por unidad hoy: el del tramo alcanzado o, sin tramos, el de la mejor oferta. */
+  precioActual?: number;
   precioSolo?: number;
   ahorroPorUnidad: number;
   ahorroGrupal: number;
   porcentaje: number;
   curva: PuntoCurva[];
+  /** La curva baja por tramos de volumen (y no por contraofertas). */
+  curvaPorTramos: boolean;
 }
 
-function nombreParticipante(estado: EstadoRed, p: Participante) {
+export function nombreParticipante(estado: EstadoRed, p: Participante) {
   const n = negocioPorId(estado, p.negocioId);
   return { nombre: p.nombre ?? n?.nombre ?? 'Negocio', comuna: p.comuna ?? n?.comuna ?? '', cantidad: p.cantidad };
 }
@@ -233,7 +323,7 @@ function evaluarOfertas(ofertas: Oferta[], estado: EstadoRed): OfertaVista[] {
  * Se dejan fuera los proveedores que hoy pierden por nota o plazo aunque sean más baratos,
  * así la curva termina en el precio ganador.
  */
-function curvaDePrecio(lic: Licitacion, excluidos: Set<string>, precioSolo: number | undefined): PuntoCurva[] {
+function curvaPorOfertas(lic: Licitacion, excluidos: Set<string>, precioSolo: number | undefined): PuntoCurva[] {
   const conFecha = lic.ofertas.length > 0 && lic.ofertas.every(o => o.en) && lic.participantes.every(p => p.en);
   const ofertas = conFecha ? [...lic.ofertas].sort((a, b) => Date.parse(a.en!) - Date.parse(b.en!)) : lic.ofertas;
   const total = lic.participantes.length;
@@ -260,23 +350,121 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
     .map(o => ({ ...o, gana: o === ganadora, riesgo: !!ganadora && o !== ganadora && o.precioUnitario < ganadora.precioUnitario }))
     .sort((a, b) => Number(b.gana) - Number(a.gana) || Number(b.riesgo) - Number(a.riesgo) || a.precioUnitario - b.precioUnitario);
   const mejor = ofertas.find(o => o.gana);
+  const porTramos = tieneTramos(lic);
+  const tramos = porTramos ? estadoTramos(lic) : undefined;
+  const precioActual = tramos ? tramos.precioActual : mejor?.precioUnitario;
   // Sin precioSolo del backend, se usa la oferta más cara como referencia (solo si es mayor que la ganadora).
   const masCara = ofertas.length ? Math.max(...ofertas.map(o => o.precioUnitario)) : undefined;
   const precioSolo = lic.precioSolo ?? (masCara !== undefined && mejor && masCara > mejor.precioUnitario ? masCara : undefined);
-  const totalUnidades = lic.participantes.reduce((s, p) => s + p.cantidad, 0);
-  const ahorroPorUnidad = mejor && precioSolo ? Math.max(0, precioSolo - mejor.precioUnitario) : 0;
+  const totalUnidades = tramos?.totalUnidades ?? lic.participantes.reduce((s, p) => s + p.cantidad, 0);
+  const ahorroPorUnidad = precioActual !== undefined && precioSolo ? Math.max(0, precioSolo - precioActual) : 0;
   return {
     compradores: lic.participantes.length,
     delPublico: lic.participantes.filter(p => !p.negocioId).length,
     totalUnidades,
-    ultimos: [...lic.participantes].reverse().slice(0, 4).map(p => nombreParticipante(estado, p)),
+    ultimos: [...porLlegada(lic)].reverse().slice(0, 8).map(p => nombreParticipante(estado, p)),
     ofertas,
     mejor,
+    precioActual,
     precioSolo,
     ahorroPorUnidad,
     ahorroGrupal: ahorroPorUnidad * totalUnidades,
     porcentaje: precioSolo ? Math.round((ahorroPorUnidad / precioSolo) * 100) : 0,
-    curva: curvaDePrecio(lic, new Set(ofertas.filter(o => o.riesgo).map(o => o.proveedorId)), precioSolo),
+    curva: porTramos ? curvaPorTramos(lic) : curvaPorOfertas(lic, new Set(ofertas.filter(o => o.riesgo).map(o => o.proveedorId)), precioSolo),
+    curvaPorTramos: porTramos,
+  };
+}
+
+// ---------- La sala compra junta ----------
+
+/** abierta → cerrada (espera el sí del proveedor) → facturando (llegan las facturas) → lista (total y ahorro). */
+export type FaseSala = 'abierta' | 'cerrada' | 'facturando' | 'lista';
+
+export interface FacturaSala {
+  id: string;
+  folio: number | null;
+  nombre: string;
+  comuna: string;
+  unidades: number;
+  monto: number;
+  estadoSii: string | null;
+}
+
+export interface ResumenSala {
+  fase: FaseSala;
+  proveedor: string;
+  unidad: { singular: string; plural: string };
+  tramos: EstadoTramos;
+  precioSolo?: number;
+  /** Participantes, el más nuevo primero; `n` es su número de llegada (estable, sirve de clave). */
+  muro: Array<{ n: number; nombre: string; comuna: string; cantidad: number }>;
+  facturas: FacturaSala[];
+  aceptadas: number;
+  ordenes: number;
+  totalNeto: number;
+  ahorroTotal: number;
+}
+
+const ACEPTADO = new Set(['aceptado', 'reparo']);
+export const facturaAceptada = (estadoSii: string | null) => !!estadoSii && ACEPTADO.has(estadoSii);
+
+/**
+ * Órdenes que salieron de esta compra conjunta: las que traen su `licitacionId` o, si el backend no lo manda,
+ * las del mismo proveedor creadas después de que se sumó el primer participante.
+ */
+export function ordenesDeLicitacion(lic: Licitacion, estado: EstadoRed): OrdenCompra[] {
+  const primera = Math.min(...lic.participantes.map(p => (p.en ? Date.parse(p.en) : Infinity)));
+  return estado.ordenes.filter(o =>
+    o.licitacionId ? o.licitacionId === lic.id : !!lic.proveedorId && o.proveedorId === lic.proveedorId && Date.parse(o.creadaEn) >= primera,
+  );
+}
+
+function eventoFacturada(eventos: EventoRed[], licitacionId: string) {
+  return eventos.find(e => e.tipo === 'licitacion.facturada' && e.datos.licitacionId === licitacionId);
+}
+
+export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoRed[], ahora: number): ResumenSala {
+  const tramos = estadoTramos(lic);
+  const ordenes = ordenesDeLicitacion(lic, estado);
+  const porOrden = new Map(ordenes.map(o => [o.id, o]));
+  const facturas = estado.documentos
+    .filter(d => d.tipo === 33 && porOrden.has(d.ordenId))
+    .sort((a, b) => (b.folio ?? 0) - (a.folio ?? 0))
+    .map(d => {
+      const orden = porOrden.get(d.ordenId)!;
+      const comprador = negocioPorId(estado, orden.compradorId);
+      const item = orden.items[0];
+      return {
+        id: d.id,
+        folio: d.folio,
+        nombre: comprador?.nombre ?? 'Negocio',
+        comuna: comprador?.comuna ?? '',
+        unidades: item?.cantidad ?? 0,
+        monto: d.monto ?? (item ? item.cantidad * item.precioUnitario : 0),
+        estadoSii: d.estadoSii,
+      };
+    });
+  const finalizada = eventoFacturada(eventos, lic.id);
+  const cerrada = lic.estado !== 'abierta' || Date.parse(lic.cierraEn) <= ahora;
+  const fase: FaseSala =
+    finalizada || lic.estado === 'facturada' ? 'lista' : facturas.length ? 'facturando' : cerrada ? 'cerrada' : 'abierta';
+  const precioFinal = tramos.precioActual;
+  const ahorroCalculado = lic.precioSolo !== undefined && precioFinal !== undefined ? Math.max(0, lic.precioSolo - precioFinal) * tramos.totalUnidades : 0;
+  const total = numero(finalizada?.datos.total);
+  const ahorro = numero(finalizada?.datos.ahorroTotal);
+  const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, p) })).reverse();
+  return {
+    fase,
+    proveedor: negocioPorId(estado, lic.proveedorId ?? lic.ganadora?.proveedorId)?.nombre ?? 'el proveedor',
+    unidad: unidadDeLicitacion(lic),
+    tramos,
+    precioSolo: lic.precioSolo,
+    muro,
+    facturas,
+    aceptadas: facturas.filter(f => facturaAceptada(f.estadoSii)).length,
+    ordenes: ordenes.length,
+    totalNeto: total ?? facturas.reduce((s, f) => s + f.monto, 0),
+    ahorroTotal: ahorro ?? ahorroCalculado,
   };
 }
 
@@ -344,6 +532,14 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     case 'licitacion.oferta': {
       const precio = numero(objeto(e.datos.oferta).precioUnitario);
       return `${proveedor ?? 'Un proveedor'} ofertó${precio ? ` ${dinero(precio)} por unidad` : ''}`;
+    }
+    case 'licitacion.precio_bajo': {
+      const nuevo = numero(e.datos.precioNuevo);
+      return nuevo ? `La compra conjunta bajó a ${dinero(nuevo)} por unidad` : 'Bajó el precio de la compra conjunta';
+    }
+    case 'licitacion.facturada': {
+      const docs = lista(e.datos.documentos).length;
+      return docs ? `${docs === 1 ? 'Salió' : 'Salieron'} ${contar(docs, 'factura')} de la compra conjunta` : 'La compra conjunta quedó facturada';
     }
     case 'licitacion.cerrada': {
       const ganadora = negocioPorId(estado, texto(objeto(objeto(e.datos.licitacion).ganadora).proveedorId))?.nombre;
