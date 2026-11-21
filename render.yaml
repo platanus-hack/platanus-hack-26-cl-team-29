@@ -24,6 +24,9 @@ services:
       # Crédito Bando: tarjetas en el ambiente de prueba de Transbank (credenciales públicas, no cobra).
       - key: PAGOS_TRANSBANK
         value: integracion
+      # Para el pitch con público: sin exigir tarjeta antes de comprar (el crédito se abre igual al facturar). Quitar para uso real.
+      - key: PAGOS_EXIGIR_TARJETA
+        value: "0"
 
 databases:
   - name: db

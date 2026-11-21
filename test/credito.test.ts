@@ -5,7 +5,7 @@ import { crearLibro, crearPasarelaFalsa, tablaMemoria, type Credito, type Tarjet
 import { crearOneclick } from '../server/pagos/oneclick.ts';
 
 test('el cupo y el plazo suben con los pagos a tiempo y bajan con un atraso', () => {
-  assert.deepEqual([lineaDeCredito({ pagadosATiempo: 0, atrasados: 0 }).cupo, lineaDeCredito({ pagadosATiempo: 0, atrasados: 0 }).plazoDias], [300_000, 30]);
+  assert.deepEqual([lineaDeCredito({ pagadosATiempo: 0, atrasados: 0 }).cupo, lineaDeCredito({ pagadosATiempo: 0, atrasados: 0 }).plazoDias], [500_000, 30]);
   assert.equal(lineaDeCredito({ pagadosATiempo: 2, atrasados: 0 }).siguiente?.faltan, 1);
   assert.equal(lineaDeCredito({ pagadosATiempo: 3, atrasados: 0 }).nombre, 'Confiable');
   assert.equal(lineaDeCredito({ pagadosATiempo: 9, atrasados: 0 }).plazoDias, 60);
@@ -25,7 +25,7 @@ test('al facturar, Bando paga al proveedor y abre el crédito; al cobrar con tar
   const c = await libro.otorgar(factura(1));
   assert.deepEqual([c?.plazoDias, c?.venceEn, c?.estado, !!c?.pagadoAlProveedorEn], [30, '2026-12-21', 'vigente', true]);
   assert.equal(await libro.otorgar(factura(1)), null, 'una factura abre un solo crédito');
-  assert.equal((await libro.otorgar(factura(2, 400_000)))?.plazoDias, 0, 'lo que no cabe en el cupo se cobra hoy');
+  assert.equal((await libro.otorgar(factura(2, 600_000)))?.plazoDias, 0, 'lo que no cabe en el cupo se cobra hoy');
 
   assert.deepEqual(await libro.cobrarVencidos(true), { cobrados: 0, fallidos: 2 }, 'sin tarjeta no se cobra');
   const { token } = await libro.iniciarInscripcion(rut, 'http://x/vuelta');
