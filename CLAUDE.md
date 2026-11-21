@@ -54,7 +54,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - ⚠️ **Siempre `git pull` antes de hacer cualquier cosa**: al empezar una tarea, antes de crear una rama, antes de commitear y antes de abrir o mergear un PR. Son 3 personas con varios agentes empujando a `main` todo el tiempo. En una rama propia: `git pull --rebase origin main`. Si hay conflicto, resolverlo antes de seguir, nunca descartar cambios ajenos.
 - **Commits en inglés**, en imperativo y cortos (`Add realtime cursor sync`, `Fix reconnect on socket drop`).
 - Commits chicos y atómicos. No commitear `.env`, `node_modules` ni `dist`.
-- Se trabaja solo en el repo de la org. Render deploya desde un espejo que copia `main` solo cada ~5 min: lo que se mergea a `main` sale a producción.
+- Se trabaja solo en el repo de la org. Cada push a `main` se empuja solo al espejo (Action `Espejo al push`) y Render lo despliega en un par de minutos: lo que se mergea a `main` sale a producción.
 
 ## Coordinación entre agentes
 Varios agentes trabajan en paralelo. **Antes de empezar cualquier tarea, lee `agents/*.md`** y sigue el protocolo de `agents/README.md`: un archivo de estado por agente, actualizado al tomar, terminar o quedar bloqueado en una tarea.
