@@ -46,6 +46,11 @@ export interface Sala {
    * más" va a la canasta y no a un pedido de catálogo que la red no puede cumplir.
    */
   hablaDeLaCanasta(producto: string): Promise<boolean>;
+  /**
+   * Si el mensaje es una acción que la sala sabe hacer (sumarse, agregar, quitar, ver el pedido) o responde algo que
+   * la sala preguntó. Una pregunta cualquiera ("¿cuántas cajas le compré a Devlas?") no lo es: la contesta la IA.
+   */
+  entiende(telefono: string, texto: string): Promise<boolean>;
   /** Responde a alguien del público (o a un comprador registrado que quiere sumarse). */
   atenderPublico(telefono: string, texto: string, nombreConocido?: string): Promise<string>;
   /** Ejecuta la facturación ya confirmada por el proveedor. Idempotente. */
@@ -218,6 +223,16 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const dichas = new Set(normalizar(producto).split(' ').filter(p => p.length > 2));
     return productosDe(l).some(p =>
       [p.unidad, p.unidadPlural ?? '', p.id, ...normalizar(p.nombre).split(' ')].some(x => x.length > 2 && dichas.has(normalizar(x))));
+  }
+
+  async function entiende(telefono: string, texto: string): Promise<boolean> {
+    const clave = claveTelefono(telefono);
+    if (borradores.has(clave) || salidas.has(clave)) return true;
+    if (/\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto))) return true;
+    const l = await abierta();
+    if (!l) return false;
+    const d = interpretarCanastaConReglas(texto, catalogoDe(l, o.cantidadMaxima));
+    return d.cambios.length > 0 || d.accion !== undefined || d.suelta !== undefined;
   }
 
   async function atiende(telefono: string, negocioId: string, texto: string): Promise<boolean> {
@@ -447,6 +462,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     proveedorPorTelefono: telefono => proveedores.get(claveTelefono(telefono)) ?? null,
     atiende,
     hablaDeLaCanasta,
+    entiende,
     atenderPublico,
     facturar,
     pendienteDeFacturar: negocioId => porFacturar.get(negocioId) ?? null,

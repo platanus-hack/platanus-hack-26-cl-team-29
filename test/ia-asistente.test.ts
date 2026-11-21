@@ -90,7 +90,7 @@ test('las consultas sobre la red real nunca incluyen teléfonos', async () => {
   const { negocios } = red.estadoDeLaRed();
   const comprador = negocios.find(n => n.rol === 'comprador')!;
   const salida = JSON.stringify([
-    consultas.misPedidos(comprador.id), consultas.proveedores('harina'), consultas.catalogo(), consultas.compraConjunta(),
+    consultas.misPedidos(comprador.id), consultas.proveedores('harina'), consultas.catalogo(), consultas.compraConjunta(comprador.id),
   ]);
 
   assert.doesNotMatch(salida, /telefono/i);

@@ -299,7 +299,9 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const pideDeLaCanasta = sala !== null && intencion.tipo === 'pedir' && (await sala.hablaDeLaCanasta(intencion.producto));
     const deLaSala = sala && !antes && negocio.rol === 'comprador' && intencion.tipo !== 'faltante'
       && (pideDeLaCanasta || intencion.tipo !== 'pedir');
-    if (sala && deLaSala && (pideDeLaCanasta || (await sala.atiende(telefono, negocio.id, texto)))) {
+    // Si la IA ya respondió una pregunta, la sala solo la toma si es una acción suya (no "¿cuántas le compré a X?").
+    const paraLaSala = intencion.tipo !== 'respuesta' || (sala !== null && (await sala.entiende(telefono, texto)));
+    if (sala && deLaSala && paraLaSala && (pideDeLaCanasta || (await sala.atiende(telefono, negocio.id, texto)))) {
       await ctx.reply(await sala.atenderPublico(telefono, texto, negocio.nombre));
       return;
     }

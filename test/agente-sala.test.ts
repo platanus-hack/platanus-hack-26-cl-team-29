@@ -376,3 +376,21 @@ test('un pedido de algo que no es de la canasta sigue yendo al catálogo', async
   await escribir(REGISTRADO.telefono, 'pide 4 sacos de harina');
   assert.match(ultimo(REGISTRADO.telefono), /Te propongo pedir 4 sacos de harina/);
 });
+
+test('un participante que pregunta otra cosa recibe la respuesta de la IA; sus acciones siguen yendo a la sala', async t => {
+  const conIa: Interprete = {
+    ...interpreteDeReglas,
+    conversar: async e => /cuántas cajas le compré/i.test(e.texto)
+      ? { tipo: 'respuesta', texto: 'Llevas 10 cajas de rollos en la compra conjunta.' }
+      : interpreteDeReglas.interpretar(e.texto, e.pendiente),
+  };
+  const { agente, escribir, ultimo } = montar({}, {}, { interprete: conIa });
+  t.after(() => agente.desconectar());
+  const yo = REGISTRADO.telefono;
+  await escribir(yo, 'me sumo con 10 cajas de rollos');
+
+  await escribir(yo, '¿Cuántas cajas le compré a Devlas?');
+  assert.equal(ultimo(yo), 'Llevas 10 cajas de rollos en la compra conjunta.');
+  await escribir(yo, 'mi pedido');
+  assert.match(ultimo(yo), /^Tu pedido, Almacén Registrado:/);
+});
