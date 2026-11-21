@@ -1,6 +1,6 @@
 # Representación impresa en PDF y enlace privado por documento
 
-Fecha: 2026-11-21 21:30
+Fecha: 2026-11-21 13:30
 Autor: Luciano Saavedra Reyes
 
 ## Contexto

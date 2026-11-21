@@ -14,7 +14,7 @@ libre (PR #39 listo para revisión)
 - test/factura-pdf.test.ts
 
 ## Hecho
-- Representación impresa en PDF de 33, 52 y 61 con timbre PDF417 (TED Latin-1, nivel 5), enlace privado firmado `GET /api/red/documentos/:id/pdf?t=`, `red.enlacePdf(documento)` y `pdfUrl` en `/yo` y `/proveedor/yo`. Decisión: docs/decisiones/20261121-2130-factura-pdf-y-enlace-privado.md
+- Representación impresa en PDF de 33, 52 y 61 con timbre PDF417 (TED Latin-1, nivel 5), enlace privado firmado `GET /api/red/documentos/:id/pdf?t=`, `red.enlacePdf(documento)` y `pdfUrl` en `/yo` y `/proveedor/yo`. Decisión: docs/decisiones/20261121-1330-factura-pdf-y-enlace-privado.md
 
 ## Bloqueos
 - (ninguno)
