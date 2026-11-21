@@ -11,6 +11,7 @@ import { crearCertificados } from './certificados/index.ts';
 import { crearInterpreteDesdeEnv } from './ia/index.ts';
 import { iniciarLocales } from './locales/index.ts';
 import { iniciarMercadoPublico } from './mercado-publico/index.ts';
+import { iniciarAvisos } from './avisos/index.ts';
 
 const app = express();
 const http = createServer(app);
@@ -27,6 +28,8 @@ red.escuchar(evento => io.emit('red:evento', evento));
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
 conexionSii.escuchar(evento => io.emit('red:evento', evento));
 const certificados = await crearCertificados({ db: dbRed });
+// Avisos de compra abierta a compradores registrados (BASTA para no recibir más): docs/decisiones/20261121-1604-avisos-de-compra-abierta.md
+const avisos = await iniciarAvisos({ red, whatsapp, db: dbRed, emitir: evento => io.emit('red:evento', evento) });
 // Cada proveedor registrado por WhatsApp conecta el SII de su empresa con el certificado que subió.
 const conexionDeProveedores = {
   async conectar(rutEmpresa: string, rutTitular: string) {
@@ -38,7 +41,7 @@ const conexionDeProveedores = {
 };
 export const agente = conectarAgente(whatsapp, red, {
   interprete: crearInterpreteDesdeEnv(process.env, red), certificados, conexionSii: conexionDeProveedores,
-  almacenBorradores: await crearAlmacenBorradores(dbRed),
+  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos,
 });
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.

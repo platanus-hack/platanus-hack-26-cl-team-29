@@ -17,6 +17,7 @@ import {
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
+import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
@@ -56,6 +57,8 @@ export function MiNegocio() {
 
   const irA = (s: Seccion) => { location.hash = s; };
   const porRecibir = yo.ordenes.filter(o => o.estado === 'facturada').length;
+  const vigente = licitacionVigente(foto.licitaciones);
+  const participa = yo.participaciones.some(p => p.licitacionId === vigente?.id);
 
   return (
     <div className="cn-app">
@@ -81,6 +84,7 @@ export function MiNegocio() {
 
       <main className="cn-contenido">
         {error && <p className="error">{error}</p>}
+        {seccion !== 'compra' && <AvisoCompraAbierta lic={vigente} participa={participa} irACompra={() => irA('compra')} />}
         {seccion === 'compra' && <CompraConjunta api={api} token={token} foto={foto} yo={yo} />}
         {seccion === 'pedir' && <Pedir api={api} token={token} foto={foto} config={config} alEnviar={() => { recargar(); irA('pedidos'); }} />}
         {seccion === 'pedidos' && <MisPedidos api={api} token={token} foto={foto} yo={yo} config={config} alCambiar={recargar} irAPedir={() => irA('pedir')} />}
