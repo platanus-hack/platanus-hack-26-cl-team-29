@@ -14,6 +14,7 @@ import { useAhora } from '../red/useRed.ts';
 import type { Documento, Licitacion, Negocio, ProductoCompra } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import { ConectarSii } from './ConectarSii.tsx';
+import { MiCatalogo } from './MiCatalogo.tsx';
 import {
   estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad,
 } from './logica.ts';
@@ -85,6 +86,7 @@ export function Proveedor() {
 
         <div className="cn-columna">
           <ConectarSii api={api} token={tokenValido} />
+          <MiCatalogo api={api} token={tokenValido} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />
           <MiNota yo={yo} />
           <MisDocumentos yo={yo} comprador={comprador} />
         </div>

@@ -3,7 +3,7 @@
 // los pasos de abajo, cada uno resumido en una línea cuando ya está listo. El certificado y su clave solo viajan al subirlos: no quedan en
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useState, type ChangeEvent, type FormEvent } from 'react';
 import { fechaCorta, horaEnChile } from '../../../shared/fecha.ts';
 import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../shared/documentos.ts';
 import { contar } from '../../../shared/texto.ts';
@@ -11,6 +11,7 @@ import type { CanalApi } from './api.ts';
 import { LogoSii } from './iconos.tsx';
 import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
+import { useDatoEnVivo } from './useCanal.ts';
 import type { CafSii, EstadoConexionSii, DatosEmpresaSii, FoliosSii, PasoSii } from './tipos.ts';
 
 const POLEO_MS = 1500;
@@ -35,32 +36,16 @@ interface Props {
   token: string;
 }
 
+const buscandoEnSii = (e: EstadoConexionSii): boolean =>
+  !!e.automatico?.activo || e.cafs.some(c => c.escaneando) || e.folios.some(f => f.estado === 'reponiendo');
+
 /** Tarjeta del panel: el estado de la conexión y, al abrirla, los tres pasos. */
 export function ConectarSii({ api, token }: Props) {
-  const [estado, setEstado] = useState<EstadoConexionSii | null>(null);
   const [abierta, setAbierta] = useState(false);
-  const [error, setError] = useState('');
-
-  const recargar = useCallback(async () => {
-    try {
-      setEstado(await api.siiEstado(token));
-    } catch (e) {
-      setError(mensajeDeError(e));
-    }
-  }, [api, token]);
-
-  useEffect(() => { void recargar(); }, [recargar]);
-  // Folios repuestos, bajos o en espera llegan en vivo por `red:evento` (`sii.folios`).
-  useEffect(() => api.escuchar(e => { if (!e || e.tipo === 'sii.folios') void recargar(); }), [api, recargar]);
-
-  // Mientras la conexión automática corre, se busca el primer folio libre de algún CAF o se reponen folios, se
-  // consulta el avance (respaldo del evento, y lo único que tiene la red falsa del navegador).
-  const buscando = !!estado?.automatico?.activo || !!estado?.cafs.some(c => c.escaneando) || !!estado?.folios.some(f => f.estado === 'reponiendo');
-  useEffect(() => {
-    if (!buscando) return;
-    const t = setInterval(() => { void recargar(); }, POLEO_MS);
-    return () => clearInterval(t);
-  }, [buscando, recargar]);
+  // Folios repuestos, bajos o en espera llegan en vivo por `red:evento` (`sii.folios`). Mientras la conexión automática
+  // corre, se busca el primer folio libre de algún CAF o se reponen folios, también se consulta el avance.
+  const cargar = useCallback(() => api.siiEstado(token), [api, token]);
+  const { dato: estado, setDato: setEstado, error } = useDatoEnVivo(api, cargar, 'sii.folios', buscandoEnSii, POLEO_MS);
 
   if (!estado) {
     return error ? <p className="error">{error}</p> : null;

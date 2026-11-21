@@ -152,3 +152,32 @@ export function useSesionComprador(api: CanalApi | null) {
   const salir = useCallback(() => guardar(null), [guardar]);
   return { token, nombre: sesion?.nombre, entrar, alVencer, salir };
 }
+
+/**
+ * Un dato del panel que se pide con sesión y se actualiza en vivo: se vuelve a pedir con cada `red:evento` del tipo
+ * dado y, mientras `enCurso` diga que algo sigue corriendo en el servidor, cada `poleoMs` como respaldo del evento
+ * (y lo único que tiene la red falsa del navegador). `cargar` tiene que ser estable (useCallback).
+ */
+export function useDatoEnVivo<T>(
+  api: CanalApi, cargar: () => Promise<T>, tipoEvento: string, enCurso: (dato: T) => boolean, poleoMs: number,
+) {
+  const [dato, setDato] = useState<T | null>(null);
+  const [error, setError] = useState('');
+  const recargar = useCallback(async () => {
+    try {
+      setDato(await cargar());
+      setError('');
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
+  }, [cargar]);
+  useEffect(() => { void recargar(); }, [recargar]);
+  useEffect(() => api.escuchar(e => { if (!e || e.tipo === tipoEvento) void recargar(); }), [api, tipoEvento, recargar]);
+  const corriendo = dato !== null && enCurso(dato);
+  useEffect(() => {
+    if (!corriendo) return;
+    const t = setInterval(() => { void recargar(); }, poleoMs);
+    return () => clearInterval(t);
+  }, [corriendo, poleoMs, recargar]);
+  return { dato, setDato, error };
+}
