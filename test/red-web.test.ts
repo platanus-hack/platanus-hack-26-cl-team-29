@@ -31,7 +31,7 @@ async function servidor(env: NodeJS.ProcessEnv = ENV, limitePorMinuto?: number) 
 }
 
 async function entrar(s: Awaited<ReturnType<typeof servidor>>, nombre: string): Promise<string> {
-  const r = await s.post('/sesion', { nombre });
+  const r = await s.post('/sesion', { nombre, rut: '11.111.111-1' });
   assert.equal(r.status, 201);
   assert.equal(r.cuerpo.negocio.telefono, undefined);
   return r.cuerpo.token;
@@ -130,9 +130,9 @@ test('config pública, confirmación de escenario con DEMO_TOKEN y límite por I
       whatsappNumero: '56900000000', proveedorLogoUrl: null, producto: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas',
     });
     assert.equal(productos.length, 4);
-    const union = await s.post('/licitaciones/L-1/unirse', { nombre: 'Ana', cantidad: 2, telefono: '56911112222', negocioId: 'n-pica-nunoa' });
+    const union = await s.post('/licitaciones/L-1/unirse', { nombre: 'Ana', rut: '22222222-2', cantidad: 2, telefono: '56911112222', negocioId: 'n-pica-nunoa' });
     assert.equal(union.status, 200);
-    assert.equal(union.cuerpo.participante.negocioId, undefined, 'la página pública no acepta negocioId ni teléfono');
+    assert.notEqual(union.cuerpo.participante.negocioId, 'n-pica-nunoa', 'la página pública no acepta negocioId ni teléfono');
     assert.equal(s.red.negocioPorTelefono('56911112222'), null);
 
     await s.red.cerrarLicitacion('L-1');

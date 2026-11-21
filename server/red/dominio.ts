@@ -6,6 +6,9 @@ import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
+import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
+import type { ConsultarContribuyente, DatosContribuyente } from './contribuyente.ts';
+import { validarRut } from './rut.ts';
 import { RUBROS } from './tipos.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
@@ -19,7 +22,9 @@ import type {
 export type CodigoError =
   | 'no_encontrado' | 'transicion_invalida' | 'datos_invalidos' | 'ocupado'
   // Canal web: sin sesión, sesión de otro negocio, o acción legal sin `confirmado: true`.
-  | 'no_autorizado' | 'prohibido' | 'confirmacion_requerida';
+  | 'no_autorizado' | 'prohibido' | 'confirmacion_requerida'
+  // No se pudo consultar un RUT en el SII (corte o sesión caída): se puede intentar de nuevo.
+  | 'sii_no_disponible';
 
 export class ErrorRed extends Error {
   codigo: CodigoError;
@@ -81,6 +86,8 @@ export interface DuenoCarrito {
   comuna?: string;
   /** Rubro al registrarse (`RUBROS`), opcional. */
   rubro?: string;
+  /** RUT del comprador (con o sin puntos y guion). Se consulta en el SII y su factura sale a ese RUT. Solo interno. */
+  rut?: string;
 }
 
 export interface NuevoCarrito extends DuenoCarrito {
@@ -116,6 +123,15 @@ export interface NuevoComprador {
   /** Rubro (`RUBROS`); uno desconocido queda como `otro`. */
   rubro?: string;
   telefono?: string;
+  /** RUT (con o sin puntos y guion): se valida, se consulta en el SII y queda en el negocio. Uno ya registrado (por teléfono o `negocioId`) lo recibe. */
+  rut?: string;
+  /** Un comprador ya registrado (sesión web): se reusa en vez de crear otro. */
+  negocioId?: string;
+}
+
+/** Lo que el comprador ve de sí mismo: a quién sale su factura. Solo para su dueño, nunca en datos públicos. */
+export interface ContribuyenteDeRut extends DatosContribuyente {
+  rut: string;
 }
 
 export type NuevaOferta = Omit<Oferta, 'en'>;
@@ -154,8 +170,13 @@ export interface Red {
    * (una por comprador, una línea de detalle por producto) en UN sobre del SII. Se puede volver a llamar si el SII falló: solo emite lo que falta. Devuelve las facturas.
    */
   confirmarOrdenesDeLicitacion(licitacionId: string): Promise<Documento[]>;
-  /** Registra un negocio comprador, o reusa el del mismo teléfono. */
+  /** Registra un negocio comprador, o reusa el del mismo teléfono. Con `rut`, lo consulta en el SII y lo guarda. */
   registrarComprador(datos: NuevoComprador): Promise<Negocio>;
+  /**
+   * Valida el RUT (módulo 11) y trae sus datos del SII, una sola vez por RUT. `datos_invalidos` si no es válido
+   * o el SII no lo conoce; `sii_no_disponible` si la consulta falló. Solo interno.
+   */
+  consultarRut(rut: string): Promise<ContribuyenteDeRut>;
   /** Solo interno (agente de WhatsApp): a qué teléfono avisar por un negocio. */
   telefonoDeNegocio(negocioId: string): string | null;
   /** Foto interna, con teléfonos: solo para el servidor (agente de WhatsApp). */
@@ -190,7 +211,14 @@ export interface OpcionesRed {
   reloj?: () => Date;
   /** Variables de la demo (proveedor, producto, tramos). Por defecto `process.env`. */
   env?: NodeJS.ProcessEnv;
+  /** Consulta de RUT en el SII, ya con cache y fila. Por defecto la falsa (datos simulados). Ver server/red/contribuyente.ts. */
+  consultarContribuyente?: ConsultarContribuyente;
 }
+
+export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
+export const RUT_INVALIDO = 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.';
+export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
+export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
 
 const ZONA = 'America/Santiago';
 const dia = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA }).format(new Date(iso));
@@ -232,7 +260,10 @@ function migrarLicitacion(l: Licitacion) {
   for (const p of l.participantes) p.items ??= [{ productoId: primero, cantidad: p.cantidad }];
 }
 
-export async function crearRed({ repo, sii, reloj = () => new Date(), env = process.env }: OpcionesRed): Promise<Red> {
+export async function crearRed({
+  repo, sii, reloj = () => new Date(), env = process.env,
+  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }),
+}: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
   for (const l of datos.licitaciones) migrarLicitacion(l);
   const oyentes = new Set<(evento: EventoRed) => void>();
@@ -442,12 +473,43 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
 
   const textoCorto = (x: unknown) => String(x ?? '').trim().slice(0, 40);
 
-  function registrarComprador({ nombre, comuna, telefono, rubro }: NuevoComprador) {
+  // RUT del comprador: una consulta al SII por RUT. Primero se busca en los negocios guardados (sobrevive a
+  // reinicios del servidor); si no, la consulta del puerto, que ya trae su propia cache y fila.
+  async function consultarRut(texto: string): Promise<ContribuyenteDeRut> {
+    const rut = validarRut(texto);
+    if (!rut) throw new ErrorRed('datos_invalidos', RUT_INVALIDO);
+    const conocido = datos.negocios.find(n => n.rut === rut && n.contribuyente)?.contribuyente;
+    if (conocido) return { rut, ...structuredClone(conocido) };
+    let encontrado: DatosContribuyente | null;
+    try {
+      encontrado = await consultarContribuyente(rut);
+    } catch (error) {
+      console.error(`[red] no se pudo consultar un RUT en el SII: ${error instanceof Error ? error.message : String(error)}`);
+      throw new ErrorRed('sii_no_disponible', SII_NO_DISPONIBLE);
+    }
+    if (!encontrado) throw new ErrorRed('datos_invalidos', RUT_DESCONOCIDO);
+    return { rut, ...structuredClone(encontrado) };
+  }
+
+  const camposRut = ({ rut, ...contribuyente }: ContribuyenteDeRut): Pick<Negocio, 'rut' | 'contribuyente'> => ({ rut, contribuyente });
+
+  /** Deja el RUT y sus datos del SII en el negocio (si cambió) y lo guarda. */
+  async function asignarRut(n: Negocio, delSii: ContribuyenteDeRut) {
+    if (n.rut === delSii.rut && n.contribuyente) return;
+    Object.assign(n, camposRut(delSii));
+    await guardar('negocios', n);
+  }
+
+  async function registrarComprador({ nombre, comuna, telefono, rubro, rut, negocioId }: NuevoComprador) {
+    // La consulta al SII va antes de la fila: una sala que se suma de golpe no espera detrás de cada consulta.
+    const delSii = rut === undefined ? undefined : await consultarRut(rut);
     return enFila('compradores', async () => {
       const tel = telefono ? normalizarTelefono(telefono) : '';
-      const existente = tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
+      const existente = negocioId ? negocio(negocioId, 'comprador')
+        : tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
       if (existente) {
         if (existente.rol !== 'comprador') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
+        if (delSii) await asignarRut(existente, delSii);
         return structuredClone(existente);
       }
       const limpio = textoCorto(nombre);
@@ -457,6 +519,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
         id: `n-c-${randomUUID().slice(0, 8)}`, nombre: limpio, comuna: textoCorto(comuna), rol: 'comprador', telefono: telefono?.trim() ?? '',
         ...(r ? { rubro: r } : {}),
       };
+      if (delSii) Object.assign(n, camposRut(delSii));
       await guardar('negocios', n);
       return structuredClone(n);
     });
@@ -476,13 +539,21 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
 
   /** El negocio comprador de quien edita su carrito. Con `crear`, registra el teléfono nuevo. */
   async function compradorDe(q: DuenoCarrito, crear: boolean): Promise<Negocio | undefined> {
-    if (q.negocioId) return negocio(q.negocioId, 'comprador');
+    if (q.negocioId) {
+      const n = negocio(q.negocioId, 'comprador');
+      if (q.rut !== undefined) await asignarRut(n, await consultarRut(q.rut));
+      return n;
+    }
     if (!q.telefono) return undefined;
     const tel = normalizarTelefono(q.telefono);
     const existente = tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
     if (existente?.rol === 'proveedor') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
-    if (existente || !crear) return existente;
-    return registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro });
+    if (existente) {
+      if (q.rut !== undefined) await asignarRut(existente, await consultarRut(q.rut));
+      return existente;
+    }
+    if (!crear) return undefined;
+    return registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro, rut: q.rut });
   }
 
   /**
@@ -790,7 +861,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

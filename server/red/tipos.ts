@@ -1,6 +1,7 @@
 // Entidades de la red de compras. Contrato: docs/decisiones/20261121-1130-contrato-red.md
 // Las fechas van como texto ISO para que viajen igual por HTTP, Socket.io y jsonb.
 import type { DocumentoImpreso } from '../sii/index.ts';
+import type { DatosContribuyente } from './contribuyente.ts';
 
 export type Rol = 'comprador' | 'proveedor';
 
@@ -14,6 +15,10 @@ export interface Negocio {
   rubro?: Rubro;
   /** Logo del proveedor de la sala (DEMO_PROVEEDOR_LOGO_URL, solo si es https). */
   logoUrl?: string;
+  /** RUT del comprador en la forma del SII ("12345678-5"). Solo interno: nunca en la foto pública, eventos ni pantallas. */
+  rut?: string;
+  /** Sus datos en el SII, a los que sale su factura. Solo interno, igual que `rut`. */
+  contribuyente?: DatosContribuyente;
 }
 
 /** Rubros de comprador que la pantalla sabe dibujar. Uno desconocido queda como `otro`. */

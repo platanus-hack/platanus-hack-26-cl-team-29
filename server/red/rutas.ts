@@ -1,7 +1,7 @@
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { configDemo } from './config-demo.ts';
-import { ErrorRed } from './dominio.ts';
+import { ErrorRed, FALTA_RUT } from './dominio.ts';
 import type { CodigoError, Recepcion, Red } from './dominio.ts';
 import { generarPdf } from '../sii/index.ts';
 import { nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
@@ -18,6 +18,7 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
   no_encontrado: 404,
   transicion_invalida: 409,
   ocupado: 409,
+  sii_no_disponible: 503,
 };
 
 export interface OpcionesRutas {
@@ -110,14 +111,20 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     res.status(201).json(await red.emitirNotaCredito(id(req)));
   });
 
-  // Página del QR sin sesión: solo público anónimo (nombre, comuna). Un negocio usa /yo/unirse con su sesión;
-  // aquí no se acepta `negocioId` ni `telefono`, para que nadie cambie la cantidad de otro.
+  // Página del QR sin sesión (nombre, comuna y RUT). Un negocio usa /yo/unirse con su sesión; aquí no se
+  // acepta `negocioId` ni `telefono`, para que nadie cambie la cantidad de otro. Sin RUT válido no se suma:
+  // cada factura sale al RUT de quien compra.
   rutas.post('/licitaciones/:id/unirse', limitar, async (req, res) => {
     const b = cuerpo(req);
-    res.json(await red.unirseALicitacion(id(req), {
-      nombre: typeof b.nombre === 'string' ? b.nombre : undefined,
+    if (typeof b.rut !== 'string' || !b.rut.trim()) throw new ErrorRed('datos_invalidos', FALTA_RUT);
+    const negocio = await red.registrarComprador({
+      nombre: typeof b.nombre === 'string' ? b.nombre : '',
       comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
       rubro: typeof b.rubro === 'string' ? b.rubro : undefined,
+      rut: b.rut,
+    });
+    res.json(await red.unirseALicitacion(id(req), {
+      negocioId: negocio.id,
       ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
       cantidad: Number(b.cantidad),
     }));
