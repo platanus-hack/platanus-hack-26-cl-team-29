@@ -100,6 +100,34 @@
 .ficha-pie .comuna { color: var(--color-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ficha-pie .verde { white-space: nowrap; font-weight: 700; }
 
+.sala-abierta.con-competencia { grid-template-rows: auto auto minmax(0, 1fr); }
+.sala-abierta.con-competencia .sala-unirse { grid-row: 1 / 4; }
+.sala-competencia { display: flex; flex-direction: column; gap: calc(var(--u) * 1); min-width: 0; }
+.competencia-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 1.2); }
+.oferta-sala {
+  border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); min-width: 0;
+  padding: calc(var(--u) * 1) calc(var(--u) * 1.4); display: flex; flex-direction: column; gap: calc(var(--u) * 0.3);
+  animation: entrar 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.oferta-quien { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.oferta-quien .nombre { font-size: calc(var(--u) * 2); font-weight: 700; }
+.en-escenario {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: max(10px, calc(var(--u) * 1.3)); text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-magenta); border: 1px solid var(--color-magenta); border-radius: 6px; padding: 1px 6px;
+}
+.oferta-linea { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-muted); }
+.oferta-linea strong { font-family: var(--font-display); font-size: calc(var(--u) * 2.8); color: var(--color-text); white-space: nowrap; }
+.oferta-linea span { white-space: nowrap; }
+.oferta-sala.gana { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
+.oferta-sala.gana .oferta-linea, .oferta-sala.gana .oferta-linea strong { color: var(--color-primary-foreground); font-weight: 700; }
+.oferta-sala.gana .en-escenario { color: var(--color-primary-foreground); border-color: var(--color-primary-foreground); }
+
+.sala-pasos { list-style: none; margin: 0; padding: 0; display: flex; gap: calc(var(--u) * 1.6); font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-tenue); white-space: nowrap; }
+.sala-pasos b { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; border: 1px solid currentColor; font-weight: 700; margin-right: 4px; }
+.sala-pasos .activo { color: var(--color-primary); }
+.sala-pasos .activo b { background: var(--color-primary); color: var(--color-primary-foreground); border-color: var(--color-primary); }
+.sin-sii { margin: calc(var(--u) * 1.2) 0 0; font-family: var(--font-mono); font-size: calc(var(--u) * 2.2); color: var(--color-primary); font-weight: 700; }
+
 /* ---------- Bajó el precio: momento a pantalla completa ---------- */
 .bajada-precio {
   position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
@@ -254,6 +282,7 @@
   .sala-numero strong { font-size: calc(var(--u) * 4); }
   .sala-facturas { grid-template-columns: minmax(0, 1fr) calc(var(--u) * 40); }
   .sala-facturas.final { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+  .sala-pasos li:not(.activo) .paso-texto { display: none; }
   .sala-totales { grid-template-columns: repeat(2, auto); row-gap: calc(var(--u) * 3); }
 }
 

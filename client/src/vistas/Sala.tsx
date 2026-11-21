@@ -4,8 +4,8 @@ import { Escalera } from '../components/Escalera.tsx';
 import { useGrillaQueCabe } from '../components/medidas.ts';
 import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
-import { facturaAceptada, licitacionActual, resumenSala, type FacturaSala, type ResumenSala } from '../red/derivar.ts';
-import { contar, cuentaRegresiva, dinero, textoEstadoSii, telefono } from '../red/formato.ts';
+import { competencia, facturaAceptada, licitacionActual, resumenSala, type FacturaSala, type OfertaSala, type ResumenSala } from '../red/derivar.ts';
+import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii, telefono } from '../red/formato.ts';
 import type { ConfigRed, Licitacion } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 import './sala.css';
@@ -15,6 +15,7 @@ const DURACION_BAJADA = 2400;
 /** Ancho mínimo de cada ficha del muro, en px. */
 const ANCHO_FICHA = 300;
 const ANCHO_FACTURA = 270;
+const ANCHO_OFERTA = 230;
 
 type Unidad = ResumenSala['unidad'];
 const cuantas = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
@@ -89,11 +90,34 @@ function Muro({ s }: { s: ResumenSala }) {
   );
 }
 
-function Abierta({ s, lic, config }: { s: ResumenSala; lic: Licitacion; config: ConfigRed }) {
+function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
+  const [ref, { columnas }] = useGrillaQueCabe<HTMLUListElement>(ANCHO_OFERTA, 12, ofertas.length);
+  return (
+    <section className="sala-competencia">
+      <p className="etiqueta">Proveedores compitiendo · gana el mejor precio</p>
+      <ul className="competencia-lista" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
+        {ofertas.slice(0, columnas).map(o => (
+          <li key={o.n} className={`oferta-sala ${o.gana ? 'gana' : ''}`}>
+            <span className="oferta-quien">
+              <span className="nombre">{o.proveedor}</span>
+              {o.enEscenario && <span className="en-escenario">en la sala</span>}
+            </span>
+            <span className="oferta-linea">
+              <strong>{dinero(o.precioUnitario)}</strong>
+              <span>{o.gana ? 'va ganando' : o.nota !== undefined ? `nota ${nota(o.nota)}` : '\u00a0'}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Abierta({ s, lic, config, ofertas }: { s: ResumenSala; lic: Licitacion; config: ConfigRed; ofertas: OfertaSala[] }) {
   const t = s.tramos;
   const porcentaje = s.precioSolo && t.precioActual !== undefined ? Math.round(((s.precioSolo - t.precioActual) / s.precioSolo) * 100) : 0;
   return (
-    <div className="sala-abierta">
+    <div className={`sala-abierta ${ofertas.length ? 'con-competencia' : ''}`}>
       <Unirse config={config} lic={lic} />
       <section className="sala-tablero">
         <div className="sala-precio">
@@ -118,6 +142,7 @@ function Abierta({ s, lic, config }: { s: ResumenSala; lic: Licitacion; config: 
         </div>
         <Escalera tramos={t} unidad={s.unidad} className="horizontal" />
       </section>
+      {ofertas.length > 0 && <Competencia ofertas={ofertas} />}
       <Muro s={s} />
     </div>
   );
@@ -150,10 +175,14 @@ function Totales({ s }: { s: ResumenSala }) {
   );
 }
 
-function Cerrada({ s }: { s: ResumenSala }) {
+function Cerrada({ s, ofertas }: { s: ResumenSala; ofertas: OfertaSala[] }) {
+  const rivales = new Set(ofertas.map(o => o.proveedorId)).size;
   return (
     <div className="sala-cerrada">
-      <p className="etiqueta">{contar(s.muro.length, 'negocio')} · {cuantas(s.tramos.totalUnidades, s.unidad)} en un solo pedido</p>
+      <p className="etiqueta">
+        {contar(s.muro.length, 'negocio')} · {cuantas(s.tramos.totalUnidades, s.unidad)} en un solo pedido
+        {rivales > 1 && ` · ganó el mejor precio entre ${contar(rivales, 'proveedor', 'proveedores')}`}
+      </p>
       <h2>Esperando el sí de <span className="amarillo">{s.proveedor}</span><span className="puntos" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></h2>
       <Totales s={s} />
     </div>
@@ -196,6 +225,7 @@ function Facturando({ s }: { s: ResumenSala }) {
         <div>
           <div className="numero-gigante" key={s.facturas.length}>{s.facturas.length}</div>
           <p className="resumen-texto">{s.facturas.length === 1 ? 'factura emitida' : 'facturas emitidas'} en el SII</p>
+          <p className="sin-sii">Nadie entró al sitio del SII: todo salió solo.</p>
         </div>
         <div>
           <div className="avance sii"><i style={{ width: `${s.facturas.length ? (s.aceptadas / s.facturas.length) * 100 : 0}%` }} /></div>
@@ -214,6 +244,25 @@ function Facturando({ s }: { s: ResumenSala }) {
         )}
       </section>
     </div>
+  );
+}
+
+/** La historia en tres pasos; se ilumina el de la fase actual. */
+const PASOS: Array<[string, ResumenSala['fase'][]]> = [
+  ['Compran juntos, baja el precio', ['abierta']],
+  ['Proveedores compiten', ['abierta', 'cerrada']],
+  ['Factura automática en el SII', ['facturando', 'lista']],
+];
+
+function Pasos({ fase }: { fase: ResumenSala['fase'] }) {
+  return (
+    <ol className="sala-pasos">
+      {PASOS.map(([texto, fases], i) => (
+        <li key={texto} className={fases.includes(fase) ? 'activo' : ''}>
+          <b>{i + 1}</b> <span className="paso-texto">{texto}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -242,6 +291,7 @@ export function Sala() {
   const s = resumenSala(lic, estado, eventos, ahora);
   const restante = Date.parse(lic.cierraEn) - ahora;
   const bajada = s.fase === 'abierta' ? bajadaReciente(eventos, lic.id, ahora) : null;
+  const ofertas = competencia(lic, estado);
 
   return (
     <main className={`sala fase-${s.fase}`}>
@@ -251,6 +301,7 @@ export function Sala() {
           <div>
             <div className="lic-meta">
               <span className="en-vivo">La sala compra junta</span>
+              <Pasos fase={s.fase} />
               <AvisoFuente fuente={fuente} />
             </div>
             <h1>{config.producto ?? lic.producto}</h1>
@@ -262,8 +313,8 @@ export function Sala() {
         </div>
       </header>
 
-      {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} />}
-      {s.fase === 'cerrada' && <Cerrada s={s} />}
+      {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} ofertas={ofertas} />}
+      {s.fase === 'cerrada' && <Cerrada s={s} ofertas={ofertas} />}
       {(s.fase === 'facturando' || s.fase === 'lista') && <Facturando s={s} />}
 
       {bajada && <BajoElPrecio key={bajada.clave} anterior={bajada.anterior} nuevo={bajada.nuevo} unidad={s.unidad} />}
