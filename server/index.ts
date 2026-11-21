@@ -6,6 +6,7 @@ import { createWhatsApp } from './whatsapp/index.ts';
 import { crearRutasRed, iniciarRed } from './red/index.ts';
 import { iniciarConexionSii } from './conexion-sii/index.ts';
 import { conectarAgente } from './agente/index.ts';
+import { crearInterpreteDesdeEnv } from './ia/index.ts';
 
 const app = express();
 const http = createServer(app);
@@ -18,7 +19,7 @@ export const whatsapp = await createWhatsApp({ db: dbRed });
 const conexionSii = await iniciarConexionSii(dbRed);
 export const red = await iniciarRed(dbRed, conexionSii.sii);
 red.escuchar(evento => io.emit('red:evento', evento));
-export const agente = conectarAgente(whatsapp, red);
+export const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env, red) });
 
 app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP de /api/red)
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo

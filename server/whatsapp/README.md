@@ -1,6 +1,6 @@
 # server/whatsapp — módulo de WhatsApp (Kapso)
 
-Dueño: @javierwb. **No modifiques este módulo para construir una feature: úsalo.**
+Dueño: @javierzagal. **No modifiques este módulo para construir una feature: úsalo.**
 Si necesitas algo que la API no ofrece, pídelo (PR o en `agents/`), no lo parches desde afuera.
 
 ## Regla de uso

@@ -83,3 +83,10 @@ test('un mensaje con botones inválidos se rechaza sin llamar al proveedor', asy
   assert.equal(result.status, 'failed');
   assert.equal(sent.length, 0);
 });
+
+test('sin teléfono no se guarda ni se llama al proveedor', async () => {
+  const { outbox, sent } = setup();
+  const result = await outbox.send('', 'hola', 'agente');
+  assert.equal(result.status, 'failed');
+  assert.equal(sent.length, 0);
+});

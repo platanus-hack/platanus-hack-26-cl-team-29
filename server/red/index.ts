@@ -21,7 +21,7 @@ export type {
   BajadaPrecio, CodigoError, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
   NuevoParticipante, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
 } from './dominio.ts';
-export { normalizarProducto, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
+export { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
 export { sinTelefonos } from './publico.ts';
 export { enlacePdf, nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';

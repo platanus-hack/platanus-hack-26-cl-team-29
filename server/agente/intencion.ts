@@ -9,13 +9,27 @@ export type Intencion =
   | { readonly tipo: 'conforme' }
   | { readonly tipo: 'faltante'; readonly cantidad: number }
   | { readonly tipo: 'ver_pedidos' }
+  /** Respuesta en lenguaje libre (una pregunta, una consulta): se manda tal cual, no ejecuta nada. */
+  | { readonly tipo: 'respuesta'; readonly texto: string }
   | { readonly tipo: 'otro' };
+
+/** Lo que el intérprete conversacional sabe del mensaje. Nunca incluye teléfonos. */
+export interface EntradaConversacion {
+  readonly negocio: { readonly id: string; readonly nombre: string; readonly comuna: string; readonly rol: 'comprador' | 'proveedor' };
+  readonly texto: string;
+  /** Mensajes anteriores de esta conversación, del más antiguo al más nuevo (sin el actual). */
+  readonly historial: readonly { readonly de: 'persona' | 'bando'; readonly texto: string }[];
+  /** Lo que el agente está esperando que la persona confirme, si hay algo. */
+  readonly pendiente: string | null;
+}
 
 export interface Interprete {
   /** `pregunta` es lo último que el agente preguntó, si espera respuesta. */
   interpretar(texto: string, pregunta: string | null): Promise<Intencion>;
   /** Compra conjunta: solo para lo que las reglas no entienden con seguridad. */
   interpretarCanasta?(texto: string, pregunta: string, catalogo: Catalogo): Promise<DatosCanasta>;
+  /** Con contexto y consultas a la red: puede responder preguntas además de clasificar (server/ia/). */
+  conversar?(entrada: EntradaConversacion): Promise<Intencion>;
 }
 
 export const NUMEROS: Record<string, number> = {
