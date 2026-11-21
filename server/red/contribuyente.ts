@@ -23,6 +23,8 @@ export interface DatosContribuyente {
   actividades: ActividadEconomica[];
   /** Datos de la consulta falsa: no se usan para facturar en el SII real. */
   simulado?: boolean;
+  /** Razón social y giro que escribió la persona porque el SII no respondió: se vuelven a consultar en la próxima ocasión. */
+  declarado?: boolean;
 }
 
 /** El puerto. `rut` llega ya validado en la forma del SII ("12345678-5"). null si el SII no lo conoce. */
