@@ -276,19 +276,6 @@
 }
 .cn-hola { margin: 0; font-size: 13px; color: var(--color-muted); overflow-wrap: anywhere; }
 .cn-enlace-app { font-family: var(--font-mono); font-size: 14px; color: var(--color-muted); text-align: center; padding: 12px; }
-.cn-formulario { display: grid; gap: 16px; }
-.cn-formulario .cn-ancho { margin-top: 0; }
-.cn-rubros { border: 0; padding: 0; margin: 0; min-width: 0; }
-.cn-rubros legend { padding: 0; margin-bottom: 8px; }
-.cn-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.cn-chip-opcion {
-  font: inherit; font-family: var(--font-mono); font-size: 14px; font-weight: 600; min-height: 40px; padding: 8px 12px; border-radius: 20px;
-  border: 1px solid var(--color-border); background: transparent; color: var(--color-text); cursor: pointer;
-}
-.cn-chip-opcion.elegida { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
-.cn-compra-cabecera { display: grid; gap: 4px; }
-.cn-titulo-compra { margin: 6px 0 0; font-size: 26px; font-weight: 800; letter-spacing: var(--tracking-tight); }
-.cn-compra-cabecera .cn-grupo { margin: 0; }
 
 .cn-carrito { display: grid; gap: 12px; min-width: 0; }
 .cn-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -328,7 +315,7 @@
 .cn-selector button:disabled { opacity: 0.35; cursor: default; }
 .cn-selector svg { stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; fill: none; }
 .cn-selector output { text-align: center; font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; }
-.cn-agregar:focus-visible, .cn-selector button:focus-visible, .cn-chip-opcion:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
+.cn-agregar:focus-visible, .cn-selector button:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
 
 .cn-salir { justify-self: center; font-size: 13px; }
 

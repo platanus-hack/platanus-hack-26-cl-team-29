@@ -1,19 +1,18 @@
 # javier-acceso
-Actualizado: 2026-11-21 19:50
+Actualizado: 2026-11-21 20:38
 
 ## Estado
-libre (PR abierto, esperando revisión)
+libre
 
 ## Trabajando en
-- Usuarios en la web: entrar con el teléfono y un código por WhatsApp, sesión larga en el dispositivo. Rama `feat/acceso-whatsapp`.
+- Pantalla de entrada (teléfono, código y registro) con la marca Bando. Rama `feat/acceso-marca`.
 
 ## Archivos que estoy tocando
-- server/red/acceso.ts (nuevo), server/red/sesiones.ts, server/red/rutas-web.ts, server/red/rutas.ts, server/index.ts (cableado)
-- shared/telefono.ts
-- client/src/canal/Acceso.tsx (nuevo), api.ts, falso.ts, useCanal.ts, MiNegocio.tsx, Proveedor.tsx, client/src/vistas/Unirse.tsx
-- test/acceso.test.ts (nuevo) y los tests que entraban con /sesion o PROVEEDOR_CODIGO
+- client/src/canal/Acceso.tsx, client/src/canal/Carrito.tsx (mover `FormularioNegocio`), client/src/comprador/comprador.css
+- client/src/canal/MiNegocio.tsx y client/src/vistas/Unirse.tsx (solo cómo muestran la entrada)
 
 ## Hecho
+- Pantalla de entrada con la marca (tarjeta sobre crema, ícono de flujo "Entrar"), la misma en /app, /proveedor y /unirse; el registro vive en Acceso.tsx
 - Entrar con el teléfono y un código por WhatsApp; sesión de 90 días en Postgres; sesión del negocio (compra y vende con la misma)
 
 ## Bloqueos
