@@ -35,3 +35,26 @@ test('las rutas /api/red recorren el ciclo de la orden y traducen errores a HTTP
     server.close();
   }
 });
+
+test('el reinicio de la demo no existe sin DEMO_TOKEN y exige el token correcto', async () => {
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo);
+  const red = await crearRed({ repo, sii: crearSiiFalso() });
+  const conToken = express().use(express.json()).use('/api/red', crearRutasRed(red, { DEMO_TOKEN: 'secreto-de-prueba' }));
+  const sinToken = express().use(express.json()).use('/api/red', crearRutasRed(red, {}));
+  const servidores = [conToken.listen(0), sinToken.listen(0)];
+  const [urlCon, urlSin] = servidores.map(s => `http://localhost:${(s.address() as AddressInfo).port}/api/red/demo/reiniciar`);
+  const reiniciar = (url: string, token?: string) => fetch(url, { method: 'POST', headers: token ? { 'x-demo-token': token } : {} });
+
+  try {
+    await red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 1 });
+    assert.equal((await reiniciar(urlSin, 'secreto-de-prueba')).status, 404);
+    assert.equal((await reiniciar(urlCon)).status, 403);
+    assert.equal((await reiniciar(urlCon, 'otro')).status, 403);
+    const ok = await reiniciar(urlCon, 'secreto-de-prueba');
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).licitaciones[0].participantes.length, 3);
+  } finally {
+    for (const s of servidores) s.close();
+  }
+});

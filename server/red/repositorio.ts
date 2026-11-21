@@ -5,6 +5,8 @@ import type { Coleccion, DatosRed } from './tipos.ts';
 export interface Repositorio {
   cargar(): Promise<DatosRed>;
   guardar<C extends Coleccion>(coleccion: C, entidad: DatosRed[C][number]): Promise<void>;
+  /** Borra todas las colecciones de la red (solo tablas `red_*`; los folios del SII viven aparte). */
+  vaciar(): Promise<void>;
 }
 
 const COLECCIONES: Coleccion[] = ['negocios', 'ordenes', 'documentos', 'eventosReputacion', 'licitaciones'];
@@ -24,6 +26,9 @@ export function crearRepositorioMemoria(): Repositorio {
       const i = lista.findIndex(e => e.id === entidad.id);
       if (i >= 0) lista[i] = copia;
       else lista.push(copia);
+    },
+    async vaciar() {
+      Object.assign(datos, datosVacios());
     },
   };
 }
@@ -55,6 +60,9 @@ export async function crearRepositorioPostgres(db: pg.Pool): Promise<Repositorio
          on conflict (id) do update set datos = excluded.datos`,
         [entidad.id, JSON.stringify(entidad)],
       );
+    },
+    async vaciar() {
+      await db.query(`truncate ${COLECCIONES.map(tabla).join(', ')}`);
     },
   };
 }

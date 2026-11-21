@@ -87,8 +87,9 @@ test('estadoDeLaRed entrega la foto completa y no se puede alterar desde afuera'
   const { red } = await redDePrueba({ ahora: new Date() });
   const foto = red.estadoDeLaRed();
   assert.equal(foto.negocios.length, 8);
-  assert.equal(foto.notas[PROVEEDOR_DEMO], 4.7);
-  assert.equal(foto.notas['n-molinos-del-sur'], 3.9);
+  assert.deepEqual(foto.notas, {
+    [PROVEEDOR_DEMO]: 4.7, 'n-molinos-del-sur': 4.6, 'n-harinas-andes': 4.5, 'n-distribuidora-sur': 4.4,
+  });
   assert.equal(foto.licitaciones[0].estado, 'abierta');
   foto.negocios.length = 0;
   assert.equal(red.estadoDeLaRed().negocios.length, 8);
@@ -120,4 +121,58 @@ test('la guía de un despacho parcial dice menos que la orden y la factura', asy
   const [factura, guia] = red.estadoDeLaRed().documentos.filter(d => d.ordenId === orden.id);
   assert.deepEqual([factura.tipo, factura.monto, guia.tipo, guia.monto], [33, 72000, 52, 36000]);
   await assert.rejects(red.fijarDespacho(orden.id, 1), { codigo: 'transicion_invalida' });
+});
+
+test('un reclamo baja a Molinos 0,4 (del segundo al cuarto lugar) y la nota de crédito del mismo día recupera 0,2', async () => {
+  const { red } = await redDePrueba({ ahora: new Date('2026-11-21T15:00:00Z') });
+  const ranking = () => Object.entries(red.estadoDeLaRed().notas).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  assert.equal(ranking().indexOf('n-molinos-del-sur'), 1);
+  const orden = await red.crearOrden({ compradorId: COMPRADOR_DEMO, proveedorId: 'n-molinos-del-sur', items: [{ producto: 'harina', cantidad: 4 }] });
+  await red.confirmarOrden(orden.id);
+  await red.registrarRecepcion(orden.id, { faltante: 2 });
+  assert.equal(red.notaDeProveedor('n-molinos-del-sur'), 4.2);
+  assert.equal(ranking().indexOf('n-molinos-del-sur'), 3);
+  await red.emitirNotaCredito(orden.id);
+  assert.equal(red.notaDeProveedor('n-molinos-del-sur'), 4.4);
+});
+
+test('cuando el SII cambia el estado de un documento emitido, la red lo actualiza y emite documento.actualizado', async () => {
+  let avisar: (c: { tipo: 33 | 52 | 61; folio: number; estadoSii: string }) => void = () => {};
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo);
+  const red = await crearRed({ repo, sii: { ...crearSiiFalso(), alCambiarEstado: oyente => { avisar = oyente; } } });
+  const eventos: EventoRed[] = [];
+  red.escuchar(e => eventos.push(e));
+  const orden = await pedirHarina(red);
+  await red.confirmarOrden(orden.id);
+  const factura = red.estadoDeLaRed().documentos.find(d => d.tipo === 33)!;
+
+  avisar({ tipo: 33, folio: factura.folio, estadoSii: 'aceptado' });
+  await new Promise(r => setImmediate(r));
+  assert.equal(red.estadoDeLaRed().documentos.find(d => d.id === factura.id)?.estadoSii, 'aceptado');
+  assert.equal(eventos.at(-1)?.tipo, 'documento.actualizado');
+  assert.equal((eventos.at(-1)?.datos as { documento: { id: string } }).documento.id, factura.id);
+  assert.equal(await red.actualizarEstadoDocumento(33, 999999, 'aceptado'), null);
+});
+
+test('reiniciar la demo borra órdenes y documentos, resiembra la licitación y no reusa folios', async () => {
+  const reloj = { ahora: new Date('2026-11-21T15:00:00Z') };
+  const { red, eventos } = await redDePrueba(reloj);
+  const primera = await pedirHarina(red);
+  await red.confirmarOrden(primera.id);
+  const folioAntes = red.estadoDeLaRed().documentos.find(d => d.tipo === 33)!.folio;
+  await red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 1 });
+
+  reloj.ahora = new Date('2026-11-21T16:00:00Z');
+  const estado = await red.reiniciarDemo();
+  assert.equal(estado.ordenes.length, 0);
+  assert.equal(estado.documentos.length, 0);
+  assert.equal(estado.licitaciones[0].participantes.length, 3);
+  assert.equal(estado.licitaciones[0].cierraEn, '2026-11-21T16:05:00.000Z');
+  assert.equal(estado.notas[PROVEEDOR_DEMO], 4.7);
+  assert.equal(eventos.at(-1)?.tipo, 'red.reiniciada');
+
+  const segunda = await pedirHarina(red);
+  await red.confirmarOrden(segunda.id);
+  assert.ok(red.estadoDeLaRed().documentos.find(d => d.tipo === 33)!.folio > folioAntes);
 });

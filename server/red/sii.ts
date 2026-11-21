@@ -1,4 +1,4 @@
-import type { Documento, Item, Negocio, OrdenCompra } from './tipos.ts';
+import type { Documento, Item, Negocio, OrdenCompra, TipoDocumento } from './tipos.ts';
 
 // Lo que la red necesita del SII. Cuando exista server/sii/, se escribe un adaptador
 // de esta interfaz sobre esa (los RUT salen de variables de entorno allá, nunca de aquí).
@@ -26,6 +26,14 @@ export interface PuertoSii {
   emitirNotaCredito(datos: DatosEmision & { factura: Documento; items: Item[] }): Promise<ResultadoSii>;
   /** Reclamo del receptor sobre la factura (contenido o falta parcial de mercaderías). */
   registrarReclamo(datos: { factura: Documento; receptor: Negocio; motivo: string }): Promise<{ estadoSii: string }>;
+  /** Opcional: avisa cuando el SII cambia el estado de un documento ya emitido (p. ej. su veredicto). */
+  alCambiarEstado?(oyente: (cambio: CambioEstadoSii) => void): void;
+}
+
+export interface CambioEstadoSii {
+  tipo: TipoDocumento;
+  folio: number;
+  estadoSii: string;
 }
 
 /**

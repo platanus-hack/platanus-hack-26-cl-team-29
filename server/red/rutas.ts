@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { ErrorRed } from './dominio.ts';
@@ -11,7 +12,7 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
 };
 
 /** Rutas `/api/red` del contrato. Requiere `express.json()` montado antes. */
-export function crearRutasRed(red: Red): express.Router {
+export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
   const cuerpo = (req: Request): Record<string, unknown> => (req.body && typeof req.body === 'object' ? req.body : {});
@@ -56,6 +57,22 @@ export function crearRutasRed(red: Red): express.Router {
       comuna: typeof b.comuna === 'string' ? b.comuna : undefined,
       cantidad: Number(b.cantidad),
     }));
+  });
+
+  // Reinicio de la demo, protegido con DEMO_TOKEN. Sin la variable la ruta no existe (404).
+  rutas.post('/demo/reiniciar', async (req, res) => {
+    const token = env.DEMO_TOKEN;
+    if (!token) {
+      res.status(404).json({ error: 'no_encontrado', mensaje: 'Ruta no disponible' });
+      return;
+    }
+    const enviado = Buffer.from(String(req.get('x-demo-token') ?? ''));
+    const esperado = Buffer.from(token);
+    if (enviado.length !== esperado.length || !timingSafeEqual(enviado, esperado)) {
+      res.status(403).json({ error: 'token_invalido', mensaje: 'x-demo-token no coincide con DEMO_TOKEN' });
+      return;
+    }
+    res.json(await red.reiniciarDemo());
   });
 
   rutas.post('/licitaciones/:id/ofertas', async (req, res) => {
