@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import type { Negocio, OrdenCompra } from '../red/tipos.ts';
 import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
+import type { ItemCarrito } from './carrito.ts';
 import type { ConexionSii, ConfigRed, DatosEmpresaSii, FichaSii, FotoRed, Modo, Recepcion, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
@@ -16,9 +17,13 @@ export interface CanalApi {
   modo: Modo;
   config(): Promise<ConfigRed>;
   estado(): Promise<FotoRed>;
-  sesion(nombre: string, comuna: string): Promise<{ token: string; negocio: Negocio }>;
+  sesion(nombre: string, comuna: string, rubro?: string): Promise<{ token: string; negocio: Negocio }>;
   yo(token: string): Promise<YoComprador>;
   unirse(token: string, licitacionId: string, cantidad: number): Promise<void>;
+  /** Reemplaza el carrito completo de la canasta (cantidad 0 quita; vacío = sale). */
+  carrito(token: string, licitacionId: string, items: ItemCarrito[]): Promise<void>;
+  /** Sale de la compra conjunta (vacía el carrito). */
+  salir(token: string, licitacionId: string): Promise<void>;
   pedir(token: string, proveedorId: string, items: ItemPedido[]): Promise<OrdenCompra>;
   recepcion(token: string, ordenId: string, r: Recepcion): Promise<void>;
   sesionProveedor(codigo: string): Promise<{ token: string }>;
@@ -103,12 +108,14 @@ export function crearApiReal(): CanalApi {
     modo: 'real',
     config: () => llamar('/config'),
     estado: async () => normalizarEstado(await llamar('/estado')) as FotoRed,
-    sesion: (nombre, comuna) => llamar('/sesion', { cuerpo: { nombre, ...(comuna ? { comuna } : {}) } }),
+    sesion: (nombre, comuna, rubro) => llamar('/sesion', { cuerpo: { nombre, ...(comuna ? { comuna } : {}), ...(rubro ? { rubro } : {}) } }),
     yo: async token => {
       const r = await llamar<Partial<YoComprador>>('/yo', { token });
       return { negocio: r.negocio!, ordenes: lista(r.ordenes), documentos: lista(r.documentos), participaciones: lista(r.participaciones) };
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
+    carrito: async (token, licitacionId, items) => { await llamar('/yo/carrito', { token, cuerpo: { licitacionId, items }, metodo: 'PUT' }); },
+    salir: async (token, licitacionId) => { await llamar(`/yo/carrito/${encodeURIComponent(licitacionId)}`, { token, metodo: 'DELETE' }); },
     pedir: (token, proveedorId, items) => llamar('/yo/ordenes', { token, cuerpo: { proveedorId, items } }),
     recepcion: async (token, ordenId, r) => { await llamar(`/yo/ordenes/${encodeURIComponent(ordenId)}/recepcion`, { token, cuerpo: r }); },
     sesionProveedor: codigo => llamar('/proveedor/sesion', { cuerpo: { codigo } }),

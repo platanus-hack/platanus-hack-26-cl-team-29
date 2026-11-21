@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from 'react';
 import { textoEstadoSii } from '../red/formato.ts';
-import { LogoSii } from './iconos.tsx';
-import { confirmacion, SIN_CONFIRMACION, type Confirmacion, type EventoConfirmacion } from './logica.ts';
+import { GlifoWhatsapp, LogoSii } from './iconos.tsx';
+import { confirmacion, enlaceWhatsapp, formatearTelefono, SIN_CONFIRMACION, type Confirmacion, type EventoConfirmacion } from './logica.ts';
 
 /** Paso de confirmación en la página: pedir → (sí) → enviando → listo o error. */
 export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {
@@ -106,5 +106,20 @@ export function Vacio({ titulo, texto, accion, onAccion }: { titulo: string; tex
         {accion && onAccion && <button type="button" className="boton cn-ancho" onClick={onAccion}>{accion}</button>}
       </div>
     </section>
+  );
+}
+
+/** "Pedir por WhatsApp": la alternativa al carrito web. Sin número configurado, no se muestra. */
+export function BotonWhatsapp({ numero }: { numero: string | null | undefined }) {
+  const enlace = enlaceWhatsapp(numero, 'Quiero sumarme');
+  if (!enlace || !numero) return null;
+  return (
+    <a className="cn-boton-whatsapp" href={enlace} target="_blank" rel="noreferrer">
+      <GlifoWhatsapp />
+      <span className="cn-wa-textos">
+        <strong>Pedir por WhatsApp</strong>
+        <span>{formatearTelefono(numero)}</span>
+      </span>
+    </a>
   );
 }

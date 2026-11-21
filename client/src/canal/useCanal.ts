@@ -111,3 +111,45 @@ export function useDatosConSesion<T>(
   const recargar = useCallback(() => setPedidos(n => n + 1), []);
   return { datos, error, recargar };
 }
+
+interface SesionGuardada {
+  token: string;
+  nombre: string;
+  comuna: string;
+  rubro?: string;
+  modo: string;
+}
+
+function leerSesion(texto: string | null): SesionGuardada | null {
+  try {
+    const s = texto ? (JSON.parse(texto) as SesionGuardada) : null;
+    return s && typeof s.token === 'string' ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sesión web del comprador, compartida por `/unirse` y `/app` en el mismo teléfono (localStorage).
+ * Si vence (reinicio del servidor o de la red falsa), se vuelve a entrar sola con el mismo nombre.
+ */
+export function useSesionComprador(api: CanalApi | null) {
+  const [guardada, guardar] = useGuardado('domino.app.sesion', 'local');
+  const sesion = leerSesion(guardada);
+  // Una sesión de la red falsa no sirve contra el backend real, ni al revés.
+  const token = api && sesion?.modo === api.modo ? sesion.token : null;
+
+  const entrar = useCallback(async (nombre: string, comuna: string, rubro?: string) => {
+    if (!api) return;
+    const r = await api.sesion(nombre, comuna, rubro);
+    guardar(JSON.stringify({ token: r.token, nombre, comuna, ...(rubro ? { rubro } : {}), modo: api.modo } satisfies SesionGuardada));
+  }, [api, guardar]);
+
+  const alVencer = useCallback(() => {
+    if (sesion) void entrar(sesion.nombre, sesion.comuna, sesion.rubro).catch(() => guardar(null));
+    else guardar(null);
+  }, [sesion?.token, entrar, guardar]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const salir = useCallback(() => guardar(null), [guardar]);
+  return { token, nombre: sesion?.nombre, entrar, alVencer, salir };
+}

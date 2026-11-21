@@ -1,26 +1,25 @@
 // /app: "Mi negocio", el canal web del comprador. Las mismas acciones que por WhatsApp:
 // sumarse a la compra conjunta, pedir a un proveedor, recibir o reclamar en el SII y ver las facturas.
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { contar, cuantos, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Negocio } from '../red/tipos.ts';
 import type { CanalApi } from './api.ts';
 import {
-  cicloDelPedido, enlaceWhatsapp, estaAbierta, licitacionVigente, normalizarTramos, precioDelGrupo, totalOrden, unidadPara, montoNotaCredito,
+  cicloDelPedido, estaAbierta, licitacionVigente, totalOrden, unidadPara, montoNotaCredito,
   type Unidad,
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
-import { Cantidad, Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
-import type { ConfigRed, FotoRed, LicitacionCanal, OrdenCanal, YoComprador } from './tipos.ts';
-import { useCanal, useDatosConSesion, useGuardado } from './useCanal.ts';
+import { CarritoCompra, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
+import { BotonWhatsapp, Cantidad, Confirmar, EstadoSii, Marca, useConfirmacion, Vacio } from './piezas.tsx';
+import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
+import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
 import './canal.css';
 
-const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'Santiago', 'San Joaquín', 'La Florida', 'Las Condes', 'Maipú'];
 /** Copia del catálogo de la red (server/red/catalogo.ts). El producto de la compra conjunta se compra en su sección. */
 const CATALOGO = ['Harina 25 kg', 'Levadura 500 g', 'Azúcar 25 kg', 'Manteca 10 kg', 'Sal 25 kg'];
-const MAX_COMPRA_CONJUNTA = 20;
 
 type Seccion = 'compra' | 'pedir' | 'pedidos' | 'facturas';
 const SECCIONES: Array<[Seccion, string, NombreIcono]> = [
@@ -34,28 +33,9 @@ const seccionDelHash = (): Seccion => {
 
 const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 
-interface SesionGuardada {
-  token: string;
-  nombre: string;
-  comuna: string;
-  modo: string;
-}
-
-function leerSesion(texto: string | null): SesionGuardada | null {
-  try {
-    const s = texto ? (JSON.parse(texto) as SesionGuardada) : null;
-    return s && typeof s.token === 'string' ? s : null;
-  } catch {
-    return null;
-  }
-}
-
 export function MiNegocio() {
   const { api, config, foto, cambio, fuente } = useCanal();
-  const [guardada, guardar] = useGuardado('domino.app.sesion', 'local');
-  const sesion = leerSesion(guardada);
-  // Una sesión de la red falsa no sirve contra el backend real, ni al revés.
-  const token = api && sesion?.modo === api.modo ? sesion.token : null;
+  const { token, entrar, alVencer, salir } = useSesionComprador(api);
   const [seccion, setSeccion] = useState<Seccion>(seccionDelHash);
 
   useEffect(() => {
@@ -63,18 +43,6 @@ export function MiNegocio() {
     addEventListener('hashchange', alCambiar);
     return () => removeEventListener('hashchange', alCambiar);
   }, []);
-
-  const entrar = useCallback(async (nombre: string, comuna: string) => {
-    if (!api) return;
-    const r = await api.sesion(nombre, comuna);
-    guardar(JSON.stringify({ token: r.token, nombre, comuna, modo: api.modo } satisfies SesionGuardada));
-  }, [api, guardar]);
-
-  // Si vence la sesión de prueba (la red falsa vive en memoria), se vuelve a entrar con el mismo nombre.
-  const alVencer = useCallback(() => {
-    if (api?.modo === 'falso' && sesion) void entrar(sesion.nombre, sesion.comuna).catch(() => guardar(null));
-    else guardar(null);
-  }, [api, sesion, entrar, guardar]);
 
   const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), alVencer);
 
@@ -84,7 +52,6 @@ export function MiNegocio() {
 
   const irA = (s: Seccion) => { location.hash = s; };
   const porRecibir = yo.ordenes.filter(o => o.estado === 'facturada').length;
-  const wa = enlaceWhatsapp(config?.whatsappNumero);
 
   return (
     <div className="cn-app">
@@ -95,7 +62,7 @@ export function MiNegocio() {
           <strong className="nombre">{yo.negocio.nombre}</strong>
           <span className="mono tenue">{yo.negocio.comuna} <AvisoFuente fuente={fuente} /></span>
         </div>
-        <button type="button" className="cn-boton-texto" onClick={() => guardar(null)}>Salir</button>
+        <button type="button" className="cn-boton-texto" onClick={salir}>Salir</button>
       </header>
 
       <nav className="cn-pestanas" aria-label="Secciones">
@@ -110,15 +77,11 @@ export function MiNegocio() {
 
       <main className="cn-contenido">
         {error && <p className="error">{error}</p>}
-        {seccion === 'compra' && <CompraConjunta api={api} token={token} foto={foto} yo={yo} config={config} alCambiar={recargar} />}
+        {seccion === 'compra' && <CompraConjunta api={api} token={token} foto={foto} yo={yo} />}
         {seccion === 'pedir' && <Pedir api={api} token={token} foto={foto} config={config} alEnviar={() => { recargar(); irA('pedidos'); }} />}
         {seccion === 'pedidos' && <MisPedidos api={api} token={token} foto={foto} yo={yo} config={config} alCambiar={recargar} irAPedir={() => irA('pedir')} />}
         {seccion === 'facturas' && <MisFacturas foto={foto} yo={yo} />}
-        {wa && (
-          <a className="cn-whatsapp" href={wa} target="_blank" rel="noreferrer">
-            También puedes hacer todo esto por WhatsApp
-          </a>
-        )}
+        <BotonWhatsapp numero={config?.whatsappNumero} />
       </main>
     </div>
   );
@@ -127,46 +90,15 @@ export function MiNegocio() {
 // ---------- Bienvenida ----------
 
 function Bienvenida({ fuente, config, onEntrar }: {
-  fuente: ReturnType<typeof useCanal>['fuente']; config: ConfigRed | null; onEntrar: (nombre: string, comuna: string) => Promise<void>;
+  fuente: ReturnType<typeof useCanal>['fuente']; config: ConfigRed | null; onEntrar: (nombre: string, comuna: string, rubro?: string) => Promise<void>;
 }) {
-  const [nombre, setNombre] = useState('');
-  const [comuna, setComuna] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-  const wa = enlaceWhatsapp(config?.whatsappNumero);
-
-  const enviar = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!nombre.trim()) return setError('Escribe el nombre de tu negocio.');
-    setEnviando(true);
-    setError('');
-    try {
-      await onEntrar(nombre.trim(), comuna.trim());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No pudimos registrarte. Inténtalo de nuevo.');
-      setEnviando(false);
-    }
-  };
-
   return (
     <main className="cn-pagina cn-bienvenida">
       <Marca><AvisoFuente fuente={fuente} /></Marca>
       <h1>Compra junto a otros negocios y paga menos</h1>
       <p className="cn-bajada">Tus compras conjuntas, pedidos y facturas del SII en un solo lugar.</p>
-      <form className="formulario tarjeta" onSubmit={enviar}>
-        <label className="campo">
-          <span className="etiqueta">Nombre de tu negocio</span>
-          <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Almacén Las Rosas" autoComplete="organization" maxLength={60} required />
-        </label>
-        <label className="campo">
-          <span className="etiqueta">Comuna (opcional)</span>
-          <input value={comuna} onChange={e => setComuna(e.target.value)} list="cn-comunas" placeholder="Ñuñoa" maxLength={40} />
-          <datalist id="cn-comunas">{COMUNAS.map(c => <option key={c} value={c} />)}</datalist>
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="boton" disabled={enviando}>{enviando ? 'Entrando...' : 'Entrar'}</button>
-      </form>
-      {wa && <a className="cn-whatsapp" href={wa} target="_blank" rel="noreferrer">También puedes hacer todo esto por WhatsApp</a>}
+      <FormularioNegocio boton="Entrar" enviandoTexto="Entrando..." onEntrar={onEntrar} />
+      <BotonWhatsapp numero={config?.whatsappNumero} />
       <p className="nota-demo">Modo demo: cualquiera puede sumarse sin cuenta. En uso real, cada negocio entra con su cuenta y su certificado digital conectado al SII.</p>
     </main>
   );
@@ -174,143 +106,28 @@ function Bienvenida({ fuente, config, onEntrar }: {
 
 // ---------- Compra conjunta ----------
 
-function CompraConjunta({ api, token, foto, yo, config, alCambiar }: {
-  api: CanalApi; token: string; foto: FotoRed; yo: YoComprador; config: ConfigRed | null; alCambiar: () => void;
-}) {
+function CompraConjunta({ api, token, foto, yo }: { api: CanalApi; token: string; foto: FotoRed; yo: YoComprador }) {
   const ahora = useAhora();
   const lic = licitacionVigente(foto.licitaciones);
-  const mia = lic ? yo.participaciones.find(p => p.licitacionId === lic.id) : undefined;
-  const [cantidad, setCantidad] = useState(mia?.cantidad ?? 2);
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState('');
-  const [aviso, setAviso] = useState('');
-  const g = lic ? precioDelGrupo(lic) : undefined;
-  const bajada = useBajadaDePrecio(g?.precio);
-
-  useEffect(() => { if (mia) setCantidad(mia.cantidad); }, [mia?.cantidad]);
-
-  if (!lic || !g) {
-    return <Vacio titulo="No hay una compra conjunta abierta" texto="Cuando parta una, aparece aquí con su precio en vivo. Mientras tanto, puedes pedir directo a un proveedor." />;
+  if (!lic) {
+    return <Vacio titulo="No hay una compra conjunta abierta" texto="Cuando parta una, aparece aquí con sus precios en vivo. Mientras tanto, puedes pedir directo a un proveedor." />;
   }
-  const u = unidadPara(lic.producto, config);
   const abierta = estaAbierta(lic, ahora);
-  const compradores = lic.participantes.length;
-
-  const sumarme = async () => {
-    setEnviando(true);
-    setError('');
-    setAviso('');
-    try {
-      await api.unirse(token, lic.id, cantidad);
-      setAviso(mia ? `Listo, ahora vas con ${cantidadEn(cantidad, u)}.` : `Listo, estás en el grupo con ${cantidadEn(cantidad, u)}.`);
-      alCambiar();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos sumarte. Inténtalo de nuevo.');
-    } finally {
-      setEnviando(false);
-    }
-  };
-
+  const mia = yo.participaciones.find(p => p.licitacionId === lic.id);
   return (
     <section className="cn-seccion">
-      <div className="tarjeta cn-compra">
+      <div className="cn-compra-cabecera">
         <div className="cn-fila-meta">
           {abierta ? <span className="en-vivo">En vivo</span> : <span className="cn-chip">Cerrada</span>}
           {abierta && <span className="mono">cierra en {cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}</span>}
         </div>
-        <h2 className="cn-producto cn-con-icono"><Icono nombre={iconoDeProducto(lic.producto)} tam={28} /><span>{lic.producto}</span></h2>
-        <div className="cn-precio">
-          <span className="numero-grande amarillo">{g.precio !== undefined ? dinero(g.precio) : 'Sin precio'}</span>
-          <span className="mono">por {u.singular}</span>
-        </div>
-        {g.precioSolo !== undefined && g.precio !== undefined && g.precioSolo > g.precio && (
-          <p className="mono cn-solo"><span className="tachado">{dinero(g.precioSolo)}</span> comprando solo</p>
-        )}
-        {bajada && <p className="cn-bajo" role="status">Bajó a {dinero(bajada)} por {u.singular}</p>}
-        {abierta && g.siguiente && (
-          <div className="cn-tramo">
-            <p className="mono">Faltan <strong>{cantidadEn(g.siguiente.faltan, u)}</strong> para bajar a <strong className="verde">{dinero(g.siguiente.precio)}</strong></p>
-            <BarraTramo lic={lic} unidades={g.unidades} />
-          </div>
-        )}
-        <p className="mono tenue cn-grupo">{compradores > 0 ? `${contar(compradores, 'negocio')}, ${cantidadEn(g.unidades, u)} en total` : 'Todavía nadie se suma: sé el primero.'}</p>
+        <h2 className="cn-titulo-compra">Compra conjunta</h2>
+        <p className="mono tenue cn-grupo">Cada producto baja de precio cuando el grupo junta más unidades.</p>
       </div>
-
-      <div className="tarjeta">
-        {abierta ? (
-          <>
-            <p className="etiqueta">{mia ? 'Tu parte' : `¿${cuantos(u.plural)} ${u.plural} quieres?`}</p>
-            {mia && !aviso && <p className="cn-texto">Estás en el grupo con <strong>{cantidadEn(mia.cantidad, u)}</strong>.</p>}
-            <Cantidad valor={cantidad} max={MAX_COMPRA_CONJUNTA} onCambio={setCantidad} etiqueta={`Cantidad de ${u.plural}`} />
-            {g.precio !== undefined && (
-              <p className="mono cn-texto">
-                {dinero(g.precio * cantidad)} neto
-                {g.precioSolo !== undefined && g.precioSolo > g.precio && <span className="verde"> · ahorras {dinero((g.precioSolo - g.precio) * cantidad)}</span>}
-              </p>
-            )}
-            {error && <p className="error">{error}</p>}
-            {aviso && <p className="cn-ok" role="status">{aviso}</p>}
-            {(!mia || mia.cantidad !== cantidad) && (
-              <button type="button" className="boton cn-ancho" onClick={sumarme} disabled={enviando}>
-                {enviando ? 'Enviando...' : mia ? `Cambiar a ${cantidadEn(cantidad, u)}` : `Sumarme con ${cantidadEn(cantidad, u)}`}
-              </button>
-            )}
-          </>
-        ) : (
-          <p className="cn-texto">
-            {mia
-              ? `La compra cerró. Vas con ${cantidadEn(mia.cantidad, u)}: tu pedido y su factura aparecen en Mis pedidos.`
-              : 'Esta compra conjunta ya cerró. Te avisamos aquí cuando parta la próxima.'}
-          </p>
-        )}
-      </div>
-
-      <Tramos lic={lic} unidades={g.unidades} u={u} />
+      {!abierta && mia && <p className="cn-ok">La compra cerró con tu carrito: tu pedido y su factura aparecen en Mis pedidos.</p>}
+      <CarritoCompra api={api} token={token} lic={lic} negocioId={yo.negocio.id} participacion={mia} abierta={abierta} conPestanas />
+      <GrupoEnVivo lic={lic} negocioId={yo.negocio.id} ahora={ahora} />
     </section>
-  );
-}
-
-/** Muestra "Bajó a $X" unos segundos cada vez que el precio baja. */
-function useBajadaDePrecio(precio: number | undefined): number | undefined {
-  const previo = useRef(precio);
-  const [bajada, setBajada] = useState<number>();
-  useEffect(() => {
-    if (precio !== undefined && previo.current !== undefined && precio < previo.current) {
-      setBajada(precio);
-      const t = setTimeout(() => setBajada(undefined), 8000);
-      previo.current = precio;
-      return () => clearTimeout(t);
-    }
-    previo.current = precio;
-  }, [precio]);
-  return bajada;
-}
-
-function BarraTramo({ lic, unidades }: { lic: LicitacionCanal; unidades: number }) {
-  const tramos = normalizarTramos(lic.tramos);
-  const desde = [...tramos].reverse().find(t => t.desde <= unidades)?.desde ?? 0;
-  const hasta = tramos.find(t => t.desde > unidades)?.desde;
-  if (hasta === undefined) return null;
-  const avance = Math.min(100, Math.max(4, ((unidades - desde) / (hasta - desde)) * 100));
-  return <div className="cn-barra" aria-hidden="true"><span style={{ width: `${avance}%` }} /></div>;
-}
-
-function Tramos({ lic, unidades, u }: { lic: LicitacionCanal; unidades: number; u: Unidad }) {
-  const tramos = normalizarTramos(lic.tramos);
-  if (!tramos.length) return null;
-  const actual = [...tramos].reverse().find(t => t.desde <= unidades) ?? tramos[0];
-  return (
-    <div className="tarjeta">
-      <p className="etiqueta">Mientras más se suman, menos pagan todos</p>
-      <ul className="cn-tramos">
-        {tramos.map(t => (
-          <li key={t.desde} className={t === actual ? 'actual' : t.desde <= unidades ? 'pasado' : ''}>
-            <span className="mono">desde {cantidadEn(t.desde, u)}</span>
-            <strong>{dinero(t.precioUnitario)}</strong>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

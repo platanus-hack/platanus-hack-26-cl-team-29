@@ -86,6 +86,8 @@ export interface Unidad {
 
 /** Unidad del producto: la de la config si es el producto de la compra conjunta; si no, "unidad". */
 export function unidadPara(producto: string, config: ConfigRed | null): Unidad {
+  const deLaCanasta = config?.productos?.find(p => p.nombre === producto);
+  if (deLaCanasta) return { singular: deLaCanasta.unidad, plural: deLaCanasta.unidadPlural };
   if (config && producto === config.producto) return { singular: config.unidad, plural: config.unidadPlural };
   return { singular: 'unidad', plural: 'unidades' };
 }
@@ -206,6 +208,17 @@ export function confirmacion<A>(estado: Confirmacion<A>, e: EventoConfirmacion<A
 export function enlaceWhatsapp(numero: string | null | undefined, texto = 'Hola'): string {
   const digitos = (numero ?? '').replace(/\D/g, '');
   return digitos ? `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}` : '';
+}
+
+/**
+ * Número de WhatsApp legible: +1 → "+1 (208) 482-8247", +56 9 → "+56 9 1234 5678"; otros, con + y en bloques de 4.
+ * Copia local de `formatearTelefono` de client/src/red/formato.ts, con el mismo nombre y comportamiento.
+ */
+export function formatearTelefono(digitos: string): string {
+  const d = digitos.replace(/\D/g, '');
+  if (/^1\d{10}$/.test(d)) return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  if (/^569\d{8}$/.test(d)) return `+56 9 ${d.slice(3, 7)} ${d.slice(7)}`;
+  return `+${d.replace(/(\d{4})(?=\d)/g, '$1 ')}`;
 }
 
 // ---------- Proveedor ----------
