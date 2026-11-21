@@ -1,8 +1,8 @@
 # feed-detalle
-Actualizado: 2026-11-21 16:39
+Actualizado: 2026-11-21 16:53
 
 ## Estado
-trabajando
+libre (PR #85 listo para revisión)
 
 ## Trabajando en
 - Feed "Pasando ahora" (/red, /mapa): segunda línea con el detalle de cada evento y panel con todo el detalle al hacer clic.
@@ -12,7 +12,7 @@ trabajando
 - test/feed-detalle.test.ts
 
 ## Hecho
-- (en curso)
+- Feed con segunda línea de detalle por evento (`detalleEvento` en derivar.ts) y panel con todo el detalle al tocar la fila; /red y /mapa revisadas en 1920x1080, 1440x810 y 1024x768 sin scroll.
 
 ## Bloqueos
 - (ninguno)

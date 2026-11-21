@@ -200,7 +200,55 @@ body {
 }
 .feed li:first-child { animation: aparecer 0.4s ease-out, destello 2.5s ease-out; border-radius: 8px; }
 .feed li:last-child { border-bottom: 0; }
-.feed .texto { flex: 1; }
+.feed .texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* Segunda línea con el dato concreto: una sola línea, cortada con "…" si no cabe (el panel muestra todo). */
+.feed-detalle {
+  margin-top: 0.3vh;
+  font-family: var(--font-mono);
+  font-size: var(--t-etiqueta);
+  color: var(--color-tenue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed li[role='button'] { cursor: pointer; border-radius: 8px; }
+.feed li[role='button']:hover { background: #111; }
+.feed li[role='button']:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.feed li.elegido { background: #161616; box-shadow: inset 3px 0 0 var(--color-primary); }
+/* Panel del detalle: sobre las filas de abajo, sin cambiar el alto de la lista ni de la tarjeta. Si la tarjeta es baja
+   (en /mapa), crece hacia arriba sobre las tarjetas vecinas. */
+.feed-caja { position: relative; }
+.feed-panel {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--relleno);
+  background: #0d0d0d;
+  border: 1px solid var(--color-primary);
+  border-radius: 12px;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.7);
+  animation: aparecer 0.2s ease-out;
+  z-index: 2;
+}
+.feed-panel-cabeza { display: flex; align-items: center; gap: 12px; font-size: var(--t-fila); line-height: 1.25; }
+.feed-panel-cabeza strong { flex: 1; min-width: 0; font-weight: 600; }
+.feed-panel-cabeza time { font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); white-space: nowrap; }
+.feed-cerrar {
+  flex-shrink: 0; display: grid; place-items: center; width: 2em; height: 2em; padding: 0;
+  font-size: var(--t-etiqueta); color: var(--color-muted); background: transparent; border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer;
+}
+.feed-cerrar .icono { width: 1.2em; height: 1.2em; }
+.feed-cerrar:hover, .feed-cerrar:focus-visible { color: var(--color-primary); border-color: var(--color-primary); }
+.feed-filas {
+  display: grid; grid-template-columns: fit-content(50%) minmax(0, 1fr); gap: 0.6vh 16px; margin: 1.2vh 0 0;
+  font-family: var(--font-mono); font-size: var(--t-etiqueta); line-height: 1.35;
+}
+.feed-filas dt { color: var(--color-tenue); }
+.feed-filas dd { margin: 0; color: var(--color-text); display: flex; align-items: center; gap: 0.5em; overflow-wrap: anywhere; }
+.feed-pdf { display: inline-block; margin-top: 1.2vh; font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-primary); }
 /* Carril fijo para el ícono de cada evento: los textos arrancan todos en la misma columna. */
 .feed-icono { width: 2.4em; height: 2em; font-size: 0.8em; display: grid; place-items: center; flex-shrink: 0; align-self: center; }
 .feed-icono > .icono { width: 1.5em; height: 1.5em; color: var(--color-muted); }

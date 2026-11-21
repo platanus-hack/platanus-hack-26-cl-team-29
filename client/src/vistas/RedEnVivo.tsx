@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
+import { Fragment, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
 import { Icono, LogoSii, Monograma, type NombreIcono } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
-  cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, totalesCanasta, unidadDeLicitacion,
+  cicloDeOrden, contadores, describirEvento, detalleEvento, licitacionActual, negocioPorId, ordenActual, ranking, totalesCanasta, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
 import { dinero, miles, nota } from '../../../shared/formato.ts';
@@ -113,24 +113,73 @@ export function IconoEvento({ e, estado }: { e: EventoRed; estado: EstadoRed }) 
   return <Icono nombre={ICONO_EVENTO[e.tipo] ?? 'pedido'} />;
 }
 
-export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVisto[]; ahora: number }) {
-  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, eventos.length > 0);
+/** Todo el detalle de un evento, sobre las filas del feed: no cambia el alto de la lista. */
+function PanelEvento({ e, estado, eventos, ahora, cerrar }: {
+  e: EventoVisto; estado: EstadoRed; eventos: EventoVisto[]; ahora: number; cerrar: () => void;
+}) {
+  const d = detalleEvento(e, estado, eventos);
   return (
-    <section className="tarjeta apilada crece">
+    <div className="feed-panel" role="region" aria-label="Detalle del evento">
+      <div className="feed-panel-cabeza">
+        <span className="feed-icono"><IconoEvento e={e} estado={estado} /></span>
+        <strong>{describirEvento(e, estado)}</strong>
+        <time dateTime={e.en}>{haceCuanto(e.en, ahora)}</time>
+        <button type="button" className="feed-cerrar" onClick={cerrar} aria-label="Cerrar el detalle" autoFocus>
+          <Icono nombre="cerrar" />
+        </button>
+      </div>
+      <dl className="feed-filas">
+        {d.filas.map((f, i) => (
+          <Fragment key={i}>
+            <dt>{f.etiqueta}</dt>
+            <dd>{f.sii && <LogoSii />}{f.valor}</dd>
+          </Fragment>
+        ))}
+      </dl>
+      {d.pdfUrl && <a className="feed-pdf" href={d.pdfUrl} target="_blank" rel="noopener noreferrer">Ver el PDF</a>}
+    </div>
+  );
+}
+
+export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: EventoVisto[]; ahora: number }) {
+  // Se vuelve a medir con cada evento nuevo: la segunda línea puede cambiar el alto de las filas.
+  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, eventos[0]?.clave);
+  const [abierto, setAbierto] = useState<number | null>(null);
+  const elegido = eventos.find(e => e.clave === abierto);
+  const alternar = (clave: number) => setAbierto(a => (a === clave ? null : clave));
+  const teclas = (ev: KeyboardEvent, clave: number) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();
+    alternar(clave);
+  };
+  return (
+    <section className="tarjeta apilada crece feed-caja" onKeyDown={ev => ev.key === 'Escape' && setAbierto(null)}>
       <p className="etiqueta">Pasando ahora</p>
       {eventos.length ? (
         <ul className="feed ajustable" ref={lista}>
-          {eventos.slice(0, caben).map(e => (
-            <li key={e.clave}>
-              <span className="feed-icono"><IconoEvento e={e} estado={estado} /></span>
-              <span className="texto">{describirEvento(e, estado)}</span>
-              <time dateTime={e.en}>{haceCuanto(e.en, ahora)}</time>
-            </li>
-          ))}
+          {eventos.slice(0, caben).map(e => {
+            const d = detalleEvento(e, estado, eventos);
+            const abre = d.filas.length > 0;
+            return (
+              <li
+                key={e.clave}
+                className={e.clave === abierto ? 'elegido' : undefined}
+                {...(abre && { tabIndex: 0, role: 'button', 'aria-expanded': e.clave === abierto, onClick: () => alternar(e.clave), onKeyDown: (ev: KeyboardEvent) => teclas(ev, e.clave) })}
+              >
+                <span className="feed-icono"><IconoEvento e={e} estado={estado} /></span>
+                <span className="texto">
+                  {describirEvento(e, estado)}
+                  {d.resumen && <span className="feed-detalle">{d.resumen}</span>}
+                </span>
+                <time dateTime={e.en}>{haceCuanto(e.en, ahora)}</time>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="vacio">Todavía no pasa nada. Escribe por WhatsApp para empezar.</p>
       )}
+      {elegido && <PanelEvento e={elegido} estado={estado} eventos={eventos} ahora={ahora} cerrar={() => setAbierto(null)} />}
     </section>
   );
 }
