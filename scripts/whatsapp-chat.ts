@@ -54,17 +54,23 @@ async function enviar(texto: string) {
     headers: { 'Content-Type': 'application/json', 'X-Webhook-Event': 'whatsapp.message.received', 'X-Webhook-Signature': signPayload(body, SECRETO) },
     body,
   });
-  // El agente responde después del 200: se espera su respuesta (y una posible segunda) en el historial.
+  // El agente responde después del 200. Se muestra todo lo que llega (también avisos de la sala), pero se
+  // espera la respuesta a este mensaje (`source: 'reply'`) y luego un momento por si manda una segunda.
   let ultimoCambio = Date.now();
   let vistos = antes + 1;
+  let respondio = false;
   while (Date.now() - inicio < 30_000) {
     await new Promise(r => setTimeout(r, 200));
     const historial = await whatsapp.history(telefono, { limit: 1000 });
     if (historial.length > vistos) {
-      for (const m of historial.slice(vistos)) if (m.direction === 'out') console.log(`\nBando › ${m.text}`);
+      for (const m of historial.slice(vistos)) {
+        if (m.direction !== 'out') continue;
+        console.log(`\n${m.source === 'reply' ? 'Bando' : 'Aviso'} › ${m.text}`);
+        respondio ||= m.source === 'reply';
+      }
       vistos = historial.length;
       ultimoCambio = Date.now();
-    } else if (vistos > antes + 1 && Date.now() - ultimoCambio > 1500) break;
+    } else if (respondio && Date.now() - ultimoCambio > 1500) break;
   }
   console.log(`        (${((Date.now() - inicio) / 1000).toFixed(1)} s)\n`);
 }

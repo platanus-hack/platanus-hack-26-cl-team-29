@@ -295,8 +295,11 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const intencion = await entender(negocio, telefono, texto, antes?.mensaje ?? null);
     // Un comprador registrado también arma su pedido en la compra conjunta, si no hay otra cosa en curso.
     // Quien se suma por WhatsApp queda registrado en la red: "sí", "no" o "2 del 3" también son de la sala.
-    const deLaSala = sala && !antes && negocio.rol === 'comprador' && intencion.tipo !== 'pedir' && intencion.tipo !== 'faltante';
-    if (sala && deLaSala && (await sala.atiende(telefono, negocio.id, texto))) {
+    // Un pedido de un producto de la canasta ("quiero 3 cajas más") es de la sala aunque se lea como pedido.
+    const pideDeLaCanasta = sala !== null && intencion.tipo === 'pedir' && (await sala.hablaDeLaCanasta(intencion.producto));
+    const deLaSala = sala && !antes && negocio.rol === 'comprador' && intencion.tipo !== 'faltante'
+      && (pideDeLaCanasta || intencion.tipo !== 'pedir');
+    if (sala && deLaSala && (pideDeLaCanasta || (await sala.atiende(telefono, negocio.id, texto)))) {
       await ctx.reply(await sala.atenderPublico(telefono, texto, negocio.nombre));
       return;
     }

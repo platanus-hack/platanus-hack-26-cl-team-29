@@ -41,6 +41,11 @@ export interface Sala {
   proveedorPorTelefono(telefono: string): Negocio | null;
   /** Si un comprador registrado le habla a la compra conjunta (participa, quiere sumarse o pide productos de la canasta). */
   atiende(telefono: string, negocioId: string, texto: string): Promise<boolean>;
+  /**
+   * Si el producto de un pedido ("cajas", "bolsas", "guantes") es de la compra conjunta abierta. Así "quiero 3 cajas
+   * más" va a la canasta y no a un pedido de catálogo que la red no puede cumplir.
+   */
+  hablaDeLaCanasta(producto: string): Promise<boolean>;
   /** Responde a alguien del público (o a un comprador registrado que quiere sumarse). */
   atenderPublico(telefono: string, texto: string, nombreConocido?: string): Promise<string>;
   /** Ejecuta la facturación ya confirmada por el proveedor. Idempotente. */
@@ -205,6 +210,14 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     }
     if (!nombre) return preguntar({ items, pregunta: m.pedirNombreSala(items, l) });
     return guardar(telefono, nombre, items, l, Boolean(yo));
+  }
+
+  async function hablaDeLaCanasta(producto: string): Promise<boolean> {
+    const l = await abierta();
+    if (!l) return false;
+    const dichas = new Set(normalizar(producto).split(' ').filter(p => p.length > 2));
+    return productosDe(l).some(p =>
+      [p.unidad, p.unidadPlural ?? '', p.id, ...normalizar(p.nombre).split(' ')].some(x => x.length > 2 && dichas.has(normalizar(x))));
   }
 
   async function atiende(telefono: string, negocioId: string, texto: string): Promise<boolean> {
@@ -433,6 +446,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   return {
     proveedorPorTelefono: telefono => proveedores.get(claveTelefono(telefono)) ?? null,
     atiende,
+    hablaDeLaCanasta,
     atenderPublico,
     facturar,
     pendienteDeFacturar: negocioId => porFacturar.get(negocioId) ?? null,
