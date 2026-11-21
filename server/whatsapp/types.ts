@@ -41,10 +41,30 @@ export interface Button {
   readonly title: string;
 }
 
-/** Un mensaje saliente: texto, opcionalmente con hasta 3 botones de respuesta. */
+/** Una fila de una lista desplegable. Al elegirla llega como `reply` con este `id` y `title`. */
+export interface ListRow {
+  readonly id: string;
+  /** Máximo 24 caracteres. */
+  readonly title: string;
+  /** Opcional, máximo 72 caracteres. */
+  readonly description?: string;
+}
+
+/** Lista desplegable de WhatsApp: un botón que abre hasta 10 opciones. */
+export interface ListMenu {
+  /** Texto del botón que abre la lista, máximo 20 caracteres. Ej: "Ver productos". */
+  readonly button: string;
+  readonly rows: readonly ListRow[];
+}
+
+/**
+ * Un mensaje saliente: texto, opcionalmente con hasta 3 botones de respuesta o con una lista desplegable
+ * (hasta 10 opciones). No ambos.
+ */
 export interface OutboundMessage {
   readonly body: string;
   readonly buttons?: readonly Button[];
+  readonly list?: ListMenu;
 }
 
 /**

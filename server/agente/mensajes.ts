@@ -19,6 +19,29 @@ const unidad = (producto: string) => producto.split(' de ')[0];
 
 const opciones = (...lineas: string[]) => lineas.map((l, i) => `${i + 1}. ${l}`).join('\n');
 
+/**
+ * Un bloque de 4 a 10 líneas numeradas ("1. Rollos, $32.000 por caja"), para mandarlo como lista desplegable de
+ * WhatsApp: el título es lo que va antes de la coma y la descripción, el resto. `null` si no hay un bloque así.
+ */
+export function separarLista(texto: string): { cuerpo: string; filas: { titulo: string; descripcion: string }[] } | null {
+  const lineas = texto.split('\n');
+  const inicio = lineas.findIndex(l => /^\s*1\. /.test(l));
+  if (inicio < 0) return null;
+  let fin = inicio;
+  while (fin < lineas.length && new RegExp(`^\\s*${fin - inicio + 1}\\. `).test(lineas[fin]!)) fin++;
+  const bloque = lineas.slice(inicio, fin);
+  if (bloque.length < 4 || bloque.length > 10) return null;
+  const recortar = (t: string, max: number) => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
+  const filas = bloque.map(l => {
+    const sinNumero = l.replace(/^\s*\d+\. /, '').trim();
+    const coma = sinNumero.indexOf(',');
+    const titulo = coma > 0 ? sinNumero.slice(0, coma) : sinNumero;
+    return { titulo: recortar(titulo.trim(), 24), descripcion: coma > 0 ? recortar(sinNumero.slice(coma + 1).trim(), 72) : '' };
+  });
+  const cuerpo = [...lineas.slice(0, inicio), ...lineas.slice(fin)].join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return cuerpo ? { cuerpo, filas } : null;
+}
+
 /** Título de un botón de WhatsApp: máximo 20 caracteres. */
 const TITULO_BOTON_MAX = 20;
 

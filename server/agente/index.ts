@@ -93,13 +93,27 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
    * "1" o "2", que el agente y la sala ya entienden. Sin `send` (o si falla), va como texto.
    */
   async function enviar(telefono: string, texto: string, source: string) {
-    const partes = whatsapp.send ? m.separarOpciones(texto) : null;
-    if (whatsapp.send && partes) {
-      const buttons = partes.opciones.map((title, i) => ({ id: String(i + 1), title }));
-      const r = await whatsapp.send(telefono, { body: partes.cuerpo, buttons }, { source });
+    const interactivo = aInteractivo(texto);
+    if (whatsapp.send && interactivo) {
+      const r = await whatsapp.send(telefono, interactivo, { source });
       if (r.status !== 'failed') return;
     }
     await whatsapp.sendText(telefono, texto);
+  }
+
+  /**
+   * Opciones al final ("1. Sí… 2. No") → botones; un bloque de 4 a 10 opciones (los productos de la sala) → lista
+   * desplegable. Elegir una fila llega como su título ("Guantes"), que la sala entiende como el producto.
+   */
+  function aInteractivo(texto: string) {
+    const opciones = m.separarOpciones(texto);
+    if (opciones) return { body: opciones.cuerpo, buttons: opciones.opciones.map((title, i) => ({ id: String(i + 1), title })) };
+    const lista = m.separarLista(texto);
+    if (lista) {
+      const rows = lista.filas.map((f, i) => ({ id: `op${i + 1}`, title: f.titulo, ...(f.descripcion ? { description: f.descripcion } : {}) }));
+      return { body: lista.cuerpo, list: { button: 'Ver opciones', rows } };
+    }
+    return null;
   }
 
   const sala: Sala | null = tieneSala(red) ? crearSalaDelAgente(red, opciones.sala ?? {}) : null;
@@ -302,7 +316,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
 
   async function atender(telefono: string, texto: string, contexto: { reply(body: string): Promise<unknown> }) {
     // Las respuestas con opciones salen como botones; el resto, como respuesta normal.
-    const ctx = { reply: (body: string) => (whatsapp.send && m.separarOpciones(body) ? enviar(telefono, body, 'reply') : contexto.reply(body)) };
+    const ctx = { reply: (body: string) => (whatsapp.send && aInteractivo(body) ? enviar(telefono, body, 'reply') : contexto.reply(body)) };
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
       await ctx.reply(sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);

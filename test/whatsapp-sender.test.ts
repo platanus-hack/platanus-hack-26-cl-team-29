@@ -86,3 +86,13 @@ function filesIn(dir: string): string[] {
     .filter(e => e.isFile() && /\.tsx?$/.test(e.name))
     .map(e => join(e.parentPath, e.name));
 }
+
+test('una lista va como mensaje interactivo de tipo list, con sus filas', async () => {
+  const { fn, calls } = fakeFetch([200]);
+  await sender(fn).send('569', { body: '¿Qué producto?', list: { button: 'Ver opciones', rows: [{ id: 'op1', title: 'Rollos', description: '$32.000 por caja' }, { id: 'op2', title: 'Guantes' }] } });
+  assert.deepEqual(calls[0]!.body.interactive, {
+    type: 'list',
+    body: { text: '¿Qué producto?' },
+    action: { button: 'Ver opciones', sections: [{ title: 'Ver opciones', rows: [{ id: 'op1', title: 'Rollos', description: '$32.000 por caja' }, { id: 'op2', title: 'Guantes' }] }] },
+  });
+});

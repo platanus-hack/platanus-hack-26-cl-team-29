@@ -9,7 +9,7 @@ import { aplicarCambios, catalogoDe, interpretarCanastaConReglas } from '../serv
 import { crearRedSalaFalsa } from '../server/agente/red-sala-falsa.ts';
 import { enmascarar } from '../server/agente/envios.ts';
 import type { Negocio } from '../server/agente/puerto.ts';
-import type { MessageHandler } from '../server/whatsapp/index.ts';
+import type { MessageHandler, OutboundMessage } from '../server/whatsapp/index.ts';
 
 // Datos ficticios: ni teléfonos ni negocios reales. La canasta es la de la demo.
 const PROVEEDOR: Negocio = { id: 'prov', nombre: 'Proveedor Demo', comuna: 'Santiago', rol: 'proveedor', telefono: '56900000101' };
@@ -26,9 +26,10 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string> } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string>; conSend?: boolean } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
+  const interactivos: OutboundMessage[] = [];
   const adjuntos: { to: string; link: string; filename: string }[] = [];
   const logs: string[] = [];
   const registrar = (...partes: unknown[]) => logs.push(partes.map(String).join(' '));
@@ -36,6 +37,14 @@ function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof L
   const whatsapp = {
     onMessage: (h: MessageHandler) => { handler = h; return () => {}; },
     sendText: async (to: string, body: string) => { enviados.push({ to, body, en: Date.now() }); return { ok: true as const, messageIds: [] }; },
+    ...(opciones.conSend ? {
+      send: async (to: string, mensaje: string | OutboundMessage) => {
+        const msg = typeof mensaje === 'string' ? { body: mensaje } : mensaje;
+        interactivos.push(msg);
+        enviados.push({ to, body: msg.body, en: Date.now() });
+        return { status: 'sent' as const, messageId: 'x' };
+      },
+    } : {}),
     sendDocument: async (to: string, d: { link: string; filename: string }) => {
       adjuntos.push({ to, link: d.link, filename: d.filename });
       return { ok: true as const, messageIds: [] };
@@ -60,7 +69,7 @@ function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof L
   const de = (to: string) => enviados.filter(e => e.to === to).map(e => e.body);
   const ultimo = (to: string) => de(to).at(-1) ?? '';
   const carrito = async (nombre: string) => (await red.licitacionAbierta())?.participantes.find(p => p.nombre === nombre)?.items;
-  return { red, agente, escribir, enviados, adjuntos, de, ultimo, logs, carrito };
+  return { red, agente, escribir, enviados, adjuntos, de, ultimo, logs, carrito, interactivos };
 }
 
 test('bienvenida con la canasta numerada, y se suma con varios productos en uno o dos mensajes', async t => {
@@ -432,4 +441,13 @@ test('si la red pide RUT, nadie se suma sin uno válido: se pregunta una vez, co
   // Ya sumada, cambia su carrito sin que se le vuelva a pedir el RUT.
   await escribir(ana, 'agrega 1 de guantes');
   assert.match(ultimo(ana), /^Listo, Almacén Ana ahora va con/);
+});
+
+test('la lista de productos de la bienvenida sale como lista desplegable de WhatsApp', async t => {
+  const { agente, escribir, interactivos } = montar({}, {}, { conSend: true });
+  t.after(() => agente.desconectar());
+  await escribir('56922222077', 'hola, quiero sumarme');
+  const lista = interactivos.find(i => i.list)?.list;
+  assert.ok(lista, 'salió una lista');
+  assert.deepEqual(lista!.rows.map(r => r.title), ['Rollos', 'Etiquetas', 'Bolsas', 'Guantes']);
 });
