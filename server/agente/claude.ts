@@ -18,7 +18,7 @@ Si nada aplica, no llames ninguna herramienta.`;
 const objeto = (properties: Record<string, unknown>, required: string[]) =>
   ({ type: 'object' as const, properties, required, additionalProperties: false });
 
-const HERRAMIENTAS: Anthropic.Beta.BetaToolUnion[] = [
+export const HERRAMIENTAS: Anthropic.Beta.BetaToolUnion[] = [
   {
     name: 'proponer_pedido',
     description: 'La persona quiere pedir un producto a un proveedor. Ej: "pide 4 sacos de harina".',
@@ -157,7 +157,7 @@ export function crearInterpreteClaude(apiKey: string, model: string): Interprete
   };
 }
 
-function deHerramienta(nombre: string, input: unknown): Intencion {
+export function deHerramienta(nombre: string, input: unknown): Intencion {
   const datos = (input ?? {}) as { producto?: unknown; cantidad?: unknown };
   const cantidad = Number(datos.cantidad);
   switch (nombre) {

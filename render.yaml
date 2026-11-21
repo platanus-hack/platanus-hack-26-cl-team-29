@@ -19,6 +19,8 @@ services:
         sync: false
       - key: KAPSO_TEMPLATE_NAME
         sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
 databases:
   - name: db

@@ -1,3 +1,4 @@
-# El módulo de WhatsApp tiene dueño: los PRs que lo tocan piden su review.
-/server/whatsapp/ @javierwb
-/scripts/whatsapp-simulate.ts @javierwb
+# Módulos con dueño: los PRs que los tocan piden su review.
+/server/whatsapp/ @javierzagal
+/server/ia/ @javierzagal
+/scripts/whatsapp-simulate.ts @javierzagal

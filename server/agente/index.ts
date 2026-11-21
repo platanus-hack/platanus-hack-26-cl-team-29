@@ -66,7 +66,7 @@ export interface Agente {
   desconectar(): void;
 }
 
-type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage'> & WhatsAppDeEnvios;
+type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage'> & WhatsAppDeEnvios & Partial<Pick<WhatsApp, 'history'>>;
 
 export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: OpcionesAgente = {}): Agente {
   const env = opciones.env ?? process.env;
@@ -250,6 +250,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
         });
         return actual(negocio.id)!.mensaje;
       }
+      case 'respuesta':
+        return intencion.texto;
       case 'otro':
         if (p) return m.noEntendi(p.mensaje);
         return negocio.rol === 'comprador' ? m.AYUDA_COMPRADOR : m.AYUDA_PROVEEDOR;
@@ -264,6 +266,21 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return pendiente.mensaje;
   }
 
+  /** Con la capa de IA (server/ia/), el intérprete recibe contexto y puede responder; si no, solo clasifica. */
+  async function entender(negocio: Negocio, telefono: string, texto: string, pendiente: string | null): Promise<Intencion> {
+    if (!interprete.conversar) return interprete.interpretar(texto, pendiente);
+    const { id, nombre, comuna, rol } = negocio;
+    return interprete.conversar({ negocio: { id, nombre, comuna, rol }, texto, historial: await historialDe(telefono, texto), pendiente });
+  }
+
+  async function historialDe(telefono: string, texto: string) {
+    const mensajes = whatsapp.history ? await whatsapp.history(telefono, { limit: 11 }).catch(() => []) : [];
+    const ultimo = mensajes.at(-1);
+    // El mensaje que se está atendiendo ya quedó guardado: no se repite como historia.
+    const previos = ultimo?.direction === 'in' && ultimo.text === texto ? mensajes.slice(0, -1) : mensajes;
+    return previos.slice(-10).map(msg => ({ de: msg.direction === 'in' ? 'persona' as const : 'bando' as const, texto: msg.text }));
+  }
+
   async function atender(telefono: string, texto: string, ctx: { reply(body: string): Promise<unknown> }) {
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
@@ -271,7 +288,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       return;
     }
     const antes = actual(negocio.id);
-    const intencion = await interprete.interpretar(texto, antes?.mensaje ?? null);
+    const intencion = await entender(negocio, telefono, texto, antes?.mensaje ?? null);
     // Un comprador registrado también arma su pedido en la compra conjunta, si no hay otra cosa en curso.
     // Quien se suma por WhatsApp queda registrado en la red: "sí", "no" o "2 del 3" también son de la sala.
     const deLaSala = sala && !antes && negocio.rol === 'comprador' && intencion.tipo !== 'pedir' && intencion.tipo !== 'faltante';
