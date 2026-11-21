@@ -1,9 +1,10 @@
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CurvaPrecio } from '../components/CurvaPrecio.tsx';
+import { Escalera } from '../components/Escalera.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import { Qr } from '../components/Qr.tsx';
-import { licitacionActual, resumenLicitacion, type OfertaVista, type ResumenLicitacion } from '../red/derivar.ts';
-import { cantidadCon, contar, cuentaRegresiva, dinero, nota, unidadDe } from '../red/formato.ts';
+import { estadoTramos, licitacionActual, resumenLicitacion, tieneTramos, unidadDeLicitacion, type OfertaVista, type ResumenLicitacion } from '../red/derivar.ts';
+import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
 import type { Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 
@@ -17,8 +18,10 @@ function motivoRiesgo(o: OfertaVista, mejor?: OfertaVista): string {
   return `Más barato, pero entrega en ${contar(o.plazoDias, 'día')}: pierde`;
 }
 
-function Grupo({ lic, r, cerrada }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean }) {
-  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(4, r.compradores);
+type Unidad = { singular: string; plural: string };
+
+function Grupo({ lic, r, cerrada, unidad }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean; unidad: Unidad }) {
+  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(8, r.compradores);
   const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   return (
     <section className="tarjeta apilada">
@@ -27,15 +30,15 @@ function Grupo({ lic, r, cerrada }: { lic: LicitacionRed; r: ResumenLicitacion; 
         <span className="numero-grande">{r.compradores}</span>
         {r.delPublico > 0 && <span className="mono verde">+{r.delPublico} del público</span>}
       </div>
-      <p className="sacos">{cantidadCon(r.totalUnidades, lic.producto)} en total</p>
+      <p className="sacos">{contar(r.totalUnidades, unidad.singular, unidad.plural)} en total</p>
       <ul className="lista-grupo ajustable" ref={lista}>
         {r.ultimos.slice(0, caben).map((p, i) => (
           <li key={`${r.compradores - i}`}>
             <span className="quien">
               <span className="nombre">{p.nombre}</span>
-              {p.comuna && <span className="comuna">{p.comuna}</span>}
+              <span className="comuna">{p.comuna || '\u00a0'}</span>
             </span>
-            <span className="verde">+{cantidadCon(p.cantidad, lic.producto)}</span>
+            <span className="verde">+{contar(p.cantidad, unidad.singular, unidad.plural)}</span>
           </li>
         ))}
       </ul>
@@ -99,7 +102,7 @@ export function Licitacion() {
   const r = resumenLicitacion(lic, estado);
   const restante = Date.parse(lic.cierraEn) - ahora;
   const cerrada = lic.estado === 'cerrada' || restante <= 0;
-  const unidad = unidadDe(lic.producto);
+  const unidad = unidadDeLicitacion(lic);
 
   return (
     <main className="pagina proyeccion">
@@ -111,7 +114,9 @@ export function Licitacion() {
             <AvisoFuente fuente={fuente} />
           </div>
           <h1 className="lic-titulo">
-            Los agentes armaron el pedido. <span className="amarillo">Los proveedores compiten.</span>
+            {r.curvaPorTramos
+              ? <>La sala compra junta. <span className="amarillo">El precio baja para todos.</span></>
+              : <>Los agentes armaron el pedido. <span className="amarillo">Los proveedores compiten.</span></>}
           </h1>
         </div>
         <div className={`cuenta ${cerrada ? 'cerrada' : ''}`}>
@@ -121,13 +126,13 @@ export function Licitacion() {
       </header>
 
       <div className="lic-cuerpo">
-        <Grupo lic={lic} r={r} cerrada={cerrada} />
+        <Grupo lic={lic} r={r} cerrada={cerrada} unidad={unidad} />
 
         <section className="tarjeta apilada">
           <div className="mejor-oferta">
             <div>
-              <p className="etiqueta">Mejor oferta por {unidad.singular}</p>
-              <div className="numero-grande">{r.mejor ? dinero(r.mejor.precioUnitario) : 'Sin ofertas'}</div>
+              <p className="etiqueta">{r.curvaPorTramos ? 'Precio por' : 'Mejor oferta por'} {unidad.singular}</p>
+              <div className="numero-grande">{r.precioActual !== undefined ? dinero(r.precioActual) : 'Sin ofertas'}</div>
             </div>
             {r.precioSolo !== undefined && (
               <div className="precio-solo">
@@ -140,10 +145,17 @@ export function Licitacion() {
             <div className="ahorro">-{r.porcentaje}% · ahorro grupal {dinero(r.ahorroGrupal)}</div>
           )}
           <CurvaPrecio puntos={r.curva} precioSolo={r.precioSolo} />
-          <div className="leyenda"><i />cada punto es una contraoferta de un proveedor cuando el grupo crece</div>
+          <div className="leyenda"><i />{r.curvaPorTramos ? 'cada punto es un tramo de volumen que el grupo alcanzó' : 'cada punto es una contraoferta de un proveedor cuando el grupo crece'}</div>
         </section>
 
-        <Ofertas r={r} cerrada={cerrada} />
+        {tieneTramos(lic) && !r.ofertas.length ? (
+          <section className="tarjeta apilada">
+            <p className="etiqueta">Precio por volumen</p>
+            <Escalera tramos={estadoTramos(lic)} unidad={unidad} className="vertical" />
+          </section>
+        ) : (
+          <Ofertas r={r} cerrada={cerrada} />
+        )}
       </div>
     </main>
   );

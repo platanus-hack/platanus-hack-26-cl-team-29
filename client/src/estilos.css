@@ -263,6 +263,25 @@ body {
 .oferta.riesgo .nombre-oferta, .oferta.riesgo .precio { color: var(--color-tenue); }
 .oferta.riesgo .aviso { color: var(--color-magenta); }
 
+/* ---------- Escalera de precios por volumen (/licitacion y /sala) ---------- */
+.escalera { display: flex; flex-direction: column; gap: 1.2vh; min-height: 0; }
+.peldanos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.8vh; }
+.peldano {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  border: 1px solid var(--color-border); border-radius: 10px; padding: 0.9vh 14px;
+  font-family: var(--font-mono); font-size: var(--t-cuerpo); color: var(--color-tenue);
+  transition: background 0.4s, color 0.4s, border-color 0.4s;
+}
+.peldano .precio { font-family: var(--font-display); font-weight: 800; font-size: var(--t-fila); }
+.peldano.pasado { color: var(--color-muted); }
+.peldano.pasado .precio { text-decoration: line-through; color: var(--color-tenue); }
+.peldano.actual { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
+.peldano.siguiente { border-color: var(--color-green); color: var(--color-text); border-style: dashed; }
+.avance { height: 12px; border-radius: 6px; background: var(--color-border); overflow: hidden; }
+.avance i { display: block; height: 100%; background: var(--color-green); border-radius: 6px; transition: width 0.6s ease-out; }
+.faltan { margin: 0; font-family: var(--font-mono); font-size: var(--t-cuerpo); color: var(--color-green); }
+.escalera.vertical { margin-top: 1.4vh; }
+
 /* ---------- Proyección: de 1024 px hacia arriba, todo cabe en una pantalla ---------- */
 @media (min-width: 1024px) and (min-height: 600px) {
   .proyeccion {

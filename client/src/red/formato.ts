@@ -33,6 +33,7 @@ export function cuentaRegresiva(ms: number): string {
 export function unidadDe(producto: string): { singular: string; plural: string } {
   if (/harina|az[uú]car/i.test(producto)) return { singular: 'saco', plural: 'sacos' };
   if (/aceite/i.test(producto)) return { singular: 'bidón', plural: 'bidones' };
+  if (/^caja/i.test(producto)) return { singular: 'caja', plural: 'cajas' };
   return { singular: 'unidad', plural: 'unidades' };
 }
 
@@ -63,4 +64,18 @@ const ESTADO_SII: Record<string, string> = {
 export function textoEstadoSii(estado: string | null | undefined): string {
   if (!estado) return '';
   return ESTADO_SII[estado] ?? estado.replace(/_/g, ' ');
+}
+
+/** Plural en español de una unidad en singular: saco → sacos, bidón → bidones. */
+export function pluralDe(singular: string): string {
+  if (/[aeiouáéó]$/i.test(singular)) return `${singular}s`;
+  const sinTilde = singular.replace(/ón$/, 'on').replace(/án$/, 'an').replace(/én$/, 'en');
+  return `${sinTilde}es`;
+}
+
+/** Número de WhatsApp legible: 56912345678 → +56 9 1234 5678. Otros formatos, con + y en bloques de 4. */
+export function telefono(digitos: string): string {
+  const d = digitos.replace(/\D/g, '');
+  if (/^569\d{8}$/.test(d)) return `+56 9 ${d.slice(3, 7)} ${d.slice(7)}`;
+  return `+${d.replace(/(\d{4})(?=\d)/g, '$1 ')}`;
 }

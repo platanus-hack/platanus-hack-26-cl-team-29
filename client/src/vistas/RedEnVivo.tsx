@@ -1,7 +1,7 @@
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
-  cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion,
+  cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
 import { cantidadCon, contar, dinero, haceCuanto, miles, nota, unidadDe } from '../red/formato.ts';
@@ -144,10 +144,10 @@ export function RedEnVivo() {
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           {lic && resumenLic && (
             <a className="tarjeta mini-lic" href="/licitacion">
-              <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado === 'cerrada' && <span className="magenta">· cerrada</span>}</p>
-              <div className="numero-grande">{resumenLic.mejor ? dinero(resumenLic.mejor.precioUnitario) : 'Sin ofertas'}</div>
+              <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
+              <div className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</div>
               <p>
-                {contar(resumenLic.compradores, 'negocio')}, {cantidadCon(resumenLic.totalUnidades, lic.producto)}
+                {contar(resumenLic.compradores, 'negocio')}, {contar(resumenLic.totalUnidades, unidadDeLicitacion(lic).singular, unidadDeLicitacion(lic).plural)}
                 {resumenLic.precioSolo !== undefined && <> · solo: <span className="tachado">{dinero(resumenLic.precioSolo)}</span></>}
               </p>
             </a>

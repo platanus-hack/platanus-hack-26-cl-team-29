@@ -61,12 +61,25 @@ export interface Oferta {
   precioUnitario: number;
   plazoDias: number;
   en?: string;
+  /** Proveedores que compiten en la sala: el nombre y la nota vienen con la oferta. */
+  proveedorNombre?: string;
+  nota?: number;
 }
 
 /** Oferta ganadora al cerrar: la de menor precio ajustado por nota y plazo. */
 export interface Ganadora extends Oferta {
   nota: number;
   precioAjustado: number;
+}
+
+/** Desde `desde` unidades en el grupo, todos pagan `precioUnitario`. */
+export interface Tramo {
+  desde: number;
+  precioUnitario: number;
+}
+
+export interface SiguienteTramo extends Tramo {
+  faltan: number;
 }
 
 export interface Licitacion {
@@ -80,6 +93,26 @@ export interface Licitacion {
   ganadora?: Ganadora;
   /** Precio por unidad que paga un negocio comprando solo. Opcional: si falta, se usa la oferta más cara. */
   precioSolo?: number;
+  /** Compra conjunta con un solo proveedor y precio por volumen. */
+  proveedorId?: string;
+  /** Cómo se cuenta el producto, en singular ("saco"). */
+  unidad?: string;
+  unidadPlural?: string;
+  tramos?: Tramo[];
+  /** Derivados que calcula el backend; si faltan, la pantalla los calcula desde `tramos`. */
+  totalUnidades?: number;
+  precioActual?: number;
+  siguienteTramo?: SiguienteTramo | null;
+  /** Órdenes creadas al cerrar, una por participante. */
+  ordenIds?: string[];
+}
+
+/** GET /api/red/config: a qué número escribirle a Dominó y qué se compra. */
+export interface ConfigRed {
+  whatsappNumero: string | null;
+  producto?: string;
+  unidad?: string;
+  unidadPlural?: string;
 }
 
 export interface EstadoRed {
@@ -103,6 +136,8 @@ export type TipoEvento =
   | 'licitacion.participante'
   | 'licitacion.oferta'
   | 'licitacion.cerrada'
+  | 'licitacion.precio_bajo'
+  | 'licitacion.facturada'
   | 'red.reiniciada';
 
 /**
@@ -110,8 +145,9 @@ export type TipoEvento =
  * orden.creada/confirmada { orden }, documento.emitido { documento }, documento.actualizado { documento },
  * recepcion.registrada { orden, conforme, faltante? }, reclamo.registrado { orden, reclamo, motivo },
  * nota_credito.emitida { orden, documento }, nota.cambiada { proveedorId, anterior, nota },
- * licitacion.participante { licitacion, participante }, licitacion.oferta { licitacion, oferta, nota },
- * licitacion.cerrada { licitacion, ordenes }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
+ * licitacion.participante { licitacion, participante }, licitacion.oferta { licitacionId, oferta, mejor } (antes { licitacion, oferta, nota }),
+ * licitacion.cerrada { licitacion, ordenes }, licitacion.precio_bajo { licitacionId, precioAnterior, precioNuevo, totalUnidades },
+ * licitacion.facturada { licitacionId, documentos (cantidad), total, ahorroTotal }, red.reiniciada { foto completa, igual a GET /api/red/estado }. Se lee con cuidado por si falta algo.
  */
 export interface EventoRed {
   tipo: TipoEvento;

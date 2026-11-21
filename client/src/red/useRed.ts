@@ -3,9 +3,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import type { EstadoRed, EventoRed, Fuente } from './tipos.ts';
+import type { ConfigRed, EstadoRed, EventoRed, Fuente } from './tipos.ts';
 import { cambiosDeNota, normalizarEstado, type CambioNota } from './derivar.ts';
-import { iniciarRedFalsa, type RedFalsa } from './falso.ts';
+import { CONFIG_FALSA, iniciarRedFalsa, type RedFalsa } from './falso.ts';
 
 /** Cuánto tiempo se muestra animado un cambio de nota. */
 const DURACION_CAMBIO = 12_000;
@@ -19,8 +19,23 @@ async function pedirEstado(): Promise<EstadoRed> {
   return normalizarEstado(await r.json());
 }
 
-/** Evento recibido, con una clave local para animarlo en las listas. */
-export type EventoVisto = EventoRed & { clave: number };
+/** Evento recibido, con una clave local para animarlo en las listas y la hora local en que llegó. */
+export type EventoVisto = EventoRed & { clave: number; recibido: number };
+
+/** Acciones del panel del presentador. Todas exigen el token de la demo. */
+export type AccionDemo = 'reiniciar' | 'cerrar' | 'confirmar';
+
+const RUTA_ACCION: Record<AccionDemo, (id: string) => string> = {
+  reiniciar: () => '/api/red/demo/reiniciar',
+  cerrar: id => `/api/red/licitaciones/${encodeURIComponent(id)}/cerrar`,
+  confirmar: id => `/api/red/licitaciones/${encodeURIComponent(id)}/confirmar`,
+};
+
+async function mensajeDeError(r: Response, porDefecto: string): Promise<string> {
+  // El backend responde { error, mensaje }; el mensaje ya viene en español para la persona.
+  const cuerpo = (await r.json().catch(() => null)) as { mensaje?: unknown } | null;
+  return typeof cuerpo?.mensaje === 'string' ? cuerpo.mensaje : `${porDefecto} (${r.status})`;
+}
 
 export interface DatosUnirse {
   nombre: string;
@@ -46,7 +61,7 @@ export function useRed() {
   }, []);
 
   const recibirEvento = useCallback((e: EventoRed) => {
-    setEventos(es => [{ ...e, clave: ++contador.current }, ...es].slice(0, MAX_EVENTOS));
+    setEventos(es => [{ ...e, clave: ++contador.current, recibido: Date.now() }, ...es].slice(0, MAX_EVENTOS));
   }, []);
 
   useEffect(() => {
@@ -96,6 +111,7 @@ export function useRed() {
           if (!falsa.current) {
             setFuente('falsa');
             falsa.current = iniciarRedFalsa((e, ev) => {
+              if (ev?.tipo === 'red.reiniciada') return reiniciar(e);
               recibirEstado(e);
               if (ev) recibirEvento(ev);
             });
@@ -129,14 +145,32 @@ export function useRed() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(datos),
     });
-    if (!r.ok) {
-      // El backend responde { error, mensaje }; el mensaje ya viene en español para la persona.
-      const cuerpo = (await r.json().catch(() => null)) as { mensaje?: unknown } | null;
-      throw new Error(typeof cuerpo?.mensaje === 'string' ? cuerpo.mensaje : `No pudimos sumarte (${r.status})`);
-    }
+    if (!r.ok) throw new Error(await mensajeDeError(r, 'No pudimos sumarte'));
   }, []);
 
-  return { estado, eventos, cambios, fuente, unirse };
+  const accionDemo = useCallback(async (accion: AccionDemo, token: string, licitacionId = '') => {
+    if (falsa.current) return falsa.current[accion](licitacionId);
+    const r = await fetch(RUTA_ACCION[accion](licitacionId), { method: 'POST', headers: { 'x-demo-token': token } });
+    if (!r.ok) throw new Error(await mensajeDeError(r, 'No se pudo'));
+  }, []);
+
+  return { estado, eventos, cambios, fuente, unirse, accionDemo };
+}
+
+/** GET /api/red/config. Con la red falsa usa su config; si el backend todavía no tiene la ruta, sin número. */
+export function useConfigRed(fuente: Fuente): ConfigRed {
+  const [config, setConfig] = useState<ConfigRed>({ whatsappNumero: null });
+  useEffect(() => {
+    if (fuente === 'falsa') return setConfig(CONFIG_FALSA);
+    if (fuente !== 'real') return;
+    let activo = true;
+    fetch('/api/red/config', { headers: { accept: 'application/json' } })
+      .then(r => (r.ok && r.headers.get('content-type')?.includes('application/json') ? r.json() : null))
+      .then((c: ConfigRed | null) => activo && setConfig({ ...c, whatsappNumero: c?.whatsappNumero || null }))
+      .catch(() => {});
+    return () => { activo = false; };
+  }, [fuente]);
+  return config;
 }
 
 /** Hora actual que se actualiza sola, para cuentas regresivas y "hace 5 s". */
