@@ -22,7 +22,7 @@ Cuando haya dudas sobre qué hacer primero:
 - Normal: rama propia (o worktree si hay varios agentes en la misma máquina) y PR hacia `main`, que se junta con `gh pr merge --squash --delete-branch`.
 - Directo a `main` solo si es urgente y tu humano lo pide.
 - Antes de empezar, revisa qué está en curso (`gh pr list` y `agents/*.md`) para no pisar el trabajo de otro.
-- Render deploya desde un repo espejo que copia `main` de este repo cada ~5 min. Se trabaja solo aquí; no configures el espejo. Todo lo que entra a `main` sale a producción en minutos: **nunca dejes `main` roto**.
+- Render deploya desde un repo espejo. En cada push a `main` (de cualquier integrante, también al mergear un PR desde la web), el Action `Espejo al push` empuja ese commit al espejo y Render lo despliega en un par de minutos. Se trabaja solo aquí; no configures remotos ni empujes al espejo a mano. Todo lo que entra a `main` sale a producción: **nunca dejes `main` roto**.
 
 ## Trabajo con varios agentes en paralelo
 
