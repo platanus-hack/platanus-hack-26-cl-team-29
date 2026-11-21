@@ -11,6 +11,12 @@ services:
         fromDatabase:
           name: db
           property: connectionString
+      - key: KAPSO_API_KEY
+        sync: false
+      - key: KAPSO_PHONE_NUMBER_ID
+        sync: false
+      - key: KAPSO_WEBHOOK_SECRET
+        sync: false
 
 databases:
   - name: db

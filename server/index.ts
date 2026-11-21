@@ -2,12 +2,15 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import pg from 'pg';
+import { createWhatsApp } from './whatsapp/index.ts';
 
 const app = express();
 const http = createServer(app);
 const io = new Server(http);
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+export const whatsapp = createWhatsApp();
 
+app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
 app.use(express.json());
 app.get('/api/health', async (_req, res) => {
   res.json((await db.query('select now()')).rows[0]);
