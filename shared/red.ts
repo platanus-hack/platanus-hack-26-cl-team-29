@@ -45,4 +45,6 @@ export type TipoEventoRed =
   // Llegaron proveedores y precios de referencia nuevos de Mercado Público (server/mercado-publico/).
   | 'mercado_publico.actualizado'
   // Se avisó por WhatsApp a los compradores registrados que abrió una compra conjunta: `{ licitacionId, negocios }` (solo el conteo).
-  | 'avisos.enviados';
+  | 'avisos.enviados'
+  // Llegaron giros del SII o clasificaciones de proveedores al buscador (server/proveedores/).
+  | 'proveedores.actualizado';

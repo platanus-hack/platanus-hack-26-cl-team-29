@@ -841,6 +841,10 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const precios = numero(e.datos.precios) ?? 0;
       return `${segun(precios, 'Llegó', 'Llegaron')} ${contar(precios, 'precio')} de Mercado Público`;
     }
+    case 'proveedores.actualizado': {
+      const n = numero(e.datos.proveedores) ?? 0;
+      return `${contar(n, 'proveedor')} con datos nuevos del SII`;
+    }
     case 'licitacion.cerrada': {
       const ganadora = negocioPorId(estado, texto(objeto(objeto(e.datos.licitacion).ganadora).proveedorId))?.nombre;
       return ganadora ? `Cerró la compra conjunta: gana ${ganadora}` : 'Cerró la compra conjunta';

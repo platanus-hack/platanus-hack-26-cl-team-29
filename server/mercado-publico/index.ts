@@ -16,9 +16,13 @@ import type { EventoRed } from '../red/index.ts';
 import { crearAlmacenMemoria, crearAlmacenPostgres, type AlmacenMercadoPublico } from './almacen.ts';
 import { crearFuenteApi } from './api.ts';
 import { ordenesDeEjemplo } from './falsa.ts';
+import { limpiarOrdenes, type OrdenLimpia } from './limpieza.ts';
 import type { OrdenMP, PrecioMP } from './normalizar.ts';
 import { descargarOcds, leerOcds, urlOcds, versionOcds } from './ocds.ts';
 import { pasada, sumarDias } from './sincronizar.ts';
+
+export { limpiarOrdenes, normalizarUnidad, PRECIO_UNITARIO_MAXIMO } from './limpieza.ts';
+export type { OrdenLimpia, PrecioLimpio, Unidad } from './limpieza.ts';
 
 const HORAS_POR_DEFECTO = 6;
 const DIAS_INICIALES = 3;
@@ -80,6 +84,9 @@ const mediana = (xs: number[]) => {
   return s.length % 2 ? s[(s.length - 1) / 2]! : Math.round((s[s.length / 2 - 1]! + s[s.length / 2]!) / 2);
 };
 
+/** Mínimo, mediana y máximo de unos precios (al menos uno). */
+export const rangoDe = (valores: number[]) => ({ minimo: Math.min(...valores), mediana: mediana(valores), maximo: Math.max(...valores) });
+
 /** Precios de referencia de un producto (búsqueda por texto en el producto y su categoría), resumidos por unidad. */
 export function preciosDeReferencia(ordenes: OrdenMP[], producto: string) {
   const buscado = sinTildes(producto.trim());
@@ -89,15 +96,24 @@ export function preciosDeReferencia(ordenes: OrdenMP[], producto: string) {
     .sort((a, b) => b.p.fecha.localeCompare(a.p.fecha));
   const resumen = buscado
     ? [...agrupar(precios, x => x.p.unidad)].map(([unidad, xs]) => {
-      const valores = xs.map(x => x.p.precioUnitario);
-      return { unidad, cantidad: xs.length, minimo: Math.min(...valores), mediana: mediana(valores), maximo: Math.max(...valores) };
+      return { unidad, cantidad: xs.length, ...rangoDe(xs.map(x => x.p.precioUnitario)) };
     })
     : [];
   return { producto, resumen, precios: precios.slice(0, MAX_PRECIOS).map(({ p, o }) => precioPublico(p, o)) };
 }
 
+/** Lo que se muestra de Mercado Público en un momento: órdenes ya limpias (limpieza.ts) y de dónde salen. */
+export interface FotoMercadoPublico {
+  ordenes: OrdenLimpia[];
+  fuente: 'mercado_publico' | 'ejemplo';
+  /** Día de la orden más reciente, `AAAA-MM-DD`. */
+  hasta: string | null;
+}
+
 export interface MercadoPublicoDelServidor {
   rutas: express.Router;
+  /** La foto vigente; es el mismo objeto mientras no llegan órdenes nuevas (sirve de clave de cache). */
+  foto(): FotoMercadoPublico;
   /** Corre una pasada ahora (la misma que corre el intervalo). */
   actualizar(): Promise<void>;
   detener(): void;
@@ -130,9 +146,11 @@ export async function iniciarMercadoPublico(
   if (!ticket) console.warn('[mercado-publico] sin MERCADO_PUBLICO_TICKET: solo el dataset OCDS anual (sin las órdenes de los últimos días).');
   const api = ticket ? crearFuenteApi(ticket, { esperaMs: ESPERA_MS }) : null;
 
+  let ultimaFoto: { clave: string; foto: FotoMercadoPublico } | null = null;
   const avisar = (fuente: 'ocds' | 'api') => (nuevas: OrdenMP[]) => {
     for (const o of nuevas) cache.set(o.codigo, o);
     if (!nuevas.length) return;
+    ultimaFoto = null;
     const datos = {
       fuente, hasta: nuevas.map(o => o.fecha).sort().at(-1), ordenes: nuevas.length,
       precios: nuevas.reduce((n, o) => n + o.precios.length, 0), proveedores: new Set(nuevas.map(o => o.proveedor.rut)).size,
@@ -177,10 +195,14 @@ export async function iniciarMercadoPublico(
     for (const t of temporizadores) t.unref();
   }
 
-  /** Las órdenes guardadas; sin ninguna, las de ejemplo, avisando que lo son. */
-  const foto = () => {
-    const ordenes = cache.size ? [...cache.values()] : ordenesDeEjemplo(fechaEnChile(new Date()));
-    return { ordenes, fuente: cache.size ? 'mercado_publico' : 'ejemplo', hasta: ordenes.map(o => o.fecha).sort().at(-1) ?? null };
+  /** Las órdenes guardadas, limpias; sin ninguna, las de ejemplo, avisando que lo son. Se recalcula solo si cambiaron. */
+  const foto = (): FotoMercadoPublico => {
+    const clave = cache.size ? 'guardadas' : fechaEnChile(new Date());
+    if (ultimaFoto?.clave === clave) return ultimaFoto.foto;
+    const ordenes = limpiarOrdenes(cache.size ? [...cache.values()] : ordenesDeEjemplo(clave));
+    const nueva: FotoMercadoPublico = { ordenes, fuente: cache.size ? 'mercado_publico' : 'ejemplo', hasta: ordenes.map(o => o.fecha).sort().at(-1) ?? null };
+    ultimaFoto = { clave, foto: nueva };
+    return nueva;
   };
   const rutas = express.Router();
   rutas.get('/proveedores', (_req, res) => {
@@ -199,5 +221,5 @@ export async function iniciarMercadoPublico(
     const { ordenes, ...meta } = foto();
     res.json({ ...meta, ...preciosDeReferencia(ordenes, String(req.query.producto ?? '')) });
   });
-  return { rutas, actualizar, detener: () => temporizadores.forEach(clearTimeout) };
+  return { rutas, foto, actualizar, detener: () => temporizadores.forEach(clearTimeout) };
 }

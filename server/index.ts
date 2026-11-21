@@ -12,6 +12,7 @@ import { crearInterpreteDesdeEnv } from './ia/index.ts';
 import { iniciarLocales } from './locales/index.ts';
 import { iniciarMercadoPublico } from './mercado-publico/index.ts';
 import { iniciarAvisos } from './avisos/index.ts';
+import { iniciarProveedores } from './proveedores/index.ts';
 
 const app = express();
 const http = createServer(app);
@@ -48,6 +49,8 @@ certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono,
 const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento', hallazgo));
 // Proveedores y precios de referencia de Mercado Público: se actualizan en segundo plano y avisan por `red:evento`.
 const mercadoPublico = await iniciarMercadoPublico(dbRed, evento => io.emit('red:evento', evento));
+// Buscador de proveedores: la red y Mercado Público en una sola lista, con giros del SII y categoría.
+const proveedores = await iniciarProveedores({ db: dbRed, red, mercadoPublico, emitir: evento => io.emit('red:evento', evento) });
 
 app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP del ingreso del proveedor)
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
@@ -58,6 +61,7 @@ app.get('/api/health', async (_req, res) => {
 });
 app.use('/api/locales', locales.rutas);
 app.use('/api/fuentes/mercado-publico', mercadoPublico.rutas);
+app.use('/api/proveedores', proveedores.rutas);
 app.use('/api/red', crearRutasRed(red, process.env, { conexionSii: conexionSii.rutas }));
 app.use(express.static('dist'));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' })); // fallback SPA (Express 5: no usar app.get('*'))
