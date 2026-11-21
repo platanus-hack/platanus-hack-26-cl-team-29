@@ -15,7 +15,7 @@ const DURACION_BAJADA = 2400;
 /** Ancho mínimo de cada ficha del muro, en px. */
 const ANCHO_FICHA = 300;
 const ANCHO_FACTURA = 270;
-const ANCHO_OFERTA = 230;
+const ANCHO_OFERTA = 290;
 
 type Unidad = ResumenSala['unidad'];
 const cuantas = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
@@ -97,7 +97,7 @@ function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
       <p className="etiqueta">Proveedores compitiendo · gana el mejor precio</p>
       <ul className="competencia-lista" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
         {ofertas.slice(0, columnas).map(o => (
-          <li key={o.n} className={`oferta-sala ${o.gana ? 'gana' : ''}`}>
+          <li key={o.clave} className={`oferta-sala ${o.gana ? 'gana' : ''}`}>
             <span className="oferta-quien">
               <span className="nombre">{o.proveedor}</span>
               {o.enEscenario && <span className="en-escenario">en la sala</span>}

@@ -378,8 +378,8 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
 // ---------- La sala compra junta ----------
 
 export interface OfertaSala {
-  /** Número de llegada (estable, sirve de clave). */
-  n: number;
+  /** Clave estable por oferta: el backend reemplaza la oferta anterior de cada proveedor. */
+  clave: string;
   proveedorId: string;
   proveedor: string;
   precioUnitario: number;
@@ -401,7 +401,7 @@ export function competencia(lic: Licitacion, estado: EstadoRed): OfertaSala[] {
     ? llegada.find(x => x.o.proveedorId === lic.ganadora!.proveedorId && x.o.precioUnitario === lic.ganadora!.precioUnitario)
     : llegada.reduce<(typeof llegada)[number] | undefined>((m, x) => (!m || x.o.precioUnitario < m.o.precioUnitario ? x : m), undefined);
   return llegada.map(({ o, n }) => ({
-    n,
+    clave: `${o.proveedorId}-${o.en ?? n}-${o.precioUnitario}`,
     proveedorId: o.proveedorId,
     proveedor: o.proveedorNombre ?? negocioPorId(estado, o.proveedorId)?.nombre ?? 'Proveedor',
     precioUnitario: o.precioUnitario,

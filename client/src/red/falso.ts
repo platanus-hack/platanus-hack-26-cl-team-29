@@ -239,9 +239,10 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     const nota = e.notas.find(n => n.proveedorId === proveedorId)?.nota;
     const proveedorNombre = e.negocios.find(n => n.id === proveedorId)?.nombre;
     const oferta: Oferta = { proveedorId, proveedorNombre, precioUnitario, plazoDias: 1, nota, en: ahoraIso() };
-    modificarLicitacion(e, id, l => conDerivados({ ...l, ofertas: [...l.ofertas, oferta] }));
+    // Como el backend: cada proveedor tiene una sola oferta vigente, la nueva reemplaza a la anterior.
+    modificarLicitacion(e, id, l => conDerivados({ ...l, ofertas: [...l.ofertas.filter(x => x.proveedorId !== proveedorId), oferta] }));
     const nueva = licitacion(e, id)!;
-    return [['licitacion.oferta', { licitacionId: id, licitacion: nueva, oferta, mejor: mejorOferta(nueva) === oferta }], ...bajada(lic, nueva)];
+    return [['licitacion.oferta', { licitacionId: id, licitacion: nueva, oferta, nota, mejor: mejorOferta(nueva) === oferta }], ...bajada(lic, nueva)];
   };
 
   const cerrar = (id: string) => {
