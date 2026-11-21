@@ -2,7 +2,7 @@
 Actualizado: 2026-11-21 19:50
 
 ## Estado
-trabajando
+libre (PR abierto, esperando revisión)
 
 ## Trabajando en
 - Usuarios en la web: entrar con el teléfono y un código por WhatsApp, sesión larga en el dispositivo. Rama `feat/acceso-whatsapp`.
@@ -14,6 +14,7 @@ trabajando
 - test/acceso.test.ts (nuevo) y los tests que entraban con /sesion o PROVEEDOR_CODIGO
 
 ## Hecho
+- Entrar con el teléfono y un código por WhatsApp; sesión de 90 días en Postgres; sesión del negocio (compra y vende con la misma)
 
 ## Bloqueos
 

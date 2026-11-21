@@ -17,7 +17,7 @@ import {
 } from './logica.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { CarritoCompra, FacturaANombre, GrupoEnVivo } from './Carrito.tsx';
-import { Acceso } from './Acceso.tsx';
+import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { Invitar } from './Invitar.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
@@ -63,7 +63,7 @@ export function MiNegocio() {
       </>
     );
   }
-  if (!yo) return <main className="cn-pagina"><p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu negocio...'}</p></main>;
+  if (!yo) return <main className="cn-pagina"><CargandoCuenta error={error} texto="Cargando tu negocio..." onSalir={salir} /></main>;
 
   const irA = (s: Seccion) => { location.hash = s; };
   const porRecibir = yo.ordenes.filter(o => o.estado === 'facturada').length;

@@ -60,7 +60,7 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
       <p className="cn-bajada">
         {paso === 'telefono' ? bajada
           : paso === 'codigo' ? <>Te mandamos un código por WhatsApp al <strong>{numero}</strong>.</>
-          : 'Es tu primera vez en la red: cuéntanos de tu negocio. Tus facturas salen a este RUT.'}
+          : 'Es tu primera vez en la red: cuéntanos de tu negocio. Tus facturas salen a tu RUT.'}
       </p>
 
       {paso === 'telefono' && (
@@ -114,5 +114,16 @@ function VentanaCerrada({ numero }: { numero: string | null | undefined }) {
       Si no te llega, escríbenos un “Hola” por WhatsApp y el código te llega al tiro.
       {enlace && <> <a href={enlace} target="_blank" rel="noreferrer">Abrir WhatsApp</a></>}
     </p>
+  );
+}
+
+/** Mientras llegan los datos con sesión. Si fallan (por ejemplo, un negocio que no vende abre el panel), deja entrar con otro número. */
+export function CargandoCuenta({ error, texto, onSalir }: { error: string; texto: string; onSalir: () => void }) {
+  if (!error) return <p className="vacio">{texto}</p>;
+  return (
+    <>
+      <p className="error">{error}</p>
+      <button type="button" className="cn-boton-texto" onClick={onSalir}>Entrar con otro número</button>
+    </>
   );
 }

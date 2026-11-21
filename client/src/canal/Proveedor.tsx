@@ -23,7 +23,7 @@ import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo, YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
-import { Acceso } from './Acceso.tsx';
+import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import './canal.css';
 
 const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
@@ -38,7 +38,7 @@ export function Proveedor() {
     return <Acceso api={api} config={config} fuente={fuente} titulo="Panel del proveedor" onEntrar={entrar}
       bajada="Confirma pedidos, factura en el SII y resuelve reclamos, igual que por WhatsApp. Entra con el WhatsApp de tu empresa." />;
   }
-  if (!yo) return <main className="cn-pagina"><p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu panel...'}</p></main>;
+  if (!yo) return <main className="cn-pagina"><CargandoCuenta error={error} texto="Cargando tu panel..." onSalir={salir} /></main>;
 
   const lics = yo.licitaciones ?? foto.licitaciones;
   const lic = licitacionVigente(lics);

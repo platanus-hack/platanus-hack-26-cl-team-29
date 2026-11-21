@@ -3,7 +3,7 @@
 
 import { useRef } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { Acceso } from '../canal/Acceso.tsx';
+import { Acceso, CargandoCuenta } from '../canal/Acceso.tsx';
 import { CarritoCompra, FacturaANombre, resumenGrupo, ultimoEnSumarse } from '../canal/Carrito.tsx';
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
 import { BotonWhatsapp, Marca } from '../canal/piezas.tsx';
@@ -17,7 +17,7 @@ import '../canal/canal.css';
 export function Unirse() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const ahora = useAhora();
-  const { token, entrar, vencer } = useSesion(api);
+  const { token, entrar, vencer, salir } = useSesion(api);
   const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
   useInvitacionRecibida(token, api?.modo); // llegó con ?ref=<código> de otro negocio ("Trae a tu vecino")
   const idPedido = useRef(new URLSearchParams(location.search).get('licitacion'));
@@ -63,7 +63,7 @@ export function Unirse() {
           </>
         ) : <p className="vacio">Esta compra conjunta ya cerró.</p>
       ) : !yo ? (
-        <p className={error ? 'error' : 'vacio'}>{error || 'Cargando tu carrito...'}</p>
+        <CargandoCuenta error={error} texto="Cargando tu carrito..." onSalir={salir} />
       ) : (
         <>
           <p className="cn-hola mono">Comprando como <strong>{yo.negocio.nombre}</strong></p>
