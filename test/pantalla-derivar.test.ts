@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cambiosDeNota, cicloDeOrden, describirEvento, normalizarEstado, precioAjustado, ranking, resumenLicitacion } from '../client/src/red/derivar.ts';
-import { dinero, nota } from '../client/src/red/formato.ts';
+import { cuentaRegresiva, dinero, nota } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -21,6 +21,8 @@ test('formatea dinero chileno y notas con coma', () => {
   assert.equal(dinero(17200), '$17.200');
   assert.equal(dinero(1234567), '$1.234.567');
   assert.equal(nota(4.2), '4,2');
+  assert.equal(cuentaRegresiva(272_000), '04:32');
+  assert.equal(cuentaRegresiva(7_171_000), '1:59:31');
 });
 
 test('normaliza notas que llegan como objeto y listas que faltan', () => {

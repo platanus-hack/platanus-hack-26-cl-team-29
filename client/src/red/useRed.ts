@@ -116,7 +116,11 @@ export function useRed() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(datos),
     });
-    if (!r.ok) throw new Error(`No pudimos sumarte (${r.status})`);
+    if (!r.ok) {
+      // El backend responde { error, mensaje }; el mensaje ya viene en español para la persona.
+      const cuerpo = (await r.json().catch(() => null)) as { mensaje?: unknown } | null;
+      throw new Error(typeof cuerpo?.mensaje === 'string' ? cuerpo.mensaje : `No pudimos sumarte (${r.status})`);
+    }
   }, []);
 
   return { estado, eventos, cambios, fuente, unirse };

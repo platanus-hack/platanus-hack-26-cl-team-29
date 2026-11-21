@@ -23,9 +23,10 @@ export function haceCuanto(en: string, ahora: number): string {
 
 export function cuentaRegresiva(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
-  const mm = Math.floor(total / 60).toString().padStart(2, '0');
-  const ss = (total % 60).toString().padStart(2, '0');
-  return `${mm}:${ss}`;
+  const dos = (n: number) => n.toString().padStart(2, '0');
+  const hh = Math.floor(total / 3600);
+  const mmss = `${dos(Math.floor((total % 3600) / 60))}:${dos(total % 60)}`;
+  return hh > 0 ? `${hh}:${mmss}` : mmss;
 }
 
 /** Cómo se cuenta el producto en pantalla: la harina va en sacos, el aceite en bidones. */

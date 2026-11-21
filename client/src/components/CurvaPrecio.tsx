@@ -37,7 +37,7 @@ export function CurvaPrecio({ puntos, precioSolo }: { puntos: PuntoCurva[]; prec
       ))}
       <circle cx={x(ultimo.compradores)} cy={y(ultimo.precio)} r={7} fill="var(--color-primary)" />
       <text x={MARGEN.izq} y={ALTO + 12}>{puntos[0].compradores} negocios</text>
-      {medio !== ultimo && medio.compradores !== puntos[0].compradores && (
+      {medio.compradores !== ultimo.compradores && medio.compradores !== puntos[0].compradores && (
         <text x={x(medio.compradores)} y={ALTO + 12} textAnchor="middle">{medio.compradores}</text>
       )}
       <text className="ahora" x={ANCHO - MARGEN.der} y={ALTO + 12} textAnchor="end">{ultimo.compradores} ahora</text>

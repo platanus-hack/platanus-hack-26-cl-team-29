@@ -193,7 +193,7 @@ body {
 .lic-cuerpo { display: grid; grid-template-columns: 340px minmax(0, 1fr) 340px; gap: 24px; margin-top: 40px; align-items: stretch; }
 .grupo-total { display: flex; align-items: baseline; gap: 14px; margin-top: 16px; }
 .grupo-total .numero-grande { font-size: 80px; }
-.lista-grupo { list-style: none; padding: 16px 0 0; margin: 16px 0 0; border-top: 1px solid var(--color-border); display: grid; gap: 10px; font-family: var(--font-mono); font-size: 15px; }
+.lista-grupo { grid-template-columns: minmax(0, 1fr); list-style: none; padding: 16px 0 0; margin: 16px 0 0; border-top: 1px solid var(--color-border); display: grid; gap: 10px; font-family: var(--font-mono); font-size: 15px; }
 .lista-grupo li { display: flex; justify-content: space-between; gap: 12px; animation: aparecer 0.4s ease-out; }
 .lista-grupo li span:last-child { white-space: nowrap; flex-shrink: 0; }
 .lista-grupo li:first-child { animation: aparecer 0.4s ease-out, destello 2.5s ease-out; border-radius: 4px; }
@@ -217,7 +217,7 @@ body {
 .curva text.ahora { fill: var(--color-text); }
 .leyenda { display: flex; align-items: center; gap: 12px; font-family: var(--font-mono); font-size: 14px; color: var(--color-muted); margin-top: 12px; }
 .leyenda i { width: 10px; height: 10px; border-radius: 50%; background: var(--color-magenta); flex-shrink: 0; }
-.ofertas { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+.ofertas { grid-template-columns: minmax(0, 1fr); list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
 .oferta { border: 1px solid var(--color-border); border-radius: 12px; padding: 14px; animation: aparecer 0.4s ease-out; }
 .oferta .linea { display: flex; justify-content: space-between; gap: 12px; font-size: 20px; font-weight: 700; }
 .oferta p { margin: 8px 0 0; font-family: var(--font-mono); font-size: 13px; color: var(--color-muted); line-height: 1.4; }
