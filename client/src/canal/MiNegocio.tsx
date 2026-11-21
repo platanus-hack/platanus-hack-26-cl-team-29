@@ -1,5 +1,5 @@
 // /app: "Mi negocio", el canal web del comprador. Las mismas acciones que por WhatsApp:
-// sumarse a la compra conjunta, pedir a un proveedor, recibir o reclamar en el SII y ver las facturas.
+// sumarse a la compra conjunta, pedir a un proveedor, recibir o reclamar en el SII, ver las facturas y su crédito Bando.
 
 import { useCallback, useEffect, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
@@ -20,6 +20,7 @@ import { CarritoCompra, FacturaANombre, GrupoEnVivo } from './Carrito.tsx';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { Invitar } from './Invitar.tsx';
+import { MiCredito } from './MiCredito.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
@@ -28,9 +29,9 @@ import './canal.css';
 /** Copia del catálogo de la red (server/red/catalogo.ts). El producto de la compra conjunta se compra en su sección. */
 const CATALOGO = ['Harina 25 kg', 'Levadura 500 g', 'Azúcar 25 kg', 'Manteca 10 kg', 'Sal 25 kg'];
 
-type Seccion = 'compra' | 'pedir' | 'pedidos' | 'facturas';
+type Seccion = 'compra' | 'pedir' | 'pedidos' | 'facturas' | 'credito';
 const SECCIONES: Array<[Seccion, string, NombreIcono]> = [
-  ['compra', 'Compra conjunta', 'grupo'], ['pedir', 'Pedir', 'carro'], ['pedidos', 'Mis pedidos', 'paquete'], ['facturas', 'Mis facturas', 'documento'],
+  ['compra', 'Compra conjunta', 'grupo'], ['pedir', 'Pedir', 'carro'], ['pedidos', 'Mis pedidos', 'paquete'], ['facturas', 'Mis facturas', 'documento'], ['credito', 'Crédito', 'tarjeta'],
 ];
 
 const seccionDelHash = (): Seccion => {
@@ -99,6 +100,7 @@ export function MiNegocio() {
         {seccion === 'pedir' && <Pedir api={api} token={token} foto={foto} config={config} alEnviar={() => { recargar(); irA('pedidos'); }} />}
         {seccion === 'pedidos' && <MisPedidos api={api} token={token} foto={foto} yo={yo} config={config} alCambiar={recargar} irAPedir={() => irA('pedir')} />}
         {seccion === 'facturas' && <MisFacturas foto={foto} yo={yo} />}
+        {seccion === 'credito' && <MiCredito api={api} token={token} foto={foto} cambio={cambio} />}
         <BotonWhatsapp numero={config?.whatsappNumero} />
       </main>
     </div>

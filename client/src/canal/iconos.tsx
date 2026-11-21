@@ -20,6 +20,7 @@ const TRAZOS: Record<string, ReactNode> = {
   paquete: <><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z" /><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9M7.8 5.2l8.5 4.6" /></>,
   camion: <><path d="M2.5 6h11v10h-11zM13.5 9.5h4l3 3.5V16h-7" /><circle cx="6.5" cy="17.5" r="1.75" /><circle cx="17" cy="17.5" r="1.75" /></>,
   documento: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></>,
+  tarjeta: <><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4" /></>,
   // Productos
   rollo: <><ellipse cx="8" cy="12" rx="3.5" ry="7" /><ellipse cx="8" cy="12" rx="1.2" ry="2.4" /><path d="M8 5h9c1.9 0 3.5 3.1 3.5 7s-1.6 7-3.5 7H8" /></>,
   saco: <><path d="M8 3.5h8l-1.5 3c3 1.6 4.5 4.6 4.5 8.5 0 3.6-2.9 5.5-7 5.5s-7-1.9-7-5.5c0-3.9 1.5-6.9 4.5-8.5z" /><path d="M9.5 6.5h5" /></>,

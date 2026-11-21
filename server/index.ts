@@ -13,6 +13,7 @@ import { iniciarLocales } from './locales/index.ts';
 import { iniciarMercadoPublico } from './mercado-publico/index.ts';
 import { iniciarAvisos } from './avisos/index.ts';
 import { iniciarProveedores } from './proveedores/index.ts';
+import { iniciarPagos } from './pagos/index.ts';
 import { crearRutasAvisos } from './avisos/rutas.ts';
 import { crearRutasCatalogo, crearRutasOperacionCatalogo, iniciarCatalogos } from './catalogo/index.ts';
 import type { Negocio } from './red/tipos.ts';
@@ -56,6 +57,8 @@ const mercadoPublico = await iniciarMercadoPublico(dbRed, evento => io.emit('red
 const proveedores = await iniciarProveedores({ db: dbRed, red, mercadoPublico, emitir: evento => io.emit('red:evento', evento) });
 // Catálogo de cada proveedor desde sus facturas: se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
 const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
+// Crédito Bando: Bando le paga al proveedor al facturar y cobra al comprador a plazo en su tarjeta inscrita (docs/decisiones/20261121-2018-credito-bando.md).
+const pagos = await iniciarPagos({ db: dbRed, red, emitir: evento => io.emit('red:evento', evento) });
 red.escuchar(e => {
   const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
   if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });
@@ -75,6 +78,7 @@ app.use('/api/proveedores', proveedores.rutas);
 const sesiones = dbRed ? await crearSesionesPostgres(dbRed) : crearSesiones();
 const ENVIO_CODIGO = { sent: 'enviado', held: 'retenido', failed: 'fallido' } as const;
 app.use('/api/avisos', crearRutasAvisos(avisos, red, sesiones));
+app.use('/api/pagos', pagos.rutas(sesiones));
 app.use('/api/red', crearRutasRed(red, process.env, {
   conexionSii: conexionSii.rutas, sesiones,
   enviarCodigo: async (telefono, texto) => ENVIO_CODIGO[(await whatsapp.send(telefono, { body: texto }, { source: 'acceso' })).status],

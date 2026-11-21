@@ -51,4 +51,11 @@ export type TipoEventoRed =
   // Un negocio se sumó con la invitación de otro: `{ licitacionId, invita, invitado, invitaId?, invitadoId? }` (solo nombres e ids de negocio).
   | 'invitacion.sumada'
   // El catálogo de un proveedor, armado desde sus facturas, empezó a armarse o quedó listo: `{ proveedorId, estado }` (sin productos ni precios).
-  | 'catalogo.actualizado';
+  | 'catalogo.actualizado'
+  // Crédito Bando (server/pagos/): factura emitida → Bando le pagó al proveedor y el comprador paga a plazo.
+  // `{ negocioId, proveedorId, ordenId, monto, plazoDias, venceEn }` (monto con IVA; nunca RUT ni datos de la tarjeta).
+  | 'credito.otorgado'
+  // Se cobró (o falló el cobro de) un crédito en la tarjeta inscrita: lo mismo más `{ ok, estado }`.
+  | 'credito.cobrado'
+  // Un comprador inscribió su tarjeta en Transbank: `{}` (sin datos de la tarjeta ni del negocio).
+  | 'tarjeta.inscrita';
