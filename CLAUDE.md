@@ -38,6 +38,13 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - El puerto siempre desde `process.env.PORT`. Secretos solo por variables de entorno, nunca en el repo.
 - UI y textos para el usuario en español.
 
+## Tiempo real (regla fija)
+- **Todo lo que se ve en pantalla se actualiza solo, en vivo.** Ninguna vista depende de recargar la página ni de un botón "actualizar".
+- El canal es Socket.io: el backend emite `red:evento` en cada cambio y el front lo escucha (`client/src/red/useRed.ts`). Una vista nueva usa ese hook; no crea su propio polling ni otro canal.
+- Toda acción que cambia datos en el backend emite su evento en el mismo paso. Un cambio que no emite evento es un bug.
+- El polling solo vale como respaldo cuando el socket se cae (reintento), nunca como mecanismo principal.
+- Antes de dar por terminada una pantalla, pruébala con dos ventanas abiertas: lo que haces en una tiene que verse en la otra sin tocar nada.
+
 ## Tests
 - **Chicos y enfocados**: un test por comportamiento importante (lógica de negocio, sync en tiempo real, manejo de conflictos). Sin frameworks extra: `node:test` + `node:assert`.
 - No testear trivialidades ni mockear todo. Un test que se cae si la lógica se rompe vale más que diez de cobertura.
