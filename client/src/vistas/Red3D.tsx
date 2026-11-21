@@ -1,5 +1,5 @@
 // /red-3d: "la red crece" sobre el mapa real de Santiago, en 3D. MapLibre pone las calles con inclinación y giro;
-// deck.gl, intercalado en el mismo WebGL, dibuja los locales, los negocios, las columnas de los proveedores y los arcos.
+// deck.gl, en un canvas encima con la misma cámara, dibuja los locales, los negocios, las columnas de los proveedores y los arcos.
 // Los datos son los de /red y /mapa (useRed, useLocales): cada `red:evento` también se anima aquí.
 // /red-3d#recorrido: cámara automática y determinista para grabar. Sin hash: modo libre (arrastrar, girar, inclinar).
 
@@ -233,7 +233,7 @@ function Lienzo({ estado, cambios, eventos, locales, recorrido, alElegir, alAvan
     // Recorrido: parte de cerca, sobre el MUT. Libre: Santiago inclinado, listo para explorar.
     const inicial = camara(recorrido ? 0 : 8000, MUT);
     const m = crearMapa(caja.current!, { ...inicial, interactive: !recorrido, maxPitch: 75 }, () => {});
-    const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
+    const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
     m.addControl(overlay);
     mapa.current = m;
     m.once('load', () => setListo(true));
@@ -359,6 +359,7 @@ export function Red3D() {
         <span className="r3d-titulo">La red crece</span>
         {ilustrando ? <span className="etiqueta r3d-modo">con locales reales de OpenStreetMap</span> : <span className="en-vivo contorno">En vivo</span>}
         <AvisoFuente fuente={fuente} />
+        {!recorrido && <span className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</span>}
       </header>
       <p className="r3d-cifra" aria-live="polite"><b>{miles(cap.cifra)}</b><small>{cap.texto}</small></p>
       <ul className="r3d-leyenda" aria-label="Leyenda">
@@ -368,7 +369,6 @@ export function Red3D() {
         <li><i className="raya" /> compra</li>
         <li className="credito">mapa © OpenStreetMap</li>
       </ul>
-      {!recorrido && <p className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</p>}
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
     </main>
   );

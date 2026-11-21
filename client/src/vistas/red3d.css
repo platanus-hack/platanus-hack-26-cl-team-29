@@ -41,12 +41,11 @@
 .r3d-leyenda .raya { width: 22px; height: 3px; background: linear-gradient(90deg, var(--color-green), var(--color-primary)); }
 .r3d-leyenda .credito { color: var(--color-tenue); }
 
+/* En modo libre, la ayuda va en la misma fila de la cabecera: nunca se encima con el título. */
 .r3d-ayuda {
-  position: absolute; left: 50%; top: var(--relleno); transform: translateX(-50%); margin: 0; padding: 6px 12px;
-  background: rgb(0 0 0 / 0.7); border: 1px solid var(--color-border); pointer-events: none;
-  font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); white-space: nowrap;
+  flex-basis: 100%; font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue);
 }
-@media (max-width: 1100px) { .r3d-ayuda { display: none; } }
+
 
 /* Etiqueta de cada proveedor: nombre y nota. Se tiñe unos segundos cuando su nota se mueve. */
 .r3d-proveedor {
