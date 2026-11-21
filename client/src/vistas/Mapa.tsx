@@ -93,9 +93,11 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
   };
 
   useEffect(() => {
-    // Los créditos van arriba a la derecha: abajo están la leyenda y las etiquetas del sur.
+    // Créditos abajo a la izquierda: arriba están el aviso y la leyenda.
     const m = new MapaLibre({ container: caja.current!, style: ESTILO, center: MUT, zoom: 10, attributionControl: false });
-    m.addControl(new AttributionControl({ compact: true }), 'top-right');
+    m.addControl(new AttributionControl({ compact: true }), 'bottom-left');
+    // Plegados en el botón (i): el crédito de OpenStreetMap queda siempre a la vista en la leyenda.
+    m.once('load', () => caja.current?.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
     mapa.current = m;
     let conCalles = false;
     m.on('style.load', () => {
@@ -174,11 +176,11 @@ function Lienzo({ estado, cambios, eventos, locales }: { estado: EstadoRed; camb
 /** Por dónde va el explorador de locales: cuántos lleva y a qué distancia del MUT. */
 function AvisoExploracion({ locales }: { locales: Locales }) {
   const { avance } = locales;
-  const que = avance.terminado ? 'Todo Chile' : avance.fase === 'reparto' ? 'Repartiendo por Chile' : 'Sumando locales hacia afuera';
+  const que = avance.terminado ? 'Todo Chile' : avance.fase === 'reparto' ? 'Repartiendo por Chile' : 'Hacia afuera';
   return (
     <p className="mapa-exploracion" aria-live="polite">
       <i className={avance.terminado ? '' : 'activo'} />
-      {que} · {miles(locales.locales.length)} locales{avance.fase === 'acumulando' && !avance.terminado ? ` · ${String(avance.distanciaKm).replace('.', ',')} km del MUT` : ''}
+      {que} · {miles(locales.locales.length)} locales{avance.fase === 'acumulando' && !avance.terminado ? ` · ${miles(Math.round(avance.distanciaKm))} km` : ''}
     </p>
   );
 }
@@ -210,6 +212,7 @@ export function Mapa() {
             <li><i className="raya amarillo" /> último pedido</li>
             <li><i className="raya magenta" /> reclamo</li>
             <li><i className="raya radio" /> {RADIO_KM} km desde el MUT</li>
+            <li className="credito">mapa © OpenStreetMap</li>
           </ul>
         </section>
 
