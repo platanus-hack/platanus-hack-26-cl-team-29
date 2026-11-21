@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { Escalera } from '../components/Escalera.tsx';
 import { useGrillaQueCabe } from '../components/medidas.ts';
 import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
-import { competencia, facturaAceptada, licitacionActual, resumenSala, type FacturaSala, type OfertaSala, type ResumenSala } from '../red/derivar.ts';
+import { competencia, facturaAceptada, licitacionActual, mostrarAviso, resumenSala, tipoDeBajada, type FacturaSala, type OfertaSala, type ResumenSala } from '../red/derivar.ts';
 import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii, telefono } from '../red/formato.ts';
-import type { ConfigRed, Licitacion } from '../red/tipos.ts';
+import type { ConfigRed, Licitacion, Tramo } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 import './sala.css';
 
 /** Cuánto dura en pantalla el momento "bajó el precio". */
 const DURACION_BAJADA = 2400;
+/** Cuánto dura el destello del precio cuando lo baja un proveedor. */
+const DURACION_DESTELLO = 1200;
 /** Ancho mínimo de cada ficha del muro, en px. */
 const ANCHO_FICHA = 300;
 const ANCHO_FACTURA = 270;
@@ -21,13 +23,54 @@ type Unidad = ResumenSala['unidad'];
 const cuantas = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 const sinProtocolo = (url: string) => url.replace(/^https?:\/\//, '');
 
-/** El último `licitacion.precio_bajo` de esta licitación, mientras dura su momento en pantalla. */
-function bajadaReciente(eventos: EventoVisto[], licitacionId: string, ahora: number) {
-  const e = eventos.find(ev => ev.tipo === 'licitacion.precio_bajo');
-  if (!e || e.datos.licitacionId !== licitacionId || ahora - e.recibido > DURACION_BAJADA) return null;
-  const anterior = typeof e.datos.precioAnterior === 'number' ? e.datos.precioAnterior : undefined;
-  const nuevo = typeof e.datos.precioNuevo === 'number' ? e.datos.precioNuevo : undefined;
-  return nuevo !== undefined ? { clave: e.clave, anterior, nuevo } : null;
+interface Aviso {
+  clave: number;
+  anterior?: number;
+  nuevo: number;
+}
+
+/**
+ * Reacciona a cada `licitacion.precio_bajo` nuevo de esta licitación. Si el grupo cruzó un tramo (y pasó la
+ * pausa), aviso a pantalla completa; si lo bajó un proveedor, el precio se anima en su lugar.
+ * Cada efecto tiene un solo temporizador: uno nuevo reinicia el anterior, nunca se apilan ni quedan pegados.
+ */
+function useBajadas(eventos: EventoVisto[], licitacionId: string | undefined, tramos: Tramo[] | undefined) {
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [destello, setDestello] = useState(false);
+  const visto = useRef(0);
+  const ultimoAviso = useRef<number | null>(null);
+  const timerAviso = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const timerDestello = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    const ahora = Date.now();
+    const nuevos = eventos
+      .filter(e => e.clave > visto.current && e.tipo === 'licitacion.precio_bajo' && e.datos.licitacionId === licitacionId && ahora - e.recibido < DURACION_BAJADA)
+      .reverse();
+    if (eventos[0]) visto.current = Math.max(visto.current, eventos[0].clave);
+    for (const e of nuevos) {
+      const tipo = tipoDeBajada(e.datos, tramos);
+      if (!tipo) continue;
+      if (mostrarAviso(tipo, ahora, ultimoAviso.current)) {
+        ultimoAviso.current = ahora;
+        const anterior = typeof e.datos.precioAnterior === 'number' ? e.datos.precioAnterior : undefined;
+        setAviso({ clave: e.clave, anterior, nuevo: e.datos.precioNuevo as number });
+        clearTimeout(timerAviso.current);
+        timerAviso.current = setTimeout(() => setAviso(null), DURACION_BAJADA);
+      } else {
+        setDestello(true);
+        clearTimeout(timerDestello.current);
+        timerDestello.current = setTimeout(() => setDestello(false), DURACION_DESTELLO);
+      }
+    }
+  }, [eventos, licitacionId, tramos]);
+
+  useEffect(() => () => {
+    clearTimeout(timerAviso.current);
+    clearTimeout(timerDestello.current);
+  }, []);
+
+  return { aviso, destello };
 }
 
 /** Tecla "d" abre y cierra el panel del presentador (no mientras se escribe en un campo). */
@@ -52,7 +95,7 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
   const destino = numero ? `https://wa.me/${numero.replace(/\D/g, '')}?text=Quiero%20sumarme` : `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   return (
     <section className="sala-unirse">
-      <h2>{numero ? 'Escríbele a Dominó y' : 'Escanea y'} <span className="subrayado">súmate al pedido</span></h2>
+      <h2>{numero ? 'Escríbele a Bando y' : 'Escanea y'} <span className="subrayado">súmate al pedido</span></h2>
       <Qr className="sala-qr" texto={destino} />
       {numero ? (
         <div className="sala-numero">
@@ -90,22 +133,18 @@ function Muro({ s }: { s: ResumenSala }) {
   );
 }
 
+/** La ganadora siempre a la vista, primero; después las ofertas más nuevas que quepan en una línea. */
 function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
   const [ref, { columnas }] = useGrillaQueCabe<HTMLUListElement>(ANCHO_OFERTA, 12, ofertas.length);
   return (
     <section className="sala-competencia">
-      <p className="etiqueta">Proveedores compitiendo · gana el mejor precio</p>
+      <p className="etiqueta">Proveedores compitiendo · <span className="amarillo">gana el mejor precio</span></p>
       <ul className="competencia-lista" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
-        {ofertas.slice(0, columnas).map(o => (
+        {[...ofertas.filter(o => o.gana), ...ofertas.filter(o => !o.gana)].slice(0, columnas).map(o => (
           <li key={o.clave} className={`oferta-sala ${o.gana ? 'gana' : ''}`}>
-            <span className="oferta-quien">
-              <span className="nombre">{o.proveedor}</span>
-              {o.enEscenario && <span className="en-escenario">en la sala</span>}
-            </span>
-            <span className="oferta-linea">
-              <strong>{dinero(o.precioUnitario)}</strong>
-              <span>{o.gana ? 'va ganando' : o.nota !== undefined ? `nota ${nota(o.nota)}` : '\u00a0'}</span>
-            </span>
+            <span className="nombre" title={o.nota !== undefined ? `nota ${nota(o.nota)}` : undefined}>{o.proveedor}</span>
+            {o.enEscenario && <span className="en-escenario">en la sala</span>}
+            <strong>{dinero(o.precioUnitario)}</strong>
           </li>
         ))}
       </ul>
@@ -113,7 +152,7 @@ function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
   );
 }
 
-function Abierta({ s, lic, config, ofertas }: { s: ResumenSala; lic: Licitacion; config: ConfigRed; ofertas: OfertaSala[] }) {
+function Abierta({ s, lic, config, ofertas, destello }: { s: ResumenSala; lic: Licitacion; config: ConfigRed; ofertas: OfertaSala[]; destello: boolean }) {
   const t = s.tramos;
   const porcentaje = s.precioSolo && t.precioActual !== undefined ? Math.round(((s.precioSolo - t.precioActual) / s.precioSolo) * 100) : 0;
   return (
@@ -122,13 +161,15 @@ function Abierta({ s, lic, config, ofertas }: { s: ResumenSala; lic: Licitacion;
       <section className="sala-tablero">
         <div className="sala-precio">
           <p className="etiqueta">Precio por {s.unidad.singular}, para todos</p>
-          <div className="precio-gigante" key={t.precioActual}>{t.precioActual !== undefined ? dinero(t.precioActual) : '-'}</div>
-          {s.precioSolo !== undefined && (
-            <p className="precio-solo-linea">
-              solo: <span className="tachado">{dinero(s.precioSolo)}</span>
-              {porcentaje > 0 && <span className="verde"> -{porcentaje}%</span>}
-            </p>
-          )}
+          <div className="precio-fila">
+            <div className={`precio-gigante ${destello ? 'por-oferta' : ''}`} key={t.precioActual}>{t.precioActual !== undefined ? dinero(t.precioActual) : '-'}</div>
+            {s.precioSolo !== undefined && (
+              <p className="precio-solo-linea">
+                <span>solo <span className="tachado">{dinero(s.precioSolo)}</span></span>
+                {porcentaje > 0 && <span className="verde">-{porcentaje}%</span>}
+              </p>
+            )}
+          </div>
         </div>
         <div className="sala-contadores">
           <div>
@@ -278,6 +319,8 @@ export function Sala() {
   const config = useConfigRed(fuente);
   const ahora = useAhora(250);
   const [panel, setPanel] = usePanelOculto();
+  const licEnCurso = estado ? licitacionActual(estado) : undefined;
+  const { aviso, destello } = useBajadas(eventos, licEnCurso?.id, licEnCurso?.tramos);
   if (!estado) return <Cargando />;
   const lic = licitacionActual(estado);
   if (!lic) {
@@ -290,14 +333,13 @@ export function Sala() {
   }
   const s = resumenSala(lic, estado, eventos, ahora);
   const restante = Date.parse(lic.cierraEn) - ahora;
-  const bajada = s.fase === 'abierta' ? bajadaReciente(eventos, lic.id, ahora) : null;
   const ofertas = competencia(lic, estado);
 
   return (
     <main className={`sala fase-${s.fase}`}>
       <header className="sala-cabecera">
         <div className="sala-marca">
-          <span className="marca">D</span>
+          <span className="marca">B</span>
           <div>
             <div className="lic-meta">
               <span className="en-vivo">La sala compra junta</span>
@@ -313,11 +355,11 @@ export function Sala() {
         </div>
       </header>
 
-      {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} ofertas={ofertas} />}
+      {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} ofertas={ofertas} destello={destello} />}
       {s.fase === 'cerrada' && <Cerrada s={s} ofertas={ofertas} />}
       {(s.fase === 'facturando' || s.fase === 'lista') && <Facturando s={s} />}
 
-      {bajada && <BajoElPrecio key={bajada.clave} anterior={bajada.anterior} nuevo={bajada.nuevo} unidad={s.unidad} />}
+      {s.fase === 'abierta' && aviso && <BajoElPrecio key={aviso.clave} anterior={aviso.anterior} nuevo={aviso.nuevo} unidad={s.unidad} />}
       {panel && <PanelPresentador licitacionId={lic.id} accion={accionDemo} alCerrar={() => setPanel(false)} />}
     </main>
   );

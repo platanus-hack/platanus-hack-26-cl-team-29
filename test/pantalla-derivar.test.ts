@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cambiosDeNota, cicloDeOrden, describirEvento, normalizarEstado, precioAjustado, ranking, resumenLicitacion } from '../client/src/red/derivar.ts';
+import { cambiosDeNota, cicloDeOrden, describirEvento, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, ranking, resumenLicitacion, tipoDeBajada } from '../client/src/red/derivar.ts';
 import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
@@ -92,4 +92,27 @@ test('el feed lee los datos con la forma del contrato', () => {
 test('documento.actualizado muestra el nuevo estado en el SII', () => {
   const ev = { tipo: 'documento.actualizado' as const, datos: { documento: { tipo: 33, folio: 7, estadoSii: 'aceptado' } }, en: '' };
   assert.equal(describirEvento(ev, base()), 'Factura folio 7 · aceptado por el SII');
+});
+
+test('la bajada de precio tapa la pantalla solo al cruzar un tramo, y como mucho una vez cada 6 s', () => {
+  const tramos = [
+    { desde: 1, precioUnitario: 32000 },
+    { desde: 10, precioUnitario: 29900 },
+    { desde: 25, precioUnitario: 27900 },
+  ];
+  // Un negocio se suma y el grupo pasa de 9 a 12 cajas: el precio nuevo es el del tramo de 10.
+  const porTramo = tipoDeBajada({ precioAnterior: 32000, precioNuevo: 29900, totalUnidades: 12 }, tramos);
+  assert.equal(porTramo, 'tramo');
+  // Un proveedor ofrece menos que el tramo: se anima en el lugar, no tapa la pantalla.
+  assert.equal(tipoDeBajada({ precioAnterior: 29900, precioNuevo: 29500, totalUnidades: 12 }, tramos), 'oferta');
+  // Cruzar un tramo cuyo precio queda bajo la mejor oferta también es de tramo.
+  assert.equal(tipoDeBajada({ precioAnterior: 28100, precioNuevo: 27900, totalUnidades: 30 }, tramos), 'tramo');
+  // Sin bajada real o sin datos, nada.
+  assert.equal(tipoDeBajada({ precioAnterior: 29900, precioNuevo: 29900, totalUnidades: 12 }, tramos), null);
+  assert.equal(tipoDeBajada({}, tramos), null);
+
+  assert.equal(mostrarAviso('tramo', 10_000, null), true);
+  assert.equal(mostrarAviso('tramo', 10_000 + PAUSA_AVISO_MS - 1, 10_000), false);
+  assert.equal(mostrarAviso('tramo', 10_000 + PAUSA_AVISO_MS, 10_000), true);
+  assert.equal(mostrarAviso('oferta', 50_000, null), false);
 });
