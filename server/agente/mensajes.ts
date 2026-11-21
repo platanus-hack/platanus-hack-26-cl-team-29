@@ -330,12 +330,17 @@ export const ERROR_TEMPORAL = 'Tuve un problema con tu mensaje. Intenta de nuevo
 
 // --- Proveedores por WhatsApp (server/agente/proveedor.ts) ---
 
-export const registroProveedor = (url: string) =>
+/** La salida de prueba sin certificado (DEMO_PROVEEDOR_SIN_CERTIFICADO=1). */
+const PRUEBA_SIN_CERTIFICADO = '\n\nPrueba sin certificado: escribe el RUT de tu negocio y sigues sin él. Tus facturas saldrán simuladas.';
+export const registroProveedor = (url: string, sinCertificado = false) =>
   'Para vender en Bando necesitas tu certificado digital: con él emites tus facturas en el SII (ambiente de certificación). '
   + `Súbelo aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
-  + 'La clave no pasa por WhatsApp. Cuando termines, sigo tu registro por acá. Para no seguir, escribe "cancelar".';
-export const esperandoCertificado = (url: string) =>
-  `Te espero con tu certificado digital. Si el link anterior venció, usa este:\n${url}\n\nPara no seguir, escribe "cancelar".`;
+  + 'La clave no pasa por WhatsApp. Cuando termines, sigo tu registro por acá. Para no seguir, escribe "cancelar".'
+  + (sinCertificado ? PRUEBA_SIN_CERTIFICADO : '');
+export const esperandoCertificado = (url: string, sinCertificado = false) =>
+  `Te espero con tu certificado digital. Si el link anterior venció, usa este:\n${url}\n\nPara no seguir, escribe "cancelar".`
+  + (sinCertificado ? PRUEBA_SIN_CERTIFICADO : '');
+export const SIN_CERTIFICADO_SIMULADAS = 'Quedaste sin certificado (prueba): tus facturas saldrán simuladas, no van al SII.';
 export const REGISTRO_PROVEEDOR_CANCELADO = 'Listo, no seguimos con tu registro de proveedor. Si cambias de opinión, escribe "quiero vender".';
 export const preguntarEmpresa = (rutTitular: string) =>
   `Certificado conectado ✓ ¿Con qué RUT facturas?\n• Tu RUT: ${formatearRut(rutTitular)}\n• O el de una empresa en que estás autorizado en el SII.\n`

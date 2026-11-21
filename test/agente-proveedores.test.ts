@@ -13,7 +13,7 @@ const ANA = '56911110001';
 const BETO = '56911110002';
 const CARO = '56911110003';
 
-async function montar() {
+async function montar(env: NodeJS.ProcessEnv = {}) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), {});
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
@@ -34,7 +34,7 @@ async function montar() {
     },
     revisarSiiMs: 5,
     log: { info: silencio, warn: silencio, error: silencio },
-    env: {},
+    env,
     sala: { ventanaCascadaMs: 10, minimoDifusionMs: 0, vigilarCierreMs: 0 },
   });
   let n = 0;
@@ -122,4 +122,18 @@ test('por WhatsApp: proveedores con certificado, productos, ofertas, aviso al su
   assert.ok(deAna.every(o => o.estado === 'enviada'), 'el sí de Beto no factura lo de Ana');
   await escribir(ANA, 'si');
   assert.match(ultimo(ANA), /emití 1 factura/);
+});
+
+test('con DEMO_PROVEEDOR_SIN_CERTIFICADO=1 se puede vender sin certificado escribiendo el RUT, sin conectar el SII', async t => {
+  const { red, agente, escribir, ultimo, conexiones } = await montar({ DEMO_PROVEEDOR_SIN_CERTIFICADO: '1' });
+  t.after(() => agente.desconectar());
+  await escribir(ANA, 'quiero vender');
+  assert.match(ultimo(ANA), /Prueba sin certificado: escribe el RUT de tu negocio/);
+  await escribir(ANA, '11.111.111-1');
+  assert.match(ultimo(ANA), /ya vende en Bando ✓[\s\S]*tus facturas saldrán simuladas/);
+  assert.deepEqual(conexiones, [], 'sin certificado no se conecta el SII');
+  assert.equal(red.negocioPorTelefono(ANA)?.vende, true);
+  await escribir(ANA, 'oferto $25.000 por rollos');
+  await escribir(ANA, 'si');
+  assert.match(ultimo(ANA), /ofertaste \$25\.000/);
 });

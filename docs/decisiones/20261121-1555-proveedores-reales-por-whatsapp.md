@@ -33,6 +33,10 @@ dividido cuando ganan varios proveedores; esto lo construye.
 - **El registro a medias sobrevive a un reinicio**: lo que cada teléfono lleva a medias (registro, carrito, registro de
   proveedor) se guarda en `agente_borradores`. Antes, un deploy en medio del registro devolvía el saludo.
 
+- **Salida de prueba sin certificado** (`DEMO_PROVEEDOR_SIN_CERTIFICADO=1`, apagada por defecto): para probar la red sin
+  certificados, quien se registra como proveedor puede escribir su RUT en vez de subir el certificado. Queda sin conexión
+  al SII y sus facturas salen simuladas; el mensaje se lo dice. En uso real el certificado es obligatorio.
+
 ## Consecuencias
 - Para emitir en certificación, la empresa del proveedor tiene que estar postulada como emisor electrónico en maullin y el
   titular del certificado autorizado en ella. Si no, la conexión queda con el motivo del SII y sus facturas salen simuladas.
