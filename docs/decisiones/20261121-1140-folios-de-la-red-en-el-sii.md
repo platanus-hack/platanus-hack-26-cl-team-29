@@ -16,6 +16,8 @@ El adaptador `server/red/sii-real.ts` lleva los folios en `server/red/folios.ts`
 - Si una orden ya tiene un folio vivo de ese tipo (incluido uno `reservado` tras un reinicio), se devuelve ese y no se sube nada.
 - Tras una subida recibida, se consulta el veredicto (`estadoEnvio`) en segundo plano, cada 10 s hasta 30 veces, y queda en `sii_folios` y en el log. La red no tiene un evento para cambiar el estado de un documento ya emitido, así que la pantalla sigue mostrando `recibido`.
 
+- Lote de la compra conjunta (`emitirFacturas`): las facturas de todas las órdenes van en UN sobre y una sola subida (`Sii.emitirFacturas` en `server/sii/index.ts`). Los folios se reservan en orden, consecutivos, antes de armar; una orden con folio vivo no entra al sobre. El resultado de la subida (recibido, rechazado, incierto o falla antes de subir) se guarda en cada folio del lote. El seguimiento en segundo plano consulta el track id común: si todos los documentos tienen el mismo veredicto, se aplica a cada folio y se avisa a la red; si es mixto (QueryEstUp cuenta por tipo, no por folio), quedan `recibido` y se revisan uno a uno con `scripts/sii-folio.ts`.
+
 Demo: el proveedor es la empresa `SII_RUT_EMISOR` y el comprador `SII_RUT_RECEPTOR` (con `SII_RECEPTOR_*`). Los nombres de fantasía de la red no viajan al SII.
 
 ## Consecuencias
