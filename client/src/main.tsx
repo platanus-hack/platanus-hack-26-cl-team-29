@@ -5,6 +5,7 @@ import { MiNegocio } from './canal/MiNegocio.tsx';
 import { Proveedor } from './canal/Proveedor.tsx';
 import { Navegador } from './components/Navegador.tsx';
 import { Licitacion } from './vistas/Licitacion.tsx';
+import { Proveedores } from './vistas/Proveedores.tsx';
 import { RedEnVivo } from './vistas/RedEnVivo.tsx';
 import { Sala } from './vistas/Sala.tsx';
 import { Unirse } from './vistas/Unirse.tsx';
@@ -23,6 +24,7 @@ const VISTAS: Record<string, ComponentType> = {
   '/unirse': Unirse,
   '/app': MiNegocio,
   '/proveedor': Proveedor,
+  '/proveedores': Proveedores,
 };
 
 const Vista = VISTAS[location.pathname.replace(/\/+$/, '')] ?? RedEnVivo;

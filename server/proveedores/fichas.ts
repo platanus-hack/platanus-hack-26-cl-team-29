@@ -86,7 +86,8 @@ function proveedoresDeLaRed(estado: EstadoRed) {
   return estado.negocios.filter(puedeVender).map(n => {
     const precios = [
       ...estado.licitaciones.flatMap(l => l.productos.flatMap(p => [
-        ...(p.proveedorId === n.id ? [{ producto: p.nombre, unidad: p.unidad, precio: p.precioSolo, fecha: null }] : []),
+        // Sus propios productos y, si es el proveedor de la compra conjunta, toda la canasta.
+        ...(p.proveedorId === n.id || l.proveedorId === n.id ? [{ producto: p.nombre, unidad: p.unidad, precio: p.precioSolo, fecha: null }] : []),
         ...p.ofertas.filter(o => o.proveedorId === n.id).map(o => ({ producto: p.nombre, unidad: p.unidad, precio: o.precioUnitario, fecha: dia(o.en) })),
       ])),
       ...estado.ordenes.filter(o => o.proveedorId === n.id)
@@ -119,8 +120,8 @@ function desdeMercadoPublico(rut: string, ordenes: OrdenLimpia[]): Base {
   };
 }
 
-/** Categoría principal y secundarias: primero lo que vende; si no vende nada conocido, sus giros; si no, la IA. */
-function categorizar(productos: PrecioReferencia[], e: Enriquecido | undefined, deBando: boolean) {
+/** Categoría principal y secundarias: primero lo que vende; si no, sus giros del SII; si no, la IA; si no, su nombre. */
+function categorizar(productos: PrecioReferencia[], e: Enriquecido | undefined, deBando: boolean, porNombre: IdCategoria | null) {
   const conteo = new Map<IdCategoria, number>();
   for (const p of productos) if (p.categoria !== 'otros') conteo.set(p.categoria, (conteo.get(p.categoria) ?? 0) + p.datos);
   const porGiro = (e?.sii?.giros ?? []).map(categoriaDeGiro).filter((c): c is IdCategoria => !!c && c !== 'otros');
@@ -131,14 +132,14 @@ function categorizar(productos: PrecioReferencia[], e: Enriquecido | undefined, 
   else if (e?.clasificacion) {
     const c = e.clasificacion;
     categoria = { id: c.categoria, nombre: nombreCategoria(c.categoria), fuente: c.fuente, porque: c.porque };
-  }
+  } else if (porNombre) categoria = { id: porNombre, nombre: nombreCategoria(porNombre), fuente: 'reglas', porque: 'Por su nombre.' };
   const secundarias = [...new Set([...ordenadas, ...porGiro])].filter(c => c !== categoria?.id);
   return { categoria, secundarias };
 }
 
 function completar(b: Base, e: Enriquecido | undefined): FichaProveedor {
   const productos = b.productos.sort((x, y) => y.datos - x.datos || x.producto.localeCompare(y.producto));
-  const { categoria, secundarias } = categorizar(productos, e, b.fuentes.some(f => f.tipo === 'bando') && !b.organismos);
+  const { categoria, secundarias } = categorizar(productos, e, b.fuentes.some(f => f.tipo === 'bando') && !b.organismos, categoriaDeTexto(b.nombre));
   const sii = e?.sii ? { inicioActividades: e.sii.inicioActividades, giros: e.sii.giros, consultado: e.sii.consultado } : null;
   return {
     ...b,

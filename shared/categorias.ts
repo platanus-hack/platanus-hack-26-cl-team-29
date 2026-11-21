@@ -81,7 +81,7 @@ const PALABRAS: [RegExp, IdCategoria][] = [
   [/\b(pescado|merluza|jurel|atun|salmon|reineta|marisc|chorito|camaron|surimi|productos del mar)/, 'pescados'],
   [/\b(pollo|trutro|pechuga|vacun|carne|cerdo|pavo|cecina|jamon|salchicha|vienesa|longaniza|chorizo|hamburguesa|mortadela|lomo|osobuco|posta|costilla|carnic)/, 'carnes'],
   [/\b(leche|lacteo|yogur|queso|quesillo|mantequilla|huevo|manjar)/, 'lacteos'],
-  [/\b(pan|panes|hallullas?|marraquetas?|queques?|galletas?|bizcochos?|tortas?|kuchen)\b|panader|pasteler/, 'panaderia'],
+  [/\b(pan|panes|hallullas?|marraquetas?|queques?|galletas?|bizcochos?|tortas?|kuchen)\b|panader|panific|pasteler/, 'panaderia'],
   [/\b(jugo|bebida|agua mineral|nectar|gaseosa|vino|cerveza|pisco|licor|botiller)/, 'bebidas'],
   [/\b(detergente|cloro|lavaloza|jabon|desinfectante|papel higienico|toalla de papel|servilleta|limpieza|aseo|escoba|trapero|alcohol gel)/, 'limpieza'],
   [/\b(envase|desechable|plumavit|vaso plastico|film plastico|papel aluminio|bolsa de basura|embalaje|plastico)/, 'envases'],
