@@ -331,6 +331,10 @@ body {
   .precio-solo .numero-grande { margin-top: 0.4vh; }
 }
 
+/* 4:3: filas del ranking más compactas para que el nombre quepa junto al monograma. */
+@media (min-width: 1024px) and (max-aspect-ratio: 3/2) {
+  .fila-ranking { gap: 8px; padding-inline: 8px; }
+}
 /* ---------- Pantallas chicas: una columna y scroll ---------- */
 @media (max-width: 1023px) {
   .red-cuerpo, .lic-cuerpo { grid-template-columns: minmax(0, 1fr); }

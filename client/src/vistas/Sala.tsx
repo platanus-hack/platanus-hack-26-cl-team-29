@@ -5,7 +5,7 @@ import { Icono, LogoSii, Monograma } from '../components/Iconos.tsx';
 import { useGrillaQueCabe } from '../components/medidas.ts';
 import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { Qr } from '../components/Qr.tsx';
-import { competencia, facturaAceptada, licitacionActual, mostrarAviso, resumenSala, tipoDeBajada, type FacturaSala, type OfertaSala, type ResumenSala } from '../red/derivar.ts';
+import { competencia, facturaAceptada, licitacionActual, mostrarAviso, negocioPorId, resumenSala, tipoDeBajada, type FacturaSala, type OfertaSala, type ResumenSala } from '../red/derivar.ts';
 import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii, telefono } from '../red/formato.ts';
 import type { ConfigRed, Licitacion, Tramo } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
@@ -17,7 +17,6 @@ const DURACION_BAJADA = 2400;
 const DURACION_DESTELLO = 1200;
 
 type Unidad = ResumenSala['unidad'];
-const cuantas = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 const sinProtocolo = (url: string) => url.replace(/^https?:\/\//, '');
 
 interface Aviso {
@@ -31,7 +30,7 @@ interface Aviso {
  * pausa), aviso a pantalla completa; si lo bajó un proveedor, el precio se anima en su lugar.
  * Cada efecto tiene un solo temporizador: uno nuevo reinicia el anterior, nunca se apilan ni quedan pegados.
  */
-function useBajadas(eventos: EventoVisto[], licitacionId: string | undefined, tramos: Tramo[] | undefined) {
+function useBajadas(eventos: EventoVisto[], licitacionId: string | undefined, tramos: Tramo[] | undefined, productoId: string | undefined) {
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [destello, setDestello] = useState(false);
   const visto = useRef(0);
@@ -43,6 +42,8 @@ function useBajadas(eventos: EventoVisto[], licitacionId: string | undefined, tr
     const ahora = Date.now();
     const nuevos = eventos
       .filter(e => e.clave > visto.current && e.tipo === 'licitacion.precio_bajo' && e.datos.licitacionId === licitacionId && ahora - e.recibido < DURACION_BAJADA)
+      // Con canasta, la pantalla sigue al producto principal: las bajadas de los demás no se anuncian aquí.
+      .filter(e => !productoId || e.datos.productoId === undefined || e.datos.productoId === productoId)
       .reverse();
     if (eventos[0]) visto.current = Math.max(visto.current, eventos[0].clave);
     for (const e of nuevos) {
@@ -60,7 +61,7 @@ function useBajadas(eventos: EventoVisto[], licitacionId: string | undefined, tr
         timerDestello.current = setTimeout(() => setDestello(false), DURACION_DESTELLO);
       }
     }
-  }, [eventos, licitacionId, tramos]);
+  }, [eventos, licitacionId, tramos, productoId]);
 
   useEffect(() => () => {
     clearTimeout(timerAviso.current);
@@ -99,12 +100,8 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
           <span className="etiqueta">WhatsApp</span>
           <strong>{telefono(numero)}</strong>
         </div>
-      ) : (
-        <div className="sala-numero">
-          <span className="etiqueta">Sin WhatsApp: desde el navegador</span>
-        </div>
-      )}
-      <p className="sala-web">o entra en <strong>{sinProtocolo(web)}</strong></p>
+      ) : null}
+      <p className="sala-web">{numero ? 'o entra en' : 'o desde el navegador:'} <strong>{sinProtocolo(web)}</strong></p>
       <p className="sala-demo">Modo demo: cualquiera puede sumarse. En uso real, cada negocio entra con su cuenta y su certificado digital.</p>
     </section>
   );
@@ -119,12 +116,12 @@ function Muro({ s }: { s: ResumenSala }) {
       <ul className="sala-muro" ref={ref}>
         {s.muro.slice(0, caben).map(p => (
           <li key={p.n} className="ficha">
-            <Monograma nombre={p.nombre} rubro />
+            <Monograma nombre={p.nombre} rubro={p.rubro ?? true} />
             <span className="ficha-texto">
               <span className="nombre">{p.nombre}</span>
               <span className="ficha-pie">
                 <span className="comuna">{p.comuna || ' '}</span>
-                <span className="verde">+{cuantas(p.cantidad, s.unidad)}</span>
+                <span className="verde">+{p.detalle}</span>
               </span>
             </span>
           </li>
@@ -157,7 +154,9 @@ function Competencia({ ofertas, logoEnSala }: { ofertas: OfertaSala[]; logoEnSal
   );
 }
 
-function Abierta({ s, lic, config, ofertas, destello }: { s: ResumenSala; lic: Licitacion; config: ConfigRed; ofertas: OfertaSala[]; destello: boolean }) {
+function Abierta({ s, lic, config, ofertas, destello, logoEnSala }: {
+  s: ResumenSala; lic: Licitacion; config: ConfigRed; ofertas: OfertaSala[]; destello: boolean; logoEnSala?: string;
+}) {
   const t = s.tramos;
   const porcentaje = s.precioSolo && t.precioActual !== undefined ? Math.round(((s.precioSolo - t.precioActual) / s.precioSolo) * 100) : 0;
   return (
@@ -188,7 +187,7 @@ function Abierta({ s, lic, config, ofertas, destello }: { s: ResumenSala; lic: L
         </div>
         <Escalera tramos={t} unidad={s.unidad} className="horizontal" />
       </section>
-      {ofertas.length > 0 && <Competencia ofertas={ofertas} logoEnSala={config.proveedorLogoUrl} />}
+      {ofertas.length > 0 && <Competencia ofertas={ofertas} logoEnSala={logoEnSala} />}
       <Muro s={s} />
     </div>
   );
@@ -234,7 +233,7 @@ function Cerrada({ s, ofertas }: { s: ResumenSala; ofertas: OfertaSala[] }) {
   );
 }
 
-function Factura({ f, unidad }: { f: FacturaSala; unidad: Unidad }) {
+function Factura({ f }: { f: FacturaSala }) {
   const aceptada = facturaAceptada(f.estadoSii);
   return (
     <li className={`factura ${aceptada ? 'aceptada' : ''}`}>
@@ -242,12 +241,14 @@ function Factura({ f, unidad }: { f: FacturaSala; unidad: Unidad }) {
       <span className="nombre">{f.nombre}</span>
       <span className="sello"><LogoSii /></span>
       <span className="factura-linea">
-        <span>{cuantas(f.unidades, unidad)}</span>
+        <span>{f.detalle}</span>
         <strong>{dinero(f.monto)}</strong>
       </span>
       <span className="factura-estado" key={f.estadoSii ?? ''}>
         {aceptada && <Icono nombre="check" />}
-        {aceptada ? (f.estadoSii === 'reparo' ? 'aceptada con reparos' : 'aceptada por el SII') : textoEstadoSii(f.estadoSii) || 'enviada al SII'}
+        {aceptada
+          ? (f.estadoSii === 'reparo' ? 'aceptada con reparos' : 'aceptada por el SII')
+          : f.estadoSii === 'simulado' ? 'SII simulado' : textoEstadoSii(f.estadoSii) || 'enviada al SII'}
       </span>
     </li>
   );
@@ -257,6 +258,8 @@ function Facturando({ s }: { s: ResumenSala }) {
   const [ref, { caben }] = useGrillaQueCabe<HTMLUListElement>(80, s.facturas.length);
   const lista = s.fase === 'lista';
   const fuera = s.facturas.length - caben;
+  // Con el SII simulado no llega veredicto: no se muestra una barra de aceptación que nunca avanza.
+  const simuladas = s.facturas.length > 0 && s.facturas.every(f => f.estadoSii === 'simulado');
   return (
     <div className={`sala-facturas ${lista ? 'final' : ''}`}>
       <section className="sala-facturas-muro">
@@ -264,7 +267,7 @@ function Facturando({ s }: { s: ResumenSala }) {
           {s.proveedor} dijo que sí · un solo envío al SII{fuera > 0 ? ` · y ${fuera} más` : ''}
         </p>
         <ul className="muro-facturas" ref={ref}>
-          {s.facturas.slice(0, caben).map(f => <Factura key={f.id} f={f} unidad={s.unidad} />)}
+          {s.facturas.slice(0, caben).map(f => <Factura key={f.id} f={f} />)}
         </ul>
       </section>
       <section className="sala-facturas-resumen">
@@ -273,10 +276,10 @@ function Facturando({ s }: { s: ResumenSala }) {
           <p className="resumen-texto">{s.facturas.length === 1 ? 'factura en el SII' : 'facturas en el SII'}</p>
           <p className="sin-sii"><LogoSii /> Nadie entró al sitio del SII: todo salió solo.</p>
         </div>
-        <div>
+        {!simuladas && <div>
           <div className="avance sii"><i style={{ width: `${s.facturas.length ? (s.aceptadas / s.facturas.length) * 100 : 0}%` }} /></div>
           <p className="resumen-texto verde">{s.aceptadas} {s.aceptadas === 1 ? 'aceptada' : 'aceptadas'} por el SII</p>
-        </div>
+        </div>}
         <div>
           <p className="etiqueta">Total facturado (neto)</p>
           <div className="numero-grande">{dinero(s.totalNeto)}</div>
@@ -325,7 +328,8 @@ export function Sala() {
   const ahora = useAhora(250);
   const [panel, setPanel] = usePanelOculto();
   const licEnCurso = estado ? licitacionActual(estado) : undefined;
-  const { aviso, destello } = useBajadas(eventos, licEnCurso?.id, licEnCurso?.tramos);
+  const principal = licEnCurso?.productos?.[0];
+  const { aviso, destello } = useBajadas(eventos, licEnCurso?.id, principal?.tramos ?? licEnCurso?.tramos, principal?.id);
   if (!estado) return <Cargando />;
   const lic = licitacionActual(estado);
   if (!lic) {
@@ -360,7 +364,7 @@ export function Sala() {
         </div>
       </header>
 
-      {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} ofertas={ofertas} destello={destello} />}
+      {s.fase === 'abierta' && <Abierta s={s} lic={lic} config={config} ofertas={ofertas} destello={destello} logoEnSala={config.proveedorLogoUrl ?? negocioPorId(estado, lic.proveedorId)?.logoUrl} />}
       {s.fase === 'cerrada' && <Cerrada s={s} ofertas={ofertas} />}
       {(s.fase === 'facturando' || s.fase === 'lista') && <Facturando s={s} />}
 

@@ -10,6 +10,7 @@ import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapa.css';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
+import { LogoSii } from '../components/Iconos.tsx';
 import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { contadores, notaDe, type CambioNota } from '../red/derivar.ts';
 import { nota } from '../red/formato.ts';
@@ -162,7 +163,7 @@ export function Mapa() {
   return (
     <main className="pagina proyeccion red">
       <header className="red-cabecera">
-        <div className="marca" aria-hidden>D</div>
+        <div className="marca" aria-hidden>B</div>
         <h1 className="titulo-red">La red en el mapa, en vivo</h1>
         <span className="en-vivo contorno">En vivo</span>
         <AvisoFuente fuente={fuente} />
@@ -184,7 +185,7 @@ export function Mapa() {
           <div className="contadores">
             <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
             <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} />
+            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
           </div>
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           <MiniLicitacion estado={estado} />

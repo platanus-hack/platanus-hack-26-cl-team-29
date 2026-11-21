@@ -44,6 +44,12 @@ export function rubroDe(nombre: string): NombreIcono | undefined {
   return RUBROS.find(([re]) => re.test(nombre.trim()))?.[1];
 }
 
+/** Rubros del contrato de la red (`Negocio.rubro`) a su ícono. */
+const ICONO_RUBRO: Record<string, NombreIcono> = {
+  almacen: 'tienda', minimarket: 'tienda', botilleria: 'tienda', ferreteria: 'tienda', verduleria: 'tienda',
+  carniceria: 'tienda', libreria: 'tienda', panaderia: 'pan', restaurante: 'cubiertos', cafe: 'taza', farmacia: 'farmacia',
+};
+
 const MENORES = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y']);
 
 /** "Rollos del Sur" → "RS". */
@@ -60,12 +66,12 @@ export function colorDe(nombre: string): string {
 }
 
 /**
- * Avatar de tamaño fijo: el logo si lo hay; si no, el ícono del rubro (con `rubro`) o las iniciales,
- * sobre un color estable.
+ * Avatar de tamaño fijo: el logo si lo hay; si no, el ícono del rubro o las iniciales, sobre un color estable.
+ * `rubro`: el código del contrato (`panaderia`), o `true` para deducirlo del nombre.
  */
-export function Monograma({ nombre, logoUrl, rubro = false, className = '' }: { nombre: string; logoUrl?: string; rubro?: boolean; className?: string }) {
+export function Monograma({ nombre, logoUrl, rubro = false, className = '' }: { nombre: string; logoUrl?: string; rubro?: boolean | string; className?: string }) {
   if (logoUrl) return <span className={`monograma con-logo ${className}`}><img src={logoUrl} alt="" /></span>;
-  const icono = rubro ? rubroDe(nombre) : undefined;
+  const icono = typeof rubro === 'string' ? ICONO_RUBRO[rubro] ?? rubroDe(nombre) : rubro ? rubroDe(nombre) : undefined;
   const estilo: CSSProperties = { background: colorDe(nombre) };
   return (
     <span className={`monograma ${className}`} style={estilo} aria-hidden="true">

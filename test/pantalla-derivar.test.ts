@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cambiosDeNota, cicloDeOrden, describirEvento, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, ranking, resumenLicitacion, tipoDeBajada } from '../client/src/red/derivar.ts';
+import { cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, ranking, resumenLicitacion, tipoDeBajada } from '../client/src/red/derivar.ts';
 import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
@@ -115,4 +115,26 @@ test('la bajada de precio tapa la pantalla solo al cruzar un tramo, y como mucho
   assert.equal(mostrarAviso('tramo', 10_000 + PAUSA_AVISO_MS - 1, 10_000), false);
   assert.equal(mostrarAviso('tramo', 10_000 + PAUSA_AVISO_MS, 10_000), true);
   assert.equal(mostrarAviso('oferta', 50_000, null), false);
+});
+
+test('con canasta, la escalera usa el producto principal y no el total de la canasta', () => {
+  const lic: Licitacion = {
+    id: 'L-1', producto: 'Caja de rollos', comuna: '', cierraEn: '', estado: 'abierta', ofertas: [],
+    unidad: 'caja', unidadPlural: 'cajas', precioSolo: 100, tramos: [{ desde: 1, precioUnitario: 100 }, { desde: 10, precioUnitario: 90 }],
+    totalUnidades: 30,
+    productos: [
+      { id: 'rollos', nombre: 'Caja de rollos', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 100, tramos: [{ desde: 1, precioUnitario: 100 }, { desde: 10, precioUnitario: 90 }] },
+      { id: 'etiquetas', nombre: 'Rollo de etiquetas', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 50, tramos: [{ desde: 1, precioUnitario: 50 }] },
+    ],
+    participantes: [
+      { nombre: 'Uno', cantidad: 25, items: [{ productoId: 'rollos', cantidad: 5 }, { productoId: 'etiquetas', cantidad: 20 }] },
+      { nombre: 'Dos', cantidad: 3, items: [{ productoId: 'etiquetas', cantidad: 3 }] },
+    ],
+  };
+  const t = estadoTramos(lic);
+  assert.equal(t.totalUnidades, 5);
+  assert.equal(t.precioActual, 100);
+  assert.equal(t.siguiente?.faltan, 5);
+  assert.equal(detalleCarrito(lic, lic.participantes[0]), '2 productos');
+  assert.equal(detalleCarrito(lic, lic.participantes[1]), '3 rollos');
 });

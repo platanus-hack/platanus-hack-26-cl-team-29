@@ -195,7 +195,7 @@ export function RedEnVivo() {
             <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
             <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
           </div>
-          <Ranking estado={estado} cambios={cambios} ahora={ahora} logoUrl={config.proveedorLogoUrl} proveedorSala={licitacionActual(estado)?.proveedorId} />
+          <Ranking estado={estado} cambios={cambios} ahora={ahora} logoUrl={config.proveedorLogoUrl ?? negocioPorId(estado, licitacionActual(estado)?.proveedorId)?.logoUrl} proveedorSala={licitacionActual(estado)?.proveedorId} />
           <MiniLicitacion estado={estado} />
         </div>
       </div>

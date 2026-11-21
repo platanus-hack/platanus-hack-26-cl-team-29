@@ -1,6 +1,6 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
-import type { Documento, EstadoRed, EventoRed, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
+import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
 import { cantidadCon, contar, dinero, nota, pedidoDe, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
@@ -218,17 +218,35 @@ export function calcularTramos(participantes: Participante[], tramos: Tramo[] | 
   };
 }
 
-/** Estado de los tramos: manda lo que calculó el backend; lo que falte se calcula aquí. */
+/**
+ * Unidades de un participante en el producto principal (`productos[0]`). Sin canasta, su `cantidad`.
+ * Con canasta, `cantidad` suma todos los productos y no sirve para los tramos de uno solo.
+ */
+export function cantidadPrincipal(lic: Licitacion, p: Participante): number {
+  const principal = lic.productos?.[0];
+  if (!principal || !p.items) return p.cantidad;
+  return p.items.find(i => i.productoId === principal.id)?.cantidad ?? 0;
+}
+
+/**
+ * Estado de los tramos del producto principal: manda lo que calculó el backend; lo que falte se calcula aquí.
+ * Con canasta, todo sale de `productos[0]` (el `totalUnidades` de la licitación es el de toda la canasta).
+ */
 export function estadoTramos(lic: Licitacion): EstadoTramos {
-  const tramos = ordenarTramos(lic.tramos);
-  const calculado = calcularTramos(lic.participantes, tramos, lic.precioSolo);
-  const totalUnidades = lic.totalUnidades ?? calculado.totalUnidades;
+  const principal = lic.productos?.[0];
+  const tramos = ordenarTramos(principal?.tramos ?? lic.tramos);
+  const precioSolo = principal?.precioSolo ?? lic.precioSolo;
+  const participantes = lic.participantes.map(p => ({ ...p, cantidad: cantidadPrincipal(lic, p) }));
+  const calculado = calcularTramos(participantes, tramos, precioSolo);
+  const totalUnidades = (principal ? principal.totalUnidades : lic.totalUnidades) ?? calculado.totalUnidades;
+  const precioActual = principal ? principal.precioActual : lic.precioActual;
+  const siguiente = principal ? principal.siguienteTramo : lic.siguienteTramo;
   const alcanzados = tramos.filter(t => totalUnidades >= t.desde).length;
   return {
     tramos,
     totalUnidades,
-    precioActual: lic.precioActual ?? calculado.precioActual,
-    siguiente: lic.siguienteTramo === undefined ? calculado.siguienteTramo : lic.siguienteTramo,
+    precioActual: precioActual ?? calculado.precioActual,
+    siguiente: siguiente === undefined ? calculado.siguienteTramo : siguiente,
     alcanzados,
     desdeActual: alcanzados ? tramos[alcanzados - 1].desde : 0,
   };
@@ -260,7 +278,7 @@ function curvaPorTramos(lic: Licitacion): PuntoCurva[] {
   const puntos: PuntoCurva[] = [{ compradores: 1, precio }];
   let unidades = 0;
   ps.forEach((p, i) => {
-    unidades += p.cantidad;
+    unidades += cantidadPrincipal(lic, p);
     const nuevo = precioConUnidades(tramos, lic.precioSolo, unidades);
     if (nuevo !== undefined && nuevo < precio!) {
       precio = nuevo;
@@ -275,7 +293,7 @@ export interface ResumenLicitacion {
   compradores: number;
   delPublico: number;
   totalUnidades: number;
-  ultimos: Array<{ nombre: string; comuna: string; cantidad: number }>;
+  ultimos: Array<ReturnType<typeof nombreParticipante>>;
   ofertas: OfertaVista[];
   mejor?: OfertaVista;
   /** Precio por unidad hoy: el del tramo alcanzado o, sin tramos, el de la mejor oferta. */
@@ -289,9 +307,19 @@ export interface ResumenLicitacion {
   curvaPorTramos: boolean;
 }
 
-export function nombreParticipante(estado: EstadoRed, p: Participante) {
+export function nombreParticipante(estado: EstadoRed, lic: Licitacion, p: Participante) {
   const n = negocioPorId(estado, p.negocioId);
-  return { nombre: p.nombre ?? n?.nombre ?? 'Negocio', comuna: p.comuna ?? n?.comuna ?? '', cantidad: p.cantidad };
+  return { nombre: p.nombre ?? n?.nombre ?? 'Negocio', comuna: p.comuna ?? n?.comuna ?? '', rubro: p.rubro ?? n?.rubro, cantidad: p.cantidad, detalle: detalleCarrito(lic, p) };
+}
+
+/** Lo que pidió un participante: "3 cajas" si es un solo producto, "3 productos" si arma una canasta. */
+export function detalleCarrito(lic: Licitacion, p: Participante): string {
+  const items = (p.items ?? []).filter(i => i.cantidad > 0);
+  if (items.length > 1) return contar(items.length, 'producto');
+  const producto = items[0] && lic.productos?.find(x => x.id === items[0].productoId);
+  if (producto) return contar(items[0].cantidad, producto.unidad, producto.unidadPlural);
+  const u = unidadDeLicitacion(lic);
+  return contar(p.cantidad, u.singular, u.plural);
 }
 
 /** Cada proveedor una vez, con su mejor oferta, ordenadas por precio ajustado (la primera gana). */
@@ -362,7 +390,7 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
     compradores: lic.participantes.length,
     delPublico: lic.participantes.filter(p => !p.negocioId).length,
     totalUnidades,
-    ultimos: [...porLlegada(lic)].reverse().slice(0, 8).map(p => nombreParticipante(estado, p)),
+    ultimos: [...porLlegada(lic)].reverse().slice(0, 8).map(p => nombreParticipante(estado, lic, p)),
     ofertas,
     mejor,
     precioActual,
@@ -444,9 +472,19 @@ export interface FacturaSala {
   folio: number | null;
   nombre: string;
   comuna: string;
+  rubro?: string;
   unidades: number;
+  /** "3 cajas" o, si la factura trae varios productos de la canasta, "3 productos". */
+  detalle: string;
   monto: number;
   estadoSii: string | null;
+}
+
+/** "3 cajas" con la unidad del producto de la canasta (o la de la licitación). */
+function cantidadDeItem(lic: Licitacion, item: ItemOrden): string {
+  const producto = lic.productos?.find(x => x.id === item.productoId || x.nombre === item.producto);
+  const u = producto ? { singular: producto.unidad, plural: producto.unidadPlural } : unidadDeLicitacion(lic);
+  return contar(item.cantidad, u.singular, u.plural);
 }
 
 export interface ResumenSala {
@@ -456,7 +494,7 @@ export interface ResumenSala {
   tramos: EstadoTramos;
   precioSolo?: number;
   /** Participantes, el más nuevo primero; `n` es su número de llegada (estable, sirve de clave). */
-  muro: Array<{ n: number; nombre: string; comuna: string; cantidad: number }>;
+  muro: Array<{ n: number } & ReturnType<typeof nombreParticipante>>;
   facturas: FacturaSala[];
   aceptadas: number;
   ordenes: number;
@@ -500,8 +538,11 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
         folio: d.folio,
         nombre: comprador?.nombre ?? 'Negocio',
         comuna: comprador?.comuna ?? '',
+        rubro: comprador?.rubro,
         unidades: item?.cantidad ?? 0,
-        monto: d.monto ?? (item ? item.cantidad * item.precioUnitario : 0),
+        // Con canasta, una factura puede traer varias líneas: se cuentan los productos.
+        detalle: orden.items.length > 1 ? contar(orden.items.length, 'producto') : item ? cantidadDeItem(lic, item) : '',
+        monto: d.monto ?? orden.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0),
         estadoSii: d.estadoSii,
       };
     });
@@ -515,7 +556,7 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
   const ahorroCalculado = lic.precioSolo !== undefined && precioFinal !== undefined ? Math.max(0, lic.precioSolo - precioFinal) * tramos.totalUnidades : 0;
   const total = numero(finalizada?.datos.total);
   const ahorro = numero(finalizada?.datos.ahorroTotal);
-  const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, p) })).reverse();
+  const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, lic, p) })).reverse();
   return {
     fase,
     proveedor: negocioPorId(estado, lic.ganadora?.proveedorId ?? lic.proveedorId)?.nombre ?? lic.ganadora?.proveedorNombre ?? 'el proveedor',
@@ -527,7 +568,7 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
     aceptadas: facturas.filter(f => facturaAceptada(f.estadoSii)).length,
     ordenes: ordenes.length,
     totalNeto: total ?? facturas.reduce((s, f) => s + f.monto, 0),
-    ahorroTotal: ahorro ?? ahorroCalculado,
+    ahorroTotal: ahorro ?? lic.ahorroTotal ?? ahorroCalculado,
   };
 }
 
@@ -552,7 +593,8 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   const proveedor = negocioPorId(estado, proveedorId)?.nombre ?? texto(objeto(e.datos.oferta).proveedorNombre);
   const item = orden?.items?.[0];
   const lic = licitacionActual(estado, texto(e.datos.licitacionId));
-  const porUnidad = `por ${lic ? unidadDeLicitacion(lic).singular : 'unidad'}`;
+  const producto = lic?.productos?.find(x => x.id === texto(e.datos.productoId));
+  const porUnidad = `por ${producto ? producto.unidad : lic ? unidadDeLicitacion(lic).singular : 'unidad'}`;
   switch (e.tipo) {
     case 'orden.creada':
       return comprador && proveedor && item

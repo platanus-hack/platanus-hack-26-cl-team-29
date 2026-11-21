@@ -42,7 +42,7 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 2);
   text-align: center; min-height: 0;
 }
-.sala-unirse h2 { margin: 0; font-size: calc(var(--u) * 4.3); line-height: 1.02; font-weight: 800; letter-spacing: var(--tracking-tight); }
+.sala-unirse h2 { margin: 0; text-wrap: balance; font-size: calc(var(--u) * 4.3); line-height: 1.02; font-weight: 800; letter-spacing: var(--tracking-tight); }
 .sala-unirse .subrayado { background: var(--color-primary-foreground); color: var(--color-primary); padding: 0 0.15em; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sala-qr {
   width: min(100%, calc(var(--u) * 40)); aspect-ratio: 1; height: auto; flex-shrink: 1; min-height: 0;
