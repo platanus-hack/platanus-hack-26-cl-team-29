@@ -86,7 +86,7 @@ test('el feed lee los datos con la forma del contrato', () => {
   const orden = { id: 'OC-1001', compradorId: 'x', proveedorId: 'a', estado: 'enviada' as const, creadaEn: '', items: [{ producto: 'Harina 25 kg', cantidad: 4, precioUnitario: 18000 }] };
   assert.equal(describirEvento({ tipo: 'orden.creada', datos: { orden }, en: '' }, e), 'Almacén Equis pidió 4 sacos a Panificadora Uno');
   assert.equal(describirEvento({ tipo: 'documento.emitido', datos: { documento: { tipo: 33, folio: 7, ordenId: 'OC-1001' } }, en: '' }, e), 'Factura folio 7 emitida en el SII');
-  assert.equal(describirEvento({ tipo: 'licitacion.participante', datos: { participante: { nombre: 'Kiosco Uno', comuna: 'Macul', cantidad: 2 } }, en: '' }, e), 'Kiosco Uno en Macul se sumó a la compra conjunta');
+  assert.equal(describirEvento({ tipo: 'licitacion.participante', datos: { participante: { nombre: 'Kiosco Uno', comuna: 'Macul', cantidad: 2 } }, en: '' }, e), 'Kiosco Uno en Macul se sumó a la compra');
 });
 
 test('documento.actualizado muestra el nuevo estado en el SII', () => {

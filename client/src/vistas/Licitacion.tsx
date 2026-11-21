@@ -34,10 +34,8 @@ function Grupo({ lic, r, cerrada, unidad }: { lic: LicitacionRed; r: ResumenLici
       <ul className="lista-grupo ajustable" ref={lista}>
         {r.ultimos.slice(0, caben).map((p, i) => (
           <li key={`${r.compradores - i}`}>
-            <span className="quien">
-              <span className="nombre">{p.nombre}</span>
-              <span className="comuna">{p.comuna || '\u00a0'}</span>
-            </span>
+            <span className="nombre">{p.nombre}</span>
+            <span className="comuna">{p.comuna || '\u00a0'}</span>
             <span className="verde">+{contar(p.cantidad, unidad.singular, unidad.plural)}</span>
           </li>
         ))}

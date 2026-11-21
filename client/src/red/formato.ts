@@ -47,6 +47,13 @@ export function cantidadCon(n: number, producto: string): string {
   return contar(n, u.singular, u.plural);
 }
 
+/** "4 cajas de rollos térmicos 80 mm": sin repetir la unidad cuando el producto ya empieza con ella. */
+export function pedidoDe(n: number, producto: string): string {
+  const u = unidadDe(producto);
+  const resto = producto.replace(new RegExp(`^${u.singular}s?\\s+de\\s+`, 'i'), '');
+  return `${cantidadCon(n, producto)} de ${resto}`;
+}
+
 const ESTADO_SII: Record<string, string> = {
   aceptado: 'aceptado por el SII',
   reparo: 'aceptado con reparos',

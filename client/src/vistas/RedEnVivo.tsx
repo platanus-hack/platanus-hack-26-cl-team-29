@@ -4,7 +4,7 @@ import {
   cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
-import { cantidadCon, contar, dinero, haceCuanto, miles, nota, unidadDe } from '../red/formato.ts';
+import { contar, dinero, haceCuanto, miles, nota, pedidoDe, unidadDe } from '../red/formato.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 
@@ -88,14 +88,15 @@ export function MiniLicitacion({ estado }: { estado: EstadoRed }) {
   const lic = licitacionActual(estado);
   if (!lic) return null;
   const resumenLic = resumenLicitacion(lic, estado);
+  const unidad = unidadDeLicitacion(lic);
   return (
     <a className="tarjeta mini-lic" href="/licitacion">
-      <p className="etiqueta">Compra conjunta · {lic.producto} {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
-      <div className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</div>
-      <p>
-        {contar(resumenLic.compradores, 'negocio')}, {contar(resumenLic.totalUnidades, unidadDeLicitacion(lic).singular, unidadDeLicitacion(lic).plural)}
-        {resumenLic.precioSolo !== undefined && <> · solo: <span className="tachado">{dinero(resumenLic.precioSolo)}</span></>}
-      </p>
+      <p className="etiqueta">Compra conjunta {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
+      <div className="mini-lic-precio">
+        <span className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</span>
+        {resumenLic.precioSolo !== undefined && <span className="tachado">{dinero(resumenLic.precioSolo)}</span>}
+      </div>
+      <p>{contar(resumenLic.compradores, 'negocio')} · {contar(resumenLic.totalUnidades, unidad.singular, unidad.plural)}</p>
     </a>
   );
 }
@@ -126,7 +127,7 @@ export function RedEnVivo() {
             {orden && item ? (
               <>
                 <h2 className="orden-titulo">
-                  {cantidadCon(item.cantidad, item.producto)} de {item.producto} a{' '}
+                  {pedidoDe(item.cantidad, item.producto)} a{' '}
                   <span className="amarillo">{dinero(item.precioUnitario)}</span> por {unidadDe(item.producto).singular}
                 </h2>
                 <p className="orden-partes">

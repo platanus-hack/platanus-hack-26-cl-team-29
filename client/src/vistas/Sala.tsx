@@ -14,10 +14,6 @@ import './sala.css';
 const DURACION_BAJADA = 2400;
 /** Cuánto dura el destello del precio cuando lo baja un proveedor. */
 const DURACION_DESTELLO = 1200;
-/** Ancho mínimo de cada ficha del muro, en px. */
-const ANCHO_FICHA = 300;
-const ANCHO_FACTURA = 270;
-const ANCHO_OFERTA = 290;
 
 type Unidad = ResumenSala['unidad'];
 const cuantas = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
@@ -108,17 +104,18 @@ function Unirse({ config, lic }: { config: ConfigRed; lic: Licitacion }) {
         </div>
       )}
       <p className="sala-web">o entra en <strong>{sinProtocolo(web)}</strong></p>
+      <p className="sala-demo">Modo demo: cualquiera puede sumarse. En uso real, cada negocio entra con su cuenta y su certificado digital.</p>
     </section>
   );
 }
 
 function Muro({ s }: { s: ResumenSala }) {
-  const [ref, { columnas, caben }] = useGrillaQueCabe<HTMLUListElement>(ANCHO_FICHA, 60, s.muro.length);
+  const [ref, { caben }] = useGrillaQueCabe<HTMLUListElement>(60, s.muro.length);
   return (
     <section className="sala-muro-caja">
       <p className="etiqueta">Se van sumando</p>
       {!s.muro.length && <p className="muro-vacio">Aquí aparece cada negocio que se suma.</p>}
-      <ul className="sala-muro" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
+      <ul className="sala-muro" ref={ref}>
         {s.muro.slice(0, caben).map(p => (
           <li key={p.n} className="ficha">
             <span className="nombre">{p.nombre}</span>
@@ -135,16 +132,19 @@ function Muro({ s }: { s: ResumenSala }) {
 
 /** La ganadora siempre a la vista, primero; después las ofertas más nuevas que quepan en una línea. */
 function Competencia({ ofertas }: { ofertas: OfertaSala[] }) {
-  const [ref, { columnas }] = useGrillaQueCabe<HTMLUListElement>(ANCHO_OFERTA, 12, ofertas.length);
+  const [ref, { columnas }] = useGrillaQueCabe<HTMLUListElement>(12, ofertas.length);
   return (
     <section className="sala-competencia">
       <p className="etiqueta">Proveedores compitiendo · <span className="amarillo">gana el mejor precio</span></p>
-      <ul className="competencia-lista" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
+      <ul className="competencia-lista" ref={ref}>
         {[...ofertas.filter(o => o.gana), ...ofertas.filter(o => !o.gana)].slice(0, columnas).map(o => (
           <li key={o.clave} className={`oferta-sala ${o.gana ? 'gana' : ''}`}>
-            <span className="nombre" title={o.nota !== undefined ? `nota ${nota(o.nota)}` : undefined}>{o.proveedor}</span>
-            {o.enEscenario && <span className="en-escenario">en la sala</span>}
+            <span className="nombre">{o.proveedor}</span>
             <strong>{dinero(o.precioUnitario)}</strong>
+            <span className="oferta-pie">
+              {o.nota !== undefined && <span>nota {nota(o.nota)}</span>}
+              {o.enEscenario && <span className="en-escenario">en la sala</span>}
+            </span>
           </li>
         ))}
       </ul>
@@ -221,8 +221,7 @@ function Cerrada({ s, ofertas }: { s: ResumenSala; ofertas: OfertaSala[] }) {
   return (
     <div className="sala-cerrada">
       <p className="etiqueta">
-        {contar(s.muro.length, 'negocio')} · {cuantas(s.tramos.totalUnidades, s.unidad)} en un solo pedido
-        {rivales > 1 && ` · ganó el mejor precio entre ${contar(rivales, 'proveedor', 'proveedores')}`}
+        {rivales > 1 ? `Ganó el mejor precio entre ${contar(rivales, 'proveedor', 'proveedores')}` : 'Toda la sala en un solo pedido'}
       </p>
       <h2>Esperando el sí de <span className="amarillo">{s.proveedor}</span><span className="puntos" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></h2>
       <Totales s={s} />
@@ -234,9 +233,9 @@ function Factura({ f, unidad }: { f: FacturaSala; unidad: Unidad }) {
   const aceptada = facturaAceptada(f.estadoSii);
   return (
     <li className={`factura ${aceptada ? 'aceptada' : ''}`}>
-      <span className="sello" aria-hidden="true">SII</span>
       <span className="factura-folio">Factura {f.folio ?? ''}</span>
       <span className="nombre">{f.nombre}</span>
+      <span className="sello" aria-hidden="true">SII</span>
       <span className="factura-linea">
         <span>{cuantas(f.unidades, unidad)}</span>
         <strong>{dinero(f.monto)}</strong>
@@ -249,23 +248,23 @@ function Factura({ f, unidad }: { f: FacturaSala; unidad: Unidad }) {
 }
 
 function Facturando({ s }: { s: ResumenSala }) {
-  const [ref, { columnas, caben }] = useGrillaQueCabe<HTMLUListElement>(ANCHO_FACTURA, 80, s.facturas.length);
+  const [ref, { caben }] = useGrillaQueCabe<HTMLUListElement>(80, s.facturas.length);
   const lista = s.fase === 'lista';
   const fuera = s.facturas.length - caben;
   return (
     <div className={`sala-facturas ${lista ? 'final' : ''}`}>
       <section className="sala-facturas-muro">
         <p className="etiqueta">
-          {s.proveedor} dijo que sí · todas las facturas en un solo envío al SII{fuera > 0 ? ` · y ${fuera} más` : ''}
+          {s.proveedor} dijo que sí · un solo envío al SII{fuera > 0 ? ` · y ${fuera} más` : ''}
         </p>
-        <ul className="muro-facturas" ref={ref} style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
+        <ul className="muro-facturas" ref={ref}>
           {s.facturas.slice(0, caben).map(f => <Factura key={f.id} f={f} unidad={s.unidad} />)}
         </ul>
       </section>
       <section className="sala-facturas-resumen">
         <div>
           <div className="numero-gigante" key={s.facturas.length}>{s.facturas.length}</div>
-          <p className="resumen-texto">{s.facturas.length === 1 ? 'factura emitida' : 'facturas emitidas'} en el SII</p>
+          <p className="resumen-texto">{s.facturas.length === 1 ? 'factura en el SII' : 'facturas en el SII'}</p>
           <p className="sin-sii">Nadie entró al sitio del SII: todo salió solo.</p>
         </div>
         <div>
@@ -290,9 +289,9 @@ function Facturando({ s }: { s: ResumenSala }) {
 
 /** La historia en tres pasos; se ilumina el de la fase actual. */
 const PASOS: Array<[string, ResumenSala['fase'][]]> = [
-  ['Compran juntos, baja el precio', ['abierta']],
+  ['Compran juntos', ['abierta']],
   ['Proveedores compiten', ['abierta', 'cerrada']],
-  ['Factura automática en el SII', ['facturando', 'lista']],
+  ['Factura automática', ['facturando', 'lista']],
 ];
 
 function Pasos({ fase }: { fase: ResumenSala['fase'] }) {

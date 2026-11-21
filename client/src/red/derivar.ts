@@ -1,7 +1,7 @@
 // Funciones puras que convierten la foto de la red en lo que muestra cada pantalla.
 
 import type { Documento, EstadoRed, EventoRed, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
-import { cantidadCon, contar, dinero, nota, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
+import { cantidadCon, contar, dinero, nota, pedidoDe, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;
@@ -146,7 +146,7 @@ export function cicloDeOrden(estado: EstadoRed, orden: OrdenCompra, eventos: Eve
   const ultimo = hechos.lastIndexOf(true);
 
   const textos: Array<[string, Carril, string]> = [
-    ['Pide', 'comprador', item ? `${comprador} pide ${cantidadCon(item.cantidad, item.producto)} de ${item.producto}` : comprador],
+    ['Pide', 'comprador', item ? `${comprador} pide ${pedidoDe(item.cantidad, item.producto)}` : comprador],
     ['Recibe la OC', 'proveedor', `${proveedor} dice "sí" por WhatsApp`],
     ['Factura (33 con OC)', 'sii', factura ? conEstado(`Folio ${factura.folio}`, factura.estadoSii) : 'Emitida con la OC y la guía'],
     ['Cuadre', 'comprador', orden.estado === 'recibida' ? 'OC vs. guía: llegó todo' : faltante ? `OC vs. guía: ${faltante === 1 ? 'falta' : 'faltan'} ${faltante}` : 'OC vs. guía'],
@@ -551,6 +551,8 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   const proveedorId = texto(e.datos.proveedorId) ?? texto(objeto(e.datos.oferta).proveedorId) ?? orden?.proveedorId;
   const proveedor = negocioPorId(estado, proveedorId)?.nombre ?? texto(objeto(e.datos.oferta).proveedorNombre);
   const item = orden?.items?.[0];
+  const lic = licitacionActual(estado, texto(e.datos.licitacionId));
+  const porUnidad = `por ${lic ? unidadDeLicitacion(lic).singular : 'unidad'}`;
   switch (e.tipo) {
     case 'orden.creada':
       return comprador && proveedor && item
@@ -590,15 +592,15 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const p = objeto(e.datos.participante);
       const quien = texto(p.nombre) ?? negocioPorId(estado, texto(p.negocioId))?.nombre ?? 'Un negocio';
       const comuna = texto(p.comuna);
-      return `${quien}${comuna ? ` en ${comuna}` : ''} se sumó a la compra conjunta`;
+      return `${quien}${comuna ? ` en ${comuna}` : ''} se sumó a la compra`;
     }
     case 'licitacion.oferta': {
       const precio = numero(objeto(e.datos.oferta).precioUnitario);
-      return `${proveedor ?? 'Un proveedor'} ofertó${precio ? ` ${dinero(precio)} por unidad` : ''}`;
+      return `${proveedor ?? 'Un proveedor'} ofertó${precio ? ` ${dinero(precio)} ${porUnidad}` : ''}`;
     }
     case 'licitacion.precio_bajo': {
       const nuevo = numero(e.datos.precioNuevo);
-      return nuevo ? `La compra conjunta bajó a ${dinero(nuevo)} por unidad` : 'Bajó el precio de la compra conjunta';
+      return nuevo ? `La compra conjunta bajó a ${dinero(nuevo)} ${porUnidad}` : 'Bajó el precio de la compra conjunta';
     }
     case 'licitacion.facturada': {
       const docs = numero(e.datos.documentos) ?? lista(e.datos.documentos).length;
