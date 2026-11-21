@@ -1,6 +1,6 @@
 import type { EstadoTramos } from '../red/derivar.ts';
 import { dinero } from '../../../shared/formato.ts';
-import { contar } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
 
 interface Props {
   tramos: EstadoTramos;

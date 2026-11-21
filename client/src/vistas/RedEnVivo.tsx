@@ -7,7 +7,8 @@ import {
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
 import { dinero, miles, nota } from '../../../shared/formato.ts';
-import { contar, haceCuanto, pedidoDe, unidadDe } from '../red/formato.ts';
+import { contar, segun } from '../../../shared/texto.ts';
+import { haceCuanto, pedidoDe, unidadDe } from '../red/formato.ts';
 import type { EstadoRed, EventoRed, TipoEvento } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
 
@@ -196,9 +197,9 @@ export function RedEnVivo() {
 
         <div className="columna">
           <div className="contadores">
-            <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
+            <Contador valor={cuenta.negocios} texto={segun(cuenta.negocios, 'negocio')} color="verde" />
+            <Contador valor={cuenta.proveedoresConNota} texto={segun(cuenta.proveedoresConNota, 'proveedor con nota', 'proveedores con nota')} color="amarillo" />
+            <Contador valor={cuenta.documentosSii} texto={segun(cuenta.documentosSii, 'documento en el SII', 'documentos en el SII')} marca={<LogoSii />} />
           </div>
           <Ranking estado={estado} cambios={cambios} ahora={ahora} logoUrl={config.proveedorLogoUrl ?? negocioPorId(estado, licitacionActual(estado)?.proveedorId)?.logoUrl} proveedorSala={licitacionActual(estado)?.proveedorId} />
           <MiniLicitacion estado={estado} />

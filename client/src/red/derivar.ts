@@ -2,7 +2,8 @@
 
 import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, NotaProveedor, Oferta, OrdenCompra, Participante, SiguienteTramo, Tramo } from './tipos.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { cantidadCon, contar, pedidoDe, pluralDe, textoEstadoSii, unidadDe } from './formato.ts';
+import { contar, mayuscula, pluralDe } from '../../../shared/texto.ts';
+import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;
@@ -266,7 +267,7 @@ export const tieneTramos = (lic: Licitacion) => (lic.tramos?.length ?? 0) > 0;
 export function nombreCorto(nombre: string, unidad?: string): string {
   let corto = nombre.replace(/\s*\([^)]*\)\s*$/, '').trim();
   if (unidad) corto = corto.replace(new RegExp(`^${unidad}s?\\s+de\\s+`, 'i'), '');
-  return corto ? corto[0].toUpperCase() + corto.slice(1) : nombre;
+  return corto ? mayuscula(corto) : nombre;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 import { precioPorVolumen, precioVigente, preciosVigentes, productoDe, unidadesDe, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
@@ -226,7 +227,7 @@ const neto = (items: Item[]) => items.reduce((s, i) => s + i.cantidad * i.precio
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
 /** Rubro conocido, sin tildes ni mayúsculas; uno desconocido es `otro` y vacío, undefined. */
 export function normalizarRubro(texto: unknown): Rubro | undefined {
-  const limpio = String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const limpio = sinTildes(String(texto ?? '')).trim();
   if (!limpio) return undefined;
   return (RUBROS as readonly string[]).includes(limpio) ? limpio as Rubro : 'otro';
 }

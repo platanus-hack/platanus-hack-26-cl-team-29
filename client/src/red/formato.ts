@@ -1,6 +1,9 @@
 // Formatos de las pantallas: tiempos relativos, cuenta regresiva y cómo se cuenta cada producto.
-// Dinero, miles y notas están en shared/formato.ts.
-import { miles } from '../../../shared/formato.ts';
+// Dinero, miles, notas y conteos están en shared/.
+import { contar } from '../../../shared/texto.ts';
+
+// ConectarSii.tsx todavía importa `contar` desde aquí (ver agents/sin-copias.md, Pedidos a otros).
+export { contar };
 
 export function haceCuanto(en: string, ahora: number): string {
   const segundos = Math.max(0, Math.round((ahora - Date.parse(en)) / 1000));
@@ -18,22 +21,12 @@ export function cuentaRegresiva(ms: number): string {
   return hh > 0 ? `${hh}:${mmss}` : mmss;
 }
 
-/** "¿Cuántas cajas?" o "¿Cuántos sacos?": el género sale del plural de la unidad. */
-export function cuantos(plural: string): string {
-  return /(as|des)$/i.test(plural) ? 'Cuántas' : 'Cuántos';
-}
-
 /** Cómo se cuenta el producto en pantalla: la harina va en sacos, el aceite en bidones. */
 export function unidadDe(producto: string): { singular: string; plural: string } {
   if (/harina|az[uú]car/i.test(producto)) return { singular: 'saco', plural: 'sacos' };
   if (/aceite/i.test(producto)) return { singular: 'bidón', plural: 'bidones' };
   if (/^caja/i.test(producto)) return { singular: 'caja', plural: 'cajas' };
   return { singular: 'unidad', plural: 'unidades' };
-}
-
-/** "1 negocio", "3 negocios". Sin `plural`, agrega una "s". */
-export function contar(n: number, singular: string, plural = `${singular}s`): string {
-  return `${miles(n)} ${n === 1 ? singular : plural}`;
 }
 
 export function cantidadCon(n: number, producto: string): string {
@@ -65,13 +58,6 @@ const ESTADO_SII: Record<string, string> = {
 export function textoEstadoSii(estado: string | null | undefined): string {
   if (!estado) return '';
   return ESTADO_SII[estado] ?? estado.replace(/_/g, ' ');
-}
-
-/** Plural en español de una unidad en singular: saco → sacos, bidón → bidones. */
-export function pluralDe(singular: string): string {
-  if (/[aeiouáéó]$/i.test(singular)) return `${singular}s`;
-  const sinTilde = singular.replace(/ón$/, 'on').replace(/án$/, 'an').replace(/én$/, 'en');
-  return `${sinTilde}es`;
 }
 
 /** Códigos de país de dos dígitos (los de uno son 1 y 7; el resto, de tres). */

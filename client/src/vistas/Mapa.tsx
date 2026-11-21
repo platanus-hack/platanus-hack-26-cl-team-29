@@ -15,6 +15,7 @@ import { capas, circulo, MUT, pulsoDeEvento, RADIO_KM, ubicar } from '../mapa/ge
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
 import { contadores, notaDe, type CambioNota } from '../red/derivar.ts';
 import { miles, nota } from '../../../shared/formato.ts';
+import { segun } from '../../../shared/texto.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
@@ -218,9 +219,9 @@ export function Mapa() {
 
         <div className="columna">
           <div className="contadores">
-            <Contador valor={cuenta.negocios} texto={cuenta.negocios === 1 ? 'negocio' : 'negocios'} color="verde" />
-            <Contador valor={cuenta.proveedoresConNota} texto={cuenta.proveedoresConNota === 1 ? 'proveedor con nota' : 'proveedores con nota'} color="amarillo" />
-            <Contador valor={cuenta.documentosSii} texto={cuenta.documentosSii === 1 ? 'documento en el SII' : 'documentos en el SII'} marca={<LogoSii />} />
+            <Contador valor={cuenta.negocios} texto={segun(cuenta.negocios, 'negocio')} color="verde" />
+            <Contador valor={cuenta.proveedoresConNota} texto={segun(cuenta.proveedoresConNota, 'proveedor con nota', 'proveedores con nota')} color="amarillo" />
+            <Contador valor={cuenta.documentosSii} texto={segun(cuenta.documentosSii, 'documento en el SII', 'documentos en el SII')} marca={<LogoSii />} />
           </div>
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           <MiniLicitacion estado={estado} />

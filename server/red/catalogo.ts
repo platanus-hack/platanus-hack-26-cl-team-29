@@ -1,6 +1,7 @@
 // Catálogo de la demo: nombre canónico de cada producto, palabras con que la gente lo pide
 // por WhatsApp ("sacos de harina", "azucar") y precio neto de referencia. Cada proveedor
 // aplica su factor sobre ese precio.
+import { sinTildes } from '../../shared/texto.ts';
 
 interface Producto {
   nombre: string;
@@ -26,7 +27,7 @@ const FACTOR_PROVEEDOR: Record<string, number> = {
 export const PRODUCTOS_DISPONIBLES = PRODUCTOS.map(p => p.nombre);
 
 const palabras = (texto: string) =>
-  texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  sinTildes(texto).split(/[^a-z0-9]+/).filter(Boolean);
 
 /** "sacos de harina" → "Harina 25 kg". Sin coincidencia devuelve undefined. */
 export function normalizarProducto(texto: string): string | undefined {

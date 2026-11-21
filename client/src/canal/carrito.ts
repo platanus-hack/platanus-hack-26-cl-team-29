@@ -3,7 +3,7 @@
 // Sin React ni red, para poder probarla con node:test.
 
 import { dinero } from '../../../shared/formato.ts';
-import { contar } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
 import type { Participante, SiguienteTramo } from '../red/tipos.ts';
 import { normalizarTramos } from './logica.ts';
 import type { LicitacionCanal, Tramo } from './tipos.ts';
@@ -162,7 +162,7 @@ export function una(p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string
 
 /** "2 productos, 7 unidades". */
 export function textoCantidades(r: ResumenCarrito): string {
-  return `${contar(r.productos, 'producto')}, ${contar(r.unidades, 'unidad', 'unidades')}`;
+  return `${contar(r.productos, 'producto')}, ${contar(r.unidades, 'unidad')}`;
 }
 
 // ---------- Envío diferido ----------

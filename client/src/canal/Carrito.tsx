@@ -4,7 +4,8 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { dinero } from '../../../shared/formato.ts';
-import { contar, haceCuanto } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
+import { haceCuanto } from '../red/formato.ts';
 import type { CanalApi } from './api.ts';
 import {
   aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, crearEnvio, desdeItems, fijar, mismoCarrito, pistaTramo, productosDe, proyectar,

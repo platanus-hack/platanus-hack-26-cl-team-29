@@ -7,7 +7,8 @@ import { CarritoCompra, FacturaANombre, FormularioNegocio, resumenGrupo, ultimoE
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
 import { BotonWhatsapp, Marca } from '../canal/piezas.tsx';
 import { useCanal, useDatosConSesion, useSesionComprador } from '../canal/useCanal.ts';
-import { contar, cuentaRegresiva } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
+import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import '../canal/canal.css';
 
@@ -45,7 +46,7 @@ export function Unirse() {
         <div className="cn-fila-meta">
           {abierta ? <span className="en-vivo">En vivo</span> : <span className="cn-chip">Cerrada</span>}
           {abierta && <span className="mono">cierra en {cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}</span>}
-          <span className="mono">{g.negocios > 0 ? `${contar(g.negocios, 'negocio')}, ${contar(g.unidades, 'unidad', 'unidades')}` : 'Sé el primero en sumarte'}</span>
+          <span className="mono">{g.negocios > 0 ? `${contar(g.negocios, 'negocio')}, ${contar(g.unidades, 'unidad')}` : 'Sé el primero en sumarte'}</span>
         </div>
         {nuevo?.nombre && <p key={`${nuevo.nombre}-${nuevo.en}`} className="cn-se-sumo" role="status">{nuevo.nombre} se sumó a la compra</p>}
       </header>

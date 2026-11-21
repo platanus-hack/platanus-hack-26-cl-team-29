@@ -3,6 +3,7 @@
 
 import type { CambioNota } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed, Negocio } from '../red/tipos.ts';
+import { sinTildes } from '../../../shared/texto.ts';
 
 export type Punto = [lng: number, lat: number];
 
@@ -27,10 +28,9 @@ const COMUNAS: Record<string, Punto> = {
 /** Cuánto se separan los negocios de una misma comuna, en grados (cerca de 1 km). */
 const DISPERSION = 0.012;
 
-const sinTildes = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 
 function centroDe(comuna: string): Punto {
-  const c = sinTildes(comuna);
+  const c = sinTildes(comuna).trim();
   // "Ñuñoa y alrededores" también es Ñuñoa. Una comuna desconocida cae junto al MUT.
   const clave = Object.keys(COMUNAS).find(k => c.startsWith(k));
   return clave ? COMUNAS[clave] : MUT;

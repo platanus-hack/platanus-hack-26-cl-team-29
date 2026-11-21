@@ -10,7 +10,8 @@ import {
   unidadDeLicitacion, type OfertaVista, type ProductoSala, type ResumenLicitacion, type TotalesCanasta,
 } from '../red/derivar.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { contar, cuentaRegresiva } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
+import { cuentaRegresiva } from '../red/formato.ts';
 import type { EstadoRed, Fuente, Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 
@@ -36,7 +37,7 @@ function Grupo({ lic, r, cerrada, unidad, canasta }: { lic: LicitacionRed; r: Re
         <span className="numero-grande">{r.compradores}</span>
         {r.delPublico > 0 && <span className="mono verde">+{r.delPublico} del público</span>}
       </div>
-      <p className="sacos">{canasta ? contar(canasta.unidades, 'unidad', 'unidades') : contar(r.totalUnidades, unidad.singular, unidad.plural)} en total</p>
+      <p className="sacos">{canasta ? contar(canasta.unidades, 'unidad') : contar(r.totalUnidades, unidad.singular, unidad.plural)} en total</p>
       <ul className="lista-grupo ajustable" ref={lista}>
         {r.ultimos.slice(0, caben).map((p, i) => (
           <li key={`${r.compradores - i}`}>

@@ -1,6 +1,6 @@
 import type { PuntoCurva } from '../red/derivar.ts';
 import { dinero } from '../../../shared/formato.ts';
-import { contar } from '../red/formato.ts';
+import { contar } from '../../../shared/texto.ts';
 import { useTamano } from './medidas.ts';
 
 const MARGEN = { arriba: 28, abajo: 30, izq: 4, der: 12 };

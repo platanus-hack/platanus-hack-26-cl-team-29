@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
-import { contar, cuentaRegresiva, formatearTelefono, textoEstadoSii } from '../client/src/red/formato.ts';
+import { cuentaRegresiva, formatearTelefono, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -19,8 +19,6 @@ const base = (): EstadoRed => ({
 
 test('formatea cuenta regresiva, conteos y estados del SII', () => {
   assert.equal(cuentaRegresiva(272_000), '04:32');
-  assert.equal(contar(1, 'negocio'), '1 negocio');
-  assert.equal(contar(3, 'día'), '3 días');
   assert.equal(textoEstadoSii('aceptado'), 'aceptado por el SII');
   assert.equal(cuentaRegresiva(7_171_000), '1:59:31');
 });

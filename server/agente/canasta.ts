@@ -2,6 +2,7 @@
 // pide cada mensaje ("4 cajas de rollos y 2 de etiquetas", "quita los guantes", "2 del 3").
 // Intérprete de reglas, sin red ni credenciales; Claude es opcional (claude.ts) y estas reglas son su respaldo.
 import type { ItemCarrito, ItemOrden, LicitacionSala, ParticipanteSala, ProductoCompra } from './puerto.ts';
+import { pluralDe, sinTildes } from '../../shared/texto.ts';
 import { NUMEROS, aNumero } from './intencion.ts';
 
 export interface ProductoCatalogo {
@@ -51,11 +52,6 @@ export interface DatosCanasta {
 /** Id del producto de una red sin canasta (un solo producto en los campos de la licitación). */
 const PRODUCTO_UNICO = 'producto';
 
-export function pluralDe(unidad: string, unidadPlural?: string): string {
-  if (unidadPlural) return unidadPlural;
-  return /[aeiou]$/i.test(unidad) ? `${unidad}s` : `${unidad}es`;
-}
-
 export function productosDe(l: LicitacionSala): readonly ProductoCompra[] {
   if (l.productos?.length) return l.productos;
   return [{
@@ -74,7 +70,6 @@ export function productoDeItem(item: ItemOrden, productos: readonly ProductoComp
     ?? (productos.length === 1 ? productos[0] : undefined);
 }
 
-const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 /** "rollos" -> "rollo", "papeles" -> "papel", "guantes" -> "guante". */
 const raiz = (palabra: string) => palabra.replace(/s$/, '').replace(/([lrndz])e$/, '$1');
 const VACIAS = new Set(['de', 'del', 'la', 'el', 'las', 'los', 'para', 'con', 'y', 'mm', 'un', 'una', 'en', 'x']);
