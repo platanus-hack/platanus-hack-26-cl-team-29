@@ -8,6 +8,7 @@ import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
 import type { TipoDocumento } from '../../../shared/documentos.ts';
 import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
+import type { CatalogoProveedor } from '../../../shared/catalogo.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
 export interface ItemPedido {
@@ -50,6 +51,10 @@ export interface CanalApi {
   /** "Traer más folios": la reposición automática del servidor, en segundo plano. */
   siiTraerFolios(token: string, tipo: TipoDocumento): Promise<EstadoConexionSii>;
   siiDesconectar(token: string): Promise<EstadoConexionSii>;
+  /** "Mi catálogo": armado solo desde sus facturas. La primera vez llega `armando` y avisa con `catalogo.actualizado`. */
+  catalogo(token: string): Promise<CatalogoProveedor>;
+  /** Suma un producto del catálogo a la compra conjunta abierta, con los tramos de su historial. */
+  sumarDelCatalogo(token: string, clave: string): Promise<void>;
   /** Avisa cada vez que algo cambia en la red. Devuelve cómo dejar de escuchar. */
   escuchar(alCambiar: (e?: EventoRed) => void): () => void;
 }
@@ -147,6 +152,8 @@ export function crearApiReal(): CanalApi {
     siiFolio: (token, tipo, folio) => llamar(`/proveedor/sii/caf/${tipo}/folio`, { token, cuerpo: { folio } }),
     siiTraerFolios: (token, tipo) => llamar(`/proveedor/sii/folios/${tipo}`, { token, cuerpo: {} }),
     siiDesconectar: token => llamar('/proveedor/sii', { token, metodo: 'DELETE' }),
+    catalogo: token => llamar('/proveedor/catalogo', { token }),
+    sumarDelCatalogo: async (token, clave) => { await llamar(`/proveedor/catalogo/productos/${encodeURIComponent(clave)}/sumar`, { token, cuerpo: {} }); },
     escuchar(alCambiar) {
       const socket = io();
       socket.on('red:evento', (e: EventoRed) => alCambiar(e));

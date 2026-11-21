@@ -73,9 +73,53 @@ export function errorDeTramos(tramos: readonly Tramo[], vigente?: { unidades: nu
 /** Descuento de cada tramo automático sobre el precio de un producto creado por un proveedor. */
 const TRAMOS_AUTOMATICOS: readonly [desde: number, factor: number][] = [[1, 1], [10, 0.95], [25, 0.9], [50, 0.85]];
 
+/** Un precio redondeado a $10, como se publican los tramos automáticos. */
+const aDiez = (precio: number): number => Math.round(precio / 10) * 10;
+/** Un precio redondeado a la centena, como se muestran los precios sacados del historial. */
+export const aCentena = (precio: number): number => Math.round(precio / 100) * 100;
+
 /** Tramos de un producto nuevo desde su precio: 5 % menos desde 10 unidades, 10 % desde 25 y 15 % desde 50 ($10). */
 export const tramosAutomaticos = (precio: number): Tramo[] =>
-  TRAMOS_AUTOMATICOS.map(([desde, factor]) => ({ desde, precioUnitario: Math.round((precio * factor) / 10) * 10 }));
+  TRAMOS_AUTOMATICOS.map(([desde, factor]) => ({ desde, precioUnitario: aDiez(precio * factor) }));
+
+/** Baja mínima entre un tramo sugerido y el anterior: lo que es menos se toma como ruido del historial. */
+const BAJA_MINIMA = 0.03;
+const MAXIMO_TRAMOS = 5;
+
+const mediana = (xs: readonly number[]): number => {
+  const o = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+};
+
+/**
+ * Tramos sugeridos desde el historial de ventas de un producto: el precio que de verdad cobró el proveedor según
+ * cuánto le compraron. Se toma la mediana del precio para cada cantidad vendida y, de menor a mayor cantidad, se
+ * abre un tramo cada vez que esa mediana baja al menos un 3 % del tramo anterior. El primero parte en 1 unidad.
+ * Con más de cinco quiebres se quedan las bajas más grandes. Sin ninguna baja queda un solo tramo. Precios a la centena.
+ */
+export function tramosSugeridos(ventas: readonly { cantidad: number; precioUnitario: number }[]): Tramo[] {
+  const porCantidad = new Map<number, number[]>();
+  for (const v of ventas) {
+    if (!(v.cantidad > 0 && v.precioUnitario > 0)) continue;
+    const q = Math.max(1, Math.round(v.cantidad));
+    porCantidad.set(q, [...(porCantidad.get(q) ?? []), v.precioUnitario]);
+  }
+  const grupos = [...porCantidad].sort((a, b) => a[0] - b[0]).map(([desde, precios]) => ({ desde, precioUnitario: aCentena(mediana(precios)) }));
+  if (grupos.length === 0) return [];
+  const tramos: Tramo[] = [{ desde: 1, precioUnitario: grupos[0].precioUnitario }];
+  for (const g of grupos.slice(1)) {
+    if (g.precioUnitario <= tramos.at(-1)!.precioUnitario * (1 - BAJA_MINIMA)) tramos.push(g);
+  }
+  // Sobran quiebres: sale el de la baja más chica respecto del anterior, y la escalera sigue bajando.
+  const baja = (i: number) => tramos[i - 1].precioUnitario - tramos[i].precioUnitario;
+  while (tramos.length > MAXIMO_TRAMOS) {
+    let menor = 1;
+    for (let i = 2; i < tramos.length; i++) if (baja(i) < baja(menor)) menor = i;
+    tramos.splice(menor, 1);
+  }
+  return tramos;
+}
 
 type ConOfertas = ConPrecio & {
   ofertas?: readonly { proveedorId: string; precioUnitario: number }[];

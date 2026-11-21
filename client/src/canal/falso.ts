@@ -6,6 +6,8 @@ import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoD
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import { CANASTA_DEMO } from '../../../shared/canasta-demo.ts';
+import { armarCatalogo, historialDeEjemplo, lineasDeEjemplo, resumenDeFacturas, type CatalogoProveedor } from '../../../shared/catalogo.ts';
+import { pluralDe } from '../../../shared/texto.ts';
 import { duenoDeTramos, errorDeTramos, ordenarTramos, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
@@ -117,6 +119,15 @@ function sembrar() {
     licitaciones: [licitacion],
     ordenes,
     documentos: [] as Documento[],
+  };
+}
+
+/** El catálogo de ejemplo: el mismo historial que arma el servidor, ya listo. */
+function catalogoDeEjemplo(): CatalogoProveedor {
+  const ventas = historialDeEjemplo(new Date());
+  return {
+    estado: 'listo', origen: 'ejemplo', ...resumenDeFacturas(ventas.map(v => v.fecha)),
+    productos: armarCatalogo(lineasDeEjemplo(ventas)), actualizado: ahoraIso(),
   };
 }
 
@@ -438,6 +449,26 @@ export function crearApiFalsa(): CanalApi {
       const o = orden(ordenId);
       exigir(o.proveedorId === proveedor.id && o.estado === 'reclamada', 'Este reclamo ya tiene nota de crédito.');
       notaCredito(o);
+    },
+
+    async catalogo(token) {
+      await espera(400);
+      quien(token);
+      return catalogoDeEjemplo();
+    },
+
+    async sumarDelCatalogo(token, clave) {
+      await espera(500);
+      const proveedor = quien(token);
+      const p = catalogoDeEjemplo().productos.find(x => x.clave === clave);
+      const lic = red.licitaciones.find(l => l.estado === 'abierta');
+      if (!p || !lic?.productos) throw new ErrorCanal('No hay una compra conjunta abierta.');
+      exigir(!lic.productos.some(x => x.nombre === p.nombre), `"${p.nombre}" ya está en la canasta.`);
+      lic.productos.push({
+        id: clave, nombre: p.nombre, unidad: p.unidad, unidadPlural: pluralDe(p.unidad), precioSolo: p.tramos[0].precioUnitario,
+        tramos: p.tramos, ofertas: [], proveedorId: proveedor.id,
+      });
+      avisar('licitacion.producto', { licitacionId: lic.id });
     },
 
     escuchar(alCambiar) {

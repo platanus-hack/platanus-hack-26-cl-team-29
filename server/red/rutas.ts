@@ -31,6 +31,8 @@ export interface OpcionesRutas {
   limitePorMinuto?: number;
   /** Rutas "Conectar mi SII" del proveedor (server/conexion-sii). */
   conexionSii?: express.Router;
+  /** Catálogo del proveedor armado desde sus facturas (server/catalogo): el del panel y la ruta de operación del equipo. */
+  catalogo?: { proveedor: express.Router; operacion: express.Router };
 }
 
 /** Rutas `/api/red` del contrato. Requiere `express.json()` montado antes. */
@@ -147,7 +149,12 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     res.json(await red.confirmarOrdenesDeLicitacion(id(req)));
   });
 
-  rutas.use(crearRutasWeb(red, env, { sesiones: opciones.sesiones ?? crearSesiones(), porRut, conexionSii: opciones.conexionSii }));
+  // Carga de XML de facturas de un proveedor, que hace el equipo (server/catalogo/rutas.ts).
+  if (opciones.catalogo) rutas.use('/operacion/catalogo', exigirTokenDemo, limitarDemo, opciones.catalogo.operacion);
+
+  rutas.use(crearRutasWeb(red, env, {
+    sesiones: opciones.sesiones ?? crearSesiones(), porRut, conexionSii: opciones.conexionSii, catalogo: opciones.catalogo?.proveedor,
+  }));
 
   rutas.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (!(error instanceof ErrorRed)) return next(error);

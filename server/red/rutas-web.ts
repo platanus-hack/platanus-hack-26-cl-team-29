@@ -22,13 +22,15 @@ export interface OpcionesWeb {
   porRut: RequestHandler;
   /** Rutas "Conectar mi SII" (server/conexion-sii), montadas en /proveedor/sii detrás de la sesión del proveedor. */
   conexionSii?: express.Router;
+  /** Catálogo desde sus facturas (server/catalogo), en /proveedor/catalogo: recibe su id y RUT en `res.locals.proveedor`. */
+  catalogo?: express.Router;
 }
 
 interface ConSesion extends Request {
   sesion?: Sesion & { negocio: Negocio };
 }
 
-export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porRut, conexionSii }: OpcionesWeb): express.Router {
+export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porRut, conexionSii, catalogo }: OpcionesWeb): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
   const tokenDe = (req: Request) => /^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1];
@@ -229,6 +231,12 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, porR
   });
 
   if (conexionSii) rutas.use('/proveedor/sii', exigir('proveedor'), limitarSii, conexionSii);
+  if (catalogo) {
+    rutas.use('/proveedor/catalogo', exigir('proveedor'), porNegocio(60), (req: ConSesion, res: Response, next: NextFunction) => {
+      res.locals.proveedor = { id: yo(req).id, ...(yo(req).rut ? { rut: yo(req).rut } : {}) };
+      next();
+    }, catalogo);
+  }
 
   return rutas;
 }

@@ -14,6 +14,8 @@ import { iniciarMercadoPublico } from './mercado-publico/index.ts';
 import { iniciarAvisos } from './avisos/index.ts';
 import { iniciarProveedores } from './proveedores/index.ts';
 import { crearRutasAvisos } from './avisos/rutas.ts';
+import { crearRutasCatalogo, crearRutasOperacionCatalogo, iniciarCatalogos } from './catalogo/index.ts';
+import type { Negocio } from './red/tipos.ts';
 
 const app = express();
 const http = createServer(app);
@@ -52,6 +54,12 @@ const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento'
 const mercadoPublico = await iniciarMercadoPublico(dbRed, evento => io.emit('red:evento', evento));
 // Buscador de proveedores: la red y Mercado Público en una sola lista, con giros del SII y categoría.
 const proveedores = await iniciarProveedores({ db: dbRed, red, mercadoPublico, emitir: evento => io.emit('red:evento', evento) });
+// Catálogo de cada proveedor desde sus facturas: se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
+const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
+red.escuchar(e => {
+  const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
+  if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });
+});
 
 app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real (límite por IP del ingreso del proveedor)
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
@@ -66,7 +74,10 @@ app.use('/api/proveedores', proveedores.rutas);
 // Una sola sesión web del comprador para /api/red y /api/avisos (su invitación de "Trae a tu vecino").
 const sesiones = crearSesiones();
 app.use('/api/avisos', crearRutasAvisos(avisos, red, sesiones));
-app.use('/api/red', crearRutasRed(red, process.env, { conexionSii: conexionSii.rutas, sesiones }));
+app.use('/api/red', crearRutasRed(red, process.env, {
+  conexionSii: conexionSii.rutas, sesiones,
+  catalogo: { proveedor: crearRutasCatalogo(catalogos, red), operacion: crearRutasOperacionCatalogo(catalogos, red) },
+}));
 app.use(express.static('dist'));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' })); // fallback SPA (Express 5: no usar app.get('*'))
 

@@ -49,4 +49,6 @@ export type TipoEventoRed =
   // Llegaron giros del SII o clasificaciones de proveedores al buscador (server/proveedores/).
   | 'proveedores.actualizado'
   // Un negocio se sumó con la invitación de otro: `{ licitacionId, invita, invitado, invitaId?, invitadoId? }` (solo nombres e ids de negocio).
-  | 'invitacion.sumada';
+  | 'invitacion.sumada'
+  // El catálogo de un proveedor, armado desde sus facturas, empezó a armarse o quedó listo: `{ proveedorId, estado }` (sin productos ni precios).
+  | 'catalogo.actualizado';

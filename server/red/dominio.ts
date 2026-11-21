@@ -156,6 +156,8 @@ export interface NuevoProducto {
   unidadPlural?: string;
   /** Precio neto por unidad comprando de a una: el primer tramo. */
   precio: number;
+  /** Tramos propios (los que sugiere su historial de facturas). Sin ellos, los automáticos desde `precio`. */
+  tramos?: Tramo[];
 }
 
 export interface NuevoProveedor {
@@ -835,6 +837,15 @@ export async function crearRed({
     return id;
   }
 
+  /** Los tramos propios validados (el primero, al precio de comprar solo) o los automáticos. */
+  function tramosDelProducto(precio: number, tramos?: Tramo[]): Tramo[] {
+    if (!tramos) return tramosAutomaticos(precio);
+    const propios = ordenarTramos(tramos.map(t => ({ desde: Number(t?.desde), precioUnitario: Number(t?.precioUnitario) })));
+    const problema = errorDeTramos(propios) ?? (propios[0].precioUnitario !== precio ? 'El primer tramo es el precio de comprar solo' : null);
+    if (problema) throw new ErrorRed('datos_invalidos', problema);
+    return propios;
+  }
+
   function crearProducto(licitacionId: string, n: NuevoProducto) {
     return enFila(licitacionId, async () => {
       const l = licitacionEnCurso(licitacionId);
@@ -849,7 +860,7 @@ export async function crearRed({
       }
       const producto: ProductoCompra = {
         id: idDeProducto(l, nombre), nombre, unidad, unidadPlural: String(n.unidadPlural ?? '').trim() || pluralDe(unidad),
-        precioSolo: precio, tramos: tramosAutomaticos(precio), ofertas: [], proveedorId: proveedor.id,
+        precioSolo: precio, tramos: tramosDelProducto(precio, n.tramos), ofertas: [], proveedorId: proveedor.id,
       };
       l.productos.push(producto);
       await guardar('licitaciones', l);
