@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import pg from 'pg';
 import { createWhatsApp } from './whatsapp/index.ts';
-import { crearRutasRed, iniciarRed } from './red/index.ts';
+import { crearRutasRed, crearSesiones, iniciarRed } from './red/index.ts';
 import { iniciarConexionSii, resumenDeConexion } from './conexion-sii/index.ts';
 import { conectarAgente, crearAlmacenBorradores } from './agente/index.ts';
 
@@ -13,6 +13,7 @@ import { iniciarLocales } from './locales/index.ts';
 import { iniciarMercadoPublico } from './mercado-publico/index.ts';
 import { iniciarAvisos } from './avisos/index.ts';
 import { iniciarProveedores } from './proveedores/index.ts';
+import { crearRutasAvisos } from './avisos/rutas.ts';
 
 const app = express();
 const http = createServer(app);
@@ -62,7 +63,10 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/locales', locales.rutas);
 app.use('/api/fuentes/mercado-publico', mercadoPublico.rutas);
 app.use('/api/proveedores', proveedores.rutas);
-app.use('/api/red', crearRutasRed(red, process.env, { conexionSii: conexionSii.rutas }));
+// Una sola sesión web del comprador para /api/red y /api/avisos (su invitación de "Trae a tu vecino").
+const sesiones = crearSesiones();
+app.use('/api/avisos', crearRutasAvisos(avisos, red, sesiones));
+app.use('/api/red', crearRutasRed(red, process.env, { conexionSii: conexionSii.rutas, sesiones }));
 app.use(express.static('dist'));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' })); // fallback SPA (Express 5: no usar app.get('*'))
 

@@ -18,6 +18,7 @@ import {
 import { Icono, iconoDeProducto, LogoSii, Monograma, type NombreIcono } from './iconos.tsx';
 import { CarritoCompra, FacturaANombre, FormularioNegocio, GrupoEnVivo } from './Carrito.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
+import { Invitar } from './Invitar.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, DatosEntrada, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesionComprador } from './useCanal.ts';
@@ -135,6 +136,7 @@ function CompraConjunta({ api, token, foto, yo }: { api: CanalApi; token: string
       </div>
       {!abierta && mia && <p className="cn-ok">La compra cerró con tu carrito: tu pedido y su factura aparecen en Mis pedidos.</p>}
       <CarritoCompra api={api} token={token} lic={lic} negocioId={yo.negocio.id} participacion={mia} abierta={abierta} conPestanas />
+      {abierta && mia && <Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} />}
       <GrupoEnVivo lic={lic} negocioId={yo.negocio.id} ahora={ahora} />
     </section>
   );

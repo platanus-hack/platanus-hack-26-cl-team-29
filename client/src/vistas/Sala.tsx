@@ -8,6 +8,7 @@ import { Qr } from '../components/Qr.tsx';
 import { bajadaDeProducto, facturaAceptada, licitacionActual, mostrarAviso, negocioPorId, resumenSala, type BajadaProducto, type FacturaSala, type ResumenSala } from '../red/derivar.ts';
 import { dinero, miles } from '../../../shared/formato.ts';
 import { contar, segun } from '../../../shared/texto.ts';
+import { lineaInvitacion } from '../../../shared/avisos.ts';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { cuentaRegresiva, textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, Licitacion } from '../red/tipos.ts';
@@ -18,6 +19,17 @@ import './sala.css';
 const DURACION_BAJADA = 2400;
 /** Cuánto dura el destello del precio cuando lo baja un proveedor. */
 const DURACION_DESTELLO = 1200;
+
+/** Cuánto se ve "X invitó a Y" ("Trae a tu vecino"). */
+const DURACION_INVITACION = 8000;
+
+/** La última invitación que sumó a alguien, mientras dura en pantalla. */
+function Invitacion({ eventos, ahora }: { eventos: EventoVisto[]; ahora: number }) {
+  const e = eventos.find(x => x.tipo === 'invitacion.sumada' && ahora - x.recibido < DURACION_INVITACION);
+  const d = e?.datos as { invita?: unknown; invitado?: unknown } | undefined;
+  if (!e || typeof d?.invita !== 'string' || typeof d.invitado !== 'string') return null;
+  return <p key={e.clave} className="sala-invitacion" role="status"><Icono nombre="check" /> {lineaInvitacion(d.invita, d.invitado)}</p>;
+}
 
 const sinProtocolo = (url: string) => url.replace(/^https?:\/\//, '');
 
@@ -316,6 +328,7 @@ export function Sala() {
       {s.fase === 'cerrada' && <Cerrada s={s} lic={lic} />}
       {(s.fase === 'facturando' || s.fase === 'lista') && <Facturando s={s} />}
 
+      {s.fase === 'abierta' && <Invitacion eventos={eventos} ahora={ahora} />}
       {s.fase === 'abierta' && aviso && <BajoElPrecio key={aviso.clave} aviso={aviso} />}
       {panel && <PanelPresentador licitacionId={lic.id} accion={accionDemo} alCerrar={() => setPanel(false)} />}
     </main>

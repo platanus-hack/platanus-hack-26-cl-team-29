@@ -7,6 +7,7 @@ import { CarritoCompra, FacturaANombre, FormularioNegocio, resumenGrupo, ultimoE
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
 import { BotonWhatsapp, Marca } from '../canal/piezas.tsx';
 import { useCanal, useDatosConSesion, useSesionComprador } from '../canal/useCanal.ts';
+import { useInvitacionRecibida } from '../canal/Invitar.tsx';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
@@ -17,6 +18,7 @@ export function Unirse() {
   const ahora = useAhora();
   const { token, entrar, alVencer } = useSesionComprador(api);
   const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), alVencer);
+  useInvitacionRecibida(token, api?.modo); // llegó con ?ref=<código> de otro negocio ("Trae a tu vecino")
   const idPedido = useRef(new URLSearchParams(location.search).get('licitacion'));
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;

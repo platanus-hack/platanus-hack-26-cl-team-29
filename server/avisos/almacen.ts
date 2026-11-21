@@ -1,4 +1,6 @@
 import type pg from 'pg';
+import { claveTelefono } from '../agente/envios.ts';
+import type { LicitacionVista, Negocio } from '../red/tipos.ts';
 
 // Contactos de los avisos: los compradores que se registraron solos (por WhatsApp o en la web) y lo que se sabe
 // de ellos para avisarles. Viven aparte de la red (tabla `avisos_contactos`): reiniciar la demo borra los negocios,
@@ -24,7 +26,24 @@ export interface Contacto {
   esperaSi?: string;
   /** Cuándo pidió no recibir más avisos. No se borra nunca. */
   sinAvisos?: string;
+  /** Código de su invitación ("Trae a tu vecino"): al azar, nunca sacado de su teléfono ni de su RUT. */
+  codigo?: string;
+  /** Quién lo invitó (`Contacto.id`), si llegó con un código. */
+  invitadoPor?: string;
+  /** Cuándo se le contó su llegada a quien lo invitó (una sola vez). */
+  invitacionContada?: string;
+  /** Compras en que ya se le ofreció invitar a otro negocio. */
+  ofrecidas?: string[];
 }
+
+/** Una compra conjunta: su id se repite tras cada reinicio de la demo (`L-1`), su cierre no. */
+export const ronda = (l: Pick<LicitacionVista, 'id' | 'cierraEn'>) => `${l.id}@${l.cierraEn}`;
+
+/** Clave del contacto de un negocio: su teléfono o, si entró por la web sin teléfono, su RUT. */
+export const claveDe = (n: Pick<Negocio, 'telefono' | 'rut'>) =>
+  (n.telefono && claveTelefono(n.telefono) ? `tel:${claveTelefono(n.telefono)}` : n.rut ? `rut:${n.rut}` : null);
+
+export const contactoVacio = (id: string): Contacto => ({ id, nombre: '', registrado: false, productos: [], rondas: [], avisadas: [] });
 
 export interface AlmacenContactos {
   todos(): Contacto[];
