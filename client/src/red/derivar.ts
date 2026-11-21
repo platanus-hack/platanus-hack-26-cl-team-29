@@ -804,6 +804,10 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       if (e.datos.estado === 'suficiente' && repuestos > 0) return `${segun(repuestos, 'Llegó', 'Llegaron')} ${contar(repuestos, 'folio')}${de} del SII`;
       return `${segun(libres, 'Queda', 'Quedan')} ${contar(libres, 'folio')}${de}`;
     }
+    case 'mercado_publico.actualizado': {
+      const precios = numero(e.datos.precios) ?? 0;
+      return `${segun(precios, 'Llegó', 'Llegaron')} ${contar(precios, 'precio')} de Mercado Público`;
+    }
     case 'licitacion.cerrada': {
       const ganadora = negocioPorId(estado, texto(objeto(objeto(e.datos.licitacion).ganadora).proveedorId))?.nombre;
       return ganadora ? `Cerró la compra conjunta: gana ${ganadora}` : 'Cerró la compra conjunta';
