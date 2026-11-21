@@ -13,9 +13,13 @@ export interface OpcionesFalso {
   /** Texto del bloqueo del timbraje; sin él, el timbraje autoriza hasta `maxAutor`. */
   bloqueo?: string;
   maxAutor?: number;
+  /** `AAAA-MM-DD`, como la entrega la app de www2c. */
   fechaResolucion?: string;
-  /** false: `ad_empresa1` responde 302 a la página 404 del SII, como maullin hoy. */
-  adEmpresa?: boolean;
+  /**
+   * `dos_pasos`: la API de la app de www2c responde 428 (verificación en dos pasos) en `obtenerEmpresa`.
+   * `sin_sesion`: la app no reconoce ninguna sesión (401 a todo `/app/`).
+   */
+  app?: 'dos_pasos' | 'sin_sesion';
 }
 
 const pagina = (cuerpo: string) => `<html><head><title>SII</title></head><body>${cuerpo}</body></html>`;
@@ -25,6 +29,10 @@ const formRut = (accion: string, extra = '') => pagina(`<form action="/cvc_cgi/d
 export function crearPortalFalso(o: OpcionesFalso = {}) {
   const solicitudes: Solicitud[] = [];
   const validas = new Set<string>();
+  /** Sesiones que ya pasaron por `/app/session/status` (sin eso la API de la app responde 401). */
+  const conEstadoApp = new Set<string>();
+  /** Sesiones que maullin acepta pero la app de www2c ya no (responde 401 a todo `/app/`). */
+  const rechazadasApp = new Set<string>();
   const enCurso = new Map<string, number>();
   let sesiones = 0;
   let concurrencia = 0;
@@ -32,7 +40,27 @@ export function crearPortalFalso(o: OpcionesFalso = {}) {
   const responder = (estado: number, cuerpo: string, extra: Partial<RespuestaHttp> = {}): Omit<RespuestaHttp, 'metodo' | 'url'> =>
     ({ estado, ubicacion: null, setCookie: [], tipoContenido: 'text/html', cuerpo, ...extra });
 
-  function manejar(metodo: string, url: URL, cookie: string, cuerpo: string): Omit<RespuestaHttp, 'metodo' | 'url'> {
+  /** App nueva de www2c: la SPA y su API JSON, con la secuencia y las cabeceras XHR que exige. */
+  function manejarApp(url: URL, id: string, xhr: boolean): Omit<RespuestaHttp, 'metodo' | 'url'> {
+    const json = (estado: number, valor: unknown) => responder(estado, JSON.stringify(valor), { tipoContenido: 'application/json' });
+    if (!xhr || rechazadasApp.has(id) || o.app === 'sin_sesion') return responder(401, '');
+    if (url.pathname === '/app/session/status') {
+      conEstadoApp.add(id);
+      return json(200, { seconds: 5999, userAuthType: 'CT' });
+    }
+    if (!conEstadoApp.has(id)) return responder(401, '');
+    const [rut = '', dv = ''] = (url.pathname.split('/')[4] ?? '').split('-');
+    switch (url.pathname.split('/').pop()) {
+      case 'esUsuarioAdministrador': return json(200, true);
+      case 'obtenerEmpresa':
+        if (o.app === 'dos_pasos') return json(428, { mensaje: 'Debe completar la verificacion en dos pasos' });
+        return json(200, { rut: Number(rut), dv, fechaResolucion: o.fechaResolucion ?? '2026-10-07', resolucion: '0', fechaAutorizacion: '2026-10-07' });
+      case 'obtenerContribuyente': return json(200, { rut: Number(rut), dv, razonSocial: 'Comercial de Prueba SpA', nombres: null });
+      default: return responder(404, '');
+    }
+  }
+
+  function manejar(metodo: string, url: URL, cookie: string, cuerpo: string, xhr: boolean): Omit<RespuestaHttp, 'metodo' | 'url'> {
     const ruta = url.pathname;
     const campos = new URLSearchParams(cuerpo);
     if (url.host === 'zeusr.sii.cl') return responder(200, pagina('Ingreso'), { setCookie: ['TS01=balanceador; Path=/'] });
@@ -44,13 +72,13 @@ export function crearPortalFalso(o: OpcionesFalso = {}) {
       return responder(200, pagina(`<script>setCookie('NETSCAPE_LIVEWIRE.locexp','1');</script>`), { setCookie: [`NETSCAPE_LIVEWIRE.sesion=${id}; Path=/`, 'NETSCAPE_LIVEWIRE.rut=11111111; Path=/'] });
     }
     const id = /NETSCAPE_LIVEWIRE\.sesion=(\w+)/.exec(cookie)?.[1];
+    if (url.host === 'www2c.sii.cl') {
+      if (url.pathname === '/sii-muyd-inter/') return responder(200, pagina('<div id="app"></div>'));
+      return id && validas.has(id) ? manejarApp(url, id, xhr) : responder(401, '');
+    }
     if (!id || !validas.has(id)) return responder(302, '', { ubicacion: `https://zeusr.sii.cl/cgi_AUT2000/autInicioDTE.cgi?referencia=${url}` });
     const pag = ruta.split('/').pop();
     switch (pag) {
-      case 'ad_empresa1':
-        if (o.adEmpresa === false) return responder(302, '', { ubicacion: 'https://www.sii.cl/custom_pages/Error404.html' });
-        return responder(200, formRut('ad_empresa2'));
-      case 'ad_empresa2': return responder(200, pagina(`<table><tr><td>Rut</td><td>${campos.get('RUT_EMP')}-${campos.get('DV_EMP')}</td></tr><tr><td>Raz&oacute;n Social</td><td>Comercial de Prueba SpA</td></tr><tr><td>Fecha Resoluci&oacute;n</td><td>&nbsp;${o.fechaResolucion ?? '07-10-2026'}</td></tr><tr><td>Resoluci&oacute;n</td><td>0</td></tr><tr><td>Fecha Autorizaci&oacute;n</td><td>07-10-2026</td></tr></table>`));
       case 'ce_consulta_muestra_e': return responder(200, pagina(`<table><tr><td>Datos del Contribuyente Rut</td><td>${campos.get('RUT_EMP')}-${campos.get('DV_EMP')}</td></tr><tr><td>Nombre o Raz&oacute;n Social</td><td>Comercial de Prueba SpA</td></tr><tr><td>Direcci&oacute;n de la Empresa</td><td>CALLE FALSA 123, Comuna SANTIAGO</td></tr><tr><td>461000</td><td>VENTA AL POR MAYOR</td><td>Afecta</td></tr></table>`));
       case 'rf_reobtencion1_folios': return responder(200, formRut('rf_reobtencion2_folios', `${oculto('PAGINA', 1)}<select name="COD_DOCTO"><option value="33">33</option></select>`));
       case 'rf_reobtencion2_folios': {
@@ -91,7 +119,9 @@ export function crearPortalFalso(o: OpcionesFalso = {}) {
     if (clave && (enCurso.get(clave) ?? 0) > 1) concurrencia++;
     try {
       await new Promise(r => setTimeout(r, 2));
-      return { metodo: p.metodo, url: p.url, ...manejar(p.metodo, url, cookie, p.cuerpo ?? '') };
+      const xhr = p.cabeceras.some(([n, v]) => n === 'sec-fetch-mode' && v === 'cors')
+        && p.cabeceras.some(([n, v]) => n === 'X-SII-SESSION-USER-AUTH-TYPE' && v === 'CT');
+      return { metodo: p.metodo, url: p.url, ...manejar(p.metodo, url, cookie, p.cuerpo ?? '', xhr) };
     } finally {
       enCurso.set(clave, (enCurso.get(clave) ?? 1) - 1);
     }
@@ -105,6 +135,8 @@ export function crearPortalFalso(o: OpcionesFalso = {}) {
     concurrentes: () => concurrencia,
     /** El SII olvida todas las sesiones (vencen). */
     vencerSesiones: () => validas.clear(),
+    /** La app de www2c deja de reconocer las sesiones (responde 401), aunque maullin las siga aceptando. */
+    vencerSesionesApp: () => { for (const id of validas) rechazadasApp.add(id); },
     opciones: o,
   };
 }

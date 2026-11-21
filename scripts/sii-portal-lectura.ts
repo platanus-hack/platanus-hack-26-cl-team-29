@@ -46,7 +46,7 @@ await portal.conSesion({ pfx: readFileSync(rutaPfx), clave }, 'lectura', async s
     const f = await consultarFicha(sesion, rutEmpresa);
     return { razonSocial: f.razonSocial, giro: f.giro, acteco: f.acteco, comuna: f.comuna, actividades: f.actividades.length };
   });
-  await paso('resolución (ad_empresa1 y ad_empresa2)', () => consultarResolucion(sesion, rutEmpresa));
+  await paso('resolución (app de datos de la empresa en www2c)', () => consultarResolucion(sesion, rutEmpresa));
   for (const tipo of [33, 52, 61]) {
     await paso(`rangos reobtenibles ${tipo} (primera página)`, () => listarReobtenibles(sesion, rutEmpresa, tipo, 15));
   }

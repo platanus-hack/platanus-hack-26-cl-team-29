@@ -8,6 +8,11 @@ export type CodigoPortal =
   | 'CERTIFICADO_NO_HABILITADO'
   /** La sesión guardada ya no sirve (el SII redirige al login). Uso interno: se hace un solo login nuevo. */
   | 'SESION_VENCIDA'
+  /**
+   * La app pide la verificación en dos pasos (HTTP 428: código por correo o app autenticadora). Es un paso de una
+   * persona: no se intenta saltar, se informa con la respuesta literal del SII.
+   */
+  | 'VERIFICACION_DOS_PASOS'
   /** El SII rechazó la solicitud dentro de un 200 (plantilla de error, alerta, cortafuegos, página terminal). */
   | 'RECHAZO_SII'
   /** El timbraje no autoriza folios ("NO SE AUTORIZA TIMBRAJE", advertencia de folios suficientes, situaciones pendientes). */

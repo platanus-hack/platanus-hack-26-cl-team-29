@@ -95,13 +95,14 @@ test('con el límite de sesiones del SII la conexión se detiene en el primer pa
   assert.ok(e.automatico!.pasos.every(p => p.estado === 'error' && /720/.test(p.mensajeSii ?? '')));
 });
 
-test('si el SII no entrega la resolución, el paso queda para escribirla a mano y lo demás sigue', async () => {
-  const { conexion } = montar({ adEmpresa: false, rangos: { 33: [{ desde: 1, hasta: 9, fecha: hoy }] } });
+test('si la app del SII pide la verificación en dos pasos, la resolución queda para escribirla a mano y lo demás sigue', async () => {
+  const { conexion } = montar({ app: 'dos_pasos', rangos: { 33: [{ desde: 1, hasta: 9, fecha: hoy }] } });
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX, RUT_EMPRESA);
   await conexion.esperarBusquedas();
   const e = await conexion.estado();
   assert.equal(paso(e, 'resolucion').estado, 'error');
-  assert.match(paso(e, 'resolucion').detalle!, /404.*Escríbela/);
+  assert.match(paso(e, 'resolucion').detalle!, /dos pasos.*Escríbela/);
+  assert.match(paso(e, 'resolucion').mensajeSii!, /verificacion en dos pasos/);
   assert.equal(paso(e, 'empresa').estado, 'listo');
   assert.equal(paso(e, 'caf_33').estado, 'listo');
   assert.equal(e.conectado, false, 'sin resolución no se emite');

@@ -82,6 +82,26 @@ export function cabecerasNavegador(o: OpcionesCabeceras): [string, string][] {
   return c;
 }
 
+/**
+ * Cabeceras de una llamada XHR de una SPA del SII (las apps nuevas de `www2`/`www2c`, API `/app/...`): `accept` JSON,
+ * `sec-fetch-*` de una llamada `cors` del mismo sitio y el `referer` de la SPA. Con las de navegación (`navigate`,
+ * `document`) esa API responde 401 aunque la sesión valga.
+ */
+export function cabecerasXhr(o: { cookies?: string; referer: string }): [string, string][] {
+  const c: [string, string][] = [
+    ['user-agent', USER_AGENT],
+    ['accept', 'application/json, text/plain, */*'],
+    ['sec-fetch-site', 'same-origin'],
+    ['sec-fetch-mode', 'cors'],
+    ['sec-fetch-dest', 'empty'],
+    ['referer', o.referer],
+    ['accept-encoding', 'gzip, deflate, br'],
+    ['accept-language', 'es-419,es;q=0.9'],
+  ];
+  if (o.cookies) c.push(['cookie', o.cookies]);
+  return c;
+}
+
 function descomprimir(datos: Buffer, codificacion: string): Buffer {
   if (codificacion === 'gzip') return zlib.gunzipSync(datos);
   if (codificacion === 'deflate') return zlib.inflateSync(datos);
@@ -89,9 +109,13 @@ function descomprimir(datos: Buffer, codificacion: string): Buffer {
   return datos;
 }
 
-/** Lo declarado manda; sin declaración, ISO-8859-1, salvo el login (`herculesr`), que responde UTF-8 sin declararlo. */
+/**
+ * Lo declarado manda; sin declaración, ISO-8859-1, salvo el login (`herculesr`), que responde UTF-8 sin declararlo, y JSON,
+ * que es UTF-8 por definición (la API de las apps nuevas).
+ */
 function decodificarCuerpo(datos: Buffer, tipoContenido: string, host: string): string {
-  if (/charset=utf-?8/i.test(tipoContenido) || (!/charset=/i.test(tipoContenido) && host === 'herculesr.sii.cl')) return datos.toString('utf8');
+  const sinCharset = !/charset=/i.test(tipoContenido);
+  if (/charset=utf-?8/i.test(tipoContenido) || (sinCharset && (host === 'herculesr.sii.cl' || /json/i.test(tipoContenido)))) return datos.toString('utf8');
   return datos.toString('latin1');
 }
 
