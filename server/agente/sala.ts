@@ -81,6 +81,9 @@ interface Borrador {
   pregunta: string;
 }
 
+/** Palabras que dejan claro que un número es el nuevo total, aunque baje lo que lleva. */
+const FIJAR_EXPLICITO = /\b(deja|dejame|dejalo|cambia|cambiame|mejor|pon|ponme|solo|solamente|total|totales|totals|quedo|quedar|ahora)\b/;
+
 /** Un RUT dentro de un mensaje, con o sin puntos y guion ("12.345.678-5", "12345678-5", "123456785"). */
 const PATRON_RUT = /\b\d{1,2}(?:\.?\d{3}){2}\s*-?\s*[\dkK]\b/;
 const SOLO_RUT = /^[\d.\s-]+[kK]?$/;
@@ -93,6 +96,8 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   const borradores = new Map<string, Borrador>();
   /** Teléfonos a los que se les preguntó si salen de la compra. */
   const salidas = new Set<string>();
+  /** Un número suelto que bajaría lo que lleva: se le preguntó si queda en ese número o lo suma. */
+  const dudas = new Map<string, { productoId: string; cantidad: number }>();
   const proveedores = new Map<string, Negocio>();
   const ordenesDeSala = new Map<string, OrdenDeSala>();
   const porFacturar = new Map<string, { licitacionId: string; mensaje: string }>();
@@ -177,6 +182,16 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     const yo = await participacionDe(telefono, l);
     const borrador = yo ? undefined : borradores.get(clave);
     const confirmandoSalida = salidas.delete(clave);
+    const duda = dudas.get(clave);
+    dudas.delete(clave);
+    if (duda && yo) {
+      const t = normalizar(texto);
+      // 1 = queda en ese número, 2 = lo suma. Otra cosa: se olvida la pregunta y se atiende como siempre.
+      if (t === '1' || t === '2') {
+        const items = aplicarCambios(yo.items, [{ productoId: duda.productoId, cantidad: duda.cantidad, modo: t === '1' ? 'fijar' : 'sumar' }]);
+        return guardar(telefono, yo.nombre, items, l, true);
+      }
+    }
     const pregunta = confirmandoSalida ? m.confirmarSalida(false)
       : yo ? m.resumenCarrito(yo.nombre, yo.items, l) : borrador?.pregunta ?? m.preguntaSala(l);
 
@@ -256,6 +271,13 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     if (d.suelta) {
       // "mejor 6": del producto que se le preguntó, del único que lleva o del único que hay.
       const id = borrador?.productoId ?? (base.length === 1 ? base[0].productoId : productos.length === 1 ? productos[0].id : undefined);
+      const lleva = base.find(i => i.productoId === id)?.cantidad ?? 0;
+      // Un número suelto que bajaría lo que ya lleva, sin "deja", "cambia", "mejor" ni "en total": se pregunta
+      // ("ya dale, cómprale las 4" con 6 en el carrito no es quedar en 4).
+      if (id && yo && d.suelta.modo === 'fijar' && d.suelta.cantidad < lleva && !FIJAR_EXPLICITO.test(normalizar(texto))) {
+        dudas.set(clave, { productoId: id, cantidad: d.suelta.cantidad });
+        return m.dudaCantidad(productos.find(p => p.id === id)!, d.suelta.cantidad, lleva);
+      }
       if (id) cambios.push({ productoId: id, ...d.suelta });
       else if (cambios.length === 0) return preguntar({ ...guardado, suelta: d.suelta, pregunta: m.preguntarProducto(d.suelta.cantidad, l) });
     }

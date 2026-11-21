@@ -479,3 +479,30 @@ test('con certificado disponible, la pregunta del RUT ofrece conectarlo o seguir
   assert.match(ultimo(real), /Tu factura saldrá a nombre de Comercial Prueba Limitada\./);
   assert.deepEqual(await carrito('Almacén Real'), [{ productoId: 'rollos', cantidad: 3 }]);
 });
+
+test('cantidades como las escribe la gente: "las 4 q faltan" suma, "10 en total" fija, un número que bajaría se pregunta', async t => {
+  const { agente, escribir, ultimo, carrito } = montar();
+  t.after(() => agente.desconectar());
+  const yo = REGISTRADO.telefono;
+  const guantes = async () => (await carrito(REGISTRADO.nombre))?.find(i => i.productoId === 'guantes')?.cantidad;
+
+  await escribir(yo, 'me sumo con 6 cajas de guantes');
+  await escribir(yo, 'Ya dle comprolas 4 q faltan');           // captura real: bajaba a 4
+  assert.equal(await guantes(), 10);
+
+  await escribir(yo, 'Nopo quiero las 4 en totals pa q sea mas barato'); // "más barato" no es "más cajas"
+  assert.equal(await guantes(), 4);
+  await escribir(yo, 'pon 4 más');
+  assert.equal(await guantes(), 8);
+
+  await escribir(yo, '5');                                      // bajaría de 8 a 5 sin decirlo: se pregunta
+  assert.match(ultimo(yo), /¿Quedas en 5 o sumo 5 \(13 en total\)\?\n1\. Quedar en 5\n2\. Sumar \(13\)$/);
+  assert.equal(await guantes(), 8, 'no cambia hasta que responda');
+  await escribir(yo, '2');
+  assert.equal(await guantes(), 13);
+  await escribir(yo, '3');
+  await escribir(yo, '1');
+  assert.equal(await guantes(), 3);
+  await escribir(yo, 'mejor 2');                                // explícito: baja sin preguntar
+  assert.equal(await guantes(), 2);
+});
