@@ -4,11 +4,18 @@
 // Regla dura: nada con efecto legal (orden, factura, reclamo, nota de crédito) se ejecuta
 // sin un sí explícito de la persona en la conversación. La pendiente se saca de la cola
 // ANTES de ejecutar, así un segundo "sí" no repite la acción.
+// Con una red que trae la compra conjunta (server/agente/sala.ts), los teléfonos desconocidos
+// son el público de la sala y la facturación de la compra pasa por la misma cola de confirmaciones.
 import type { WhatsApp } from '../whatsapp/index.ts';
 import type { Interprete, Intencion } from './intencion.ts';
 import type { Negocio, OrdenCompra, Red } from './puerto.ts';
-import { interpreteDeReglas } from './intencion.ts';
+import { tieneSala } from './puerto.ts';
+import { interpreteDeReglas, normalizar } from './intencion.ts';
 import { crearInterpreteClaude } from './claude.ts';
+import { crearEnvios, enmascarar } from './envios.ts';
+import type { Log } from './envios.ts';
+import { crearSala } from './sala.ts';
+import type { Sala } from './sala.ts';
 import * as m from './mensajes.ts';
 
 export type { Red } from './puerto.ts';
@@ -22,12 +29,35 @@ type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'recepcion'; readonly ordenId: string; readonly facturaEn: Date }
   | { readonly tipo: 'reclamar'; readonly ordenId: string; readonly faltante: number; readonly facturaEn: Date }
   | { readonly tipo: 'nota_credito'; readonly ordenId: string; readonly faltante: number; readonly monto: number; readonly reclamoEn: Date }
+  | { readonly tipo: 'facturar_licitacion'; readonly licitacionId: string }
 );
 
 export interface OpcionesAgente {
   readonly interprete?: Interprete;
   readonly ahora?: () => Date;
+  readonly log?: Log;
+  /** Tiempos y límites de la compra conjunta; por defecto los de la demo. */
+  readonly sala?: Partial<TiemposSala>;
+  readonly env?: NodeJS.ProcessEnv;
 }
+
+export interface TiemposSala {
+  readonly concurrencia: number;
+  readonly ventanaCascadaMs: number;
+  readonly minimoDifusionMs: number;
+  readonly vigilarCierreMs: number;
+  readonly avisoAceptadaMs: number;
+  readonly cantidadMaxima: number;
+}
+
+const TIEMPOS_SALA: TiemposSala = {
+  concurrencia: 5,
+  ventanaCascadaMs: 1500,
+  minimoDifusionMs: 5000,
+  vigilarCierreMs: 1000,
+  avisoAceptadaMs: 60_000,
+  cantidadMaxima: 20,
+};
 
 export interface Agente {
   /** Para facturas emitidas fuera de WhatsApp (p. ej. desde la pantalla): pregunta al comprador si recibió todo. */
@@ -38,8 +68,10 @@ export interface Agente {
 type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage' | 'sendText'>;
 
 export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: OpcionesAgente = {}): Agente {
-  const interprete = opciones.interprete ?? interpreteDesdeEnv(process.env);
+  const env = opciones.env ?? process.env;
+  const interprete = opciones.interprete ?? interpreteDesdeEnv(env);
   const ahora = opciones.ahora ?? (() => new Date());
+  const log = opciones.log ?? console;
   /** Cola de acciones pendientes por negocio; la primera es la que se está preguntando. */
   const colas = new Map<string, Pendiente[]>();
 
@@ -53,6 +85,24 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     cola.push(p);
     colas.set(negocio.id, cola);
     if (cola.length === 1) await whatsapp.sendText(negocio.telefono, p.mensaje);
+  }
+
+  const sala: Sala | null = tieneSala(red) ? crearSalaDelAgente(red, opciones.sala ?? {}) : null;
+
+  function crearSalaDelAgente(redSala: Parameters<typeof crearSala>[0], t: Partial<TiemposSala>): Sala {
+    const tiempos = { ...TIEMPOS_SALA, ...t };
+    if (env.SALA_AVISO_ACEPTADA_MS !== undefined && t.avisoAceptadaMs === undefined) {
+      tiempos.avisoAceptadaMs = Number(env.SALA_AVISO_ACEPTADA_MS) || 0;
+    }
+    return crearSala(redSala, {
+      ...tiempos,
+      interprete,
+      log,
+      envios: crearEnvios(whatsapp, { concurrencia: tiempos.concurrencia, minimoDifusionMs: tiempos.minimoDifusionMs, log }),
+      telefonoProveedor: env.DEMO_TELEFONO_PROVEEDOR || null,
+      urlPublica: env.PUBLIC_URL || null,
+      pedirConfirmacion: (proveedor, licitacionId, mensaje) => encolar(proveedor, { tipo: 'facturar_licitacion', licitacionId, mensaje }),
+    });
   }
 
   async function avisar(negocio: Negocio, texto: string) {
@@ -155,16 +205,19 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
         const mismoDia = ahora().toDateString() === p.reclamoEn.toDateString();
         return m.notaCreditoEmitida({ comprador, mismoDia, notaAntes, notaDespues });
       }
+      case 'facturar_licitacion':
+        if (!sala) throw new Error('la red no tiene compra conjunta');
+        return sala.facturar(p.licitacionId);
     }
   }
 
   async function confirmar(negocio: Negocio): Promise<string> {
     const p = tomar(negocio.id); // se saca antes de ejecutar: idempotencia ante un "sí" repetido
-    if (!p) return m.NADA_PENDIENTE;
+    if (!p) return reproponerFacturacion(negocio) ?? m.NADA_PENDIENTE;
     try {
       return await ejecutar(negocio, p);
     } catch (error) {
-      console.error('[agente] falló la acción', p.tipo, error);
+      log.error('[agente] falló la acción', p.tipo, error instanceof Error ? error.message : error);
       alFrente(negocio.id, p);
       return m.fallo(error);
     }
@@ -202,27 +255,62 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     }
   }
 
-  const desconectar = whatsapp.onMessage(async (mensaje, ctx) => {
-    await ctx.markRead({ typing: true });
-    const negocio = await red.negocioPorTelefono(mensaje.from);
+  /** El proveedor dijo "todavía no" a facturar la compra conjunta y ahora dice que sí: se le vuelve a preguntar. */
+  function reproponerFacturacion(negocio: Negocio): string | null {
+    const pendiente = negocio.rol === 'proveedor' ? sala?.pendienteDeFacturar(negocio.id) : null;
+    if (!pendiente) return null;
+    alFrente(negocio.id, { tipo: 'facturar_licitacion', licitacionId: pendiente.licitacionId, mensaje: pendiente.mensaje });
+    return pendiente.mensaje;
+  }
+
+  const quiereSumarse = (texto: string) => /\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto));
+
+  async function atender(telefono: string, texto: string, ctx: { reply(body: string): Promise<unknown> }) {
+    const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
-      await ctx.reply(m.NO_REGISTRADO);
+      await ctx.reply(sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
       return;
     }
     const antes = actual(negocio.id);
-    const intencion = await interprete.interpretar(mensaje.text, antes?.mensaje ?? null);
+    const intencion = await interprete.interpretar(texto, antes?.mensaje ?? null);
+    // Un comprador registrado también puede sumarse a la compra conjunta, si no hay otra cosa en curso.
+    if (sala && !antes && intencion.tipo === 'otro' && negocio.rol === 'comprador' && (sala.participa(telefono) || quiereSumarse(texto))) {
+      await ctx.reply(await sala.atenderPublico(telefono, texto, negocio.nombre));
+      return;
+    }
     const respuesta = await responder(negocio, intencion);
     await ctx.reply(respuesta);
     // Si se resolvió lo que se preguntaba y asomó algo que esperaba en la cola, se pregunta ahora.
     const siguiente = actual(negocio.id);
     if (siguiente && siguiente !== antes && siguiente.mensaje !== respuesta) await ctx.reply(siguiente.mensaje);
+  }
+
+  // Mensajes de un mismo teléfono, en orden y de a uno; teléfonos distintos, en paralelo.
+  const filas = new Map<string, Promise<void>>();
+  const desconectar = whatsapp.onMessage((mensaje, ctx) => {
+    const telefono = mensaje.from;
+    const siguiente = (filas.get(telefono) ?? Promise.resolve()).then(async () => {
+      try {
+        await ctx.markRead({ typing: true });
+        await atender(telefono, mensaje.text, ctx);
+      } catch (error) {
+        log.error(`[agente] falló el mensaje de ${enmascarar(telefono)}:`, error instanceof Error ? error.message : error);
+        await ctx.reply(m.ERROR_TEMPORAL);
+      }
+    });
+    filas.set(telefono, siguiente);
+    void siguiente.then(() => { if (filas.get(telefono) === siguiente) filas.delete(telefono); });
+    return siguiente;
   });
 
   return {
     async avisarFactura(ordenId) {
       await avisarFacturaDe(await ordenPorId(ordenId), await negociosPorId());
     },
-    desconectar,
+    desconectar() {
+      desconectar();
+      sala?.detener();
+    },
   };
 }
 
