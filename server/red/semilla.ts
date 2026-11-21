@@ -31,10 +31,10 @@ const negocios: Negocio[] = [
   { id: 'n-molinos-del-sur', nombre: 'Molinos del Sur', comuna: 'Puente Alto', rol: 'proveedor', telefono: '+56 9 0000 0002' },
   { id: 'n-harinas-andes', nombre: 'Harinas Andes', comuna: 'Maipú', rol: 'proveedor', telefono: '+56 9 0000 0003' },
   { id: 'n-distribuidora-sur', nombre: 'Distribuidora Sur', comuna: 'La Cisterna', rol: 'proveedor', telefono: '+56 9 0000 0004' },
-  { id: COMPRADOR_DEMO, nombre: 'La Picá de Ñuñoa', comuna: 'Ñuñoa', rol: 'comprador', telefono: '+56 9 0000 0011' },
-  { id: 'n-almacen-don-tito', nombre: 'Almacén Don Tito', comuna: 'Ñuñoa', rol: 'comprador', telefono: '+56 9 0000 0012' },
-  { id: 'n-minimarket-los-aromos', nombre: 'Minimarket Los Aromos', comuna: 'Ñuñoa', rol: 'comprador', telefono: '+56 9 0000 0013' },
-  { id: 'n-amasanderia-la-esquina', nombre: 'Amasandería La Esquina', comuna: 'Providencia', rol: 'comprador', telefono: '+56 9 0000 0014' },
+  { id: COMPRADOR_DEMO, nombre: 'La Picá de Ñuñoa', comuna: 'Ñuñoa', rol: 'comprador', telefono: '+56 9 0000 0011', rubro: 'restaurante' },
+  { id: 'n-almacen-don-tito', nombre: 'Almacén Don Tito', comuna: 'Ñuñoa', rol: 'comprador', telefono: '+56 9 0000 0012', rubro: 'almacen' },
+  { id: 'n-minimarket-los-aromos', nombre: 'Minimarket Los Aromos', comuna: 'Ñuñoa', rol: 'comprador', telefono: '+56 9 0000 0013', rubro: 'minimarket' },
+  { id: 'n-amasanderia-la-esquina', nombre: 'Amasandería La Esquina', comuna: 'Providencia', rol: 'comprador', telefono: '+56 9 0000 0014', rubro: 'panaderia' },
 ];
 
 // Historial previo para que el ranking parta Panificadora Ñuble 4,7, Molinos del Sur 4,6,
@@ -53,13 +53,21 @@ const MINUTO = 60_000;
 /** Lo que paga cada comprador si compra solo la harina (historia de /red). */
 export const PRECIO_SOLO_HARINA = 21500;
 
-const proveedorSala = (c: ConfigDemo): Negocio =>
-  ({ id: PROVEEDOR_SALA, nombre: c.proveedor.nombre, comuna: c.proveedor.comuna, rol: 'proveedor', telefono: c.proveedor.telefono });
+// El logo viaja en el negocio solo si es https (corto); un data: va solo en GET /api/red/config.
+const proveedorSala = (c: ConfigDemo): Negocio => ({
+  id: PROVEEDOR_SALA, nombre: c.proveedor.nombre, comuna: c.proveedor.comuna, rol: 'proveedor', telefono: c.proveedor.telefono,
+  ...(c.proveedorLogoUrl?.startsWith('https://') ? { logoUrl: c.proveedorLogoUrl } : {}),
+});
 
-/** "La sala compra junta": abierta, sin participantes, el proveedor real vende a todo el grupo por tramos. */
+/**
+ * "La sala compra junta": abierta, sin participantes, con la canasta de la demo. El proveedor real vende a
+ * todo el grupo y cada producto baja por sus propios tramos. Los pisos de competencia no se guardan aquí (son ocultos).
+ */
 export function licitacionDemo(ahora: Date, c: ConfigDemo = configDemo()): Licitacion {
   return {
     id: LICITACION_SALA,
+    productos: c.productos.map(({ id, nombre, unidad, unidadPlural, precioSolo, tramos }) =>
+      ({ id, nombre, unidad, unidadPlural, precioSolo, tramos: structuredClone(tramos), ofertas: [] })),
     producto: c.producto,
     unidad: c.unidad,
     unidadPlural: c.unidadPlural,
@@ -106,6 +114,11 @@ export async function aplicarDatosDemo(repo: Repositorio, env: NodeJS.ProcessEnv
     await repo.guardar('negocios', { ...comprador, telefono: env.DEMO_TELEFONO_COMPRADOR });
   }
   for (const c of competidores) if (!actuales.some(n => n.id === c.id)) await repo.guardar('negocios', c);
+  // Una base sembrada antes de los rubros recibe el de los compradores de la demo.
+  for (const n of negocios) {
+    const actual = actuales.find(x => x.id === n.id);
+    if (actual && n.rubro && !actual.rubro) await repo.guardar('negocios', { ...actual, rubro: n.rubro });
+  }
   const deseado = proveedorSala(configDemo(env));
   const actual = actuales.find(n => n.id === PROVEEDOR_SALA);
   if (!actual || JSON.stringify(actual) !== JSON.stringify(deseado)) await repo.guardar('negocios', deseado);

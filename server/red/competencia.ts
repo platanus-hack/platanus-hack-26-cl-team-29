@@ -4,14 +4,15 @@ import type { Red } from './dominio.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA } from './semilla.ts';
 import type { EventoRed, LicitacionVista } from './tipos.ts';
 
-// Proveedores que compiten en vivo por la compra conjunta de la sala.
+// Proveedores que compiten en vivo por la compra conjunta de la sala, producto por producto de la canasta.
 //
-// Cada vez que el grupo cruza un tramo empieza una ronda: cada competidor ficticio, tras 1 a 4 s,
+// Cada vez que el grupo cruza un tramo de un producto empieza una ronda por ese producto: cada competidor ficticio, tras 1 a 4 s,
 // ofrece un poco menos (100 a 300) que el mejor precio del momento, sin bajar de su piso oculto.
 // Como sus esperas son distintas, el que llega después responde al anterior. Ante cada oferta rival,
 // el agente del proveedor real responde con 100 menos que la mejor rival mientras siga sobre su piso
-// (DEMO_PRECIO_PISO). Los pisos rivales están siempre sobre el del real y su nota es mejor: gana y
-// factura la empresa real. Todo pasa por `red.ofertar`, así que los eventos son los de siempre.
+// de ese producto (DEMO_PRECIO_PISO en rollos; 80 % del primer tramo en los demás, o `piso` en DEMO_PRODUCTOS).
+// Los pisos rivales están siempre sobre el del real y su nota es mejor: gana cada producto y factura la empresa
+// real. Todo pasa por `red.ofertar` con `productoId`, así que los eventos son los de siempre.
 
 export interface OpcionesCompetencia {
   env?: NodeJS.ProcessEnv;
@@ -32,9 +33,21 @@ const PLAZO_DIAS = 1;
 
 const esperarMs = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
+/**
+ * Pisos ocultos de un producto: el del proveedor real y, por rival, el del real más su `sobrePiso` escalado al
+ * precio del producto (en rollos, con DEMO_PRECIO_PISO, es exactamente 400, 700 y 1100 más), redondeado a $10.
+ */
+export function pisosDeProducto(piso: number, pisoReferencia: number): Map<string, number> {
+  return new Map(COMPETIDORES_SALA.map(c => [c.id, piso + Math.max(10, Math.round((c.sobrePiso * piso) / pisoReferencia / 10) * 10)]));
+}
+
 export function iniciarCompetencia(red: Red, { env = process.env, aleatorio = Math.random, esperar = esperarMs }: OpcionesCompetencia = {}): Competencia {
-  const pisoReal = configDemo(env).precioPiso;
-  const pisos = new Map<string, number>(COMPETIDORES_SALA.map(c => [c.id, pisoReal + c.sobrePiso]));
+  const config = configDemo(env);
+  /** Piso del proveedor real por producto; un producto que no está en la configuración usa DEMO_PRECIO_PISO. */
+  const pisoReal = (productoId: string) => config.productos.find(p => p.id === productoId)?.piso ?? config.precioPiso;
+  const pisosRivales = (productoId: string) => pisosDeProducto(pisoReal(productoId), config.precioPiso);
+  const rivales = new Set<string>(COMPETIDORES_SALA.map(c => c.id));
+  /** Último tramo conocido por licitación y producto. */
   const tramoConocido = new Map<string, number>();
   const pendientes = new Set<Promise<void>>();
   // Una oferta a la vez: cada agente decide mirando la oferta anterior ya aplicada.
@@ -55,41 +68,45 @@ export function iniciarCompetencia(red: Red, { env = process.env, aleatorio = Ma
     pendientes.add(tarea);
   }
 
-  const abierta = (id: string): LicitacionVista | null => {
+  /** El producto de la compra abierta, con sus derivados, o null si la compra ya no está abierta. */
+  const productoAbierto = (licitacionId: string, productoId: string) => {
     const l = red.licitacionAbierta();
-    return l && l.id === id ? (l as LicitacionVista) : null;
+    return l && l.id === licitacionId ? (l as LicitacionVista).productos.find(p => p.id === productoId) ?? null : null;
   };
 
-  async function pujarRival(licitacionId: string, proveedorId: string) {
-    const l = abierta(licitacionId);
-    if (!l) return;
-    const propia = l.ofertas.find(o => o.proveedorId === proveedorId);
-    const otras = l.ofertas.filter(o => o.proveedorId !== proveedorId).map(o => o.precioUnitario);
-    const mejor = Math.min(l.precioActual, ...otras);
+  async function pujarRival(licitacionId: string, productoId: string, proveedorId: string) {
+    const p = productoAbierto(licitacionId, productoId);
+    if (!p) return;
+    const propia = p.ofertas.find(o => o.proveedorId === proveedorId);
+    const otras = p.ofertas.filter(o => o.proveedorId !== proveedorId).map(o => o.precioUnitario);
+    const mejor = Math.min(p.precioActual, ...otras);
     if (propia && propia.precioUnitario < mejor) return; // ya va ganando entre los precios
-    const precio = Math.max(pisos.get(proveedorId)!, mejor - 100 * entre(1, 3));
+    const precio = Math.max(pisosRivales(productoId).get(proveedorId)!, mejor - 100 * entre(1, 3));
     if (precio >= mejor) return; // llegó a su piso
-    await red.ofertar(licitacionId, { proveedorId, precioUnitario: precio, plazoDias: PLAZO_DIAS });
-    despues(entre(800, 1600), () => responderReal(licitacionId));
+    await red.ofertar(licitacionId, { proveedorId, productoId, precioUnitario: precio, plazoDias: PLAZO_DIAS });
+    despues(entre(800, 1600), () => responderReal(licitacionId, productoId));
   }
 
-  async function responderReal(licitacionId: string) {
-    const l = abierta(licitacionId);
-    if (!l) return;
-    const rivales = l.ofertas.filter(o => pisos.has(o.proveedorId)).map(o => o.precioUnitario);
-    if (rivales.length === 0) return;
-    const precio = Math.max(pisoReal, Math.min(...rivales) - PASO_REAL);
-    if (precio >= l.precioActual) return;
-    await red.ofertar(licitacionId, { proveedorId: PROVEEDOR_SALA, precioUnitario: precio, plazoDias: PLAZO_DIAS });
+  async function responderReal(licitacionId: string, productoId: string) {
+    const p = productoAbierto(licitacionId, productoId);
+    if (!p) return;
+    const ofertasRivales = p.ofertas.filter(o => rivales.has(o.proveedorId)).map(o => o.precioUnitario);
+    if (ofertasRivales.length === 0) return;
+    const precio = Math.max(pisoReal(productoId), Math.min(...ofertasRivales) - PASO_REAL);
+    if (precio >= p.precioActual) return;
+    await red.ofertar(licitacionId, { proveedorId: PROVEEDOR_SALA, productoId, precioUnitario: precio, plazoDias: PLAZO_DIAS });
   }
 
   function alSumarse(l: LicitacionVista) {
     if (l.proveedorId !== PROVEEDOR_SALA || l.estado !== 'abierta') return;
-    const tramo = precioPorVolumen(l, l.totalUnidades);
-    const anterior = tramoConocido.get(l.id) ?? l.precioSolo;
-    tramoConocido.set(l.id, Math.min(anterior, tramo));
-    if (tramo >= anterior) return;
-    for (const c of COMPETIDORES_SALA) despues(entre(1000, 4000), () => pujarRival(l.id, c.id));
+    for (const p of l.productos) {
+      const clave = `${l.id}:${p.id}`;
+      const tramo = precioPorVolumen(p, p.totalUnidades);
+      const anterior = tramoConocido.get(clave) ?? p.precioSolo;
+      tramoConocido.set(clave, Math.min(anterior, tramo));
+      if (tramo >= anterior) continue;
+      for (const c of COMPETIDORES_SALA) despues(entre(1000, 4000), () => pujarRival(l.id, p.id, c.id));
+    }
   }
 
   const dejarDeEscuchar = red.escuchar((evento: EventoRed) => {
