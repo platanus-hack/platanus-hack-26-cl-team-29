@@ -377,6 +377,31 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
 
 // ---------- La sala compra junta ----------
 
+/** Cómo se muestra una bajada de precio en /sala. */
+export type TipoBajada = 'tramo' | 'oferta';
+
+/** Ningún aviso a pantalla completa antes de este tiempo desde el anterior. */
+export const PAUSA_AVISO_MS = 6000;
+
+/**
+ * Decide cómo mostrar un `licitacion.precio_bajo`: `tramo` (aviso a pantalla completa) si el precio nuevo
+ * es el del tramo que el grupo acaba de alcanzar; `oferta` (animación en el lugar) si lo bajó un proveedor.
+ * `null` si el evento no trae una bajada real.
+ */
+export function tipoDeBajada(datos: Record<string, unknown>, tramos: Tramo[] | undefined): TipoBajada | null {
+  const anterior = numero(datos.precioAnterior);
+  const nuevo = numero(datos.precioNuevo);
+  const unidades = numero(datos.totalUnidades);
+  if (anterior === undefined || nuevo === undefined || nuevo >= anterior) return null;
+  const delTramo = unidades === undefined ? undefined : precioConUnidades(tramos ?? [], undefined, unidades);
+  return delTramo === nuevo ? 'tramo' : 'oferta';
+}
+
+/** El aviso a pantalla completa se muestra solo si es de tramo y pasó la pausa desde el anterior. */
+export function mostrarAviso(tipo: TipoBajada | null, ahora: number, ultimoAviso: number | null): boolean {
+  return tipo === 'tramo' && (ultimoAviso === null || ahora - ultimoAviso >= PAUSA_AVISO_MS);
+}
+
 export interface OfertaSala {
   /** Clave estable por oferta: el backend reemplaza la oferta anterior de cada proveedor. */
   clave: string;
