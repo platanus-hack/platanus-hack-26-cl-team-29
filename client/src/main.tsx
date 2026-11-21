@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './estilos.css';
 import { MiNegocio } from './canal/MiNegocio.tsx';
 import { Proveedor } from './canal/Proveedor.tsx';
+import { Navegador } from './components/Navegador.tsx';
 import { Licitacion } from './vistas/Licitacion.tsx';
 import { RedEnVivo } from './vistas/RedEnVivo.tsx';
 import { Unirse } from './vistas/Unirse.tsx';
@@ -17,4 +18,9 @@ const VISTAS: Record<string, () => JSX.Element> = {
 
 const Vista = VISTAS[location.pathname.replace(/\/+$/, '')] ?? RedEnVivo;
 
-createRoot(document.getElementById('root')!).render(<Vista />);
+createRoot(document.getElementById('root')!).render(
+  <>
+    <Vista />
+    <Navegador />
+  </>,
+);
