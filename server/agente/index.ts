@@ -157,6 +157,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       ...(conexionSii ? { conectarSii: conexionSii.conectar, estadoSii: conexionSii.estado } : {}),
       ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
       ...(opciones.revisarSiiMs !== undefined ? { revisarSiiMs: opciones.revisarSiiMs } : {}),
+      sinCertificado: env.DEMO_PROVEEDOR_SIN_CERTIFICADO === '1',
     });
   }
 

@@ -33,6 +33,11 @@ export interface OpcionesProveedores {
   /** Manda un mensaje fuera de una respuesta (SII listo, te superaron). */
   avisar(telefono: string, texto: string): Promise<void>;
   readonly almacenBorradores?: AlmacenBorradores;
+  /**
+   * Solo para pruebas (DEMO_PROVEEDOR_SIN_CERTIFICADO=1): mientras espera el certificado, quien escribe su RUT queda
+   * registrado como proveedor sin certificado ni conexión al SII. Sus facturas salen simuladas.
+   */
+  readonly sinCertificado?: boolean;
   /** Cada cuánto revisar si la conexión al SII terminó, y hasta cuántas veces. */
   readonly revisarSiiMs?: number;
   readonly revisionesSii?: number;
@@ -82,21 +87,24 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
   function empezar(telefono: string): string {
     registros.set(claveTelefono(telefono), { paso: 'certificado' });
     o.log.info(`[proveedor] ${enmascarar(telefono)} empezó su registro de proveedor`);
-    return m.registroProveedor(o.enlaceCertificado(telefono));
+    return m.registroProveedor(o.enlaceCertificado(telefono), o.sinCertificado);
   }
 
-  async function registrar(telefono: string, rutEmpresa: string, rutTitular: string): Promise<string> {
+  /** Sin `rutTitular` (prueba sin certificado), no hay conexión al SII: sus facturas salen simuladas. */
+  async function registrar(telefono: string, rutEmpresa: string, rutTitular?: string): Promise<string> {
     let negocio: Negocio;
     try {
       negocio = await red.registrarProveedor({ telefono, rut: rutEmpresa });
     } catch (error) {
       const codigo = (error as { codigo?: unknown }).codigo;
       if (codigo !== 'datos_invalidos' && codigo !== 'sii_no_disponible') throw error;
-      registros.set(claveTelefono(telefono), { paso: 'rut_empresa', rutTitular });
+      if (rutTitular) registros.set(claveTelefono(telefono), { paso: 'rut_empresa', rutTitular });
+      if (!rutTitular) return `${(error as Error).message}\n\n${m.esperandoCertificado(o.enlaceCertificado(telefono), true)}`;
       return `${(error as Error).message}\n\n${m.PEDIR_RUT_EMPRESA}`;
     }
     registros.delete(claveTelefono(telefono));
-    o.log.info(`[proveedor] ${enmascarar(telefono)} quedó como proveedor`);
+    o.log.info(`[proveedor] ${enmascarar(telefono)} quedó como proveedor${rutTitular ? '' : ' sin certificado (prueba)'}`);
+    if (!rutTitular) return `${m.proveedorRegistrado(negocio.nombre, false)}\n\n${m.SIN_CERTIFICADO_SIMULADAS}`;
     if (!o.conectarSii) return m.proveedorRegistrado(negocio.nombre, false);
     try {
       await o.conectarSii(rutEmpresa, rutTitular);
@@ -137,8 +145,11 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
       registros.delete(clave);
       return m.REGISTRO_PROVEEDOR_CANCELADO;
     }
-    if (r.paso === 'certificado') return m.esperandoCertificado(o.enlaceCertificado(telefono));
     const rut = validarRut(texto.match(/[\d.]+\s*-?\s*[\dkK]/)?.[0] ?? '');
+    if (r.paso === 'certificado') {
+      if (o.sinCertificado && rut) return registrar(telefono, rut);
+      return m.esperandoCertificado(o.enlaceCertificado(telefono), o.sinCertificado);
+    }
     if (rut) return registrar(telefono, rut, r.rutTitular!);
     if (r.paso === 'empresa' && (t === '1' || /\b(mi rut|el mio|personal)\b/.test(t))) return registrar(telefono, r.rutTitular!, r.rutTitular!);
     if (r.paso === 'empresa' && (t === '2' || /\b(otra|empresa)\b/.test(t))) {
