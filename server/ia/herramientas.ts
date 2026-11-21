@@ -32,7 +32,7 @@ const CONSULTAS: Anthropic.Beta.BetaToolUnion[] = [
   },
   {
     name: 'compra_conjunta',
-    description: 'La compra conjunta abierta, si hay: producto, precio actual por volumen, cuánto falta para el siguiente tramo, cuántos negocios se sumaron y cuándo cierra.',
+    description: 'La compra conjunta abierta, si hay: sus productos con precio actual por volumen y cuánto falta para el siguiente tramo, cuántos negocios se sumaron, cuándo cierra y lo que lleva este negocio (tuPedido). El proveedor se elige al cierre.',
     input_schema: objeto({}, []),
     strict: true,
   },
@@ -51,7 +51,7 @@ export function consultar(consultas: Consultas, nombre: string, input: unknown, 
       return consultas.proveedores(typeof producto === 'string' && producto.trim() ? producto.trim() : null);
     }
     case 'catalogo': return consultas.catalogo();
-    case 'compra_conjunta': return consultas.compraConjunta();
+    case 'compra_conjunta': return consultas.compraConjunta(negocioId);
     default: throw new Error(`herramienta desconocida: ${nombre}`);
   }
 }

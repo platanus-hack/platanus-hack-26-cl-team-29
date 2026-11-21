@@ -9,7 +9,7 @@ export interface Consultas {
   misPedidos(negocioId: string): unknown;
   proveedores(producto: string | null): unknown;
   catalogo(): unknown;
-  compraConjunta(): unknown;
+  compraConjunta(negocioId: string): unknown;
 }
 
 const NOMBRE_DOCUMENTO = { 33: 'factura', 52: 'guía de despacho', 61: 'nota de crédito' } as const;
@@ -64,21 +64,28 @@ export function crearConsultasRed(red: RedConsultable): Consultas {
       });
     },
 
-    compraConjunta() {
+    compraConjunta(negocioId) {
       const l = red.licitacionAbierta();
       if (!l) return { abierta: false };
+      const mio = l.participantes.find(p => p.negocioId === negocioId);
+      const producto = (id: string) => l.productos.find(p => p.id === id);
       return {
         abierta: true,
-        producto: l.producto,
-        unidad: l.unidad,
-        precioSiCompraSolo: l.precioSolo,
-        precioActual: l.precioActual,
-        totalUnidades: l.totalUnidades,
-        negociosSumados: l.participantes.length,
-        siguienteTramo: l.siguienteTramo,
-        tramos: l.tramos,
-        ofertasDeProveedores: l.ofertas.length,
         cierraEn: l.cierraEn,
+        negociosSumados: l.participantes.length,
+        // El proveedor se define al cierre: hasta entonces nadie le ha comprado a nadie.
+        productos: l.productos.map(p => ({
+          nombre: p.nombre,
+          unidad: p.unidadPlural,
+          precioSiCompraSolo: p.precioSolo,
+          precioActual: p.precioActual,
+          totalUnidadesDelGrupo: p.totalUnidades,
+          siguienteTramo: p.siguienteTramo,
+          ofertasDeProveedores: p.ofertas.length,
+        })),
+        tuPedido: mio
+          ? mio.items.map(i => ({ producto: producto(i.productoId)?.nombre ?? i.productoId, cantidad: i.cantidad, precioActual: producto(i.productoId)?.precioActual ?? null }))
+          : null,
       };
     },
   };
