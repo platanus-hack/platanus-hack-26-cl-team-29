@@ -9,7 +9,7 @@ import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
 import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
 import type { ConsultarContribuyente, DatosContribuyente } from './contribuyente.ts';
-import { validarRut } from './rut.ts';
+import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
 import { RUBROS } from './tipos.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
@@ -217,7 +217,6 @@ export interface OpcionesRed {
 }
 
 export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
-export const RUT_INVALIDO = 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.';
 export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
 export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
 

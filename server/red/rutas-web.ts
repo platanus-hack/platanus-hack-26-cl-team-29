@@ -4,7 +4,7 @@ import { ErrorRed, FALTA_RUT } from './dominio.ts';
 import type { Recepcion, Red } from './dominio.ts';
 import { sinTelefonos } from './publico.ts';
 import { PROVEEDOR_SALA } from './semilla.ts';
-import { formatearRut } from './rut.ts';
+import { formatearRut } from '../../shared/rut.ts';
 import { mismoSecreto } from './sesiones.ts';
 import type { Sesion, Sesiones } from './sesiones.ts';
 import type { Negocio, OrdenCompra } from './tipos.ts';

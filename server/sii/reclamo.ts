@@ -2,7 +2,8 @@
 import type { Autenticador } from './autenticacion.ts';
 import { desescapar, ErrorSii, etiqueta, type Http, sobreSoap, todas, URLS } from './soap.ts';
 import type { AccionReceptor, DocumentoRecibido, EventosDocumento, RespuestaReclamo, ResultadoReclamo } from './tipos.ts';
-import { escaparXml, partirRut } from './texto.ts';
+import { partirRut } from '../../shared/rut.ts';
+import { escaparXml } from './texto.ts';
 
 const ESPACIO = 'http://ws.registroreclamodte.diii.sdi.sii.cl';
 export const ACCIONES: readonly AccionReceptor[] = ['ACD', 'ERM', 'RCD', 'RFP', 'RFT'];

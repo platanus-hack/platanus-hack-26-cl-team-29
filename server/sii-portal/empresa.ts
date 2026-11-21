@@ -1,6 +1,7 @@
 // Ficha del contribuyente en el portal de certificación (maullin, `ce_consulta_muestra_e`), solo lectura: razón
 // social, dirección y actividades, tal como el SII las tiene inscritas. Solo existe en maullin. La resolución se lee
 // de la app nueva de www2c (mantenedor.ts).
+import { partirRut } from '../../shared/rut.ts';
 import { ErrorPortal } from './errores.ts';
 import { filasDeTabla, normalizar, textoVisible } from './html.ts';
 import type { SesionPortal } from './portal.ts';
@@ -22,11 +23,6 @@ export interface FichaEmpresa extends Empresa {
   actividades: { codigo: number; descripcion: string }[];
 }
 
-
-export function partirRut(rut: string): [string, string] {
-  const [cuerpo = '', dv = ''] = rut.replace(/\./g, '').toUpperCase().split('-');
-  return [cuerpo, dv];
-}
 
 /**
  * La dirección viene en una celda ("CALLE 123, Villa/Pob. X, Ciudad Y, Comuna Z"). Las etiquetas son texto del SII, no

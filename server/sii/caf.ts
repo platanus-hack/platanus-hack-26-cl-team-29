@@ -2,7 +2,7 @@
 import { createPrivateKey, createPublicKey, type KeyObject } from 'node:crypto';
 import type { Element } from '@xmldom/xmldom';
 import { parsearXml } from './c14n.ts';
-import { normalizarRut } from './texto.ts';
+import { normalizarRut } from '../../shared/rut.ts';
 
 export interface Caf {
   readonly tipo: number;

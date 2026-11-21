@@ -5,6 +5,7 @@
 import bwipjs from 'bwip-js';
 import PDFDocument from 'pdfkit';
 import { dinero } from '../../shared/formato.ts';
+import { formatearRut } from '../../shared/rut.ts';
 import type { DocumentoImpreso, LineaImpresa, ReferenciaImpresa } from './tipos.ts';
 
 const ROJO = '#C8102E';
@@ -49,13 +50,6 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 export const nombreDelTipo = (tipo: number): string => TITULOS[tipo] ?? `DOCUMENTO TRIBUTARIO ELECTRÓNICO ${tipo}`;
 
 const decimales = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 6 });
-
-/** `76123456-7` → `76.123.456-7`. */
-function rutConPuntos(rut: string): string {
-  const m = /^(\d+)-([\dkK])$/.exec(rut.replace(/\./g, ''));
-  if (!m) return rut;
-  return `${m[1]!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}-${m[2]!.toUpperCase()}`;
-}
 
 function fechaLarga(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -128,7 +122,7 @@ function encabezado(doc: Doc, d: DocumentoImpreso, ancho: number): number {
 
   // Recuadro: se mide el texto primero para saber su alto.
   const lineas: [string, number][] = [
-    [`R.U.T.: ${rutConPuntos(d.emisor.rut)}`, 12],
+    [`R.U.T.: ${formatearRut(d.emisor.rut)}`, 12],
     [nombreDelTipo(d.tipo), 12],
     [`N° ${d.folio}`, 12],
   ];
@@ -160,7 +154,7 @@ function receptor(doc: Doc, d: DocumentoImpreso, ancho: number, y: number): numb
   const r = d.receptor;
   const filas: [string, string][] = [
     ['Señor(es)', r.razonSocial],
-    ['R.U.T.', rutConPuntos(r.rut)],
+    ['R.U.T.', formatearRut(r.rut)],
     ['Giro', r.giro],
     ['Dirección', r.direccion],
     ['Comuna', [r.comuna, r.ciudad].filter(Boolean).join(', ')],

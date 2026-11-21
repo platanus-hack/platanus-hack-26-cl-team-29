@@ -5,7 +5,7 @@
 import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoDocumento, TipoEvento } from '../red/tipos.ts';
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
-import { formatearRutAlEscribir, rutValido } from './rut.ts';
+import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
 import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
 
 const tramos = (lista: Array<[number, number]>) => lista.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
@@ -270,7 +270,7 @@ export function crearApiFalsa(): CanalApi {
     async sesion({ nombre, comuna, rubro, rut }) {
       await espera(300);
       exigir(!!nombre.trim(), 'Escribe el nombre de tu negocio.');
-      exigir(rutValido(rut), 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.');
+      exigir(!!validarRut(rut), RUT_INVALIDO);
       const negocio: Negocio = { id: `c-web-${++contador}`, nombre: nombre.trim(), comuna: comuna.trim() || 'Santiago', rol: 'comprador', ...(rubro ? { rubro } : {}) };
       red.negocios.push(negocio);
       sembrarComprador(negocio);

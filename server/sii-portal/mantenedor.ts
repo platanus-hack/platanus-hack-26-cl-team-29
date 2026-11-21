@@ -7,7 +7,7 @@
 //   `X-SII-SESSION-USER-ID` con el RUT del titular.
 // - Nunca se llama `existEmpresa` (pide la verificación en dos pasos y no hace falta) ni `actualizarEmpresa` (escribe).
 // Los rechazos de la API (401, 428, 403) los reconoce `rechazo.ts`. Detalle en docs/hallazgos.
-import { partirRut } from './empresa.ts';
+import { normalizarRut } from '../../shared/rut.ts';
 import { ErrorPortal } from './errores.ts';
 import type { RespuestaHttp } from './http.ts';
 import type { SesionPortal } from './portal.ts';
@@ -35,8 +35,6 @@ interface Mantenedor {
   obtener(accion: 'obtenerEmpresa' | 'obtenerContribuyente'): Promise<RespuestaHttp>;
 }
 
-const rutDeRuta = (rut: string) => partirRut(rut).join('-');
-
 function json(r: RespuestaHttp, paso: string): Record<string, unknown> {
   try {
     const valor: unknown = JSON.parse(r.cuerpo);
@@ -47,10 +45,10 @@ function json(r: RespuestaHttp, paso: string): Record<string, unknown> {
 
 /** Abre la app con la sesión del portal. Falla con el estado y el cuerpo literal del SII si un paso no responde 200. */
 async function abrirMantenedor(sesion: SesionPortal, rutEmpresa: string): Promise<Mantenedor> {
-  const empresa = rutDeRuta(rutEmpresa);
+  const empresa = normalizarRut(rutEmpresa);
   const cabeceras: [string, string][] = [
     ['X-SII-SESSION-USER-AUTH-TYPE', 'CT'],
-    ['X-SII-SESSION-USER-ID', rutDeRuta(sesion.rutTitular)],
+    ['X-SII-SESSION-USER-ID', normalizarRut(sesion.rutTitular)],
   ];
   const xhr = async (paso: string, url: string) => {
     const r = await sesion.pedir({ paso, metodo: 'GET', url, modo: 'xhr', referer: SPA_MANTENEDOR, cabeceras });

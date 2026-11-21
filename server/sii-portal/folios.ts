@@ -9,7 +9,7 @@
 import { ErrorPortal } from './errores.ts';
 import { formularioHacia, leerFormularios, normalizar, opcionesDe, textoVisible, valorDe, valorDeCampo, type Formulario } from './html.ts';
 import type { RespuestaHttp } from './http.ts';
-import { partirRut } from './empresa.ts';
+import { partirRut } from '../../shared/rut.ts';
 import type { SesionPortal } from './portal.ts';
 
 const PORTAL = 'https://maullin.sii.cl/cvc_cgi/dte';

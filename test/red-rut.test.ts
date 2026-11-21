@@ -6,8 +6,9 @@ import { crearSii } from '../server/sii/index.ts';
 import type { EntradaFactura } from '../server/sii/index.ts';
 import {
   conCacheYFila, crearAlmacenFoliosMemoria, crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso, crearSiiReal,
-  formatearRut, receptorDelComprador, validarRut, ErrorRed, RUT_DESCONOCIDO, RUT_INVALIDO,
+  receptorDelComprador, ErrorRed, RUT_DESCONOCIDO,
 } from '../server/red/index.ts';
+import { RUT_INVALIDO } from '../shared/rut.ts';
 import type { ConsultarContribuyente, DatosContribuyente, EventoRed, PuertoSii } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { generarCaf, RUT_EMPRESA } from './sii-apoyo.ts';
@@ -37,18 +38,6 @@ async function redDePrueba(consultar: ConsultarContribuyente, sii: PuertoSii = c
   red.escuchar(e => eventos.push(e));
   return { red, eventos };
 }
-
-test('el RUT se acepta con o sin puntos y guion, y el dígito verificador se valida con módulo 11', () => {
-  for (const texto of ['12.345.678-5', '12345678-5', '123456785', ' 12 345 678 5 ', '11.111.111-1']) {
-    assert.ok(validarRut(texto), texto);
-  }
-  assert.equal(validarRut('12.345.678-5'), '12345678-5');
-  assert.equal(validarRut('5.126.663-3'), '5126663-3');
-  for (const texto of ['12.345.678-6', '1234', 'abc', '', '12.345.678-', '123456789012-3']) {
-    assert.equal(validarRut(texto), null, texto);
-  }
-  assert.equal(formatearRut('12345678-5'), '12.345.678-5');
-});
 
 test('la consulta al SII va en fila de a una, con pausa entre pedidos, y cada RUT se consulta una sola vez', async () => {
   let ahora = 0;

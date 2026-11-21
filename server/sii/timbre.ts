@@ -1,7 +1,8 @@
 // TED (Timbre Electrónico del DTE): el `DD` con los datos clave del documento, firmado con la llave del CAF.
 import { sign } from 'node:crypto';
 import type { Caf } from './caf.ts';
-import { escaparTexto, normalizarRut, plegarTed } from './texto.ts';
+import { normalizarRut } from '../../shared/rut.ts';
+import { escaparTexto, plegarTed } from './texto.ts';
 
 export interface DatosTimbre {
   readonly tipo: number;

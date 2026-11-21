@@ -3,6 +3,7 @@
 // eventos `licitacion.precio_bajo` (con productoId), `licitacion.cerrada`, `documento.emitido` y `licitacion.facturada`.
 // Con `sinCanasta` imita a la red antigua: un solo producto y solo `unirseALicitacion`. Con `conPdf`, ofrece `enlacePdf`.
 // Con `ruts` (RUT -> razón social), ofrece `consultarRut` como la red real: valida el dígito verificador y solo conoce esos RUT.
+import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
 import { crearRedFalsa } from './red-falsa.ts';
 import type { RedFalsa } from './red-falsa.ts';
 import type {
@@ -36,17 +37,6 @@ const MAXIMO = 20;
 
 /** Error como los de la red real: `codigo` y un mensaje para mostrar tal cual. */
 const errorRut = (mensaje: string) => Object.assign(new Error(mensaje), { codigo: 'datos_invalidos' });
-
-/** "12.345.678-5", "123456785" -> "12345678-5" si el dígito verificador (módulo 11) calza; si no, null. */
-function rutValido(texto: string): string | null {
-  const m = /^0*(\d{7,8})([\dK])$/.exec(texto.replace(/[.\s-]/g, '').toUpperCase());
-  if (!m) return null;
-  let suma = 0;
-  [...m[1]!].reverse().forEach((d, i) => { suma += Number(d) * (2 + (i % 6)); });
-  const resto = 11 - (suma % 11);
-  const dv = resto === 11 ? '0' : resto === 10 ? 'K' : String(resto);
-  return dv === m[2] ? `${m[1]}-${dv}` : null;
-}
 
 export function crearRedSalaFalsa(
   negocios: readonly Negocio[], datos: DatosLicitacionFalsa,
@@ -173,8 +163,8 @@ export function crearRedSalaFalsa(
     ...(opciones.ruts ? {
       consultarRut(texto: string) {
         base.llamadas.push('consultarRut');
-        const rut = rutValido(texto);
-        if (!rut) throw errorRut('Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.');
+        const rut = validarRut(texto);
+        if (!rut) throw errorRut(RUT_INVALIDO);
         const razonSocial = opciones.ruts![rut];
         if (!razonSocial) throw errorRut('No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.');
         return { rut, razonSocial };

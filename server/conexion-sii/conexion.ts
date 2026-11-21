@@ -3,7 +3,8 @@
 // anulando). Lo que el SII no entrega se puede escribir o subir a mano. Con eso la red emite en el SII de
 // certificación sin variables de entorno. Los secretos se guardan cifrados (cifrado.ts) y nunca salen en una
 // respuesta, un evento ni el log.
-import { abrirCertificado, leerCaf, normalizarRut, primerDiaVencido } from '../sii/index.ts';
+import { normalizarRut } from '../../shared/rut.ts';
+import { abrirCertificado, leerCaf, primerDiaVencido } from '../sii/index.ts';
 import type { ConsultaDocumento, EstadoDocumento, Log } from '../sii/index.ts';
 import { TIPOS_CAF } from './almacen.ts';
 import type { AlmacenConexion, CafGuardado, ConexionGuardada, Empresa, TipoCaf } from './almacen.ts';

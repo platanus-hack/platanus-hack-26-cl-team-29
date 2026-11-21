@@ -13,7 +13,7 @@ import {
 } from './carrito.ts';
 import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
 import { Confirmar } from './piezas.tsx';
-import { formatearRutAlEscribir, rutValido } from './rut.ts';
+import { formatearRutAlEscribir, validarRut } from '../../../shared/rut.ts';
 import type { DatosEntrada, FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
 
 // ---------- Datos del negocio ----------
@@ -41,7 +41,7 @@ export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar
   const [rubro, setRubro] = useState<string>();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
-  const rutMalo = rutRevisado && rut.length > 0 && !rutValido(rut);
+  const rutMalo = rutRevisado && rut.length > 0 && !validarRut(rut);
   const avisoRut = errorRut || (rutMalo ? RUT_INVALIDO : '');
   const marcarRut = (mensaje: string) => {
     setErrorRut(mensaje);
@@ -53,7 +53,7 @@ export function FormularioNegocio({ boton, onEntrar }: { boton: string; onEntrar
     e.preventDefault();
     if (!nombre.trim()) return setError('Escribe el nombre de tu negocio.');
     setError('');
-    if (!rutValido(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
+    if (!validarRut(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
     setEnviando(true);
     setErrorRut('');
     try {

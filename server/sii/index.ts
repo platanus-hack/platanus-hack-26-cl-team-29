@@ -30,7 +30,7 @@ export type * from './tipos.ts';
 export { ErrorSii } from './soap.ts';
 export { abrirCertificado, type Certificado } from './certificado.ts';
 export { leerCaf, primerDiaVencido, type Caf } from './caf.ts';
-export { limpiarLatin1, normalizarRut } from './texto.ts';
+export { limpiarLatin1 } from './texto.ts';
 export { crearSiiFalso as crearSiiEnMemoria } from './falso.ts';
 export { generarPdf, nombreDelTipo, opcionesTimbre } from './pdf.ts';
 export type { Http } from './soap.ts';
