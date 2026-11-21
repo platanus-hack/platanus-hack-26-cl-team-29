@@ -6,7 +6,7 @@ import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoD
 import { ErrorCanal, type CanalApi } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import { CANASTA_DEMO } from '../../../shared/canasta-demo.ts';
-import { totalOrden } from '../../../shared/precios.ts';
+import { totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
 import type { ConfigRed, FacturaA, FotoRed, LicitacionCanal, OrdenCanal, Participacion } from './tipos.ts';
@@ -70,8 +70,7 @@ function conDerivados(lic: LicitacionCanal): LicitacionCanal {
     ...lic, productos,
     tramos: p0?.tramos, precioSolo: p0?.precioSolo, precioActual: p0?.precioActual, siguienteTramo: p0?.siguienteTramo,
     unidad: p0?.unidad, unidadPlural: p0?.unidadPlural,
-    totalUnidades: productos.reduce((s, p) => s + p.totalUnidades, 0),
-    ahorroTotal: productos.reduce((s, p) => s + p.totalUnidades * (p.precioSolo - p.precioActual), 0),
+    ...totalesDeCanasta(productos),
   };
 }
 

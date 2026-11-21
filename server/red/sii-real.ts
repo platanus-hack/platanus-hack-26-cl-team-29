@@ -3,7 +3,7 @@ import { fechaEnChile } from '../../shared/fecha.ts';
 import { ErrorSii } from '../sii/index.ts';
 import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
-import { itemsSii, ordenCompraSii, receptorDelComprador } from './sii.ts';
+import { guiaDeOrden, itemsSii, ordenCompraSii, receptorDelComprador } from './sii.ts';
 import type { CambioEstadoSii, DatosEmision, PuertoSii, ResultadoSii } from './sii.ts';
 import type { Negocio, OrdenCompra } from './tipos.ts';
 
@@ -266,8 +266,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     emitirFacturas,
 
     emitirGuia: ({ orden, receptor: comprador }) => emitir(52, orden.id, folio => sii.emitirGuia({
-      folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidadDespachada ?? i.cantidad),
-      motivoTraslado: 1, ordenCompra: ordenCompraSii(orden),
+      folio, receptor: receptor(comprador), ...guiaDeOrden(orden),
     })),
 
     // La nota de crédito va al mismo receptor que la factura que corrige.

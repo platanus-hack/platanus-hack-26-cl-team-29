@@ -392,16 +392,19 @@ export async function crearRed({
   // El proveedor confirma: recién ahí se emiten la factura 33 (con la OC) y la guía 52.
   // Si el SII falla a mitad, la orden queda confirmada y se puede volver a llamar:
   // solo se emite lo que falta.
+  /** El proveedor dice que sí: la guía despacha lo pedido (si no se fijó otra cantidad). */
+  async function confirmar(o: OrdenCompra) {
+    for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
+    o.estado = 'confirmada';
+    await guardar('ordenes', o);
+    emitir('orden.confirmada', { orden: o });
+  }
+
   function confirmarOrden(ordenId: string) {
     return conCandado(ordenId, async () => {
       const o = orden(ordenId, 'enviada', 'confirmada');
       const datosEmision = { orden: o, emisor: negocio(o.proveedorId, 'proveedor'), receptor: negocio(o.compradorId, 'comprador') };
-      if (o.estado === 'enviada') {
-        for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
-        o.estado = 'confirmada';
-        await guardar('ordenes', o);
-        emitir('orden.confirmada', { orden: o });
-      }
+      if (o.estado === 'enviada') await confirmar(o);
       if (!documento(o.id, 33)) await guardarDocumento(o.id, 33, neto(o.items), await sii.emitirFactura(datosEmision));
       if (!documento(o.id, 52)) await guardarDocumento(o.id, 52, netoDespachado(o.items), await sii.emitirGuia(datosEmision));
       o.estado = 'facturada';
@@ -753,12 +756,7 @@ export async function crearRed({
       if (ocupada) throw new ErrorRed('ocupado', `${ocupada.id} se está procesando, intenta de nuevo`);
       for (const o of ordenes) enCurso.add(o.id);
       try {
-        for (const o of ordenes.filter(x => x.estado === 'enviada')) {
-          for (const i of o.items) i.cantidadDespachada ??= i.cantidad;
-          o.estado = 'confirmada';
-          await guardar('ordenes', o);
-          emitir('orden.confirmada', { orden: o });
-        }
+        for (const o of ordenes.filter(x => x.estado === 'enviada')) await confirmar(o);
         const confirmadas = ordenes.filter(o => o.estado === 'confirmada');
         const sinFactura = confirmadas.filter(o => !documento(o.id, 33));
         if (sinFactura.length > 0) {

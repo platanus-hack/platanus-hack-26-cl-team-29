@@ -91,6 +91,10 @@ export const itemsSii = (items: readonly Item[], cantidad: (i: Item) => number):
 /** La orden de compra como referencia (801) del documento. */
 export const ordenCompraSii = (o: OrdenCompra) => ({ folio: o.id, fecha: fechaEnChile(o.creadaEn) });
 
+/** Lo que lleva la guía de despacho de una orden: lo despachado, como venta y con la orden de compra. */
+export const guiaDeOrden = (o: OrdenCompra) =>
+  ({ items: itemsSii(o.items, i => i.cantidadDespachada ?? i.cantidad), motivoTraslado: 1 as const, ordenCompra: ordenCompraSii(o) });
+
 export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
   const folios: Record<number, number> = { 33: 1000, 52: 2000, 61: 3000 };
   for (const d of ultimos) folios[d.tipo] = Math.max(folios[d.tipo], d.folio);
@@ -128,8 +132,7 @@ export function crearSiiFalso(ultimos: Documento[] = []): PuertoSii {
       return Promise.all(lote.map((r, k) => factura(datos[k]!, { ...r, trackId: `SIM-LOTE-${lote[0]!.folio}` })));
     },
     emitirGuia: async ({ orden, emisor, receptor: comprador }) => conImpreso(resultado(52), emisor, folio => memoria.emitirGuia({
-      folio, receptor: receptor(comprador), items: itemsSii(orden.items, i => i.cantidadDespachada ?? i.cantidad),
-      motivoTraslado: 1, ordenCompra: ordenCompraSii(orden),
+      folio, receptor: receptor(comprador), ...guiaDeOrden(orden),
     })),
     emitirNotaCredito: async ({ emisor, receptor: comprador, factura: f, items: faltantes }) =>
       conImpreso(resultado(61), emisor, folio => memoria.emitirNotaCredito({
