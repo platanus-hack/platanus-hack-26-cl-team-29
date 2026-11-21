@@ -4,6 +4,7 @@ import { setTimeout as esperar } from 'node:timers/promises';
 import { conectarAgente } from '../server/agente/index.ts';
 import type { TiemposSala } from '../server/agente/index.ts';
 import { interpreteDeReglas } from '../server/agente/intencion.ts';
+import type { Interprete } from '../server/agente/intencion.ts';
 import { aplicarCambios, catalogoDe, interpretarCanastaConReglas } from '../server/agente/canasta.ts';
 import { crearRedSalaFalsa } from '../server/agente/red-sala-falsa.ts';
 import { enmascarar } from '../server/agente/envios.ts';
@@ -25,7 +26,7 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
   const adjuntos: { to: string; link: string; filename: string }[] = [];
@@ -41,7 +42,7 @@ function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof L
     },
   };
   const agente = conectarAgente(whatsapp, red, {
-    interprete: interpreteDeReglas,
+    interprete: opciones.interprete ?? interpreteDeReglas,
     log: { info: registrar, warn: registrar, error: registrar },
     env: {},
     sala: { ventanaCascadaMs: 20, minimoDifusionMs: 150, vigilarCierreMs: 0, ...tiempos },
@@ -348,4 +349,30 @@ test('60 personas a la vez: todas quedan sumadas y los envíos masivos no pasan 
   await esperar(200);
   assert.ok(new Set(difusiones).size >= 50, 'la baja al llegar a 100 llega a todos los que estaban sumados');
   assert.ok(maximo <= 5, `máximo en vuelo ${maximo}`);
+});
+
+test('"quiero 3 cajas más" de un participante suma a su canasta, no arma un pedido de catálogo', async t => {
+  // Como lo leyó Claude en producción: un pedido de "cajas" (los productos de la canasta no están en el catálogo).
+  const comoClaude: Interprete = {
+    ...interpreteDeReglas,
+    interpretar: async (texto, pregunta) => /cajas más/.test(texto)
+      ? { tipo: 'pedir', producto: 'cajas', cantidad: 3 }
+      : interpreteDeReglas.interpretar(texto, pregunta),
+  };
+  const { agente, escribir, ultimo, carrito } = montar({}, {}, { interprete: comoClaude });
+  t.after(() => agente.desconectar());
+  // Registrado en la red, como queda en producción quien se suma por WhatsApp.
+  const yo = REGISTRADO.telefono;
+  await escribir(yo, 'me sumo con 10 cajas de rollos');
+  await escribir(yo, 'quiero 3 cajas más');
+
+  assert.doesNotMatch(ultimo(yo), /Te propongo pedir/);
+  assert.deepEqual(await carrito(REGISTRADO.nombre), [{ productoId: 'rollos', cantidad: 13 }]);
+});
+
+test('un pedido de algo que no es de la canasta sigue yendo al catálogo', async t => {
+  const { agente, escribir, ultimo } = montar();
+  t.after(() => agente.desconectar());
+  await escribir(REGISTRADO.telefono, 'pide 4 sacos de harina');
+  assert.match(ultimo(REGISTRADO.telefono), /Te propongo pedir 4 sacos de harina/);
 });
