@@ -35,22 +35,40 @@ export interface OpcionesEnvios {
   readonly log: Log;
 }
 
+/** Un adjunto por enlace (p. ej. el PDF de la factura). */
+export interface DocumentoAdjunto {
+  readonly link: string;
+  readonly filename: string;
+  readonly caption?: string;
+}
+
+/** WhatsApp para envíos: `sendDocument` es opcional, solo si el módulo lo ofrece. */
+export type WhatsAppDeEnvios = Pick<WhatsApp, 'sendText'> & {
+  sendDocument?(to: string, documento: DocumentoAdjunto): ReturnType<WhatsApp['sendText']>;
+};
+
 export interface Envios {
   /** Envío directo (respuesta o aviso puntual), con la concurrencia acotada. */
   enviar(telefono: string, texto: string, motivo: string): Promise<boolean>;
+  /** Adjunto con la concurrencia acotada; false si WhatsApp no envía documentos o falló. */
+  enviarDocumento(telefono: string, documento: DocumentoAdjunto, motivo: string): Promise<boolean>;
   /** Difusión a muchos: respeta el freno por teléfono y se queda con el último texto. */
   difundir(telefonos: Iterable<string>, texto: string, motivo: string): Promise<void>;
   detener(): void;
 }
 
-export function crearEnvios(whatsapp: Pick<WhatsApp, 'sendText'>, opciones: OpcionesEnvios): Envios {
+export function crearEnvios(whatsapp: WhatsAppDeEnvios, opciones: OpcionesEnvios): Envios {
   const limitar = crearLimitador(opciones.concurrencia);
   const ultimaDifusion = new Map<string, number>();
   const diferidas = new Map<string, { texto: string; motivo: string; timer: ReturnType<typeof setTimeout> }>();
 
   async function enviar(telefono: string, texto: string, motivo: string): Promise<boolean> {
+    return entregar(telefono, motivo, () => whatsapp.sendText(telefono, texto));
+  }
+
+  async function entregar(telefono: string, motivo: string, envio: () => ReturnType<WhatsApp['sendText']>): Promise<boolean> {
     try {
-      const r = await limitar(() => whatsapp.sendText(telefono, texto));
+      const r = await limitar(envio);
       if (!r.ok) opciones.log.warn(`[sala] ${motivo} a ${enmascarar(telefono)} falló: ${r.error}`);
       return r.ok;
     } catch (error) {
@@ -87,6 +105,11 @@ export function crearEnvios(whatsapp: Pick<WhatsApp, 'sendText'>, opciones: Opci
 
   return {
     enviar,
+    async enviarDocumento(telefono, documento, motivo) {
+      const { sendDocument } = whatsapp;
+      if (!sendDocument) return false;
+      return entregar(telefono, motivo, () => sendDocument.call(whatsapp, telefono, documento));
+    },
     async difundir(telefonos, texto, motivo) {
       const unicos = new Map<string, string>();
       for (const t of telefonos) unicos.set(claveTelefono(t), t);

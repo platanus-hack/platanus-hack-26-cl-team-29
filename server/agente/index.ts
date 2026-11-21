@@ -10,10 +10,10 @@ import type { WhatsApp } from '../whatsapp/index.ts';
 import type { Interprete, Intencion } from './intencion.ts';
 import type { Negocio, OrdenCompra, Red } from './puerto.ts';
 import { tieneSala } from './puerto.ts';
-import { interpreteDeReglas, normalizar } from './intencion.ts';
+import { interpreteDeReglas } from './intencion.ts';
 import { crearInterpreteClaude } from './claude.ts';
 import { crearEnvios, enmascarar } from './envios.ts';
-import type { Log } from './envios.ts';
+import type { Log, WhatsAppDeEnvios } from './envios.ts';
 import { crearSala } from './sala.ts';
 import type { Sala } from './sala.ts';
 import * as m from './mensajes.ts';
@@ -47,6 +47,7 @@ export interface TiemposSala {
   readonly minimoDifusionMs: number;
   readonly vigilarCierreMs: number;
   readonly avisoAceptadaMs: number;
+  /** Máximo por producto y negocio. */
   readonly cantidadMaxima: number;
 }
 
@@ -65,7 +66,7 @@ export interface Agente {
   desconectar(): void;
 }
 
-type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage' | 'sendText'>;
+type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage'> & WhatsAppDeEnvios;
 
 export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: OpcionesAgente = {}): Agente {
   const env = opciones.env ?? process.env;
@@ -263,8 +264,6 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return pendiente.mensaje;
   }
 
-  const quiereSumarse = (texto: string) => /\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto));
-
   async function atender(telefono: string, texto: string, ctx: { reply(body: string): Promise<unknown> }) {
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
@@ -273,8 +272,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     }
     const antes = actual(negocio.id);
     const intencion = await interprete.interpretar(texto, antes?.mensaje ?? null);
-    // Un comprador registrado también puede sumarse a la compra conjunta, si no hay otra cosa en curso.
-    if (sala && !antes && intencion.tipo === 'otro' && negocio.rol === 'comprador' && (sala.participa(telefono) || quiereSumarse(texto))) {
+    // Un comprador registrado también arma su pedido en la compra conjunta, si no hay otra cosa en curso.
+    // Quien se suma por WhatsApp queda registrado en la red: "sí", "no" o "2 del 3" también son de la sala.
+    const deLaSala = sala && !antes && negocio.rol === 'comprador' && intencion.tipo !== 'pedir' && intencion.tipo !== 'faltante';
+    if (sala && deLaSala && (await sala.atiende(telefono, negocio.id, texto))) {
       await ctx.reply(await sala.atenderPublico(telefono, texto, negocio.nombre));
       return;
     }

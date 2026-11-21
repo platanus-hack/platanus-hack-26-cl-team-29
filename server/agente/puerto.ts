@@ -14,6 +14,8 @@ export interface Negocio {
 
 export interface ItemOrden {
   readonly producto: string;
+  /** En la compra conjunta: a qué producto de la canasta corresponde la línea. */
+  readonly productoId?: string;
   readonly cantidad: number;
   readonly precioUnitario: number;
   /** Lo que dice la guía de despacho (52). Si falta, se asume igual a `cantidad`. */
@@ -73,9 +75,31 @@ export interface Tramo {
   readonly precioUnitario: number;
 }
 
+/** Una línea del carrito de un participante. */
+export interface ItemCarrito {
+  readonly productoId: string;
+  readonly cantidad: number;
+}
+
+/** Un producto de la canasta, con su precio por volumen ya calculado por la red. */
+export interface ProductoCompra {
+  readonly id: string;
+  readonly nombre: string;
+  readonly unidad: string;
+  readonly unidadPlural?: string;
+  readonly precioSolo: number;
+  readonly tramos: readonly Tramo[];
+  readonly totalUnidades: number;
+  readonly precioActual: number;
+  readonly siguienteTramo: { readonly desde: number; readonly precioUnitario: number; readonly faltan: number } | null;
+}
+
 export interface ParticipanteSala {
   readonly nombre: string;
+  /** Suma de `items` (compatibilidad con la compra de un solo producto). */
   readonly cantidad: number;
+  /** El carrito; si falta, es `cantidad` del único producto. */
+  readonly items?: readonly ItemCarrito[];
   /** La red no lo expone hacia afuera; el agente lo resuelve con `telefonoDeNegocio(negocioId)`. */
   readonly telefono?: string;
   readonly negocioId?: string;
@@ -83,6 +107,8 @@ export interface ParticipanteSala {
 
 export interface LicitacionSala {
   readonly id: string;
+  /** La canasta. Si falta (red antigua), hay un solo producto: los campos de abajo. */
+  readonly productos?: readonly ProductoCompra[];
   readonly producto: string;
   /** En singular: "caja". */
   readonly unidad: string;
@@ -107,6 +133,12 @@ export interface UnionLicitacion {
   readonly bajoDePrecio: boolean;
 }
 
+export interface ResultadoCarrito {
+  readonly licitacion: LicitacionSala;
+  /** null si el carrito quedó vacío (salió de la compra). */
+  readonly participante: ParticipanteSala | null;
+}
+
 export interface EventoDeLaRed {
   readonly tipo: string;
   readonly datos: unknown;
@@ -121,11 +153,20 @@ export interface RedSala {
     readonly comuna?: string;
     readonly cantidad: number;
   }): Talvez<UnionLicitacion>;
+  /** Reemplaza el carrito completo; cantidad 0 quita el item y carrito vacío = sale. Si falta, se usa `unirseALicitacion`. */
+  actualizarCarrito?(licitacionId: string, datos: {
+    readonly telefono: string;
+    readonly nombre?: string;
+    readonly items: readonly ItemCarrito[];
+  }): Talvez<ResultadoCarrito>;
+  salirDeLicitacion?(licitacionId: string, datos: { readonly telefono: string }): Talvez<unknown>;
   /** Emite `licitacion.cerrada` con las órdenes; el agente usa el evento, no el valor devuelto. */
   cerrarLicitacion(licitacionId: string): Talvez<unknown>;
   /** Emite las facturas (33) de todas las órdenes de la compra en un solo envío al SII. */
   confirmarOrdenesDeLicitacion(licitacionId: string): Talvez<readonly Documento[]>;
   telefonoDeNegocio(negocioId: string): Talvez<string | null>;
+  /** Enlace privado al PDF de un documento emitido, si la red lo ofrece. */
+  enlacePdf?(documento: Documento): Talvez<string | null>;
   escuchar(oyente: (evento: EventoDeLaRed) => void): () => void;
 }
 
