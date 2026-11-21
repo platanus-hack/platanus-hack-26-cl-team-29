@@ -3,7 +3,8 @@ import type { EmpresaSii } from '../../shared/conexion-sii.ts';
 import type { TipoDocumento } from '../../shared/documentos.ts';
 import type { GestionFolios } from './reposicion.ts';
 
-// Lo que el proveedor conectó desde la web. Los secretos (el .pfx con su clave y el XML del CAF, que trae la
+// Lo que un proveedor conectó: desde el panel web (fila `proveedor`) o con su certificado por WhatsApp (una fila por
+// RUT de su empresa, `rut:<rut>`). Los secretos (el .pfx con su clave y el XML del CAF, que trae la
 // llave privada del rango) van cifrados; el resto son datos públicos de la empresa y del rango de folios.
 
 export interface CafGuardado {
@@ -65,9 +66,8 @@ export function crearAlmacenConexionMemoria(): AlmacenConexion {
   };
 }
 
-/** Tabla `sii_conexion`, una fila: la red tiene un solo proveedor con SII real. */
-export async function crearAlmacenConexionPostgres(db: pg.Pool): Promise<AlmacenConexion> {
-  const id = 'proveedor';
+/** Tabla `sii_conexion`, una fila por conexión: `proveedor` es la del panel; las de WhatsApp van por RUT de empresa. */
+export async function crearAlmacenConexionPostgres(db: pg.Pool, id = 'proveedor'): Promise<AlmacenConexion> {
   await db.query(`create table if not exists sii_conexion (
     id text primary key,
     datos jsonb not null,

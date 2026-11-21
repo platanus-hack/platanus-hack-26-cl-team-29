@@ -8,7 +8,7 @@ import {
 } from '../server/conexion-sii/index.ts';
 import type { OpcionesConexion, PortalConexion } from '../server/conexion-sii/index.ts';
 import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso } from '../server/red/index.ts';
-import type { PuertoSii, SiiReal } from '../server/red/index.ts';
+import type { Negocio, PuertoSii, SiiReal } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { CLAVE_PFX, generarCaf, generarPfx, RUT_EMPRESA, RUT_FIRMANTE } from './sii-apoyo.ts';
 
@@ -147,7 +147,7 @@ test('con la conexión completa la red emite con el SII de la app; sin ella, con
     emitirFactura: async () => { usados.push(nombre); return { folio: 1, trackId: '', estadoSii: nombre }; },
   });
   const sii = crearSiiConmutable({
-    falso: marcar('falso'), conexion, crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
+    falso: marcar('falso'), conexionDe: async () => conexion, crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
   });
   const datos = {} as Parameters<PuertoSii['emitirFactura']>[0];
   await sii.emitirFactura(datos);
@@ -160,6 +160,32 @@ test('con la conexión completa la red emite con el SII de la app; sin ella, con
   await conexion.desconectar();
   await sii.emitirFactura(datos);
   assert.deepEqual(usados, ['falso', `real ${RUT_EMPRESA}`, 'falso']);
+});
+
+test('cada proveedor emite con la conexión de su empresa, un sobre lleva un solo emisor y sin conexión completa va el falso', async () => {
+  const panel = conexionDePrueba();
+  const deAna = conexionDePrueba();
+  await deAna.subirCertificado(pfxBase64, CLAVE_PFX);
+  await deAna.esperarBusquedas();
+  await deAna.guardarEmpresa(empresa);
+  await deAna.subirCaf(generarCaf(33).bytes.toString('base64'));
+  await deAna.esperarBusquedas();
+  const usados: string[] = [];
+  const marcar = (nombre: string): PuertoSii => ({
+    ...crearSiiFalso(),
+    emitirFactura: async () => { usados.push(nombre); return { folio: 1, trackId: '', estadoSii: nombre }; },
+  });
+  const sii = crearSiiConmutable({
+    falso: marcar('falso'),
+    conexionDe: async emisor => (emisor?.vende ? (emisor.rut === RUT_EMPRESA ? deAna : conexionDePrueba()) : panel),
+    crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
+  });
+  const de = (emisor: Partial<Negocio>) => ({ emisor: { id: emisor.rut ?? 'p', ...emisor } }) as Parameters<PuertoSii['emitirFactura']>[0];
+  await sii.emitirFactura(de({ vende: true, rut: RUT_EMPRESA }));
+  await sii.emitirFactura(de({ vende: true, rut: '11111111-1' }));
+  await sii.emitirFactura(de({ rol: 'proveedor' }));
+  assert.deepEqual(usados, [`real ${RUT_EMPRESA}`, 'falso', 'falso'], 'Ana con la suya; Beto sin conexión y el panel vacío, con el falso');
+  await assert.rejects(sii.emitirFacturas([de({ id: 'a' } as Partial<Negocio>), de({ id: 'b' } as Partial<Negocio>)]), /un solo emisor/);
 });
 
 test('las rutas exigen la sesión del proveedor y nunca devuelven el certificado, su clave ni el CAF', async () => {

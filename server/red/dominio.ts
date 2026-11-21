@@ -231,7 +231,7 @@ export interface Red {
   negocioPorTelefono(telefono: string): Negocio | null;
   negocioPorId(id: string): Negocio | null;
   /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
-  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string): Promise<Documento | null>;
+  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string): Promise<Documento | null>;
   /**
    * Solo interno: el documento y su representación impresa (con RUT y TED) para dibujar el PDF, o null si no
    * existe o se emitió sin ella. Nunca va en respuestas JSON ni eventos.
@@ -477,7 +477,7 @@ export async function crearRed({
       if (!factura) throw new ErrorRed('transicion_invalida', `La orden ${o.id} no tiene factura`);
       const comprador = negocio(o.compradorId, 'comprador');
       const motivo = `Faltan ${faltante} de ${item.cantidad} unidades de ${item.producto}`;
-      const { estadoSii } = await sii.registrarReclamo({ factura, receptor: comprador, motivo });
+      const { estadoSii } = await sii.registrarReclamo({ factura, receptor: comprador, motivo, emisor: negocio(o.proveedorId, 'proveedor') });
       o.estado = 'reclamada';
       o.reclamo = { producto: item.producto, faltante, en: ahora(), estadoSii };
       await guardar('ordenes', o);
@@ -978,8 +978,8 @@ export async function crearRed({
     });
   }
 
-  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string) {
-    const doc = datos.documentos.find(d => d.tipo === tipo && d.folio === folio);
+  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string) {
+    const doc = datos.documentos.find(d => d.tipo === tipo && d.folio === folio && (!ordenId || d.ordenId === ordenId));
     // Tras reiniciar la demo el documento ya no está en la red, pero su folio sigue usado en el SII.
     if (!doc) return null;
     if (doc.estadoSii !== estadoSii) {
@@ -999,8 +999,8 @@ export async function crearRed({
     return estado;
   }
 
-  sii.alCambiarEstado?.(({ tipo, folio, estadoSii }) => {
-    actualizarEstadoDocumento(tipo, folio, estadoSii).catch(error => console.error('[red] no se pudo actualizar el documento', error));
+  sii.alCambiarEstado?.(({ tipo, folio, estadoSii, ordenId }) => {
+    actualizarEstadoDocumento(tipo, folio, estadoSii, ordenId).catch(error => console.error('[red] no se pudo actualizar el documento', error));
   });
 
   function estadoDeLaRed(): EstadoRed {

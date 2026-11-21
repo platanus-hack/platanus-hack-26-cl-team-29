@@ -18,7 +18,7 @@ export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, RUT_DE_OTRO_TELEFONO, R
 export { RUBROS } from './tipos.ts';
 export type {
   BajadaPrecio, CodigoError, ContribuyenteDeRut, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
-  NuevoParticipante, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
+  NuevoParticipante, NuevoProducto, NuevoProveedor, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
 } from './dominio.ts';
 export { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
@@ -78,12 +78,12 @@ export async function iniciarRed(
   return red;
 }
 
-/** Folios del SII real en Postgres si hay base (si falla, memoria). Uno por proceso: lo comparten todas las conexiones. */
-export async function crearAlmacenFolios(db: pg.Pool | null): Promise<AlmacenFolios> {
+/** Folios del SII real de un emisor en Postgres si hay base (si falla, memoria). `''` es la conexión del panel. */
+export async function crearAlmacenFolios(db: pg.Pool | null, rutEmisor = ''): Promise<AlmacenFolios> {
   let folios: AlmacenFolios | null = null;
   if (db) {
     try {
-      folios = await crearAlmacenFoliosPostgres(db);
+      folios = await crearAlmacenFoliosPostgres(db, rutEmisor);
     } catch (error) {
       console.error('[red] no se pudo usar Postgres para los folios', error);
     }

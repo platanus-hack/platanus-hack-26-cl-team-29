@@ -83,7 +83,7 @@ test('un envío incierto no se reenvía ni toma otro folio, y se revisa con Quer
   const { estado, registro } = await conCorte.consultarDocumento(33, 10);
   assert.equal(estado.codigo, 'DOK');
   assert.equal(registro.estado, 'recibido');
-  assert.deepEqual(cambios, [{ tipo: 33, folio: 10, estadoSii: 'recibido' }]);
+  assert.deepEqual(cambios, [{ tipo: 33, folio: 10, ordenId: 'OC-1', estadoSii: 'recibido' }]);
 });
 
 test('la factura lleva la OC como referencia 801, la guía lo despachado y la nota de crédito corrige la 33 por lo que faltó', async () => {

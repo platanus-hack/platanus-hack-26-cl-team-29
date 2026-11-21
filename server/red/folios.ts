@@ -114,17 +114,31 @@ export function crearAlmacenFoliosMemoria(): AlmacenFolios {
   };
 }
 
-/** Tabla `sii_folios`: la llave (tipo, folio) impide que un folio se tome dos veces. */
-export async function crearAlmacenFoliosPostgres(db: pg.Pool): Promise<AlmacenFolios> {
+/**
+ * Tabla `sii_folios`: la llave (rut_emisor, tipo, folio) impide que un folio de una empresa se tome dos veces. Cada
+ * proveedor con SII real tiene sus propios folios (`rutEmisor`); los de la conexión del panel van con `''` (así
+ * quedaron los guardados antes de haber varios emisores).
+ */
+export async function crearAlmacenFoliosPostgres(db: pg.Pool, rutEmisor = ''): Promise<AlmacenFolios> {
   await db.query(`create table if not exists sii_folios (
+    rut_emisor text not null default '',
     tipo int not null,
     folio int not null,
     orden_id text not null,
     datos jsonb not null,
-    primary key (tipo, folio)
+    primary key (rut_emisor, tipo, folio)
   )`);
+  // Una tabla de antes (llave tipo, folio) pasa a llevar el emisor en la llave; sus filas quedan con ''.
+  await db.query(`alter table sii_folios add column if not exists rut_emisor text not null default ''`);
+  await db.query(`do $$ begin
+    if not exists (select 1 from information_schema.key_column_usage
+                   where table_name = 'sii_folios' and constraint_name = 'sii_folios_pkey' and column_name = 'rut_emisor') then
+      alter table sii_folios drop constraint sii_folios_pkey;
+      alter table sii_folios add primary key (rut_emisor, tipo, folio);
+    end if;
+  end $$`);
   const tomados = async (tipo: number): Promise<number[]> =>
-    (await db.query(`select folio from sii_folios where tipo = $1`, [tipo])).rows.map(r => Number(r.folio));
+    (await db.query(`select folio from sii_folios where rut_emisor = $1 and tipo = $2`, [rutEmisor, tipo])).rows.map(r => Number(r.folio));
   return {
     async reservar(tipo, rangos, ordenId) {
       // La llave (tipo, folio) decide si otra instancia lo tomó primero: entonces se calcula el siguiente otra vez.
@@ -133,8 +147,8 @@ export async function crearAlmacenFoliosPostgres(db: pg.Pool): Promise<AlmacenFo
         if (folio === null) throw agotado(tipo, rangos);
         const registro = nuevo(tipo, folio, ordenId);
         const { rowCount } = await db.query(
-          `insert into sii_folios (tipo, folio, orden_id, datos) values ($1, $2, $3, $4::jsonb) on conflict do nothing`,
-          [tipo, folio, ordenId, JSON.stringify(registro)],
+          `insert into sii_folios (rut_emisor, tipo, folio, orden_id, datos) values ($5, $1, $2, $3, $4::jsonb) on conflict do nothing`,
+          [tipo, folio, ordenId, JSON.stringify(registro), rutEmisor],
         );
         if (rowCount === 1) return registro;
       }
@@ -142,17 +156,17 @@ export async function crearAlmacenFoliosPostgres(db: pg.Pool): Promise<AlmacenFo
     },
     async guardar(registro) {
       await db.query(
-        `update sii_folios set datos = $3 where tipo = $1 and folio = $2`,
-        [registro.tipo, registro.folio, JSON.stringify(registro)],
+        `update sii_folios set datos = $3 where rut_emisor = $4 and tipo = $1 and folio = $2`,
+        [registro.tipo, registro.folio, JSON.stringify(registro), rutEmisor],
       );
     },
     async buscar(tipo, folio) {
-      const { rows } = await db.query(`select datos from sii_folios where tipo = $1 and folio = $2`, [tipo, folio]);
+      const { rows } = await db.query(`select datos from sii_folios where rut_emisor = $3 and tipo = $1 and folio = $2`, [tipo, folio, rutEmisor]);
       return rows[0]?.datos;
     },
     async deOrden(ordenId, tipo) {
       const { rows } = await db.query(
-        `select datos from sii_folios where orden_id = $1 and tipo = $2 order by folio`, [ordenId, tipo],
+        `select datos from sii_folios where rut_emisor = $3 and orden_id = $1 and tipo = $2 order by folio`, [ordenId, tipo, rutEmisor],
       );
       return rows.map(r => r.datos);
     },

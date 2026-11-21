@@ -3,7 +3,8 @@ import type express from 'express';
 import type pg from 'pg';
 import { crearAlmacenFolios, crearSiiReal } from '../red/index.ts';
 import type { ConsultarContribuyente, DatosContribuyente } from '../red/contribuyente.ts';
-import type { EventoRed, PuertoSii } from '../red/index.ts';
+import type { AlmacenFolios, EventoRed, Negocio, PuertoSii } from '../red/index.ts';
+import type { EstadoConexionSii } from '../../shared/conexion-sii.ts';
 import type { TipoDocumento } from '../../shared/documentos.ts';
 import { crearConsultaDocumentos, crearSiiConectado } from '../sii/index.ts';
 import { crearAlmacenConexionMemoria, crearAlmacenConexionPostgres } from './almacen.ts';
@@ -31,7 +32,15 @@ export { crearPortalConexion } from './portal.ts';
 export type { PortalConexion } from './portal.ts';
 
 export interface ConexionSiiDelServidor {
+  /** La conexión del panel web (la del proveedor de la demo con ficticios). */
   conexion: ConexionSii;
+  /**
+   * Conecta el SII de un proveedor registrado por WhatsApp con su certificado: guarda el certificado en la conexión
+   * de su empresa y parte la conexión automática (ficha, resolución y folios), en segundo plano.
+   */
+  conectarProveedor(rutEmpresa: string, certificado: { pfx: Buffer; clave: string }): Promise<EstadoConexionSii>;
+  /** Estado de la conexión de la empresa de un proveedor (sin secretos). */
+  estadoDeProveedor(rutEmpresa: string): Promise<EstadoConexionSii>;
   rutas: express.Router;
   /** Para `iniciarRed`: envuelve el SII falso de la red con el que corresponda en cada emisión. */
   sii: (falso: PuertoSii) => PuertoSii;
@@ -47,21 +56,51 @@ export interface ConexionSiiDelServidor {
 }
 
 /**
- * Arma la conexión para el servidor: Postgres si hay base (si falla, memoria), el portal del SII con su sesión única
- * (server/sii-portal) y QueryEstDte reales. La conexión del panel es la única fuente de configuración del SII: sin
- * ella la red usa el SII falso. Solo SII_LLAVE_CIFRADO viene del entorno (cifra lo que se guarda).
+ * Arma las conexiones para el servidor: Postgres si hay base (si falla, memoria), el portal del SII con una sesión por
+ * certificado (server/sii-portal) y QueryEstDte reales. Hay una conexión por empresa: la del panel web y una por cada
+ * proveedor que conectó su certificado por WhatsApp. Cada documento sale con la conexión de quien lo emite; sin una
+ * completa, con el SII falso. Solo SII_LLAVE_CIFRADO viene del entorno (cifra lo que se guarda).
  */
 export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.ProcessEnv = process.env): Promise<ConexionSiiDelServidor> {
-  const folios = await crearAlmacenFolios(db);
   const portal = await iniciarPortalSii(db, env);
-  const conexion = crearConexionSii({
-    almacen: await almacenDe(db),
-    env,
-    portal: crearPortalConexion(portal),
-    sesionPersistente: portal.persistente,
-    crearConsulta: (pfx, clave, rutEmisor) => crearConsultaDocumentos({ pfx, clave }, rutEmisor),
-    tomados: tipo => folios.tomados(tipo),
-  });
+  const portalConexion = crearPortalConexion(portal);
+  const foliosDe = new Map<ConexionSii, AlmacenFolios>();
+  const oyentes: ((evento: EventoRed) => void)[] = [];
+  let demanda: ((tipo: TipoDocumento) => number) | null = null;
+
+  /** Una conexión con su almacén y sus folios, avisando con `sii.folios` y con la demanda de la compra abierta. */
+  function crear(almacen: AlmacenConexion, folios: AlmacenFolios): ConexionSii {
+    const conexion = crearConexionSii({
+      almacen, env, portal: portalConexion, sesionPersistente: portal.persistente,
+      crearConsulta: (pfx, clave, rutEmisor) => crearConsultaDocumentos({ pfx, clave }, rutEmisor),
+      tomados: tipo => folios.tomados(tipo),
+    });
+    foliosDe.set(conexion, folios);
+    conexion.folios.escuchar(aviso => { for (const o of oyentes) o({ tipo: 'sii.folios', datos: aviso, en: new Date().toISOString() }); });
+    if (demanda) conexion.folios.fijarDemanda(demanda);
+    return conexion;
+  }
+
+  const almacenPanel = await almacenDe(db);
+  const conexion = crear(almacenPanel, await crearAlmacenFolios(db));
+  const porRut = new Map<string, Promise<ConexionSii>>();
+
+  /**
+   * La conexión de la empresa de un proveedor. Si es la misma empresa conectada desde el panel, esa (comparten folios:
+   * nunca dos conexiones gastan el mismo CAF). Si no, la suya, creada la primera vez que se pide.
+   */
+  async function conexionDeRut(rut: string): Promise<ConexionSii> {
+    if ((await almacenPanel.leer())?.rutEmisor === rut) return conexion;
+    let c = porRut.get(rut);
+    if (!c) {
+      c = (async () => crear(await almacenDe(db, `rut:${rut}`), await crearAlmacenFolios(db, rut)))();
+      porRut.set(rut, c);
+    }
+    return c;
+  }
+
+  /** Quien emite: un proveedor registrado por WhatsApp usa la conexión de su empresa; los demás, la del panel. */
+  const conexionDe = async (emisor: Negocio | undefined) => (emisor?.vende && emisor.rut ? conexionDeRut(emisor.rut) : conexion);
   // RUT de terceros: siempre la consulta pública STC, sin certificado ni sesión. El portal con certificado no sirve
   // para terceros (falla y suma segundos por comprador). Si la STC no responde, el error llega a la red con el texto
   // del SII y el registro sigue con la dirección que declare la persona.
@@ -77,14 +116,21 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     conexion,
     consultarContribuyente,
     rutas: crearRutasConexionSii(conexion),
+    async conectarProveedor(rutEmpresa, { pfx, clave }) {
+      return (await conexionDeRut(rutEmpresa)).subirCertificado(pfx.toString('base64'), clave, rutEmpresa);
+    },
+    estadoDeProveedor: async rutEmpresa => (await conexionDeRut(rutEmpresa)).estado(),
     sii: falso => crearSiiConmutable({
-      falso, conexion,
-      crearReal: ({ sii, rangos }) => crearSiiReal({ sii: crearSiiConectado(sii), folios, rangos: tipo => rangos[tipo as TipoDocumento] ?? [] }),
+      falso, conexionDe,
+      crearReal: ({ sii, rangos }, c) => crearSiiReal({ sii: crearSiiConectado(sii), folios: foliosDe.get(c)!, rangos: tipo => rangos[tipo as TipoDocumento] ?? [] }),
     }),
     escuchar(oyente) {
-      conexion.folios.escuchar(aviso => oyente({ tipo: 'sii.folios', datos: aviso, en: new Date().toISOString() }));
+      oyentes.push(oyente);
     },
-    fijarDemanda: demanda => conexion.folios.fijarDemanda(demanda),
+    fijarDemanda(d) {
+      demanda = d;
+      for (const c of foliosDe.keys()) c.folios.fijarDemanda(d);
+    },
   };
 }
 
@@ -117,11 +163,11 @@ function datosDeStc(c: ConsultaPublicaContribuyente): DatosContribuyente | null 
   };
 }
 
-/** Postgres si hay base (si falla, memoria). */
-async function almacenDe(db: pg.Pool | null): Promise<AlmacenConexion> {
+/** Postgres si hay base (si falla, memoria). `id`: `proveedor` (el panel) o `rut:<rut>` (un proveedor por WhatsApp). */
+async function almacenDe(db: pg.Pool | null, id?: string): Promise<AlmacenConexion> {
   if (db) {
     try {
-      return await crearAlmacenConexionPostgres(db);
+      return await crearAlmacenConexionPostgres(db, id);
     } catch (error) {
       console.error('[conexion-sii] no se pudo usar Postgres, la conexión queda en memoria', error);
     }
