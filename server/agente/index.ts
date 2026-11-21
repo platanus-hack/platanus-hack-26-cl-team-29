@@ -10,7 +10,7 @@ import type { WhatsApp } from '../whatsapp/index.ts';
 import type { Interprete, Intencion } from './intencion.ts';
 import type { Negocio, OrdenCompra, Red } from './puerto.ts';
 import { tieneSala } from './puerto.ts';
-import { interpreteDeReglas } from './intencion.ts';
+import { interpreteDeReglas, normalizar } from './intencion.ts';
 import { crearInterpreteClaude } from './claude.ts';
 import { crearEnvios, enmascarar } from './envios.ts';
 import type { Log, WhatsAppDeEnvios } from './envios.ts';
@@ -128,15 +128,19 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     await encolar(comprador, { tipo: 'recepcion', ordenId: orden.id, facturaEn: ahora(), mensaje: m.llegoFactura(orden, proveedor) });
   }
 
-  async function proponerPedido(comprador: Negocio, producto: string, cantidad: number): Promise<string> {
+  async function proponerPedido(comprador: Negocio, producto: string, cantidad: number, elegido?: string): Promise<string> {
     const { negocios } = await red.estadoDeLaRed();
     const candidatos = await Promise.all(
       negocios.filter(n => n.rol === 'proveedor').map(async n => ({ n, nota: await red.notaDeProveedor(n.id) })),
     );
     if (candidatos.length === 0) return m.SIN_PROVEEDOR;
-    // El mejor evaluado, prefiriendo los de la misma comuna.
+    // El que eligió la persona; si no eligió, el mejor evaluado, prefiriendo los de la misma comuna.
     candidatos.sort((a, b) => Number(b.n.comuna === comprador.comuna) - Number(a.n.comuna === comprador.comuna) || b.nota - a.nota);
-    const [{ n: proveedor, nota }] = candidatos;
+    const elegidoNorm = elegido ? normalizar(elegido) : null;
+    const coincide = (nombre: string) => elegidoNorm !== null && (normalizar(nombre).includes(elegidoNorm) || elegidoNorm.includes(normalizar(nombre)));
+    const elegidos = elegido ? candidatos.filter(c => coincide(c.n.nombre)) : candidatos;
+    if (elegido && elegidos.length === 0) return m.proveedorNoEncontrado(elegido, candidatos.map(c => c.n.nombre));
+    const [{ n: proveedor, nota }] = elegidos;
     const mensaje = m.proponerPedido(cantidad, producto, proveedor, nota);
     // Un pedido nuevo reemplaza a otro pedido sin confirmar, pero no a lo que pregunta la contraparte.
     if (actual(comprador.id)?.tipo === 'crear_orden') tomar(comprador.id);
@@ -228,7 +232,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const p = actual(negocio.id);
     switch (intencion.tipo) {
       case 'pedir':
-        return negocio.rol === 'comprador' ? proponerPedido(negocio, intencion.producto, intencion.cantidad) : m.AYUDA_PROVEEDOR;
+        return negocio.rol === 'comprador' ? proponerPedido(negocio, intencion.producto, intencion.cantidad, intencion.proveedor) : m.AYUDA_PROVEEDOR;
       case 'ver_pedidos':
         return negocio.rol === 'proveedor' ? proponerConfirmacion(negocio) : m.AYUDA_COMPRADOR;
       case 'si':

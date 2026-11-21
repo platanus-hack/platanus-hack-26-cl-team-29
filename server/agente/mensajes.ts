@@ -26,6 +26,8 @@ export const AYUDA_COMPRADOR = 'Puedo pedir a tus proveedores por ti. Escribe, p
 export const AYUDA_PROVEEDOR = 'Escribe "pedidos" para ver tus pedidos nuevos.';
 export const CUANTOS_FALTARON = 'Cuéntame cuántos faltaron. Por ejemplo: "faltaron 2".';
 export const SIN_PROVEEDOR = 'No encontré proveedores en la red para ese pedido.';
+export const proveedorNoEncontrado = (nombre: string, disponibles: readonly string[]) =>
+  `No encontré a "${nombre}" entre los proveedores de la red. Puedo pedirle a: ${disponibles.join(', ')}.`;
 export const SIN_PEDIDOS = 'No tienes pedidos nuevos por ahora.';
 
 export const noEntendi = (pregunta: string) => `No te entendí.\n\n${pregunta}`;
