@@ -10,7 +10,7 @@ libre (PR #34 listo para revisión)
 ## Archivos que estoy tocando
 - client/src/canal/ (estilos, textos, iconografía; sin cambiar contratos)
 - client/src/vistas/Unirse.tsx
-- client/src/red/formato.ts (`cuantos`), client/src/red/tipos.ts (`productos` opcional de la canasta)
+- client/src/red/formato.ts (`cuantos`)
 
 ## Hecho
 - Revisión revision-ui de `/app`, `/proveedor` (con "Conectar mi SII"), `/unirse` y el menú "Vistas" en 375x812, 390x844, 768x1024 y 1440x900.
@@ -22,4 +22,4 @@ libre (PR #34 listo para revisión)
 - (ninguno)
 
 ## Pedidos a otros
-- @sala-red: `/api/red/config` puede sumar `proveedorLogoUrl` (desde `DEMO_PROVEEDOR_LOGO_URL`); el panel y "Pedir" ya lo usan si llega.
+- (ninguno)
