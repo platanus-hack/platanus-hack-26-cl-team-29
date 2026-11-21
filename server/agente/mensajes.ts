@@ -222,12 +222,14 @@ export const facturaA = (razonSocial: string) => `Tu factura saldrá a nombre de
  * Primer mensaje de un número sin registrar: elegir cómo registrarse antes de ver productos. El certificado da más
  * (emitir y revisar facturas en el SII); RUT y dirección basta para comprar. Sin certificado disponible, solo lo segundo.
  */
-export const elegirRegistro = (conCertificado: boolean) =>
+export const elegirRegistro = (conCertificado: boolean, conVender = false) =>
   'Hola, soy Bando. La sala compra en conjunto y el precio baja para todos.\n\n'
   + 'Para sumarte necesito los datos de tu factura. ¿Cómo quieres registrarte?\n'
   + (conCertificado
     ? '• Certificado digital: además de comprar, emites y revisas tus facturas en el SII desde aquí.\n'
-      + '• RUT y dirección: solo para comprar.\n' + opciones('Certificado digital', 'RUT y dirección')
+      + '• RUT y dirección: solo para comprar.\n'
+      + (conVender ? '• Vender: ofreces tus productos a la sala y facturas con tu certificado. También puedes comprar.\n' : '')
+      + opciones('Certificado digital', 'RUT y dirección', ...(conVender ? ['Vender'] : []))
     : 'Escribe el RUT de tu negocio. Ej: 12.345.678-5');
 export const enlaceCertificadoRegistro = (url: string) =>
   `Conecta tu certificado aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
@@ -243,8 +245,9 @@ export const confirmarDireccion = (d: { direccion: string; comuna: string }) =>
   `¿Tu factura va a ${d.direccion}, ${d.comuna}?\n` + opciones('Sí, es esa', 'Es otra');
 export const pedirDireccion = () =>
   '¿Cuál es la dirección de tu negocio para la factura? Escribe calle, número y comuna. Ej: Av. Grecia 1234, Ñuñoa';
+export const pedirComuna = () => '¿En qué comuna? Ej: Ñuñoa';
 export const direccionNoEntendida = () =>
-  'No entendí la dirección. Escribe calle, número y comuna, separados por una coma. Ej: Av. Grecia 1234, Ñuñoa';
+  'No entendí la dirección. Escribe calle, número (o "s/n") y comuna, separados por una coma. Ej: Av. Grecia 1234, Ñuñoa';
 export const enlaceCertificado = (url: string) =>
   `Conecta tu certificado aquí (link privado, de un solo uso, vence en 15 minutos):\n${url}\n\n`
   + 'La clave no pasa por WhatsApp. Cuando termines, te aviso por acá.';

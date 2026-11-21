@@ -18,6 +18,8 @@ import type { Documento, EventoDeLaRed, ItemCarrito, LicitacionSala, Negocio, Or
 import type { Envios, Log } from './envios.ts';
 import { claveTelefono, enmascarar } from './envios.ts';
 import * as m from './mensajes.ts';
+import { crearAlmacenBorradoresMemoria, MapaPersistente } from './borradores.ts';
+import type { AlmacenBorradores } from './borradores.ts';
 
 export interface OpcionesSala {
   readonly interprete: Interprete;
@@ -37,6 +39,10 @@ export interface OpcionesSala {
   readonly avisoAceptadaMs: number;
   /** Link privado para conectar el certificado digital (server/certificados). Sin él, solo se pide el RUT. */
   readonly enlaceCertificado?: (telefono: string) => string;
+  /** Quien elige "Vender" al registrarse: el registro de proveedor (server/agente/proveedor.ts). Sin él, no se ofrece. */
+  readonly alElegirVender?: (telefono: string) => Promise<string>;
+  /** Dónde guardar el registro y el carrito a medias para que sobrevivan a un reinicio. Sin él, en memoria. */
+  readonly almacenBorradores?: AlmacenBorradores;
   /** Deja la pregunta de facturar en la cola de confirmaciones del agente. */
   pedirConfirmacion(proveedor: Negocio, licitacionId: string, mensaje: string): Promise<void>;
 }
@@ -60,8 +66,10 @@ export interface Sala {
   entiende(telefono: string, texto: string): Promise<boolean>;
   /** Responde a alguien del público (o a un comprador registrado que quiere sumarse). */
   atenderPublico(telefono: string, texto: string, nombreConocido?: string): Promise<string>;
-  /** Ejecuta la facturación ya confirmada por el proveedor. Idempotente. */
-  facturar(licitacionId: string): Promise<string>;
+  /** Recupera el registro y los carritos a medias guardados antes de un reinicio. Llamar antes de atender. */
+  cargar(): Promise<void>;
+  /** Ejecuta la facturación ya confirmada por un proveedor: solo sus órdenes. Idempotente. */
+  facturar(licitacionId: string, proveedorId?: string): Promise<string>;
   /** Si el proveedor dijo "todavía no" y luego escribe "sí": la pregunta para volver a hacerla. */
   pendienteDeFacturar(negocioId: string): { readonly licitacionId: string; readonly mensaje: string } | null;
   detener(): void;
@@ -83,6 +91,8 @@ interface Registro {
   direccionSii?: Direccion;
   /** Dijo "es otra": se espera que la escriba. */
   escribir?: boolean;
+  /** Dio calle y número sin comuna: se le pidió solo la comuna. */
+  calle?: string;
   direccion?: Direccion;
   listo?: boolean;
 }
@@ -106,13 +116,17 @@ const FIJAR_EXPLICITO = /\b(deja|dejame|dejalo|cambia|cambiame|mejor|pon|ponme|s
 /** Un RUT dentro de un mensaje, con o sin puntos y guion ("12.345.678-5", "12345678-5", "123456785"). */
 const PATRON_RUT = /\b\d{1,2}(?:\.?\d{3}){2}\s*-?\s*[\dkK]\b/;
 const SOLO_RUT = /^[\d.\s-]+[kK]?$/;
+/** Quiere corregir el RUT que dio ("ese era el rut", "otro rut", "consulta de nuevo"). */
+const CAMBIAR_RUT = /\b(otro rut|cambiar (?:el |mi )?rut|corregir (?:el |mi )?rut|(?:el )?rut (?:esta )?(?:mal|equivocado)|consulta de nuevo|consultalo de nuevo|ese era el rut|era el rut)\b/;
+/** Dirección sin número: "s/n", "sin número". */
+const SIN_NUMERO = /(?:\bs\/n\b|\bsin numero\b|\bsn\b)/;
 const esErrorDeRut = (e: unknown): e is Error =>
   e instanceof Error && ['datos_invalidos', 'sii_no_disponible'].includes(String((e as { codigo?: unknown }).codigo));
 interface OrdenDeSala { orden: OrdenCompra; licitacion: LicitacionSala; telefono: string | null }
 
 export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   const participantes = new Map<string, Participacion>();
-  const borradores = new Map<string, Borrador>();
+  const borradores = new MapaPersistente<Borrador>(o.almacenBorradores ?? crearAlmacenBorradoresMemoria(), 'sala', o.log);
   /** Teléfonos a los que se les preguntó si salen de la compra. */
   const salidas = new Set<string>();
   /** Un número suelto que bajaría lo que lleva: se le preguntó si queda en ese número o lo suma. */
@@ -197,11 +211,15 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
 
     if (!borrador?.registro) o.log.info(`[sala] ${enmascarar(telefono)} llegó a la compra conjunta`);
     if (reg.paso === 'camino' && !rutDicho) {
+      if (o.alElegirVender && (t === '3' || /\b(vender|vendo|proveedor)\b/.test(t))) {
+        borradores.delete(clave);
+        return o.alElegirVender(telefono);
+      }
       if ((t === '1' || /\bcertificado\b/.test(t)) && o.enlaceCertificado) {
         return seguir({ ...reg, paso: 'rut', viaCertificado: true }, m.pedirRut(), m.enlaceCertificadoRegistro(o.enlaceCertificado(telefono)));
       }
       if (t === '2' || (t === '1' && !o.enlaceCertificado) || /\b(rut|direccion)\b/.test(t)) return seguir({ ...reg, paso: 'rut' }, m.pedirRut());
-      return seguir(reg, m.elegirRegistro(Boolean(o.enlaceCertificado)));
+      return seguir(reg, m.elegirRegistro(Boolean(o.enlaceCertificado), Boolean(o.alElegirVender)));
     }
     if (reg.paso === 'camino' || reg.paso === 'rut') {
       if (!rutDicho) return seguir({ ...reg, paso: 'rut' }, m.pedirRut());
@@ -220,27 +238,46 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       // La dirección del SII para ese RUT, si es real y está informada: se ofrece confirmarla.
       const direccionSii = !c.simulado && c.direccion && c.comuna && normalizar(c.direccion) !== 'sin informar'
         ? { direccion: c.direccion, comuna: c.comuna } : undefined;
+      const conRut: Registro = { ...reg, paso: 'direccion', rut: c.rut, razonSocial: c.razonSocial, ...(direccionSii ? { direccionSii } : {}) };
+      // "19.926.884-8 y dirección Los Aromos 12, Macul": la dirección que escribió manda sobre la del SII.
+      const escrita = leerDireccion(direccionDelMensaje(texto), direccionSii?.comuna);
+      if (escrita?.comuna) return completar(conRut, escrita);
+      if (escrita) return seguir({ ...conRut, calle: escrita.direccion }, m.pedirComuna(), `${m.facturaA(c.razonSocial)}\n\n${m.pedirComuna()}`);
       const pregunta = direccionSii ? m.confirmarDireccion(direccionSii) : m.pedirDireccion();
-      return seguir({ ...reg, paso: 'direccion', rut: c.rut, razonSocial: c.razonSocial, ...(direccionSii ? { direccionSii } : {}) },
-        pregunta, `${m.facturaA(c.razonSocial)}\n\n${pregunta}`);
+      return seguir(conRut, pregunta, `${m.facturaA(c.razonSocial)}\n\n${pregunta}`);
     }
 
-    // paso 'direccion': confirmar la del SII o escribirla.
-    const completar = async (direccion: Direccion) => {
-      const listo: Registro = { ...reg, direccion, listo: true };
-      borradores.set(clave, { ...base, registro: listo, pregunta: m.preguntaSala(l) });
-      o.log.info(`[sala] ${enmascarar(telefono)} quedó registrado con RUT y dirección`);
-      const aviso = m.registroListo(reg.razonSocial, direccion);
-      if (reg.inicial && /\d/.test(reg.inicial)) return `${aviso}\n\n${await atenderPublico(telefono, reg.inicial, nombreConocido)}`;
-      return `${aviso}\n\n${m.bienvenidaSala(l, m.preguntaSala(l), o.urlPublica)}`;
-    };
-    if (reg.direccionSii && !reg.escribir) {
-      if (t === '1' || /^(si|sip|ok|dale|es esa|esa|correcta|correcto)\b/.test(t)) return completar(reg.direccionSii);
+    // paso 'direccion'. Un RUT nuevo ("me equivoqué, es 20.148.764-1") vuelve a consultarlo; "otro rut", a pedirlo.
+    const rutNuevo = rutDicho && validarRut(rutDicho) ? rutDicho : null;
+    if (rutNuevo || CAMBIAR_RUT.test(t)) {
+      const deNuevo: Borrador = { ...base, registro: { paso: 'rut', ...(reg.inicial ? { inicial: reg.inicial } : {}) }, pregunta: m.pedirRut() };
+      borradores.set(clave, deNuevo);
+      return rutNuevo ? registrar(telefono, texto, deNuevo, l, nombreConocido) : m.pedirRut();
+    }
+    if (reg.direccionSii && !reg.escribir && !reg.calle) {
+      if (t === '1' || /^(si|sip|ok|dale|es esa|esa|correcta|correcto)\b/.test(t)) return completar(reg, reg.direccionSii);
       if (t === '2' || t === 'no' || /\b(otra|no es|cambiar)\b/.test(t)) return seguir({ ...reg, escribir: true }, m.pedirDireccion());
     }
     const dir = leerDireccion(texto, reg.direccionSii?.comuna);
-    if (dir) return completar(dir);
+    // Esperando solo la comuna: lo que escriba (sin números) es la comuna de la calle que ya dio.
+    if (reg.calle && (!dir?.comuna || !texto.includes(','))) {
+      const comuna = texto.replace(/\s+/g, ' ').trim();
+      if (comuna.length >= 3 && comuna.length <= 40 && !/\d/.test(comuna)) return completar(reg, { direccion: reg.calle, comuna });
+      return seguir(reg, m.pedirComuna(), m.pedirComuna());
+    }
+    if (dir?.comuna) return completar(reg, dir);
+    if (dir) return seguir({ ...reg, calle: dir.direccion }, m.pedirComuna());
     return seguir(reg, base.pregunta || m.pedirDireccion(), m.direccionNoEntendida());
+
+    async function completar(r: Registro, direccion: Direccion) {
+      const { calle: _calle, ...sinCalle } = r;
+      const listo: Registro = { ...sinCalle, direccion, listo: true };
+      borradores.set(clave, { ...base, registro: listo, pregunta: m.preguntaSala(l) });
+      o.log.info(`[sala] ${enmascarar(telefono)} quedó registrado con RUT y dirección`);
+      const aviso = m.registroListo(r.razonSocial, direccion);
+      if (r.inicial && /\d/.test(r.inicial)) return `${aviso}\n\n${await atenderPublico(telefono, r.inicial, nombreConocido)}`;
+      return `${aviso}\n\n${m.bienvenidaSala(l, m.preguntaSala(l), o.urlPublica)}`;
+    }
   }
 
   /** Si está esperando un RUT (para seguir el registro con el del certificado que acaba de conectar). */
@@ -261,14 +298,30 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   }
 
 
-  /** "Av. Grecia 1234, Ñuñoa" → calle y comuna. Sin coma, la comuna del SII si se conoce. `null` si no parece dirección. */
+  /**
+   * "Av. Grecia 1234, Ñuñoa" → calle y comuna. Sin coma, la comuna del SII si se conoce; si no, comuna vacía (se le
+   * pide). Vale sin número si dice "s/n" o "sin número" (parcelas, caminos rurales). `null` si no parece dirección.
+   */
   function leerDireccion(texto: string, comunaSii?: string): Direccion | null {
     const limpio = texto.replace(/\s+/g, ' ').trim();
-    if (limpio.length < 6 || limpio.length > 120 || !/\p{L}/u.test(limpio) || !/\d/.test(limpio)) return null;
+    const conNumero = /\d/.test(limpio) || SIN_NUMERO.test(normalizar(limpio));
+    if (limpio.length < 6 || limpio.length > 120 || !/\p{L}/u.test(limpio) || !conNumero) return null;
     const coma = limpio.lastIndexOf(',');
     const comuna = coma > 0 ? limpio.slice(coma + 1).trim() : comunaSii ?? '';
     const direccion = coma > 0 ? limpio.slice(0, coma).trim() : limpio;
-    return comuna && /\p{L}/u.test(comuna) && direccion ? { direccion, comuna } : null;
+    if (!direccion) return null;
+    return { direccion, comuna: /\p{L}/u.test(comuna) ? comuna : '' };
+  }
+
+  /**
+   * La dirección escrita junto al RUT ("19.926.884-8 y dirección El Tambo s/n, San Vicente"), sin el RUT ni "y mi
+   * dirección es". Solo si dice "dirección": "Panadería Beto, 3 de bolsas, mi rut es…" es un pedido, no una dirección.
+   */
+  function direccionDelMensaje(texto: string): string {
+    const desde = texto.search(/direcci[oó]n/i);
+    if (desde < 0) return '';
+    return texto.slice(desde).replace(PATRON_RUT, ' ').replace(/\b(?:mi|el)?\s*rut\b(?:\s+es)?\s*:?/gi, ' ')
+      .replace(/^direcci[oó]n(?:\s+es)?\s*:?/i, ' ').replace(/\s+/g, ' ').trim();
   }
 
   async function atenderPublico(telefono: string, texto: string, nombreConocido?: string): Promise<string> {
@@ -471,43 +524,57 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       const telefono = telefonoPorNegocio.get(orden.compradorId) ?? (await red.telefonoDeNegocio(orden.compradorId));
       ordenesDeSala.set(orden.id, { orden, licitacion: l, telefono });
     }
-    // Unidades por producto de toda la compra, en el orden de la canasta.
+    const lineas = ordenes.length
+      ? unidadesPorProducto(ordenes, l).map(i => lineaDe(i, l))
+      : productos.filter(p => p.totalUnidades > 0).map(p => m.itemTexto(p, p.totalUnidades));
+    const total = ordenes.reduce((s, x) => s + totalOrden(x), 0) || productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0);
+    const negocios = ordenes.length || l.participantes.length;
+    o.log.info(`[sala] cerró ${l.id}: ${negocios} negocios, ${lineas.join(', ')}`);
+    // Cada proveedor con órdenes confirma y factura solo lo suyo (con varios ganadores, una pregunta a cada uno).
+    const ids = ordenes.length ? [...new Set(ordenes.map(x => x.proveedorId))] : l.proveedorId ? [l.proveedorId] : [];
+    for (const proveedorId of ids) {
+      const proveedor = await proveedorDe(proveedorId);
+      if (!proveedor) {
+        o.log.warn(`[sala] no sé a qué teléfono pedirle el sí al proveedor ${proveedorId} de ${l.id}`);
+        continue;
+      }
+      const suyas = ordenes.filter(x => x.proveedorId === proveedorId);
+      const mensaje = ids.length === 1 && suyas.length === ordenes.length
+        ? m.cierreAlProveedor({ negocios, lineas, total })
+        : m.cierreAlProveedor({
+          negocios: suyas.length, lineas: unidadesPorProducto(suyas, l).map(i => lineaDe(i, l)), total: suyas.reduce((t, x) => t + totalOrden(x), 0),
+        });
+      porFacturar.set(proveedor.id, { licitacionId: l.id, mensaje });
+      await o.pedirConfirmacion(proveedor, l.id, mensaje);
+    }
+  }
+
+  /** Unidades por producto de unas órdenes, en el orden de la canasta. */
+  function unidadesPorProducto(ordenes: readonly OrdenCompra[], l: LicitacionSala): OrdenCompra['items'][number][] {
+    const productos = productosDe(l);
     const porProducto = new Map<string, OrdenCompra['items'][number]>();
     for (const item of ordenes.flatMap(x => x.items)) {
       const clave = productoDeItem(item, productos)?.id ?? item.producto;
       const antes = porProducto.get(clave);
       porProducto.set(clave, { ...item, cantidad: (antes?.cantidad ?? 0) + item.cantidad });
     }
-    const lineas = ordenes.length
-      ? [...porProducto.values()].map(i => lineaDe(i, l))
-      : productos.filter(p => p.totalUnidades > 0).map(p => m.itemTexto(p, p.totalUnidades));
-    const total = ordenes.reduce((s, x) => s + totalOrden(x), 0) || productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0);
-    const negocios = ordenes.length || l.participantes.length;
-    o.log.info(`[sala] cerró ${l.id}: ${negocios} negocios, ${lineas.join(', ')}`);
-    const proveedorId = l.proveedorId ?? ordenes[0]?.proveedorId;
-    const proveedor = proveedorId ? await proveedorDe(proveedorId) : null;
-    if (!proveedor) {
-      o.log.warn(`[sala] no sé a qué teléfono pedirle el sí al proveedor de ${l.id}`);
-      return;
-    }
-    const mensaje = m.cierreAlProveedor({ negocios, lineas, total });
-    porFacturar.set(proveedor.id, { licitacionId: l.id, mensaje });
-    await o.pedirConfirmacion(proveedor, l.id, mensaje);
+    return [...porProducto.values()];
   }
 
-  function facturar(licitacionId: string): Promise<string> {
-    const enCurso = facturadas.get(licitacionId);
+  function facturar(licitacionId: string, proveedorId?: string): Promise<string> {
+    const clave = proveedorId ? `${licitacionId}:${proveedorId}` : licitacionId;
+    const enCurso = facturadas.get(clave);
     if (enCurso) return enCurso.then(() => m.YA_FACTURADA);
     const tarea = (async () => {
-      const documentos = await red.confirmarOrdenesDeLicitacion(licitacionId);
-      for (const [id, p] of porFacturar) if (p.licitacionId === licitacionId) porFacturar.delete(id);
+      const documentos = await red.confirmarOrdenesDeLicitacion(licitacionId, proveedorId);
+      for (const [id, p] of porFacturar) if (p.licitacionId === licitacionId && (!proveedorId || id === proveedorId)) porFacturar.delete(id);
       const facturas = Array.isArray(documentos) ? documentos.filter(d => d.tipo === 33).length : 0;
-      o.log.info(`[sala] ${licitacionId} facturada: ${facturas} facturas`);
+      o.log.info(`[sala] ${licitacionId} facturada${proveedorId ? ` por ${proveedorId}` : ''}: ${facturas} facturas`);
       return m.facturasDeLaSala(facturas);
     })();
-    facturadas.set(licitacionId, tarea);
+    facturadas.set(clave, tarea);
     // Si falla, se puede reintentar con otro sí (la pendiente vuelve a la cola del agente).
-    tarea.catch(() => facturadas.delete(licitacionId));
+    tarea.catch(() => facturadas.delete(clave));
     return tarea;
   }
 
@@ -613,6 +680,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     entiende,
     atenderPublico,
     facturar,
+    cargar: () => borradores.cargar(),
     pendienteDeFacturar: negocioId => porFacturar.get(negocioId) ?? null,
     detener() {
       dejarDeEscuchar();

@@ -181,8 +181,8 @@ export interface RedSala {
   salirDeLicitacion?(licitacionId: string, datos: { readonly telefono: string }): Talvez<unknown>;
   /** Emite `licitacion.cerrada` con las órdenes; el agente usa el evento, no el valor devuelto. */
   cerrarLicitacion(licitacionId: string): Talvez<unknown>;
-  /** Emite las facturas (33) de todas las órdenes de la compra en un solo envío al SII. */
-  confirmarOrdenesDeLicitacion(licitacionId: string): Talvez<readonly Documento[]>;
+  /** Emite las facturas (33) de las órdenes de un proveedor (sin él, de todos) en un envío al SII por proveedor. */
+  confirmarOrdenesDeLicitacion(licitacionId: string, proveedorId?: string): Talvez<readonly Documento[]>;
   telefonoDeNegocio(negocioId: string): Talvez<string | null>;
   /** Enlace privado al PDF de un documento emitido, si la red lo ofrece. */
   enlacePdf?(documento: Documento): Talvez<string | null>;

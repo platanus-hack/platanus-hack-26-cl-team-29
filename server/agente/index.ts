@@ -17,6 +17,7 @@ import type { Log, WhatsAppDeEnvios } from './envios.ts';
 import { crearSala } from './sala.ts';
 import type { Sala } from './sala.ts';
 import * as m from './mensajes.ts';
+import type { AlmacenBorradores } from './borradores.ts';
 
 export type { Red } from './puerto.ts';
 
@@ -41,6 +42,8 @@ export interface OpcionesAgente {
   readonly env?: NodeJS.ProcessEnv;
   /** Certificado digital por link privado (server/certificados), opcional: se ofrece al sumarse y con "conectar certificado". */
   readonly certificados?: { enlace(telefono: string): string };
+  /** Dónde guardar lo que cada teléfono lleva a medias (registro, carrito), para que sobreviva a un reinicio. */
+  readonly almacenBorradores?: AlmacenBorradores;
 }
 
 export interface TiemposSala {
@@ -138,6 +141,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       telefonoProveedor: env.DEMO_TELEFONO_PROVEEDOR || null,
       urlPublica: env.PUBLIC_URL || null,
       ...(opciones.certificados ? { enlaceCertificado: (telefono: string) => opciones.certificados!.enlace(telefono) } : {}),
+      ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
       pedirConfirmacion: (proveedor, licitacionId, mensaje) => encolar(proveedor, { tipo: 'facturar_licitacion', licitacionId, mensaje }),
     });
   }
@@ -248,7 +252,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       }
       case 'facturar_licitacion':
         if (!sala) throw new Error('la red no tiene compra conjunta');
-        return sala.facturar(p.licitacionId);
+        return sala.facturar(p.licitacionId, negocio.id);
     }
   }
 
@@ -364,10 +368,13 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     void siguiente.then(() => { if (filas.get(telefono) === siguiente) filas.delete(telefono); });
     return siguiente;
   }
+  // Lo que cada teléfono llevaba a medias antes de un reinicio: se recupera antes de atender el primer mensaje.
+  const cargado = (sala?.cargar() ?? Promise.resolve()).catch(error => log.error('[agente] no se pudieron recuperar los borradores', error));
   const desconectar = whatsapp.onMessage((mensaje, ctx) => {
     const telefono = mensaje.from;
     return enFila(telefono, async () => {
       try {
+        await cargado;
         await ctx.markRead({ typing: true });
         // Un botón nuestro llega con su id ("1", "2"): se atiende como si hubiera escrito ese número.
         const boton = mensaje.content.kind === 'reply' && /^\d$/.test(mensaje.content.id) ? mensaje.content.id : null;
