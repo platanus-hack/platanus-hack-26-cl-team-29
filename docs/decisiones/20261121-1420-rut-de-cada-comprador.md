@@ -1,6 +1,6 @@
 # Cada comprador entrega su RUT y su factura sale a su nombre
 
-Fecha: 2026-11-21 22:00
+Fecha: 2026-11-21 14:20
 Autor: agente rut-comprador
 
 ## Contexto
