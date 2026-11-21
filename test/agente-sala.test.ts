@@ -394,3 +394,11 @@ test('un participante que pregunta otra cosa recibe la respuesta de la IA; sus a
   await escribir(yo, 'mi pedido');
   assert.match(ultimo(yo), /^Tu pedido, Almacén Registrado:/);
 });
+
+test('"Quiero comprar guantes" no deja al negocio llamado "comprar"', () => {
+  const cat = catalogoDe({ ...LICITACION, productos: PRODUCTOS } as never, 20);
+  for (const t of ['Quiero comprar guantes de nitrilo', 'pide 4 cajas de guantes', 'dame 3 cajas de rollos']) {
+    assert.equal(interpretarCanastaConReglas(t, cat).nombre, undefined, t);
+  }
+  assert.equal(interpretarCanastaConReglas('Almacén Javier, 4 cajas de guantes', cat).nombre, 'Almacén Javier');
+});

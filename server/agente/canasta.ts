@@ -150,6 +150,9 @@ const RELLENO = new Set([
   'me', 'nos', 'sumo', 'sumamos', 'entro', 'entramos', 'y', 'con', 'para', 'por', 'favor', 'porfa', 'gracias', 'ok', 'dale',
   'si', 'listo', 'ya', 'unos', 'unas', 'anotame', 'anota', 'necesito', 'necesitamos', 'pido', 'pedimos', 'perfecto', 'aqui', 'aca',
   'solo', 'solamente', 'no', 'nop', 'mejor', 'ahora',
+  // Verbos de pedir: "Quiero comprar guantes" no es el negocio "comprar".
+  'comprar', 'compro', 'compramos', 'comprarme', 'pedir', 'pide', 'pideme', 'pidan', 'pedirte', 'llevar', 'llevo', 'llevamos',
+  'encargar', 'encargo', 'encarga', 'dame', 'deme', 'denme', 'manda', 'mandame', 'traeme', 'queria', 'quisieramos', 'necesitaria',
 ]);
 /** Palabras que dicen que el mensaje es una pregunta o un comentario, no un nombre. */
 const NO_NOMBRE = /\b(cuanto|cuantos|cuantas|como|que|cuando|donde|precio|funciona|vale|cuesta|sirve|info|ayuda|puede|puedo)\b/;
