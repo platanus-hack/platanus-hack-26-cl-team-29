@@ -34,25 +34,6 @@ export function crearSesiones(): Sesiones {
   };
 }
 
-/**
- * Límite liviano por IP y ventana fija, en memoria, para que un endpoint público no se pueda inundar
- * durante la demo. Generoso: toda la sala puede salir por la misma IP del wifi del evento.
- */
-export function crearLimitador(maximo: number, ventanaMs: number, reloj: () => number = Date.now) {
-  const cuentas = new Map<string, { desde: number; n: number }>();
-  return (clave: string): boolean => {
-    const ahora = reloj();
-    if (cuentas.size > 10_000) for (const [k, c] of cuentas) if (ahora - c.desde >= ventanaMs) cuentas.delete(k);
-    const c = cuentas.get(clave);
-    if (!c || ahora - c.desde >= ventanaMs) {
-      cuentas.set(clave, { desde: ahora, n: 1 });
-      return true;
-    }
-    c.n++;
-    return c.n <= maximo;
-  };
-}
-
 /** Igualdad en tiempo constante, para tokens y códigos. */
 export function mismoSecreto(enviado: unknown, esperado: string): boolean {
   const a = Buffer.from(String(enviado ?? '')), b = Buffer.from(esperado);

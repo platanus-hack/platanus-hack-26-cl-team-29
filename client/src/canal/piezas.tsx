@@ -10,11 +10,18 @@ import { Icono, LogoSii } from './iconos.tsx';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { confirmacion, mensajeDeError, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
 
-/** Un envío a la API con su estado: `enviando` mientras corre y `error` con el mensaje si falla. */
+/**
+ * Un envío a la API con su estado: `enviando` mientras corre y `error` con el mensaje si falla. Mientras hay uno
+ * en viaje, los toques repetidos se ignoran (doble clic, Enter más clic): la acción sale una sola vez.
+ * El botón que lo dispara usa `disabled={enviando}` y cambia su texto a la acción en curso ("Enviando...").
+ */
 export function useEnvio() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
+  const enCurso = useRef(false);
   const enviar = async (tarea: () => Promise<unknown>, siFalla?: string) => {
+    if (enCurso.current) return;
+    enCurso.current = true;
     setEnviando(true);
     setError('');
     try {
@@ -22,6 +29,7 @@ export function useEnvio() {
     } catch (e) {
       setError(mensajeDeError(e, siFalla));
     } finally {
+      enCurso.current = false;
       setEnviando(false);
     }
   };
@@ -34,13 +42,19 @@ export function useConfirmacion<A>(ejecutar: (accion: A) => Promise<void>) {
     (e: Confirmacion<A>, ev: EventoConfirmacion<A>) => confirmacion(e, ev),
     SIN_CONFIRMACION as Confirmacion<A>,
   );
+  // Igual que useEnvio: un "sí" repetido mientras viaja el primero no vuelve a enviar.
+  const enCurso = useRef(false);
   const confirmar = useCallback(async (accion: A) => {
+    if (enCurso.current) return;
+    enCurso.current = true;
     despachar({ tipo: 'confirmar' });
     try {
       await ejecutar(accion);
       despachar({ tipo: 'listo' });
     } catch (e) {
       despachar({ tipo: 'fallo', mensaje: mensajeDeError(e) });
+    } finally {
+      enCurso.current = false;
     }
   }, [ejecutar]);
   const cancelar = () => despachar({ tipo: 'cancelar' });

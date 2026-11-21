@@ -8,7 +8,9 @@ import { generarPdf } from '../sii/index.ts';
 import { nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import { crearRutasWeb } from './rutas-web.ts';
-import { crearLimitador, crearSesiones, mismoSecreto } from './sesiones.ts';
+import { crearSesiones, mismoSecreto } from './sesiones.ts';
+import { limitarPor } from '../limite.ts';
+import { validarRut } from '../../shared/rut.ts';
 import type { Sesiones } from './sesiones.ts';
 
 const ESTADO_HTTP: Record<CodigoError, number> = {
@@ -25,7 +27,7 @@ const ESTADO_HTTP: Record<CodigoError, number> = {
 
 export interface OpcionesRutas {
   sesiones?: Sesiones;
-  /** Pedidos por IP y minuto a los endpoints públicos que crean cosas (sesiones y uniones). */
+  /** Pedidos por minuto de un mismo RUT al entrar o sumarse desde la página pública (nunca por IP: la sala comparte el wifi). */
   limitePorMinuto?: number;
   /** Rutas "Conectar mi SII" del proveedor (server/conexion-sii). */
   conexionSii?: express.Router;
@@ -35,11 +37,9 @@ export interface OpcionesRutas {
 export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, opciones: OpcionesRutas = {}): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
-  const limitador = crearLimitador(opciones.limitePorMinuto ?? 120, 60_000);
-  const limitar = (req: Request, res: Response, next: NextFunction) => {
-    if (limitador(req.ip ?? 'sin-ip')) return next();
-    res.status(429).json({ error: 'demasiados_pedidos', mensaje: 'Demasiados pedidos seguidos, espera un momento' });
-  };
+  const porRut = limitarPor(opciones.limitePorMinuto ?? 20, 60_000, req => validarRut(cuerpo(req).rut));
+  // Las acciones del presentador comparten un solo token: el límite es para el token, no para cada IP.
+  const limitarDemo = limitarPor(20, 60_000, () => 'demo');
 
   // Acciones de escenario (reiniciar, confirmar la compra si falla WhatsApp), protegidas con DEMO_TOKEN.
   // Sin la variable la ruta no existe (404).
@@ -115,7 +115,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
   // Página del QR sin sesión (nombre, comuna y RUT). Un negocio usa /yo/unirse con su sesión; aquí no se
   // acepta `negocioId` ni `telefono`, para que nadie cambie la cantidad de otro. Sin RUT válido no se suma:
   // cada factura sale al RUT de quien compra.
-  rutas.post('/licitaciones/:id/unirse', limitar, async (req, res) => {
+  rutas.post('/licitaciones/:id/unirse', porRut, async (req, res) => {
     const b = cuerpo(req);
     if (typeof b.rut !== 'string' || !b.rut.trim()) throw new ErrorRed('datos_invalidos', FALTA_RUT);
     const negocio = await red.registrarComprador(nuevoComprador(b, b.rut));
@@ -126,7 +126,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     }));
   });
 
-  rutas.post('/demo/reiniciar', exigirTokenDemo, async (_req, res) => {
+  rutas.post('/demo/reiniciar', exigirTokenDemo, limitarDemo, async (_req, res) => {
     res.json(await red.reiniciarDemo());
   });
 
@@ -143,11 +143,11 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
   });
 
   // Respaldo de escenario si WhatsApp falla: el sí del proveedor dado desde la consola.
-  rutas.post('/licitaciones/:id/confirmar', exigirTokenDemo, async (req, res) => {
+  rutas.post('/licitaciones/:id/confirmar', exigirTokenDemo, limitarDemo, async (req, res) => {
     res.json(await red.confirmarOrdenesDeLicitacion(id(req)));
   });
 
-  rutas.use(crearRutasWeb(red, env, { sesiones: opciones.sesiones ?? crearSesiones(), limitar, conexionSii: opciones.conexionSii }));
+  rutas.use(crearRutasWeb(red, env, { sesiones: opciones.sesiones ?? crearSesiones(), porRut, conexionSii: opciones.conexionSii }));
 
   rutas.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (!(error instanceof ErrorRed)) return next(error);

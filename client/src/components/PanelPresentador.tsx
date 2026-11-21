@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AccionDemo } from '../red/useRed.ts';
+import { useEnvio } from '../canal/piezas.tsx';
 
 /** El token vive solo en la pestaña (sessionStorage): nunca en el código ni en localStorage. */
 const CLAVE_TOKEN = 'sala.tokenDemo';
@@ -36,19 +37,17 @@ interface Props {
 export function PanelPresentador({ licitacionId, accion, alCerrar }: Props) {
   const [token, setToken] = useState(leerToken);
   const [mensaje, setMensaje] = useState('');
-  const [ocupado, setOcupado] = useState(false);
+  const [enCurso, setEnCurso] = useState<AccionDemo | null>(null);
+  const { enviando, error, enviar } = useEnvio();
 
-  const ejecutar = async (a: AccionDemo, exito: string) => {
-    setOcupado(true);
+  const ejecutar = (a: AccionDemo, exito: string) => {
+    if (enviando) return;
     setMensaje('');
-    try {
+    setEnCurso(a);
+    void enviar(async () => {
       await accion(a, token, licitacionId);
       setMensaje(exito);
-    } catch (e) {
-      setMensaje(e instanceof Error ? e.message : 'No se pudo.');
-    } finally {
-      setOcupado(false);
-    }
+    }, 'No se pudo.');
   };
 
   return (
@@ -71,12 +70,12 @@ export function PanelPresentador({ licitacionId, accion, alCerrar }: Props) {
       </label>
       <div className="panel-acciones">
         {ACCIONES.map(([a, texto, exito]) => (
-          <button key={a} type="button" className="boton" disabled={ocupado || (a !== 'reiniciar' && !licitacionId)} onClick={() => ejecutar(a, exito)}>
-            {texto}
+          <button key={a} type="button" className="boton" disabled={enviando || (a !== 'reiniciar' && !licitacionId)} onClick={() => ejecutar(a, exito)}>
+            {enviando && enCurso === a ? 'Enviando...' : texto}
           </button>
         ))}
       </div>
-      {mensaje && <p className="mono panel-mensaje">{mensaje}</p>}
+      {(error || mensaje) && <p className="mono panel-mensaje">{error || mensaje}</p>}
     </aside>
   );
 }

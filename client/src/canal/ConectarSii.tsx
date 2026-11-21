@@ -102,22 +102,17 @@ export function ConectarSii({ api, token }: Props) {
 function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: EstadoConexionSii; alCambiar: (e: EstadoConexionSii) => void; onCerrar: () => void }) {
   const [editar, setEditar] = useState<'certificado' | 'empresa' | null>(null);
   const [desconectando, setDesconectando] = useState(false);
-  const [error, setError] = useState('');
+  const { enviando, error, enviar } = useEnvio();
   const pasoCert = !estado.titular || editar === 'certificado';
   // Mientras se trae todo del SII, los pasos manuales esperan: se muestran con lo que haya faltado.
   const enCurso = !!estado.automatico?.activo;
   const pasoEmpresa = !pasoCert && !enCurso && (!estado.empresa || !estado.resolucion || estado.resolucion.rechazada || editar === 'empresa');
   const hecho = (e: EstadoConexionSii) => { alCambiar(e); setEditar(null); };
 
-  const desconectar = async () => {
-    setError('');
-    try {
-      hecho(await api.siiDesconectar(token));
-      setDesconectando(false);
-    } catch (e) {
-      setError(mensajeDeError(e));
-    }
-  };
+  const desconectar = () => enviar(async () => {
+    hecho(await api.siiDesconectar(token));
+    setDesconectando(false);
+  });
 
   return (
     <div className="cn-pasos">
@@ -170,8 +165,8 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
           <h3>¿Desconectas tu SII?</h3>
           <p className="cn-confirmar-texto">Borramos tu certificado, su clave y tus CAF de la red. Los documentos ya emitidos no cambian.</p>
           <div className="cn-acciones">
-            <button type="button" className="boton" onClick={() => { void desconectar(); }}>Sí, desconectar</button>
-            <button type="button" className="cn-boton-texto" onClick={() => setDesconectando(false)}>No, volver</button>
+            <button type="button" className="boton" onClick={() => { void desconectar(); }} disabled={enviando}>{enviando ? 'Desconectando...' : 'Sí, desconectar'}</button>
+            <button type="button" className="cn-boton-texto" onClick={() => setDesconectando(false)} disabled={enviando}>No, volver</button>
           </div>
         </div>
       )}
@@ -337,16 +332,13 @@ function FilaCaf({ api, token, tipo, cafs, alCambiar }: Props & { tipo: TipoDocu
     });
   };
 
-  const fijar = async (e: FormEvent) => {
+  const fijar = (e: FormEvent) => {
     e.preventDefault();
-    setError('');
-    try {
+    void enviar(async () => {
       alCambiar(await api.siiFolio(token, tipo, Number(manual)));
       setAMano(false);
       setManual('');
-    } catch (err) {
-      setError(mensajeDeError(err));
-    }
+    });
   };
 
   const caf = cafs.at(-1);
@@ -385,7 +377,7 @@ function FilaCaf({ api, token, tipo, cafs, alCambiar }: Props & { tipo: TipoDocu
             <span className="etiqueta">Primer folio a usar</span>
             <input inputMode="numeric" value={manual} onChange={e => setManual(e.target.value.replace(/\D/g, ''))} />
           </label>
-          <button className="boton secundario cn-boton-leer">Usar este folio</button>
+          <button className="boton secundario cn-boton-leer" disabled={enviando}>{enviando ? 'Guardando...' : 'Usar este folio'}</button>
         </form>
       ) : (
         <button type="button" className="cn-boton-texto" onClick={() => setAMano(true)}>Indicar el primer folio a mano</button>
@@ -425,16 +417,9 @@ function FoliosFactura({ api, token, folios, alCambiar }: Props & { folios: Foli
 
 /** Avance de la conexión automática: un paso por línea, con el texto del SII cuando algo falta. */
 function Automatico({ api, token, estado, alCambiar }: Props & { estado: EstadoConexionSii; alCambiar: (e: EstadoConexionSii) => void }) {
-  const [error, setError] = useState('');
+  const { enviando, error, enviar } = useEnvio();
   const auto = estado.automatico!;
-  const reintentar = async () => {
-    setError('');
-    try {
-      alCambiar(await api.siiAutomatico(token, estado.rutEmisor ?? ''));
-    } catch (e) {
-      setError(mensajeDeError(e));
-    }
-  };
+  const reintentar = () => enviar(async () => { alCambiar(await api.siiAutomatico(token, estado.rutEmisor ?? '')); });
   return (
     <article className="cn-paso" aria-live="polite">
       <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> {auto.activo ? 'Conectando con el SII...' : 'Traído del SII'}</p>
@@ -449,7 +434,9 @@ function Automatico({ api, token, estado, alCambiar }: Props & { estado: EstadoC
       ))}
       {error && <p className="error">{error}</p>}
       {!auto.activo && auto.pasos.some(p => p.estado === 'error') && (
-        <button type="button" className="boton secundario cn-ancho" onClick={() => { void reintentar(); }}><LogoSii /> Volver a traer del SII</button>
+        <button type="button" className="boton secundario cn-ancho" onClick={() => { void reintentar(); }} disabled={enviando}>
+          <LogoSii /> {enviando ? 'Trayendo del SII...' : 'Volver a traer del SII'}
+        </button>
       )}
     </article>
   );

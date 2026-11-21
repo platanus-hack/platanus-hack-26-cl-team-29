@@ -122,7 +122,7 @@ test('el panel del proveedor exige su código y confirmado para facturar la comp
   }
 });
 
-test('config pública, confirmación de escenario con DEMO_TOKEN y límite por IP', async () => {
+test('config pública, confirmación de escenario con DEMO_TOKEN y límite por RUT (no por IP)', async () => {
   const s = await servidor(ENV, 3);
   try {
     const { productos, ...compat } = (await s.get('/config')).cuerpo;
@@ -140,10 +140,39 @@ test('config pública, confirmación de escenario con DEMO_TOKEN y límite por I
     const r = await fetch(`${s.url}/licitaciones/L-1/confirmar`, { method: 'POST', headers: { 'x-demo-token': 'token-de-prueba' } });
     assert.equal(r.status, 200);
 
-    await s.post('/sesion', { nombre: 'B' });
-    await s.post('/sesion', { nombre: 'C' });
-    assert.equal((await s.post('/sesion', { nombre: 'D' })).status, 429);
+    // El límite es por RUT, nunca por IP: toda la sala entra por el mismo wifi.
+    for (const rut of ['44444444-4', '55555555-5', '66666666-6', '77777777-7']) {
+      assert.equal((await s.post('/sesion', { nombre: 'Vecino', rut })).status, 201);
+    }
+    for (let i = 0; i < 3; i++) assert.equal((await s.post('/sesion', { nombre: 'B', rut: '33.333.333-3' })).status, 201);
+    const tope = await s.post('/sesion', { nombre: 'B', rut: '33333333-3' });
+    assert.equal(tope.status, 429);
+    assert.match(tope.cuerpo.mensaje, /Espera un momento/);
   } finally {
     s.server.close();
   }
 });
+
+test('el carrito y las acciones del proveedor tienen tope por sesión, y un negocio no frena a otro', async () => {
+  const s = await servidor();
+  try {
+    const ana = await entrar(s, 'Ana');
+    const beto = await entrar(s, 'Beto');
+    const items = [{ productoId: 'rollos', cantidad: 1 }];
+    let ultimo = 0;
+    for (let i = 0; i < 301; i++) ultimo = (await pedirPut(s, '/yo/carrito', { licitacionId: 'L-1', items }, ana)).status;
+    assert.equal(ultimo, 429);
+    assert.notEqual((await pedirPut(s, '/yo/carrito', { licitacionId: 'L-1', items }, beto)).status, 429);
+
+    const prov = (await s.post('/proveedor/sesion', { codigo: ENV.PROVEEDOR_CODIGO })).cuerpo.token;
+    const estados: number[] = [];
+    for (let i = 0; i < 31; i++) estados.push((await s.post('/proveedor/ordenes/no-existe/confirmar', { confirmado: true }, prov)).status);
+    assert.equal(estados[0], 404);
+    assert.equal(estados.at(-1), 429);
+  } finally {
+    s.server.close();
+  }
+});
+
+const pedirPut = async (s: Awaited<ReturnType<typeof servidor>>, ruta: string, body: unknown, token: string) =>
+  fetch(s.url + ruta, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
