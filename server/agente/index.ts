@@ -66,7 +66,7 @@ export interface Agente {
   desconectar(): void;
 }
 
-type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage'> & WhatsAppDeEnvios & Partial<Pick<WhatsApp, 'history'>>;
+type WhatsAppDelAgente = Pick<WhatsApp, 'onMessage'> & WhatsAppDeEnvios & Partial<Pick<WhatsApp, 'history' | 'send'>>;
 
 export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: OpcionesAgente = {}): Agente {
   const env = opciones.env ?? process.env;
@@ -85,7 +85,21 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const cola = colas.get(negocio.id) ?? [];
     cola.push(p);
     colas.set(negocio.id, cola);
-    if (cola.length === 1) await whatsapp.sendText(negocio.telefono, p.mensaje);
+    if (cola.length === 1) await enviar(negocio.telefono, p.mensaje, 'agente');
+  }
+
+  /**
+   * Manda un texto; si termina en opciones ("1. Sí… 2. No"), como botones de WhatsApp. Apretar uno llega como
+   * "1" o "2", que el agente y la sala ya entienden. Sin `send` (o si falla), va como texto.
+   */
+  async function enviar(telefono: string, texto: string, source: string) {
+    const partes = whatsapp.send ? m.separarOpciones(texto) : null;
+    if (whatsapp.send && partes) {
+      const buttons = partes.opciones.map((title, i) => ({ id: String(i + 1), title }));
+      const r = await whatsapp.send(telefono, { body: partes.cuerpo, buttons }, { source });
+      if (r.status !== 'failed') return;
+    }
+    await whatsapp.sendText(telefono, texto);
   }
 
   const sala: Sala | null = tieneSala(red) ? crearSalaDelAgente(red, opciones.sala ?? {}) : null;
@@ -107,7 +121,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   }
 
   async function avisar(negocio: Negocio, texto: string) {
-    await whatsapp.sendText(negocio.telefono, texto);
+    await enviar(negocio.telefono, texto, 'agente');
   }
 
   async function negociosPorId(): Promise<Map<string, Negocio>> {
@@ -272,7 +286,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
 
   /** Con la capa de IA (server/ia/), el intérprete recibe contexto y puede responder; si no, solo clasifica. */
   async function entender(negocio: Negocio, telefono: string, texto: string, pendiente: string | null): Promise<Intencion> {
-    if (!interprete.conversar) return interprete.interpretar(texto, pendiente);
+    // Un botón apretado ("1", "2") no necesita a Claude: las reglas lo entienden al instante.
+    if (!interprete.conversar || /^\d$/.test(texto)) return interprete.interpretar(texto, pendiente);
     const { id, nombre, comuna, rol } = negocio;
     return interprete.conversar({ negocio: { id, nombre, comuna, rol }, texto, historial: await historialDe(telefono, texto), pendiente });
   }
@@ -285,7 +300,9 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return previos.slice(-10).map(msg => ({ de: msg.direction === 'in' ? 'persona' as const : 'bando' as const, texto: msg.text }));
   }
 
-  async function atender(telefono: string, texto: string, ctx: { reply(body: string): Promise<unknown> }) {
+  async function atender(telefono: string, texto: string, contexto: { reply(body: string): Promise<unknown> }) {
+    // Las respuestas con opciones salen como botones; el resto, como respuesta normal.
+    const ctx = { reply: (body: string) => (whatsapp.send && m.separarOpciones(body) ? enviar(telefono, body, 'reply') : contexto.reply(body)) };
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
     if (!negocio) {
       await ctx.reply(sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
@@ -319,7 +336,9 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const siguiente = (filas.get(telefono) ?? Promise.resolve()).then(async () => {
       try {
         await ctx.markRead({ typing: true });
-        await atender(telefono, mensaje.text, ctx);
+        // Un botón nuestro llega con su id ("1", "2"): se atiende como si hubiera escrito ese número.
+        const boton = mensaje.content.kind === 'reply' && /^\d$/.test(mensaje.content.id) ? mensaje.content.id : null;
+        await atender(telefono, boton ?? mensaje.text, ctx);
       } catch (error) {
         log.error(`[agente] falló el mensaje de ${enmascarar(telefono)}:`, error instanceof Error ? error.message : error);
         await ctx.reply(m.ERROR_TEMPORAL);
