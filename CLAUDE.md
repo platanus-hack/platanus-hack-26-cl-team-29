@@ -2,7 +2,7 @@
 
 App web multiplayer en tiempo real para Platanus Hack 26 (track Multiplayer). **Monolito**: un solo servicio en Render. El backend (`server/`) sirve la API, Socket.io y el front compilado (`client/` → `dist/`). Front y back nunca importan código uno del otro; se hablan solo por HTTP y Socket.io.
 
-Contexto de la hackathon (rúbrica, flujo de PR, repo público): @AGENTS.md
+Contexto del proyecto (prioridades, flujo, documentación, repo público): @AGENTS.md
 
 ## Stack (no cambiar sin preguntar)
 - **TypeScript en todo** (`strict`). No se agrega código en JS plano.
@@ -18,6 +18,7 @@ server/whatsapp/   # módulo de WhatsApp (Kapso), con dueño: se usa vía index.
 client/            # FRONTEND: index.html + src/ (React; componentes en client/src/components/)
 test/              # tests con node:test (*.test.ts)
 agents/            # estado de cada agente (ver agents/README.md)
+docs/              # decisiones y hallazgos, un archivo por entrada (ver docs/README.md)
 vite.config.ts     # root: client/, compila a dist/; proxy de /api y /socket.io a :3000 en dev
 render.yaml        # Blueprint de Render: servicio web (starter) + Postgres
 README.md, platanus-hack-project.jsonc, project-description.md, project-logo.png  # exigidos por la hackathon, no mover
