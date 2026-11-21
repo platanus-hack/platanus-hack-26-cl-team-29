@@ -9,6 +9,7 @@
 //   cierre --> pregunta al proveedor; solo con su sí se facturan todas en el SII
 //   cada factura emitida --> el comprador recibe su folio con cada línea
 import { totalOrden } from '../../shared/precios.ts';
+import { validarRut } from '../../shared/rut.ts';
 import type { Interprete } from './intencion.ts';
 import { normalizar } from './intencion.ts';
 import type { Catalogo, CambioCarrito, DatosCanasta } from './canasta.ts';
@@ -209,7 +210,11 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
         c = await red.consultarRut!(rutDicho);
       } catch (e) {
         if (!esErrorDeRut(e)) throw e;
-        return seguir({ ...reg, paso: 'rut' }, m.pedirRut(), m.rutConError(e.message));
+        // El SII no respondió o rechazó la consulta, pero el RUT es válido: el registro sigue con lo que declare.
+        const rut = (e as { codigo?: unknown }).codigo === 'sii_no_disponible' ? validarRut(rutDicho) : null;
+        if (!rut) return seguir({ ...reg, paso: 'rut' }, m.pedirRut(), m.rutConError(e.message));
+        o.log.info(`[sala] ${enmascarar(telefono)} dio un RUT válido que el SII no confirmó`);
+        return seguir({ ...reg, paso: 'direccion', rut, escribir: true }, m.pedirDireccion(), `${m.RUT_SIN_CONFIRMAR}\n\n${m.pedirDireccion()}`);
       }
       o.log.info(`[sala] ${enmascarar(telefono)} dio un RUT válido`);
       // La dirección del SII para ese RUT, si es real y está informada: se ofrece confirmarla.
@@ -225,7 +230,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       const listo: Registro = { ...reg, direccion, listo: true };
       borradores.set(clave, { ...base, registro: listo, pregunta: m.preguntaSala(l) });
       o.log.info(`[sala] ${enmascarar(telefono)} quedó registrado con RUT y dirección`);
-      const aviso = m.registroListo(reg.razonSocial ?? '', direccion);
+      const aviso = m.registroListo(reg.razonSocial, direccion);
       if (reg.inicial && /\d/.test(reg.inicial)) return `${aviso}\n\n${await atenderPublico(telefono, reg.inicial, nombreConocido)}`;
       return `${aviso}\n\n${m.bienvenidaSala(l, m.preguntaSala(l), o.urlPublica)}`;
     };

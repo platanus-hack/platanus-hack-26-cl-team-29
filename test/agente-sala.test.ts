@@ -26,7 +26,7 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string | { razonSocial: string; direccion: string; comuna: string }>; conSend?: boolean; certificados?: { enlace(telefono: string): string } } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string | { razonSocial: string; direccion: string; comuna: string } | null>; conSend?: boolean; certificados?: { enlace(telefono: string): string } } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
   const interactivos: OutboundMessage[] = [];
@@ -520,4 +520,17 @@ test('cantidades como las escribe la gente: "las 4 q faltan" suma, "10 en total"
   assert.equal(await guantes(), 3);
   await escribir(yo, 'mejor 2');                                // explícito: baja sin preguntar
   assert.equal(await guantes(), 2);
+});
+
+test('si el SII no confirma un RUT válido, el registro sigue con la dirección que escribe', async t => {
+  const { agente, escribir, ultimo, carrito, red } = montar({}, {}, { ruts: { '77865227-7': null } });
+  t.after(() => agente.desconectar());
+  const yo = '56911111901';
+  await escribir(yo, 'Almacén Javier, 2 cajas de rollos');
+  await escribir(yo, '77.865.227-7');
+  assert.match(ultimo(yo), /^No pude confirmar tu RUT en el SII en este momento, pero seguimos[\s\S]*¿Cuál es la dirección de tu negocio para la factura\?/);
+  await escribir(yo, 'Av. Escuela Agrícola 1710, Macul');
+  assert.match(ultimo(yo), /^Listo, quedaste registrado ✓ Tu factura sale a tu RUT, Av\. Escuela Agrícola 1710, Macul\.[\s\S]*Listo, Almacén Javier entra con 2 cajas de rollos\./);
+  assert.deepEqual(await carrito('Almacén Javier'), [{ productoId: 'rollos', cantidad: 2 }]);
+  assert.equal(red.rutPorTelefono.get(yo), '77865227-7');
 });

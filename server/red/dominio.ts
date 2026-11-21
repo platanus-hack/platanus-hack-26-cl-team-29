@@ -484,7 +484,10 @@ export async function crearRed({
     try {
       encontrado = await consultarContribuyente(rut);
     } catch (error) {
-      console.error(`[red] no se pudo consultar un RUT en el SII: ${error instanceof Error ? error.message : String(error)}`);
+      // El texto del SII (página pública, sin datos de sesión) dice por qué rechazó: sin él no se puede diagnosticar.
+      const delSii = (error as { mensajeSii?: unknown } | null)?.mensajeSii;
+      const detalle = typeof delSii === 'string' && delSii ? ` | SII: ${delSii.replace(/\s+/g, ' ').slice(0, 300)}` : '';
+      console.error(`[red] no se pudo consultar un RUT en el SII: ${error instanceof Error ? error.message : String(error)}${detalle}`);
       throw new ErrorRed('sii_no_disponible', SII_NO_DISPONIBLE);
     }
     if (!encontrado) throw new ErrorRed('datos_invalidos', RUT_DESCONOCIDO);
@@ -548,11 +551,30 @@ export async function crearRed({
     return n;
   }
 
+  /**
+   * Los datos de factura de un RUT: los del SII; si el SII no responde o rechaza la consulta (pasa en certificación con
+   * RUT que no son de empresas en certificación) y la persona dio su dirección, los que declaró: su factura igual sale a
+   * su RUT, con el nombre de su negocio. Un RUT inválido o que el SII dice que no existe sigue fallando.
+   */
+  async function rutParaFactura(q: DuenoCarrito): Promise<ContribuyenteDeRut> {
+    try {
+      return await consultarRut(q.rut!);
+    } catch (error) {
+      const rut = validarRut(q.rut);
+      const d = q.direccionFactura;
+      if (!(error instanceof ErrorRed) || error.codigo !== 'sii_no_disponible' || !rut || !d) throw error;
+      return {
+        rut, razonSocial: textoCorto(q.nombre) || 'Sin razón social', giro: 'Sin informar',
+        direccion: textoCorto(d.direccion), comuna: textoCorto(d.comuna), actividades: [],
+      };
+    }
+  }
+
   /** El negocio comprador de quien edita su carrito. Con `crear`, registra el teléfono nuevo. */
   async function compradorDe(q: DuenoCarrito, crear: boolean): Promise<Negocio | undefined> {
     if (q.negocioId) {
       const n = negocio(q.negocioId, 'comprador');
-      if (q.rut !== undefined) await asignarRut(n, await consultarRut(q.rut));
+      if (q.rut !== undefined) await asignarRut(n, await rutParaFactura(q));
       return conDireccion(n, q);
     }
     if (!q.telefono) return undefined;
@@ -560,12 +582,15 @@ export async function crearRed({
     const existente = tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
     if (existente?.rol === 'proveedor') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
     if (existente) {
-      if (q.rut !== undefined) await asignarRut(existente, await consultarRut(q.rut));
+      if (q.rut !== undefined) await asignarRut(existente, await rutParaFactura(q));
       return conDireccion(existente, q);
     }
     if (!crear) return undefined;
-    const nuevo = await registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro, rut: q.rut });
-    return conDireccion(negocio(nuevo.id, 'comprador'), q);
+    // El RUT se asigna después de crear el negocio: así su factura puede salir con los datos declarados si el SII no responde.
+    const nuevo = await registrarComprador({ nombre: q.nombre ?? '', comuna: q.comuna, telefono: q.telefono, rubro: q.rubro });
+    const n = negocio(nuevo.id, 'comprador');
+    if (q.rut !== undefined) await asignarRut(n, await rutParaFactura(q));
+    return conDireccion(n, q);
   }
 
   /**
