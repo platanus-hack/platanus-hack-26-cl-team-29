@@ -13,6 +13,19 @@ export const PROVEEDOR_DEMO = 'n-panificadora-nuble';
 export const PROVEEDOR_SALA = 'n-proveedor-demo';
 export const LICITACION_SALA = 'L-1';
 
+/**
+ * Proveedores ficticios que compiten contra el real por la compra conjunta. `sobrePiso` es cuánto
+ * más arriba del piso del proveedor real (DEMO_PRECIO_PISO) está su piso oculto: siempre por encima,
+ * para que gane y facture la empresa real. Notas 4,6, 4,5 y 4,4 (la del real parte en 4,8).
+ */
+export const COMPETIDORES_SALA = [
+  { id: 'n-papelera-central', nombre: 'Papelera Central', comuna: 'Quilicura', telefono: '+56 9 0000 0021', sobrePiso: 400, entregas: 2 },
+  { id: 'n-insumos-del-sur', nombre: 'Insumos del Sur', comuna: 'San Bernardo', telefono: '+56 9 0000 0022', sobrePiso: 700, entregas: 1 },
+  { id: 'n-rollos-express', nombre: 'Rollos Express', comuna: 'Renca', telefono: '+56 9 0000 0023', sobrePiso: 1100, entregas: 0 },
+] as const;
+
+const competidores: Negocio[] = COMPETIDORES_SALA.map(({ id, nombre, comuna, telefono }) => ({ id, nombre, comuna, rol: 'proveedor', telefono }));
+
 const negocios: Negocio[] = [
   { id: PROVEEDOR_DEMO, nombre: 'Panificadora Ñuble', comuna: 'San Miguel', rol: 'proveedor', telefono: '+56 9 0000 0001' },
   { id: 'n-molinos-del-sur', nombre: 'Molinos del Sur', comuna: 'Puente Alto', rol: 'proveedor', telefono: '+56 9 0000 0002' },
@@ -31,6 +44,9 @@ const historial: [string, EventoReputacion['tipo'], number][] = [
   [PROVEEDOR_DEMO, 'entrega_conforme', 3],
   ['n-molinos-del-sur', 'entrega_conforme', 2],
   ['n-harinas-andes', 'entrega_conforme', 1],
+  // Compra conjunta: el proveedor real con mejor nota que sus competidores.
+  [PROVEEDOR_SALA, 'entrega_conforme', 4],
+  ...COMPETIDORES_SALA.map(c => [c.id, 'entrega_conforme', c.entregas] as [string, EventoReputacion['tipo'], number]),
 ];
 
 const MINUTO = 60_000;
@@ -62,7 +78,7 @@ export function licitacionDemo(ahora: Date, c: ConfigDemo = configDemo()): Licit
 export async function sembrar(repo: Repositorio, ahora = new Date(), env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const c = configDemo(env);
   const en = ahora.toISOString();
-  for (const n of negocios) await repo.guardar('negocios', n);
+  for (const n of [...negocios, ...competidores]) await repo.guardar('negocios', n);
   await repo.guardar('negocios', proveedorSala(c));
   let i = 0;
   for (const [proveedorId, tipo, veces] of historial) {
@@ -80,8 +96,8 @@ export async function sembrarSiVacio(repo: Repositorio, ahora = new Date(), env:
 }
 
 /**
- * Aplica lo que viene por entorno sobre una base ya sembrada: el teléfono del comprador de demo y el
- * proveedor real de la sala (lo crea si falta, p. ej. en una base sembrada antes de existir).
+ * Aplica lo que viene por entorno sobre una base ya sembrada: el teléfono del comprador de demo, el
+ * proveedor real de la sala y sus competidores (los crea si faltan, p. ej. en una base sembrada antes de existir).
  */
 export async function aplicarDatosDemo(repo: Repositorio, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const { negocios: actuales } = await repo.cargar();
@@ -89,6 +105,7 @@ export async function aplicarDatosDemo(repo: Repositorio, env: NodeJS.ProcessEnv
   if (comprador && env.DEMO_TELEFONO_COMPRADOR && env.DEMO_TELEFONO_COMPRADOR !== comprador.telefono) {
     await repo.guardar('negocios', { ...comprador, telefono: env.DEMO_TELEFONO_COMPRADOR });
   }
+  for (const c of competidores) if (!actuales.some(n => n.id === c.id)) await repo.guardar('negocios', c);
   const deseado = proveedorSala(configDemo(env));
   const actual = actuales.find(n => n.id === PROVEEDOR_SALA);
   if (!actual || JSON.stringify(actual) !== JSON.stringify(deseado)) await repo.guardar('negocios', deseado);

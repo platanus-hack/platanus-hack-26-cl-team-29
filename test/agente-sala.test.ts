@@ -115,6 +115,23 @@ test('cascada: bajas seguidas salen como una sola difusión y nadie recibe dos e
   assert.ok(segunda.en - primera.en >= 145, `separación ${segunda.en - primera.en} ms`);
 });
 
+test('cascada con proveedores que compiten: la difusión dice quién ofertó y quién respondió', async t => {
+  const { red, agente, escribir, enviados } = montar();
+  t.after(() => agente.desconectar());
+  await escribir('56933333001', 'Negocio Uno, 10'); // 10: baja a 29.900 por tramo
+  await esperar(60);
+  const oferta = (proveedorNombre: string, precioUnitario: number, mejor = true) => red.emitir('licitacion.oferta', {
+    licitacionId: 'L-sala', oferta: { proveedorId: 'p', proveedorNombre, precioUnitario, nota: 4.6, en: '' }, mejor,
+  });
+  oferta('Papelera Central', 26800);
+  oferta('Rollos Express', 26900, false); // no mejoró: no se cuenta
+  oferta('Insumos del Sur', 26700);
+  red.emitir('licitacion.precio_bajo', { licitacionId: 'L-sala', precioAnterior: 29900, precioNuevo: 26700, totalUnidades: 10 });
+  await esperar(250);
+  const mensajes = enviados.filter(e => e.to === '56933333001').map(e => e.body);
+  assert.equal(mensajes.at(-1), 'Papelera Central ofertó $26.800. Insumos del Sur respondió $26.700. Ya van en $26.700 por caja.');
+});
+
 test('cierre: factura solo con el sí del proveedor, una vez, y cada comprador recibe su folio', async t => {
   const { red, agente, escribir, ultimo, de } = montar();
   t.after(() => agente.desconectar());

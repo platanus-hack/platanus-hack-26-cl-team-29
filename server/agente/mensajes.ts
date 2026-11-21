@@ -147,8 +147,15 @@ export const unidoSala = (nombre: string, cantidad: number, l: LicitacionSala, a
 export const estadoParticipante = (nombre: string, cantidad: number, l: LicitacionSala) =>
   `${nombre} va con ${cantidad} ${unidadDe(l, cantidad)}. ${precioYFaltante(l)} Para cambiar la cantidad, escribe el número.`;
 
-export const bajoPrecio = (precio: number, l: LicitacionSala) =>
-  `¡Bajó a ${dinero(precio)} por ${l.unidad}! Ya son ${negociosTexto(l.participantes.length)}.`;
+/** Una oferta de un proveedor que compite por la compra conjunta. */
+export interface OfertaSala { readonly proveedorNombre: string; readonly precioUnitario: number }
+
+/** Sin ofertas, la baja es por tramo; con ofertas, cuenta por qué bajó: "X ofertó $P. Y respondió $Q. Ya van en $Q por caja." */
+export function bajoPrecio(precio: number, l: LicitacionSala, ofertas: readonly OfertaSala[] = []): string {
+  if (ofertas.length === 0) return `¡Bajó a ${dinero(precio)} por ${l.unidad}! Ya son ${negociosTexto(l.participantes.length)}.`;
+  const porque = ofertas.map((o, k) => `${o.proveedorNombre} ${k === 0 ? 'ofertó' : 'respondió'} ${dinero(o.precioUnitario)}.`).join(' ');
+  return `${porque} Ya van en ${dinero(precio)} por ${l.unidad}.`;
+}
 
 export function cierreAlProveedor(r: { negocios: number; unidades: number; precio: number; total: number }, l: LicitacionSala): string {
   return `Cerró la compra conjunta: ${negociosTexto(r.negocios)}, ${r.unidades} ${unidadDe(l, r.unidades)} a ${dinero(r.precio)}. `

@@ -17,6 +17,10 @@ export interface ConfigDemo {
   minutos: number;
   /** Número de WhatsApp de la demo, solo dígitos (para el QR y el enlace wa.me). */
   whatsappNumero: string | null;
+  /** Precio mínimo oculto del proveedor real cuando compite (DEMO_PRECIO_PISO). */
+  precioPiso: number;
+  /** Proveedores ficticios compiten en vivo contra el real (DEMO_COMPETENCIA=0 lo apaga). */
+  competencia: boolean;
 }
 
 /** Cantidad máxima por participante en la compra conjunta. */
@@ -69,5 +73,7 @@ export function configDemo(env: NodeJS.ProcessEnv = process.env): ConfigDemo {
     tramos,
     minutos: positivo(env.DEMO_MINUTOS, 5),
     whatsappNumero: env.DEMO_WHATSAPP_NUMERO?.replace(/\D/g, '') || null,
+    precioPiso: positivo(env.DEMO_PRECIO_PISO, 23900),
+    competencia: env.DEMO_COMPETENCIA?.trim() !== '0',
   };
 }
