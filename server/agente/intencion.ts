@@ -3,7 +3,8 @@
 import type { Catalogo, DatosCanasta } from './canasta.ts';
 
 export type Intencion =
-  | { readonly tipo: 'pedir'; readonly producto: string; readonly cantidad: number }
+  /** `proveedor`: el nombre que dijo la persona, si eligió uno; si no, el agente elige el mejor. */
+  | { readonly tipo: 'pedir'; readonly producto: string; readonly cantidad: number; readonly proveedor?: string }
   | { readonly tipo: 'si' }
   | { readonly tipo: 'no' }
   | { readonly tipo: 'conforme' }

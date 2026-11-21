@@ -25,6 +25,7 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaToolUnion[] = [
     input_schema: objeto({
       producto: { type: 'string', description: 'Producto con su unidad, en plural si corresponde. Ej: "sacos de harina".' },
       cantidad: { type: 'integer', description: 'Cantidad pedida, mayor que cero.' },
+      proveedor: { type: 'string', description: 'Nombre del proveedor, solo si la persona eligió uno. Ej: "Molinos del Sur". Si no lo dijo, se omite y el sistema elige el mejor evaluado.' },
     }, ['producto', 'cantidad']),
     strict: true,
   },
@@ -158,12 +159,15 @@ export function crearInterpreteClaude(apiKey: string, model: string): Interprete
 }
 
 export function deHerramienta(nombre: string, input: unknown): Intencion {
-  const datos = (input ?? {}) as { producto?: unknown; cantidad?: unknown };
+  const datos = (input ?? {}) as { producto?: unknown; cantidad?: unknown; proveedor?: unknown };
   const cantidad = Number(datos.cantidad);
   switch (nombre) {
     case 'proponer_pedido':
       return typeof datos.producto === 'string' && cantidad > 0
-        ? { tipo: 'pedir', producto: datos.producto, cantidad }
+        ? {
+          tipo: 'pedir', producto: datos.producto, cantidad,
+          ...(typeof datos.proveedor === 'string' && datos.proveedor.trim() ? { proveedor: datos.proveedor.trim() } : {}),
+        }
         : { tipo: 'otro' };
     case 'reportar_faltante':
       return cantidad > 0 ? { tipo: 'faltante', cantidad } : { tipo: 'otro' };
