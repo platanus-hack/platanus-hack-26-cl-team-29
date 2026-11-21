@@ -82,6 +82,14 @@ test('al cerrar se crea una orden por participante al proveedor de la sala, incl
   assert.equal(eventos.at(-1)?.tipo, 'licitacion.cerrada');
   assert.equal(red.licitacionAbierta(), null);
   await assert.rejects(red.unirseALicitacion('L-1', { nombre: 'Tarde', cantidad: 1 }), { codigo: 'transicion_invalida' });
+
+  // Cerrar dos veces (agente al llegar cierraEn y proveedor a la vez) no crea órdenes nuevas ni eventos.
+  const antes = eventos.length;
+  const [otra, mismas] = await Promise.all([red.cerrarLicitacion('L-1'), red.cerrarLicitacion('L-1')]);
+  assert.deepEqual(otra.map(o => o.id), ordenes.map(o => o.id));
+  assert.deepEqual(mismas.map(o => o.id), ordenes.map(o => o.id));
+  assert.equal(red.estadoDeLaRed().ordenes.length, 3);
+  assert.equal(eventos.length, antes);
 });
 
 test('el sí del proveedor confirma todo y emite todas las facturas en un solo envío', async () => {

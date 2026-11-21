@@ -89,6 +89,7 @@ export interface Red {
    * Cierra y crea una orden por participante (`enviada`), al proveedor de la compra conjunta y al precio
    * del tramo alcanzado. Al público sin negocio le crea un negocio comprador. Sin proveedor fijo
    * (licitación antigua), gana la mejor oferta ajustada y solo compran los negocios.
+   * Idempotente: si ya cerró, devuelve las mismas órdenes.
    */
   cerrarLicitacion(licitacionId: string): Promise<OrdenCompra[]>;
   /**
@@ -429,8 +430,12 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
   // Compra conjunta: una orden por participante al proveedor único, al precio del tramo alcanzado.
   // Sin proveedor fijo (licitación antigua): gana el menor precio ajustado por nota y plazo, y solo
   // compran los negocios participantes.
+  // Idempotente: cerrar una que ya cerró (p. ej. el agente al llegar `cierraEn` y el proveedor a la vez)
+  // devuelve las órdenes ya creadas, sin crear otras ni emitir eventos.
   function cerrarLicitacion(licitacionId: string) {
     return enFila(licitacionId, async () => {
+      const yaCerrada = datos.licitaciones.find(x => x.id === licitacionId && x.estado === 'cerrada');
+      if (yaCerrada) return structuredClone(datos.ordenes.filter(o => yaCerrada.ordenIds?.includes(o.id)));
       const l = licitacionEnCurso(licitacionId);
       const compras: { participante: Participante; proveedorId: string; precioUnitario: number }[] = [];
       if (l.proveedorId) {
