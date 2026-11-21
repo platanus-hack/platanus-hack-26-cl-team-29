@@ -34,8 +34,12 @@ export interface OpcionesSiiReal {
 
 /** Estados de QueryEstUp en que el SII todavía no termina de procesar el sobre. */
 const EN_PROCESO = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD', 'LSO']);
-const ESPERA_SEGUIMIENTO_MS = 10_000;
-const INTENTOS_SEGUIMIENTO = 30;
+/**
+ * Espera antes de cada consulta de QueryEstUp: corta al principio, cuando el SII suele terminar (un sobre
+ * chico sale `EPR` en ~10 s), y más larga después para no insistir. Un sobre por lote, así que son pocas
+ * consultas: unas 6 en el primer medio minuto y luego cada 10 s, hasta ~5 minutos en total.
+ */
+export const ESPERAS_SEGUIMIENTO_MS: readonly number[] = [2_000, 3_000, 3_000, 4_000, 5_000, 8_000, ...Array<number>(26).fill(10_000)];
 /** Con un folio en estos estados no se toma otro para la misma orden y tipo: el documento ya existe o pudo llegar. */
 const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'incierto', 'recibido', 'aceptado', 'reparo', 'no_recibido', 'no_coincide'];
 const NOMBRE: Record<number, string> = { 33: 'factura 33', 52: 'guía 52', 61: 'nota de crédito 61' };
@@ -235,8 +239,9 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
     const [primero] = registros;
     if (!primero) return;
     const folios = registros.map(r => r.folio).join(', ');
-    for (let intento = 1; intento <= INTENTOS_SEGUIMIENTO; intento++) {
-      await esperar(ESPERA_SEGUIMIENTO_MS);
+    for (const [i, espera] of ESPERAS_SEGUIMIENTO_MS.entries()) {
+      const intento = i + 1;
+      await esperar(espera);
       const estado = await sii.estadoEnvio(primero.trackId);
       log.info(`[sii] envío ${primero.trackId} (tipo ${primero.tipo} folios ${folios}) intento ${intento}: ${estado.codigo} ${estado.glosa ?? ''}`);
       if (EN_PROCESO.has(estado.codigo) || /^-\d+$/.test(estado.codigo)) continue;
@@ -253,7 +258,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
       (veredicto === 'rechazado' ? log.error : log.info)(`[sii] tipo ${primero.tipo} folios ${folios}: ${veredicto}. Respuesta:\n${estado.respuesta}`);
       return;
     }
-    log.warn(`[sii] envío ${primero.trackId}: sin veredicto tras ${INTENTOS_SEGUIMIENTO} consultas`);
+    log.warn(`[sii] envío ${primero.trackId}: sin veredicto tras ${ESPERAS_SEGUIMIENTO_MS.length} consultas`);
   }
 
   return {
