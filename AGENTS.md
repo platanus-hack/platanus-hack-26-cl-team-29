@@ -33,6 +33,7 @@ Para avanzar rápido, cada persona corre tantos agentes en paralelo como pueda. 
 - **Contrato antes que código.** Los nombres, eventos y rutas entre partes están en `docs/decisiones/` (ver el contrato de la red). Si un agente necesita cambiarlo, lo cambia ahí en su PR y lo avisa en `Pedidos a otros`.
 - **Implementaciones falsas para no esperar.** Toda dependencia lenta o con credenciales (SII, WhatsApp, Claude) tiene una implementación falsa que se activa sin variables de entorno, así nadie queda bloqueado.
 - **PR chico y seguido.** Draft apenas parte, mergeado apenas pasa `npm run build` y `npm test`. Mejor cinco PR de una hora que uno de cinco horas.
+- **Nunca `git stash`.** La pila de stash es una sola para todos los worktrees: un `stash pop` de un agente puede sacar el stash de otro. Para dejar trabajo de lado, usa un commit temporal en tu rama.
 - **Al terminar, se limpia:** worktree y rama local se borran después del merge.
 
 ## Documenta todo
