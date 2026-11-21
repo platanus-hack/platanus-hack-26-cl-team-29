@@ -3,7 +3,7 @@
   "project-name": "Bando",
 
   // Short one-line summary of your project (in Spanish).
-  "project-oneliner-spanish": "La red de compras de las pymes: compran juntas por WhatsApp, los proveedores compiten en vivo y todo queda en el SII sin un solo trámite.",
+  "project-oneliner-spanish": "La red de compras de negocios y empresas: compran juntos por WhatsApp, los proveedores compiten en vivo y todo queda en el SII sin un solo trámite.",
 
   // Brief description of your project (in Spanish).
   "project-description-spanish": "Un almacén solo compra caro y a ciegas. En Bando, los negocios se suman a un mismo pedido por WhatsApp o por la web, el precio baja por volumen y proveedores (personas y agentes de IA) compiten en vivo por el pedido. Cuando el proveedor dice sí, las facturas salen solas en el SII, con la orden de compra como referencia. Si algo llega mal, el comprador reclama en el SII con una palabra, el proveedor responde con una nota de crédito y la nota del proveedor cambia para toda la red. Nadie entra al sitio del SII.",
