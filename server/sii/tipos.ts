@@ -82,6 +82,53 @@ export interface DocumentoEmitido {
   readonly montoNeto: number;
   readonly iva: number;
   readonly montoTotal: number;
+  /** Lo necesario para la representación impresa (PDF), con el TED exacto del documento. */
+  readonly impreso: DocumentoImpreso;
+}
+
+export interface LineaImpresa {
+  readonly nombre: string;
+  readonly cantidad: number;
+  readonly unidad?: string;
+  readonly precioUnitario: number;
+  readonly monto: number;
+}
+
+export interface ReferenciaImpresa {
+  /** 801 orden de compra, 33 factura, 52 guía de despacho. */
+  readonly tipoDocumento: number | string;
+  readonly folio: string;
+  readonly fecha: string;
+  /** `CodRef`: 1 anula, 2 corrige texto, 3 corrige montos. */
+  readonly codigo?: number;
+  readonly razon?: string;
+}
+
+/**
+ * Datos de la representación impresa de un DTE: solo JSON, para guardarlos junto al documento y volver a
+ * dibujar el PDF cuando se pida. `ted` es el `<TED>` tal cual va en el XML; el PDF417 codifica esos bytes.
+ */
+export interface DocumentoImpreso {
+  readonly tipo: 33 | 52 | 61;
+  readonly folio: number;
+  readonly fechaEmision: string;
+  readonly emisor: Emisor;
+  readonly receptor: Receptor;
+  readonly lineas: readonly LineaImpresa[];
+  readonly referencias: readonly ReferenciaImpresa[];
+  readonly neto: number;
+  readonly tasaIva: number;
+  readonly iva: number;
+  readonly total: number;
+  /** Solo guía (52): `IndTraslado`. */
+  readonly indTraslado?: number;
+  readonly ted: string;
+  /** Resolución que autoriza al emisor; en certificación el número es 0. */
+  readonly resolucion: { readonly numero: number; readonly fecha: string };
+  /** Unidad del SII del emisor (por defecto SANTIAGO). */
+  readonly oficinaSii?: string;
+  /** Lo emitió la implementación falsa: el timbre no vale ante el SII. */
+  readonly simulado: boolean;
 }
 
 /**

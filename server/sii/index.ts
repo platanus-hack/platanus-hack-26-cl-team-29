@@ -2,7 +2,7 @@
 import { Autenticador } from './autenticacion.ts';
 import { leerCaf, type Caf } from './caf.ts';
 import { abrirCertificado } from './certificado.ts';
-import { aDte, armarDte, type EntradaDte } from './dte.ts';
+import { aDte, armarDte, datosImpresos, type EntradaDte } from './dte.ts';
 import { subirSobre } from './envio.ts';
 import { estadoDocumento, estadoEnvio } from './estado.ts';
 import { crearSiiFalso } from './falso.ts';
@@ -31,6 +31,8 @@ export { ErrorSii } from './soap.ts';
 export { abrirCertificado, type Certificado } from './certificado.ts';
 export { leerCaf, primerDiaVencido, type Caf } from './caf.ts';
 export { normalizarRut } from './texto.ts';
+export { crearSiiFalso as crearSiiEnMemoria } from './falso.ts';
+export { generarPdf, nombreDelTipo, opcionesTimbre } from './pdf.ts';
 export type { Http } from './soap.ts';
 
 /**
@@ -129,7 +131,13 @@ function crearSiiCertificacion(env: NodeJS.ProcessEnv, http: Http): Sii {
       ahora,
     });
     const envio = await subirSobre(http, autenticador, { sobreXml, rutEmisor: emisor.rut, rutEnvia: certificado.rut });
-    return { documentos: dtes.map(d => d.documento), envio, sobreXml };
+    const resolucion = { numero: 0, fecha: env.SII_FCH_RESOL ?? '' };
+    const oficinaSii = env.SII_OFICINA || undefined;
+    const documentos = dtes.map((dte, i) => ({
+      ...dte.documento,
+      impreso: datosImpresos({ ...entradas[i]!, emisor }, { ted: dte.ted, resolucion, simulado: false, oficinaSii }),
+    }));
+    return { documentos, envio, sobreXml };
   }
 
   /** Un documento por sobre: así un rechazo o un corte afecta a un solo folio. */

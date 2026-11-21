@@ -2,12 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 import { precioPorVolumen, precioVigente, preciosVigentes, productoDe, unidadesDe, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
+import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
 import { RUBROS } from './tipos.ts';
 import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
-import type { PuertoSii } from './sii.ts';
+import type { DocumentoImpreso } from '../sii/index.ts';
+import type { PuertoSii, ResultadoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
 import type {
   Coleccion, DatosRed, Documento, EstadoOrden, EstadoRed, EventoRed, Item, ItemCarrito, Licitacion, LicitacionVista, Negocio,
@@ -164,6 +166,16 @@ export interface Red {
   negocioPorId(id: string): Negocio | null;
   /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
   actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string): Promise<Documento | null>;
+  /**
+   * Solo interno: el documento y su representación impresa (con RUT y TED) para dibujar el PDF, o null si no
+   * existe o se emitió sin ella. Nunca va en respuestas JSON ni eventos.
+   */
+  impresoDeDocumento(documentoId: string): { documento: Documento; impreso: DocumentoImpreso } | null;
+  /**
+   * Enlace privado (absoluto con PUBLIC_URL) al PDF del documento, o null si no tiene representación impresa.
+   * Lo usan el agente de WhatsApp y la web (`pdfUrl`). Solo para el dueño del documento: nunca en datos públicos.
+   */
+  enlacePdf(documento: Pick<Documento, 'id'>): string | null;
   /** Borra órdenes, documentos y eventos y vuelve a sembrar la demo. No toca los folios del SII. Devuelve la foto pública. */
   reiniciarDemo(): Promise<EstadoPublico>;
   /** Se llama con cada `red:evento`; devuelve la función para dejar de escuchar. */
@@ -226,6 +238,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
   const oyentes = new Set<(evento: EventoRed) => void>();
   const enCurso = new Set<string>();
   const ahora = () => reloj().toISOString();
+  datos.impresos ??= [];
 
   // Los eventos van a todas las pantallas: salen sin teléfonos.
   function emitir(tipo: TipoEventoRed, payload: unknown) {
@@ -295,8 +308,10 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
     if (nota !== anterior) emitir('nota.cambiada', { proveedorId, anterior, nota });
   }
 
-  async function guardarDocumento(ordenId: string, tipo: TipoDocumento, monto: number, r: { folio: number; trackId: string; estadoSii: string }) {
+  async function guardarDocumento(ordenId: string, tipo: TipoDocumento, monto: number, r: ResultadoSii) {
     const doc: Documento = { id: randomUUID(), ordenId, tipo, folio: r.folio, trackId: r.trackId, estadoSii: r.estadoSii, monto, emitidoEn: ahora() };
+    // Antes que el documento: quien reciba `documento.emitido` ya puede pedir su PDF.
+    if (r.impreso) await guardar('impresos', { id: doc.id, impreso: r.impreso });
     await guardar('documentos', doc);
     emitir('documento.emitido', { documento: doc });
     return doc;
@@ -750,6 +765,16 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
     return n ? structuredClone(n) : null;
   }
 
+  function impresoDeDocumento(documentoId: string) {
+    const documento = datos.documentos.find(d => d.id === documentoId);
+    const impreso = datos.impresos.find(i => i.id === documentoId)?.impreso;
+    return documento && impreso ? structuredClone({ documento, impreso }) : null;
+  }
+
+  function enlaceAlPdf(documento: Pick<Documento, 'id'>) {
+    return datos.impresos.some(i => i.id === documento.id) ? enlacePdf(documento, env) : null;
+  }
+
   function negocioPorId(id: string) {
     const n = datos.negocios.find(x => x.id === id);
     return n ? structuredClone(n) : null;
@@ -762,6 +787,8 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
   return {
     telefonoDeNegocio,
     negocioPorId,
+    impresoDeDocumento,
+    enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
     unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {

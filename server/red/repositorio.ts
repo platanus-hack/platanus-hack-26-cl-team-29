@@ -9,10 +9,10 @@ export interface Repositorio {
   vaciar(): Promise<void>;
 }
 
-const COLECCIONES: Coleccion[] = ['negocios', 'ordenes', 'documentos', 'eventosReputacion', 'licitaciones'];
+const COLECCIONES: Coleccion[] = ['negocios', 'ordenes', 'documentos', 'eventosReputacion', 'licitaciones', 'impresos'];
 
 function datosVacios(): DatosRed {
-  return { negocios: [], ordenes: [], documentos: [], eventosReputacion: [], licitaciones: [] };
+  return { negocios: [], ordenes: [], documentos: [], eventosReputacion: [], licitaciones: [], impresos: [] };
 }
 
 /** Para tests y para cuando no hay DATABASE_URL: se pierde al reiniciar. */

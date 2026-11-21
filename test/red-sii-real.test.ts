@@ -74,8 +74,9 @@ test('un envío incierto no se reenvía ni toma otro folio, y se revisa con Quer
     ...sii,
     emitirFactura: async e => ({ ...(await sii.emitirFactura(e)), envio: { estado: 'incierto', error: 'ECONNRESET' } }),
   }, folios);
-  const r = await conCorte.emitirFactura(datos('OC-1'));
+  const { impreso, ...r } = await conCorte.emitirFactura(datos('OC-1'));
   assert.deepEqual(r, { folio: 10, trackId: '', estadoSii: 'incierto' });
+  assert.equal(impreso?.folio, 10, 'el documento se armó: trae su representación impresa');
 
   // Otro intento para la misma orden (por ejemplo tras un reinicio) no sube nada ni gasta un folio.
   assert.deepEqual(await adaptador(sii, folios).emitirFactura(datos('OC-1')), r);

@@ -3,6 +3,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { configDemo } from './config-demo.ts';
 import { ErrorRed } from './dominio.ts';
 import type { CodigoError, Recepcion, Red } from './dominio.ts';
+import { generarPdf } from '../sii/index.ts';
+import { nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import { crearRutasWeb } from './rutas-web.ts';
 import { crearLimitador, crearSesiones, mismoSecreto } from './sesiones.ts';
@@ -53,6 +55,24 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
 
   rutas.get('/estado', (_req, res) => {
     res.json(red.estadoPublico());
+  });
+
+  // PDF de un documento por su enlace privado (`enlacePdf`). Sin token válido, 404: no se distingue un
+  // documento inexistente de uno ajeno.
+  rutas.get('/documentos/:id/pdf', async (req, res) => {
+    const encontrado = tokenPdfValido(id(req), req.query.t, env) ? red.impresoDeDocumento(id(req)) : null;
+    if (!encontrado) {
+      res.status(404).json({ error: 'no_encontrado', mensaje: 'Documento no encontrado' });
+      return;
+    }
+    const pdf = await generarPdf(encontrado.impreso);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${nombreArchivoPdf(encontrado.documento)}"`,
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex',
+    });
+    res.send(pdf);
   });
 
   rutas.get('/config', (_req, res) => {
