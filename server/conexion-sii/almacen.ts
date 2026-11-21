@@ -37,7 +37,14 @@ export interface ConexionGuardada {
   empresa?: Empresa;
   /** Datos de la empresa leídos del portal del SII o escritos por el proveedor. */
   origenEmpresa?: 'sii' | 'manual';
-  resolucion?: { fecha: string; numero: number };
+  resolucion?: {
+    fecha: string;
+    numero: number;
+    /** Leída del portal del SII o escrita por el proveedor. */
+    origen?: 'sii' | 'manual';
+    /** El SII rechazó la carátula de un envío con esta resolución (RCT): no se emite con ella hasta corregirla. */
+    rechazadaEn?: string;
+  };
   cafs: Partial<Record<`${TipoCaf}`, CafGuardado>>;
   actualizadoEn: string;
 }

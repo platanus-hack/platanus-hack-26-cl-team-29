@@ -1,16 +1,21 @@
-// "Conectar mi SII" en el panel del proveedor: certificado, datos de la empresa y CAF. Tres pasos en la misma página,
-// cada uno resumido en una línea cuando ya está listo. El certificado y su clave solo viajan al subirlos: no quedan en
+// "Conectar mi SII" en el panel del proveedor: el proveedor sube su certificado y el RUT de su empresa, y el servidor
+// trae solo del SII los datos de la empresa, la resolución y los CAF. Lo que el SII no entregue se completa a mano en
+// los pasos de abajo, cada uno resumido en una línea cuando ya está listo. El certificado y su clave solo viajan al subirlos: no quedan en
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { contar } from '../red/formato.ts';
 import type { CanalApi } from './api.ts';
 import { LogoSii } from './iconos.tsx';
-import type { CafSii, ConexionSii, DatosEmpresaSii } from './tipos.ts';
+import type { CafSii, ConexionSii, DatosEmpresaSii, PasoSii } from './tipos.ts';
 
 const NOMBRE_CAF: Record<CafSii['tipo'], string> = { 33: 'Factura', 52: 'Guía de despacho', 61: 'Nota de crédito' };
 const TIPOS: CafSii['tipo'][] = [33, 52, 61];
 const POLEO_MS = 1500;
+const NOMBRE_PASO: Record<PasoSii['id'], string> = {
+  empresa: 'Datos de la empresa', resolucion: 'Resolución', caf_33: 'Folios de factura', caf_52: 'Folios de guía', caf_61: 'Folios de nota de crédito',
+};
+const ESTADO_PASO: Record<PasoSii['estado'], string> = { pendiente: 'En espera', en_curso: 'Consultando...', listo: 'Listo', omitido: 'Sin cambios', error: 'Falta' };
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : 'No pudimos completarlo. Inténtalo de nuevo.');
 const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' }) : '');
@@ -48,8 +53,8 @@ export function ConectarSii({ api, token }: Props) {
 
   useEffect(() => { void recargar(); }, [recargar]);
 
-  // Mientras se busca el primer folio libre de algún CAF, se consulta el avance.
-  const buscando = !!estado?.cafs.some(c => c.escaneando);
+  // Mientras la conexión automática corre o se busca el primer folio libre de algún CAF, se consulta el avance.
+  const buscando = !!estado?.automatico?.activo || !!estado?.cafs.some(c => c.escaneando);
   useEffect(() => {
     if (!buscando) return;
     const t = setInterval(() => { void recargar(); }, POLEO_MS);
@@ -76,7 +81,7 @@ export function ConectarSii({ api, token }: Props) {
         <>
           <h2 className="cn-producto cn-con-icono"><LogoSii tam={28} /><span>Conectar mi SII</span></h2>
           <p className="mono tenue cn-texto">
-            Sube tu certificado digital, revisa los datos de tu empresa y sube tus folios (CAF). Así tus facturas, guías y notas de crédito salen a tu nombre.
+            Sube tu certificado digital y el RUT de tu empresa. Traemos del SII tus datos y tus folios (CAF), sin anular nada. Así tus facturas, guías y notas de crédito salen a tu nombre.
             {estado.respaldoVariables && ' Mientras no termines, la red usa el SII configurado en el servidor.'}
           </p>
         </>
@@ -99,7 +104,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
   const [desconectando, setDesconectando] = useState(false);
   const [error, setError] = useState('');
   const pasoCert = !estado.titular || editar === 'certificado';
-  const pasoEmpresa = !pasoCert && (!estado.empresa || !estado.resolucion || editar === 'empresa');
+  const pasoEmpresa = !pasoCert && !estado.automatico?.activo && (!estado.empresa || !estado.resolucion || estado.resolucion.rechazada || editar === 'empresa');
   const hecho = (e: ConexionSii) => { alCambiar(e); setEditar(null); };
 
   const desconectar = async () => {
@@ -125,6 +130,8 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
         )}
       </article>
 
+      {!pasoCert && estado.automatico && <Automatico api={api} token={token} estado={estado} alCambiar={alCambiar} />}
+
       {!pasoCert && (
         <article className="cn-paso">
           <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 2 · Tu empresa</p>
@@ -141,7 +148,7 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Co
         <article className="cn-paso">
           <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 3 · Folios (CAF)</p>
           <p className="mono tenue cn-texto">
-            Sube el XML de cada CAF que descargaste del SII. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
+            Los traemos solos del SII. Si falta alguno, sube el XML del CAF. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
           </p>
           {TIPOS.map(tipo => (
             <FilaCaf key={tipo} api={api} token={token} tipo={tipo} caf={estado.cafs.find(c => c.tipo === tipo)} alCambiar={alCambiar} />
@@ -182,6 +189,7 @@ function Resumen({ texto, onCambiar }: { texto: string; onCambiar: () => void })
 function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo: (e: ConexionSii) => void; onCancelar?: () => void }) {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [clave, setClave] = useState('');
+  const [rut, setRut] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const enviar = async (e: FormEvent) => {
@@ -191,7 +199,7 @@ function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo:
     setEnviando(true);
     setError('');
     try {
-      const estado = await api.siiCertificado(token, await leerBase64(archivo), clave);
+      const estado = await api.siiCertificado(token, await leerBase64(archivo), clave, rut.trim());
       setClave('');
       alListo(estado);
     } catch (err) {
@@ -209,9 +217,14 @@ function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo:
         <span className="etiqueta">Clave del certificado</span>
         <input type="password" value={clave} onChange={e => setClave(e.target.value)} autoComplete="off" />
       </label>
+      <label className="campo">
+        <span className="etiqueta">RUT de tu empresa</span>
+        <input value={rut} onChange={e => setRut(e.target.value)} placeholder="76123456-7" autoCapitalize="characters" maxLength={12} />
+      </label>
+      <p className="mono tenue cn-nota-pie">Si lo dejas vacío, usamos el RUT del titular del certificado.</p>
       <p className="mono tenue cn-nota-pie">Lo guardamos cifrado y solo lo usamos para hablar con el SII. Nunca se muestra de vuelta.</p>
       {error && <p className="error">{error}</p>}
-      <button className="boton" disabled={enviando}>{enviando ? 'Revisando certificado...' : 'Subir certificado'}</button>
+      <button className="boton" disabled={enviando}>{enviando ? 'Revisando certificado...' : 'Conectar con el SII'}</button>
       {onCancelar && <button type="button" className="cn-boton-texto" onClick={onCancelar}>Volver</button>}
     </form>
   );
@@ -306,8 +319,11 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
         </label>
       </div>
       <p className="mono tenue cn-nota-pie">
-        La fecha está en el portal de certificación del SII (maullin), en los datos de tu empresa como emisor electrónico. En certificación el número es 0.
+        Si no la trajimos del SII: en el menú de certificación del SII, "Actualizar datos de empresa y usuarios (Nuevo)", campo Fecha de resolución. En certificación el número es 0.
       </p>
+      {estado.resolucion?.rechazada && (
+        <p className="error">El SII rechazó la carátula de un envío (RCT) con esta resolución. Revisa la fecha y guárdala: hasta entonces no emitimos con ella.</p>
+      )}
       {error && <p className="error">{error}</p>}
       <button className="boton" disabled={enviando}>{enviando ? 'Guardando...' : 'Guardar mi empresa'}</button>
       {onCancelar && <button type="button" className="cn-boton-texto" onClick={onCancelar}>Volver</button>}
@@ -390,5 +406,37 @@ function FilaCaf({ api, token, tipo, caf, alCambiar }: Props & { tipo: CafSii['t
         <button type="button" className="cn-boton-texto" onClick={() => setAMano(true)}>Indicar el primer folio a mano</button>
       ))}
     </div>
+  );
+}
+
+/** Avance de la conexión automática: un paso por línea, con el texto del SII cuando algo falta. */
+function Automatico({ api, token, estado, alCambiar }: Props & { estado: ConexionSii; alCambiar: (e: ConexionSii) => void }) {
+  const [error, setError] = useState('');
+  const auto = estado.automatico!;
+  const reintentar = async () => {
+    setError('');
+    try {
+      alCambiar(await api.siiAutomatico(token, estado.rutEmisor ?? ''));
+    } catch (e) {
+      setError(mensaje(e));
+    }
+  };
+  return (
+    <article className="cn-paso" aria-live="polite">
+      <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> {auto.activo ? 'Conectando con el SII...' : 'Traído del SII'}</p>
+      {auto.pasos.map(p => (
+        <div key={p.id} className="cn-resumen">
+          <div>
+            <p className="mono">{NOMBRE_PASO[p.id]} · {ESTADO_PASO[p.estado]}</p>
+            {p.detalle && <p className={p.estado === 'error' ? 'error' : 'mono tenue cn-nota-pie'}>{p.detalle}</p>}
+            {p.mensajeSii && <p className="mono tenue cn-nota-pie">El SII dice: «{p.mensajeSii}»</p>}
+          </div>
+        </div>
+      ))}
+      {error && <p className="error">{error}</p>}
+      {!auto.activo && auto.pasos.some(p => p.estado === 'error') && (
+        <button type="button" className="boton secundario cn-ancho" onClick={() => { void reintentar(); }}><LogoSii /> Volver a traer del SII</button>
+      )}
+    </article>
   );
 }

@@ -35,7 +35,10 @@ export interface CanalApi {
   notaCredito(token: string, ordenId: string): Promise<void>;
   /** "Conectar mi SII" del proveedor. Los secretos solo viajan al subirlos; nunca vuelven. */
   siiEstado(token: string): Promise<ConexionSii>;
-  siiCertificado(token: string, pfxBase64: string, clave: string): Promise<ConexionSii>;
+  /** Sube el certificado y parte la conexión automática con el RUT de la empresa (vacío: el del titular). */
+  siiCertificado(token: string, pfxBase64: string, clave: string, rutEmisor: string): Promise<ConexionSii>;
+  /** Vuelve a correr la conexión automática. */
+  siiAutomatico(token: string, rutEmisor: string): Promise<ConexionSii>;
   siiConsultarEmpresa(token: string, rutEmisor: string): Promise<FichaSii>;
   siiGuardarEmpresa(token: string, datos: DatosEmpresaSii): Promise<ConexionSii>;
   siiCaf(token: string, xmlBase64: string): Promise<{ estado: ConexionSii; avisos: string[] }>;
@@ -126,7 +129,8 @@ export function crearApiReal(): CanalApi {
     confirmarOrden: async (token, id) => { await llamar(`/proveedor/ordenes/${encodeURIComponent(id)}/confirmar`, { token, cuerpo: { confirmado: true } }); },
     notaCredito: async (token, id) => { await llamar(`/proveedor/ordenes/${encodeURIComponent(id)}/nota-credito`, { token, cuerpo: { confirmado: true } }); },
     siiEstado: token => llamar('/proveedor/sii', { token }),
-    siiCertificado: (token, pfxBase64, clave) => llamar('/proveedor/sii/certificado', { token, cuerpo: { pfxBase64, clave } }),
+    siiCertificado: (token, pfxBase64, clave, rutEmisor) => llamar('/proveedor/sii/certificado', { token, cuerpo: { pfxBase64, clave, rutEmisor } }),
+    siiAutomatico: (token, rutEmisor) => llamar('/proveedor/sii/automatico', { token, cuerpo: { rutEmisor } }),
     siiConsultarEmpresa: (token, rutEmisor) => llamar('/proveedor/sii/empresa/consultar', { token, cuerpo: { rutEmisor } }),
     siiGuardarEmpresa: (token, datos) => llamar('/proveedor/sii/empresa', { token, cuerpo: datos, metodo: 'PUT' }),
     siiCaf: (token, xmlBase64) => llamar('/proveedor/sii/caf', { token, cuerpo: { xmlBase64 } }),

@@ -4,8 +4,8 @@
 // detiene la búsqueda con el texto del SII, para que una persona decida.
 
 /** Respuestas de QueryEstDte que dicen que el folio ya tiene un documento en el SII. */
-const USADO = new Set(['DOK', 'DNK', 'FAN', 'TMD', 'TMC', 'MMD', 'MMC', 'AND', 'ANC']);
-const LIBRE = 'FAU';
+export const FOLIO_USADO: ReadonlySet<string> = new Set(['DOK', 'DNK', 'FAN', 'TMD', 'TMC', 'MMD', 'MMC', 'AND', 'ANC']);
+export const FOLIO_LIBRE = 'FAU';
 
 export interface RespuestaFolio {
   codigo: string;
@@ -48,10 +48,10 @@ export async function buscarPrimerLibre({ desde, hasta, consultar, racha = 3, al
     if (cancelada?.()) return null;
     const r = await consultar(folio);
     alProgreso?.({ folio, revisados });
-    if (r.codigo === LIBRE) {
+    if (r.codigo === FOLIO_LIBRE) {
       inicioRacha ??= folio;
       if (++largo >= racha) return inicioRacha;
-    } else if (USADO.has(r.codigo)) {
+    } else if (FOLIO_USADO.has(r.codigo)) {
       inicioRacha = null;
       largo = 0;
     } else {

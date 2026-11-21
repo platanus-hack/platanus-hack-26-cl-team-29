@@ -113,7 +113,7 @@ export function crearSiiReal({ sii, folios, env = process.env, log = console, se
   const oyentes = new Set<(cambio: CambioEstadoSii) => void>();
   const avisar = (r: RegistroFolio) => {
     if (r.tipo !== 33 && r.tipo !== 52 && r.tipo !== 61) return;
-    const cambio: CambioEstadoSii = { tipo: r.tipo, folio: r.folio, estadoSii: resultado(r).estadoSii };
+    const cambio: CambioEstadoSii = { tipo: r.tipo, folio: r.folio, estadoSii: resultado(r).estadoSii, ...(r.detalle ? { detalle: r.detalle } : {}) };
     for (const oyente of oyentes) {
       try { oyente(cambio); } catch (error) { log.error('[sii] oyente de cambio de estado falló', error); }
     }

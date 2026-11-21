@@ -130,8 +130,19 @@ export interface ConexionSii {
   rutEmisor: string | null;
   empresa: EmpresaSii | null;
   origenEmpresa: 'sii' | 'manual' | null;
-  resolucion: { fecha: string; numero: number } | null;
+  resolucion: { fecha: string; numero: number; origen: 'sii' | 'manual'; rechazada: boolean } | null;
   cafs: CafSii[];
+  /** Conexión automática con el portal del SII: en curso o su último resultado. */
+  automatico: { activo: boolean; pasos: PasoSii[] } | null;
+  sesionPersistente: boolean;
+}
+
+export interface PasoSii {
+  id: 'empresa' | 'resolucion' | 'caf_33' | 'caf_52' | 'caf_61';
+  estado: 'pendiente' | 'en_curso' | 'listo' | 'omitido' | 'error';
+  detalle: string | null;
+  /** Texto literal del SII. */
+  mensajeSii: string | null;
 }
 
 export interface DatosEmpresaSii extends Omit<EmpresaSii, 'acteco'> {
