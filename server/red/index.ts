@@ -4,6 +4,8 @@ import type { Red } from './dominio.ts';
 import { crearRepositorioMemoria, crearRepositorioPostgres } from './repositorio.ts';
 import type { Repositorio } from './repositorio.ts';
 import { aplicarDatosDemo, sembrarSiVacio } from './semilla.ts';
+import { iniciarCompetencia } from './competencia.ts';
+import { configDemo } from './config-demo.ts';
 import { crearSiiFalso } from './sii.ts';
 import type { PuertoSii } from './sii.ts';
 import { crearSii } from '../sii/index.ts';
@@ -26,15 +28,18 @@ export { crearSiiReal } from './sii-real.ts';
 export type { SiiReal } from './sii-real.ts';
 export { crearAlmacenFoliosMemoria } from './folios.ts';
 export type { AlmacenFolios, EstadoFolio, RegistroFolio } from './folios.ts';
-export { COMPRADOR_DEMO, LICITACION_SALA, PROVEEDOR_DEMO, PROVEEDOR_SALA } from './semilla.ts';
+export { COMPETIDORES_SALA, COMPRADOR_DEMO, LICITACION_SALA, PROVEEDOR_DEMO, PROVEEDOR_SALA } from './semilla.ts';
+export { iniciarCompetencia, PASO_REAL } from './competencia.ts';
+export type { Competencia, OpcionesCompetencia } from './competencia.ts';
 export { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
 export type { ConfigDemo } from './config-demo.ts';
-export { precioPorVolumen, siguienteTramo, vistaLicitacion } from './compra.ts';
+export { precioPorVolumen, precioVigente, siguienteTramo, vistaLicitacion } from './compra.ts';
 export type * from './tipos.ts';
 
 /**
  * Arma la red para el servidor: Postgres si hay DATABASE_URL (si falla, memoria),
- * siembra la demo si está vacía y usa el SII falso salvo que se entregue otro.
+ * siembra la demo si está vacía y usa el SII falso salvo que se entregue otro. Con DEMO_COMPETENCIA
+ * distinto de 0, los proveedores ficticios compiten en vivo por la compra conjunta.
  */
 export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<Red> {
   let repo: Repositorio = crearRepositorioMemoria();
@@ -47,7 +52,9 @@ export async function iniciarRed(db: pg.Pool | null, sii?: PuertoSii): Promise<R
   }
   await sembrarSiVacio(repo);
   await aplicarDatosDemo(repo);
-  return crearRed({ repo, sii: sii ?? crearSiiFalso((await repo.cargar()).documentos) });
+  const red = await crearRed({ repo, sii: sii ?? crearSiiFalso((await repo.cargar()).documentos) });
+  if (configDemo().competencia) iniciarCompetencia(red);
+  return red;
 }
 
 /**

@@ -86,13 +86,13 @@ test('la nota de crédito de otro día no recupera la nota', async () => {
 test('estadoDeLaRed entrega la foto completa y no se puede alterar desde afuera', async () => {
   const { red } = await redDePrueba({ ahora: new Date() });
   const foto = red.estadoDeLaRed();
-  assert.equal(foto.negocios.length, 9);
+  assert.equal(foto.negocios.length, 12);
   assert.deepEqual(foto.notas, {
     [PROVEEDOR_DEMO]: 4.7, 'n-molinos-del-sur': 4.6, 'n-harinas-andes': 4.5, 'n-distribuidora-sur': 4.4,
   });
   assert.equal(foto.licitaciones[0].estado, 'abierta');
   foto.negocios.length = 0;
-  assert.equal(red.estadoDeLaRed().negocios.length, 9);
+  assert.equal(red.estadoDeLaRed().negocios.length, 12);
 });
 
 test('negocioPorTelefono encuentra el negocio aunque el número venga con otro formato', async () => {

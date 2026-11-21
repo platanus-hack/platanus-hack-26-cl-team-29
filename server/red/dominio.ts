@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { precioPorVolumen, totalUnidades, vistaLicitacion } from './compra.ts';
+import { precioPorVolumen, precioVigente, vistaLicitacion } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 import { sinTelefonos } from './publico.ts';
 import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
-import { PROVEEDOR_SALA, sembrar } from './semilla.ts';
+import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { PuertoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
 import type {
@@ -374,7 +374,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
       if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA) {
         throw new ErrorRed('datos_invalidos', `La cantidad debe ser un entero entre 1 y ${CANTIDAD_MAXIMA}`);
       }
-      const antes = precioPorVolumen(l, totalUnidades(l));
+      const antes = precioVigente(l);
       let n: Negocio | undefined;
       if (p.negocioId) n = negocio(p.negocioId, 'comprador');
       else if (p.telefono) n = await registrarComprador({ nombre: p.nombre ?? '', comuna: p.comuna, telefono: p.telefono });
@@ -413,7 +413,8 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
   function ofertar(licitacionId: string, o: NuevaOferta) {
     return enFila(licitacionId, async () => {
       const l = licitacionEnCurso(licitacionId);
-      negocio(o.proveedorId, 'proveedor');
+      const proveedor = negocio(o.proveedorId, 'proveedor');
+      const antes = precioVigente(l);
       const precioUnitario = Number(o.precioUnitario), plazoDias = Number(o.plazoDias);
       if (!(precioUnitario > 0) || !Number.isInteger(plazoDias) || plazoDias < 0) {
         throw new ErrorRed('datos_invalidos', 'La oferta necesita precio positivo y plazo en días enteros');
@@ -422,7 +423,18 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
       l.ofertas = l.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
       await guardar('licitaciones', l);
       const vista = vistaLicitacion(l);
-      emitir('licitacion.oferta', { licitacion: vista, oferta, nota: notaDeProveedor(o.proveedorId) });
+      const nota = notaDeProveedor(o.proveedorId);
+      // La mejor del momento: más barata que las demás ofertas y que el precio del tramo alcanzado.
+      const mejor = precioUnitario <= precioPorVolumen(l, vista.totalUnidades)
+        && l.ofertas.every(x => x === oferta || x.precioUnitario > precioUnitario);
+      emitir('licitacion.oferta', {
+        licitacionId: l.id, licitacion: vista, oferta: { ...oferta, proveedorNombre: proveedor.nombre, nota }, nota, mejor,
+      });
+      if (vista.precioActual < antes) {
+        emitir('licitacion.precio_bajo', {
+          licitacionId: l.id, precioAnterior: antes, precioNuevo: vista.precioActual, totalUnidades: vista.totalUnidades,
+        });
+      }
       return vista;
     });
   }
@@ -440,7 +452,7 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
       const compras: { participante: Participante; proveedorId: string; precioUnitario: number }[] = [];
       if (l.proveedorId) {
         negocio(l.proveedorId, 'proveedor');
-        const precioUnitario = precioPorVolumen(l, totalUnidades(l));
+        const precioUnitario = precioVigente(l);
         for (const p of l.participantes) compras.push({ participante: p, proveedorId: l.proveedorId, precioUnitario });
       } else {
         const candidatas = l.ofertas.map(o => {
@@ -536,8 +548,10 @@ export async function crearRed({ repo, sii, reloj = () => new Date(), env = proc
 
   function estadoDeLaRed(): EstadoRed {
     const notas: Record<string, number> = {};
-    // El ranking es la historia de proveedores ficticios: la empresa real de la sala no entra (su nota va en su panel).
-    for (const n of datos.negocios) if (n.rol === 'proveedor' && n.id !== PROVEEDOR_SALA) notas[n.id] = notaDeProveedor(n.id);
+    // El ranking es la historia de proveedores ficticios de harina: la empresa real de la sala no entra (su nota
+    // va en su panel), ni sus competidores (su nota viaja en cada `licitacion.oferta`).
+    const fuera = new Set<string>([PROVEEDOR_SALA, ...COMPETIDORES_SALA.map(c => c.id)]);
+    for (const n of datos.negocios) if (n.rol === 'proveedor' && !fuera.has(n.id)) notas[n.id] = notaDeProveedor(n.id);
     return structuredClone({
       negocios: datos.negocios, ordenes: datos.ordenes, documentos: datos.documentos, notas, licitaciones: datos.licitaciones.map(vistaLicitacion),
     });

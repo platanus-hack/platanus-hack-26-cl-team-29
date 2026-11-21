@@ -1,7 +1,8 @@
 // "La sala compra junta": el público se suma a una compra conjunta escribiendo al número de la demo.
 //   desconocido --(mensaje)--> bienvenida + "¿cómo se llama tu negocio y cuántas cajas?"
 //               --(nombre y cantidad, en uno o dos mensajes)--> se suma (sin efecto legal, no pide sí)
-//   cada baja de precio --> difusión a todos los participantes (agrupada y con freno por teléfono)
+//   cada baja de precio --> difusión a todos los participantes (agrupada y con freno por teléfono);
+//                           si bajó por ofertas de proveedores que compiten, dice quién ofertó y quién respondió
 //   cierre --> pregunta al proveedor; solo con su sí se facturan todas en el SII
 //   cada factura emitida --> el comprador recibe su folio
 import type { Interprete, DatosSala, UnidadSala } from './intencion.ts';
@@ -58,6 +59,8 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   const foliosAvisados = new Map<string, { telefono: string; en: number; folio: number }>();
   let ultimaConocida: LicitacionSala | null = null;
   let ultimaBaja: { licitacionId: string; precioNuevo: number } | null = null;
+  /** Ofertas de proveedores desde la última difusión: explican por qué bajó (las últimas 3). */
+  let ofertasRecientes: (m.OfertaSala & { licitacionId: string })[] = [];
   let timerCascada: ReturnType<typeof setTimeout> | null = null;
 
   async function abierta(): Promise<LicitacionSala | null> {
@@ -137,11 +140,14 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   async function difundirBaja() {
     timerCascada = null;
     const baja = ultimaBaja;
+    const ofertas = ofertasRecientes;
     ultimaBaja = null;
+    ofertasRecientes = [];
     if (!baja) return;
     const l = await abierta();
     if (!l || l.id !== baja.licitacionId) return; // ya cerró: la baja no importa
-    await o.envios.difundir(await telefonosDe(l), m.bajoPrecio(baja.precioNuevo, l), 'baja de precio');
+    const porque = ofertas.filter(x => x.licitacionId === l.id).slice(-3);
+    await o.envios.difundir(await telefonosDe(l), m.bajoPrecio(baja.precioNuevo, l, porque), 'baja de precio');
   }
 
   function alBajarPrecio(datos: { licitacionId: string; precioNuevo: number }) {
@@ -149,6 +155,12 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     if (timerCascada) return;
     timerCascada = setTimeout(() => { difundirBaja().catch(e => o.log.error('[sala] falló la difusión', mensajeDe(e))); }, o.ventanaCascadaMs);
     timerCascada.unref?.();
+  }
+
+  function alOfertar(datos: { licitacionId?: string; oferta?: Partial<m.OfertaSala>; mejor?: boolean }) {
+    const { licitacionId, oferta, mejor } = datos;
+    if (!mejor || !licitacionId || !oferta?.proveedorNombre || typeof oferta.precioUnitario !== 'number') return;
+    ofertasRecientes.push({ licitacionId, proveedorNombre: oferta.proveedorNombre, precioUnitario: oferta.precioUnitario });
   }
 
   // --- Cierre y facturación ---
@@ -239,12 +251,14 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     facturadas.clear();
     foliosAvisados.clear();
     ultimaBaja = null;
+    ofertasRecientes = [];
   }
 
   function alEvento(evento: EventoDeLaRed): Promise<void> | void {
     const datos = (evento.datos ?? {}) as Record<string, unknown>;
     switch (evento.tipo) {
       case 'licitacion.precio_bajo': return alBajarPrecio(datos as { licitacionId: string; precioNuevo: number });
+      case 'licitacion.oferta': return alOfertar(datos as { licitacionId?: string; oferta?: m.OfertaSala; mejor?: boolean });
       case 'licitacion.cerrada': return alCerrar(datos as { licitacion: LicitacionSala; ordenes?: OrdenCompra[] });
       case 'documento.emitido': return alEmitirDocumento(datos.documento as Documento);
       case 'documento.actualizado': return alActualizarDocumento(datos.documento as Documento);

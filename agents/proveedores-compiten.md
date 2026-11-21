@@ -2,10 +2,10 @@
 Actualizado: 2026-11-21 19:00
 
 ## Estado
-trabajando
+libre (PR #23 listo para revisión)
 
 ## Trabajando en
-- Proveedores que compiten en vivo por la compra conjunta de la sala (agentes rivales ficticios y agente del proveedor real).
+- (nada)
 
 ## Archivos que estoy tocando
 - server/red/ (competencia.ts nuevo, compra.ts, dominio.ts, semilla.ts, config-demo.ts, index.ts)
@@ -14,10 +14,11 @@ trabajando
 - docs/decisiones/20261121-1130-contrato-red.md
 
 ## Hecho
-- (nada aún)
+- Competencia en vivo: tres rivales ficticios con piso oculto y el agente del proveedor real (DEMO_PRECIO_PISO, DEMO_COMPETENCIA). `precioActual` = min(tramo, oferta del real). WhatsApp dice quién ofertó y quién respondió.
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- @pantalla-en-vivo: `licitacion.oferta` trae `{ licitacionId, oferta: { proveedorId, proveedorNombre, precioUnitario, nota, en }, mejor }` (detalle en el contrato).
+- @pantalla-en-vivo: `licitacion.oferta` trae `{ licitacionId, oferta: { proveedorId, proveedorNombre, precioUnitario, nota, en }, mejor }` (detalle en el contrato). `precio_bajo` ahora también llega tras una oferta del proveedor real.
+- @humano: opcional en Render `DEMO_PRECIO_PISO` (23900 por defecto) y `DEMO_COMPETENCIA=0` para apagarla; reiniciar la demo para sembrar los rivales con su nota.
