@@ -10,8 +10,9 @@ el chat: el agente le manda un **link privado** (un uso, 15 minutos) a una pági
 3. se avisa al agente (`alConectar`), que sigue el registro **con el RUT del titular** como si la persona lo hubiera
    escrito: la factura sale a su nombre en el SII (ambiente de certificación).
 
-Para la demo, la pregunta del RUT ofrece **[Conectar certificado] [No (demo)]**; "No (demo)" suma a la persona sin RUT
-y su factura va al receptor de prueba (`SII_RUT_RECEPTOR`). "conectar certificado" funciona en cualquier momento.
+Es uno de los dos caminos del registro por WhatsApp (el otro es escribir RUT y dirección): el certificado no es
+necesario para comprar, pero permite emitir y revisar facturas en el SII. "conectar certificado" funciona en cualquier
+momento. Ver `docs/decisiones/20261121-2300-certificado-por-whatsapp.md`.
 
 ## API
 ```ts

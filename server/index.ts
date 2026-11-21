@@ -23,7 +23,7 @@ export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuy
 red.escuchar(evento => io.emit('red:evento', evento));
 const certificados = await crearCertificados({ db: dbRed });
 export const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env, red), certificados });
-certificados.alConectar((telefono, rut) => agente.rutDeCertificado(telefono, rut));
+certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
 const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento', hallazgo));
 

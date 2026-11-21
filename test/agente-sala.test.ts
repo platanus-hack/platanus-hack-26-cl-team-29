@@ -26,7 +26,7 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string>; conSend?: boolean; certificados?: { enlace(telefono: string): string } } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string | { razonSocial: string; direccion: string; comuna: string }>; conSend?: boolean; certificados?: { enlace(telefono: string): string } } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
   const interactivos: OutboundMessage[] = [];
@@ -413,33 +413,46 @@ test('"Quiero comprar guantes" no deja al negocio llamado "comprar"', () => {
   assert.equal(interpretarCanastaConReglas('Almacén Javier, 4 cajas de guantes', cat).nombre, 'Almacén Javier');
 });
 
-test('si la red pide RUT, nadie se suma sin uno válido: se pregunta una vez, con o sin puntos y guion, y un error se reintenta', async t => {
-  const { agente, escribir, ultimo, carrito, red } = montar({}, {}, { ruts: { '11111111-1': 'Comercial Prueba Limitada', '22222222-2': 'Panadería Prueba SpA' } });
+test('si la red pide RUT, primero el registro (RUT válido y dirección) y recién después el pedido', async t => {
+  const { agente, escribir, ultimo, carrito, red } = montar({}, {}, { ruts: {
+    '11111111-1': 'Comercial Prueba Limitada',
+    '22222222-2': { razonSocial: 'Panadería Prueba SpA', direccion: 'Los Aromos 55', comuna: 'Maipú' },
+  } });
   t.after(() => agente.desconectar());
   const ana = '56911111701';
 
   await escribir(ana, 'Almacén Ana, 2 cajas de rollos');
-  assert.match(ultimo(ana), /Almacén Ana, ¿cuál es el RUT de tu negocio\? Tu factura sale a tu nombre en el SII \(ambiente de certificación\)/);
-  assert.equal(await carrito('Almacén Ana'), undefined, 'sin RUT no se suma');
+  assert.match(ultimo(ana), /Para sumarte necesito los datos de tu factura\. ¿Cómo quieres registrarte\?/);
+  assert.doesNotMatch(ultimo(ana), /Rollos, \$/, 'antes del registro no se muestran productos');
+  assert.equal(await carrito('Almacén Ana'), undefined, 'sin registro no se suma');
 
   await escribir(ana, '11.111.111-2');
   assert.equal(ultimo(ana), 'Ese RUT no es válido. Revisa los números y el dígito verificador, por ejemplo 12.345.678-5.\n\n¿Cuál es el RUT de tu negocio?');
   await escribir(ana, '33.333.333-3');
   assert.match(ultimo(ana), /^No encontramos ese RUT en el SII/);
-  assert.equal(await carrito('Almacén Ana'), undefined);
 
+  // RUT válido sin dirección en el SII: la escribe; al terminar, se atiende el pedido del primer mensaje.
   await escribir(ana, '111111111');
-  assert.equal(ultimo(ana), 'Tu factura saldrá a nombre de Comercial Prueba Limitada.\n\nListo, Almacén Ana entra con 2 cajas de rollos.\nTotal $64.000.\nFaltan 8 cajas de rollos para bajar a $29.900.');
+  assert.match(ultimo(ana), /^Tu factura saldrá a nombre de Comercial Prueba Limitada\.\n\n¿Cuál es la dirección de tu negocio para la factura\?/);
+  await escribir(ana, 'no sé');
+  assert.match(ultimo(ana), /^No entendí la dirección/);
+  await escribir(ana, 'Av. Grecia 1234, Ñuñoa');
+  assert.equal(ultimo(ana), 'Listo, quedaste registrado ✓ Tu factura sale a nombre de Comercial Prueba Limitada, Av. Grecia 1234, Ñuñoa.\n\n'
+    + 'Listo, Almacén Ana entra con 2 cajas de rollos.\nTotal $64.000.\nFaltan 8 cajas de rollos para bajar a $29.900.');
   assert.deepEqual(await carrito('Almacén Ana'), [{ productoId: 'rollos', cantidad: 2 }]);
   assert.equal(red.rutPorTelefono.get(ana), '11111111-1');
+  assert.deepEqual(red.direccionPorTelefono.get(ana), { direccion: 'Av. Grecia 1234', comuna: 'Ñuñoa' });
 
-  // Todo en un mensaje: nombre, productos y RUT; sus números no se leen como cantidades.
+  // Todo en un mensaje, con dirección en el SII: se confirma con un botón y los números del RUT no son cantidades.
   const beto = '56911111702';
   await escribir(beto, 'Panadería Beto, 3 de bolsas, mi rut es 22.222.222-2');
-  assert.match(ultimo(beto), /^Tu factura saldrá a nombre de Panadería Prueba SpA\.\n\nListo, Panadería Beto entra con 3 paquetes de bolsas\./);
+  assert.equal(ultimo(beto), 'Tu factura saldrá a nombre de Panadería Prueba SpA.\n\n¿Tu factura va a Los Aromos 55, Maipú?\n1. Sí, es esa\n2. Es otra');
+  await escribir(beto, '1');
+  assert.match(ultimo(beto), /^Listo, quedaste registrado ✓[\s\S]*Listo, Panadería Beto entra con 3 paquetes de bolsas\./);
   assert.deepEqual(await carrito('Panadería Beto'), [{ productoId: 'bolsas', cantidad: 3 }]);
+  assert.deepEqual(red.direccionPorTelefono.get(beto), { direccion: 'Los Aromos 55', comuna: 'Maipú' });
 
-  // Ya sumada, cambia su carrito sin que se le vuelva a pedir el RUT.
+  // Ya sumada, cambia su carrito sin volver a registrarse.
   await escribir(ana, 'agrega 1 de guantes');
   assert.match(ultimo(ana), /^Listo, Almacén Ana ahora va con/);
 });
@@ -453,31 +466,33 @@ test('la lista de productos de la bienvenida sale como lista desplegable de What
   assert.deepEqual(lista!.rows.map(r => r.title), ['Rollos', 'Etiquetas', 'Bolsas', 'Guantes']);
 });
 
-test('con certificado disponible, la pregunta del RUT ofrece conectarlo o seguir en demo, y el certificado da el RUT', async t => {
+test('registro: elegir certificado digital (el RUT sale de él) o RUT y dirección, antes de ver productos', async t => {
   const certificados = { enlace: (telefono: string) => `https://bando.test/certificado/tok-${telefono}` };
-  const ruts = { '11111111-1': 'Comercial Prueba Limitada' };
+  const ruts = { '11111111-1': { razonSocial: 'Comercial Prueba Limitada', direccion: 'Los Aromos 55', comuna: 'Maipú' } };
   const { agente, escribir, ultimo, carrito } = montar({}, {}, { ruts, certificados });
   t.after(() => agente.desconectar());
 
-  // No (demo): se suma sin RUT y se dice que es por la demo.
-  const demo = '56911111801';
-  await escribir(demo, 'Almacén Demo, 2 cajas de rollos');
-  assert.match(ultimo(demo), /conecta tu certificado digital.*o escribe el RUT de tu negocio/s);
-  assert.match(ultimo(demo), /Para la demo puedes saltarlo/);
-  assert.match(ultimo(demo), /1\. Conectar certificado\n2\. No \(demo\)$/);
-  await escribir(demo, '2');
-  assert.match(ultimo(demo), /^Listo, modo demo: tu factura sale a un receptor de prueba/);
-  assert.deepEqual(await carrito('Almacén Demo'), [{ productoId: 'rollos', cantidad: 2 }]);
+  // Camino certificado: link, y al conectarlo el registro sigue con el RUT del titular.
+  const ana = '56911111801';
+  await escribir(ana, 'Hola quiero sumarme');
+  assert.match(ultimo(ana), /¿Cómo quieres registrarte\?[\s\S]*\n1\. Certificado digital\n2\. RUT y dirección$/);
+  await escribir(ana, '1');
+  assert.match(ultimo(ana), /https:\/\/bando\.test\/certificado\/tok-56911111801/);
+  await agente.certificadoConectado(ana, '11111111-1');
+  assert.match(ultimo(ana), /^Tu factura saldrá a nombre de Comercial Prueba Limitada\.\n\n¿Tu factura va a Los Aromos 55, Maipú\?/);
+  await escribir(ana, 'sí');
+  assert.match(ultimo(ana), /^Listo, quedaste registrado ✓[\s\S]*¿Cómo se llama tu negocio/, 'recién ahora los productos');
 
-  // Conectar certificado: llega el link; al subirlo, el registro sigue con el RUT del titular.
-  const real = '56911111802';
-  await escribir(real, 'Almacén Real, 3 cajas de rollos');
-  await escribir(real, '1');
-  assert.match(ultimo(real), /https:\/\/bando\.test\/certificado\/tok-56911111802/);
-  assert.equal(await carrito('Almacén Real'), undefined, 'todavía no se suma');
-  await agente.rutDeCertificado(real, '11111111-1');
-  assert.match(ultimo(real), /Tu factura saldrá a nombre de Comercial Prueba Limitada\./);
-  assert.deepEqual(await carrito('Almacén Real'), [{ productoId: 'rollos', cantidad: 3 }]);
+  // Camino RUT y dirección.
+  const beto = '56911111802';
+  await escribir(beto, 'Almacén Beto, 2 cajas de rollos');
+  await escribir(beto, '2');
+  assert.match(ultimo(beto), /¿Cuál es el RUT de tu negocio\?/);
+  await escribir(beto, '11.111.111-1');
+  await escribir(beto, '2');
+  assert.match(ultimo(beto), /^¿Cuál es la dirección de tu negocio para la factura\?/);
+  await escribir(beto, 'Pasaje Uno 45, Macul');
+  assert.deepEqual(await carrito('Almacén Beto'), [{ productoId: 'rollos', cantidad: 2 }]);
 });
 
 test('cantidades como las escribe la gente: "las 4 q faltan" suma, "10 en total" fija, un número que bajaría se pregunta', async t => {

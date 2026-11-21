@@ -161,13 +161,22 @@ export interface RedSala {
     readonly nombre?: string;
     /** RUT del comprador (ya consultado con `consultarRut`): su factura sale a ese RUT. */
     readonly rut?: string;
+    /** Dirección para la factura, confirmada o escrita por la persona. */
+    readonly direccionFactura?: { readonly direccion: string; readonly comuna: string };
     readonly items: readonly ItemCarrito[];
   }): Talvez<ResultadoCarrito>;
   /**
    * Valida el RUT y lo consulta en el SII (una vez por RUT). Si la red lo ofrece, nadie se suma sin RUT. Falla con
    * un error con `codigo` (`datos_invalidos`, `sii_no_disponible`) y un `message` para mostrar tal cual.
    */
-  consultarRut?(rut: string): Talvez<{ readonly rut: string; readonly razonSocial: string }>;
+  consultarRut?(rut: string): Talvez<{
+    readonly rut: string;
+    readonly razonSocial: string;
+    /** Dirección y comuna del SII, si las tiene. `simulado`: datos de prueba, no se ofrecen como reales. */
+    readonly direccion?: string;
+    readonly comuna?: string;
+    readonly simulado?: boolean;
+  }>;
   salirDeLicitacion?(licitacionId: string, datos: { readonly telefono: string }): Talvez<unknown>;
   /** Emite `licitacion.cerrada` con las órdenes; el agente usa el evento, no el valor devuelto. */
   cerrarLicitacion(licitacionId: string): Talvez<unknown>;
