@@ -1,8 +1,12 @@
+/// <reference types="vite/client" />
 // /mapa: la red sobre un mapa real de Santiago, 30 km alrededor del MUT.
 // Los datos son los mismos de /red (useRed): cada `red:evento` mueve el mapa y el panel a la vez.
 
 import { useEffect, useRef } from 'react';
-import { Map as MapaLibre, Marker, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
+import { Map as MapaLibre, Marker, setWorkerUrl, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
+// MapLibre 6 busca su worker junto a su propio archivo; al compilar con Vite ese archivo cambia de nombre.
+// Vite copia el worker a dist/assets y nos da su URL.
+import urlDelWorker from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapa.css';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
@@ -12,6 +16,8 @@ import { nota } from '../red/formato.ts';
 import type { EstadoRed } from '../red/tipos.ts';
 import { useAhora, useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, Feed, MiniLicitacion, Ranking } from './RedEnVivo.tsx';
+
+setWorkerUrl(urlDelWorker);
 
 const ESTILO = 'https://tiles.openfreemap.org/styles/dark';
 /** Sin internet no hay calles: queda un fondo liso y los negocios se dibujan igual. */
