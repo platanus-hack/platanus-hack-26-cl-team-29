@@ -203,3 +203,25 @@ test('en la compra conjunta cada factura 33 sale al RUT y a los datos del SII de
   assert.equal(sobres[0]![1]!.receptor.giro, giroLargo.slice(0, 40).trim());
   assert.deepEqual(facturas.map(f => f.estadoSii), ['recibido', 'recibido', 'recibido'], 'el XML con el giro cortado pasa la validación');
 });
+
+test('por WhatsApp, si el SII rechaza la consulta de un RUT válido, se suma con lo que declaró y su factura sale a ese RUT', async () => {
+  const consultar: ConsultarContribuyente = async () => { throw new Error('El SII rechazó la solicitud en ficha/ce_consulta_muestra_e.'); };
+  const { red } = await redDePrueba(consultar);
+  const l = red.licitacionAbierta()!;
+  const telefono = '56977700001';
+  const producto = l.productos[0]!.id;
+
+  // Sin dirección declarada, el error del SII sigue (la web exige que el SII confirme el RUT).
+  await assert.rejects(red.actualizarCarrito(l.id, { telefono, nombre: 'Almacén Javier', rut: '77.865.227-7', items: [{ productoId: producto, cantidad: 2 }] }),
+    (e: unknown) => e instanceof ErrorRed && e.codigo === 'sii_no_disponible');
+
+  await red.actualizarCarrito(l.id, {
+    telefono, nombre: 'Almacén Javier', rut: '77.865.227-7', items: [{ productoId: producto, cantidad: 2 }],
+    direccionFactura: { direccion: 'Av. Escuela Agrícola 1710', comuna: 'Macul' },
+  });
+  const n = red.negocioPorTelefono(telefono)!;
+  assert.equal(n.rut, '77865227-7');
+  assert.deepEqual(receptorDelComprador(n), {
+    rut: '77865227-7', razonSocial: 'Almacén Javier', giro: 'Sin informar', direccion: 'Av. Escuela Agrícola 1710', comuna: 'Macul',
+  });
+});

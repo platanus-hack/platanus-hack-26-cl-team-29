@@ -39,11 +39,15 @@ export interface DatosLicitacionFalsa {
 const MAXIMO = 20;
 
 /** Error como los de la red real: `codigo` y un mensaje para mostrar tal cual. */
-const errorRut = (mensaje: string) => Object.assign(new Error(mensaje), { codigo: 'datos_invalidos' });
+const errorRut = (mensaje: string, codigo = 'datos_invalidos') => Object.assign(new Error(mensaje), { codigo });
 
 export function crearRedSalaFalsa(
   negocios: readonly Negocio[], datos: DatosLicitacionFalsa,
-  opciones: { sinCanasta?: boolean; conPdf?: boolean; ruts?: Readonly<Record<string, string | { razonSocial: string; direccion: string; comuna: string }>> } = {},
+  opciones: {
+    sinCanasta?: boolean; conPdf?: boolean;
+    /** RUT conocidos; `null`: el SII rechaza la consulta de ese RUT (pasa en certificación). */
+    ruts?: Readonly<Record<string, string | { razonSocial: string; direccion: string; comuna: string } | null>>;
+  } = {},
 ): RedSalaFalsa {
   const base = crearRedFalsa(negocios);
   const oyentes = new Set<(e: EventoDeLaRed) => void>();
@@ -167,6 +171,7 @@ export function crearRedSalaFalsa(
         const rut = validarRut(texto);
         if (!rut) throw errorRut(RUT_INVALIDO);
         const conocido = opciones.ruts![rut];
+        if (conocido === null) throw errorRut('No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.', 'sii_no_disponible');
         if (!conocido) throw errorRut('No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.');
         return typeof conocido === 'string' ? { rut, razonSocial: conocido } : { rut, ...conocido };
       },
