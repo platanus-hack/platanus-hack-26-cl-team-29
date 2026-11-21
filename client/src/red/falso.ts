@@ -2,41 +2,39 @@
 // eventos con el mismo formato que `red:evento`. Todos los nombres son ficticios.
 // Se usa solo mientras GET /api/red/estado no responde.
 //
-// La sala: unos 40 negocios se suman a la compra conjunta en unos 60 s, el precio baja por tramos,
-// la compra cierra, el proveedor dice que sí, salen las facturas una por una y el SII las acepta.
-// Después de un rato vuelve a empezar.
+// La sala: unos 45 negocios arman su carrito con la canasta (uno a cuatro productos) en unos 60 s, algunos
+// cambian su pedido o salen, cada producto baja por sus propios tramos y tiene su propia competencia de
+// proveedores. La compra cierra, el proveedor dice que sí, salen las facturas (una línea por producto) y el
+// SII las acepta. Después de un rato vuelve a empezar.
 
-import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, Tramo, TipoEvento } from './tipos.ts';
-import { calcularTramos } from './derivar.ts';
+import type { ConfigRed, Documento, EstadoRed, EventoRed, Licitacion, Negocio, Oferta, OrdenCompra, Participante, ProductoCompra, Tramo, TipoEvento } from './tipos.ts';
+import { precioConUnidades } from './derivar.ts';
 
 export interface RedFalsa {
   detener(): void;
-  unirse(licitacionId: string, datos: { nombre: string; comuna: string; cantidad: number }): void;
+  unirse(licitacionId: string, datos: { nombre: string; comuna: string; cantidad: number; productoId?: string }): void;
   reiniciar(): void;
   cerrar(licitacionId: string): void;
   confirmar(licitacionId: string): void;
 }
 
-const PRODUCTO = 'Caja de rollos térmicos 80 mm (50 un.)';
-const UNIDAD = 'caja';
-const UNIDAD_PLURAL = 'cajas';
-const PRECIO_SOLO = 32_000;
-const TRAMOS: Tramo[] = [
-  { desde: 1, precioUnitario: 32_000 },
-  { desde: 10, precioUnitario: 29_900 },
-  { desde: 25, precioUnitario: 27_900 },
-  { desde: 50, precioUnitario: 25_900 },
-  { desde: 100, precioUnitario: 24_500 },
+const tramos = (...pares: Array<[number, number]>): Tramo[] => pares.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
+
+/** La canasta por defecto del contrato. `piso`: lo mínimo que ofrece el proveedor de la sala por ese producto. */
+const CANASTA: Array<Omit<ProductoCompra, 'ofertas'> & { piso: number }> = [
+  { id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32_000, tramos: tramos([1, 32_000], [10, 29_900], [25, 27_900], [50, 25_900], [100, 24_500]), piso: 23_900 },
+  { id: 'etiquetas', nombre: 'Rollo de etiquetas adhesivas 50x30 (1.000 un.)', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 6_900, tramos: tramos([1, 6_900], [10, 6_400], [25, 5_900], [50, 5_500]), piso: 5_520 },
+  { id: 'bolsas', nombre: 'Paquete de bolsas camiseta (1.000 un.)', unidad: 'paquete', unidadPlural: 'paquetes', precioSolo: 14_900, tramos: tramos([1, 14_900], [10, 13_900], [25, 12_900], [50, 11_900]), piso: 11_920 },
+  { id: 'guantes', nombre: 'Caja de guantes de nitrilo (100 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 8_900, tramos: tramos([1, 8_900], [10, 8_200], [25, 7_600], [50, 7_100]), piso: 7_120 },
 ];
+const PRODUCTO = CANASTA[0].nombre;
 const PROVEEDOR_SALA = 'p-austral';
-/** Proveedores (agentes) que compiten por la compra de la sala; el primero es el que está en el escenario. */
-const COMPETIDORES = ['p-austral', 'p-andes', 'p-molinos', 'p-sur'];
-/** Ningún proveedor baja de aquí. */
-const PISO_OFERTA = 22_900;
-const OFERTA_MS = 6000;
+/** Proveedores rivales (agentes) y cuánto sobre el piso del de la sala pueden bajar, en la escala de los rollos. */
+const RIVALES: Array<[string, number]> = [['p-andes', 400], ['p-molinos', 700], ['p-sur', 1100]];
+const OFERTA_MS = 2200;
 
 /** Número de relleno, claramente ficticio. */
-export const CONFIG_FALSA: ConfigRed = { whatsappNumero: '56900000000', producto: PRODUCTO, unidad: UNIDAD, unidadPlural: UNIDAD_PLURAL };
+export const CONFIG_FALSA: ConfigRed = { whatsappNumero: '56900000000', producto: PRODUCTO, unidad: CANASTA[0].unidad, unidadPlural: CANASTA[0].unidadPlural };
 
 const PROVEEDORES: Array<[string, string, string, number]> = [
   ['p-austral', 'Papelera Austral', 'Santiago', 4.7],
@@ -56,8 +54,10 @@ const COMPRADORES: Array<[string, string, string]> = [
 const TIPOS = ['Almacén', 'Minimarket', 'Panadería', 'Botillería', 'Cafetería', 'Fuente de soda', 'Pizzería', 'Amasandería', 'Ferretería', 'Librería', 'Verdulería', 'Farmacia'];
 const NOMBRES = ['Don Lucho', 'La Vecina', 'El Sol', 'Santa Rosa', 'Los Aromos', 'La Pasada', 'Doña Carmen', 'El Roble', 'Las Palmas', 'San José', 'El Puente', 'La Plaza', 'Los Pinos', 'Mi Barrio', 'El Rincón', 'La Estrella', 'Los Andes', 'El Faro', 'La Casona', 'Buen Pan', 'El Paso', 'La Cruz', 'Las Rosas', 'El Molino', 'La Fuente', 'El Cerro', 'Los Olivos'];
 const COMUNAS = ['Ñuñoa', 'Macul', 'La Reina', 'Providencia', 'Peñalolén', 'San Joaquín', 'La Florida', 'Santiago', 'Maipú', 'Recoleta'];
-/** Cuántas cajas pide cada negocio: casi siempre pocas, a veces más (de 1 a 20). */
+/** Cuántas unidades de un producto pide cada negocio: casi siempre pocas, a veces más (de 1 a 20). */
 const CANTIDADES = [1, 1, 2, 2, 2, 3, 3, 4, 5, 6, 8, 12];
+/** Cuántos productos de la canasta lleva un carrito: casi siempre uno o dos. */
+const PRODUCTOS_POR_CARRITO = [1, 1, 1, 2, 2, 2, 3, 4];
 
 const SEGUNDO = 1000;
 const LLEGADA_MS = 1500;
@@ -83,30 +83,65 @@ function* nombresDeLaSala(): Generator<[string, string]> {
   for (let i = 0; ; i++) yield [combos[i % combos.length], COMUNAS[Math.floor(Math.random() * COMUNAS.length)]];
 }
 
-const mejorOferta = (lic: Licitacion) =>
-  lic.ofertas.reduce<Oferta | undefined>((m, o) => (!m || o.precioUnitario < m.precioUnitario ? o : m), undefined);
+type Item = { productoId: string; cantidad: number };
 
-/** Recalcula lo que el backend deriva: el precio del tramo alcanzado o, si es menor, la mejor oferta. */
-function conDerivados(lic: Licitacion): Licitacion {
-  const tramos = calcularTramos(lic.participantes, lic.tramos, lic.precioSolo);
-  const mejor = mejorOferta(lic)?.precioUnitario;
-  const precioActual = mejor !== undefined && tramos.precioActual !== undefined ? Math.min(mejor, tramos.precioActual) : tramos.precioActual;
-  return { ...lic, ...tramos, precioActual };
+/** Un carrito al azar: uno a cuatro productos distintos de la canasta. */
+function carritoAleatorio(): Item[] {
+  const productos = [...CANASTA].sort(() => Math.random() - 0.5).slice(0, aleatorio(PRODUCTOS_POR_CARRITO));
+  return CANASTA.filter(p => productos.includes(p)).map(p => ({ productoId: p.id, cantidad: aleatorio(CANTIDADES) }));
 }
 
+const unidadesDe = (lic: Licitacion, productoId: string) =>
+  lic.participantes.reduce((s, p) => s + (p.items ?? []).filter(i => i.productoId === productoId).reduce((t, i) => t + i.cantidad, 0), 0);
+
+/**
+ * Recalcula lo que deriva el backend (server/red/compra.ts): por producto, el precio del tramo alcanzado o,
+ * si es menor, la oferta del proveedor de la sala; los campos de un solo producto son los del primero.
+ */
+function conDerivados(lic: Licitacion): Licitacion {
+  const productos = (lic.productos ?? []).map(p => {
+    const total = unidadesDe(lic, p.id);
+    const tramo = precioConUnidades(p.tramos, p.precioSolo, total)!;
+    const propia = p.ofertas?.find(o => o.proveedorId === lic.proveedorId);
+    const sig = [...p.tramos].sort((a, b) => a.desde - b.desde).find(t => t.desde > total);
+    return {
+      ...p,
+      totalUnidades: total,
+      precioActual: propia && total > 0 ? Math.min(tramo, propia.precioUnitario) : tramo,
+      siguienteTramo: sig ? { ...sig, faltan: sig.desde - total } : null,
+    };
+  });
+  const primero = productos[0];
+  return {
+    ...lic,
+    productos,
+    producto: primero.nombre, unidad: primero.unidad, unidadPlural: primero.unidadPlural, precioSolo: primero.precioSolo,
+    tramos: primero.tramos, ofertas: primero.ofertas ?? [], precioActual: primero.precioActual, siguienteTramo: primero.siguienteTramo,
+    totalNegocios: lic.participantes.filter(p => p.cantidad > 0).length,
+    totalUnidades: productos.reduce((s, p) => s + p.totalUnidades, 0),
+    montoTotal: productos.reduce((s, p) => s + p.totalUnidades * p.precioActual, 0),
+    ahorroTotal: productos.reduce((s, p) => s + p.totalUnidades * (p.precioSolo - p.precioActual), 0),
+  };
+}
+
+const conCarrito = (p: Participante, items: Item[]): Participante => ({ ...p, items, cantidad: items.reduce((s, i) => s + i.cantidad, 0) });
+
 function sembrarLicitacion(id: string): Licitacion {
-  const participantes: Participante[] = COMPRADORES.map(([negocioId], i) => ({ negocioId, cantidad: [2, 3, 1, 2][i], en: hace((4 - i) * 5 * SEGUNDO) }));
+  const carritos: Item[][] = [
+    [{ productoId: 'rollos', cantidad: 2 }, { productoId: 'bolsas', cantidad: 1 }],
+    [{ productoId: 'etiquetas', cantidad: 3 }],
+    [{ productoId: 'rollos', cantidad: 1 }, { productoId: 'guantes', cantidad: 2 }],
+    [{ productoId: 'bolsas', cantidad: 2 }],
+  ];
+  const participantes = COMPRADORES.map(([negocioId], i) => conCarrito({ negocioId, cantidad: 0, en: hace((4 - i) * 5 * SEGUNDO) }, carritos[i]));
   return conDerivados({
     id,
     producto: PRODUCTO,
     comuna: 'Ñuñoa y alrededores',
     cierraEn: new Date(Date.now() + DURACION_SALA_MS).toISOString(),
     estado: 'abierta',
-    precioSolo: PRECIO_SOLO,
     proveedorId: PROVEEDOR_SALA,
-    unidad: UNIDAD,
-    unidadPlural: UNIDAD_PLURAL,
-    tramos: TRAMOS,
+    productos: CANASTA.map(({ piso: _piso, ...p }) => ({ ...p, ofertas: [] })),
     participantes,
     ofertas: [],
   });
@@ -211,61 +246,125 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     e.licitaciones = e.licitaciones.map(l => (l.id === id ? cambio(l) : l));
   };
 
-  /** Suma un participante (y el negocio, como lo haría el backend) y anuncia si el precio bajó de tramo. */
-  const sumar = (id: string, datos: { nombre: string; comuna: string; cantidad: number }): Paso => e => {
+  type Evento = [TipoEvento, Record<string, unknown>];
+
+  /** Un `licitacion.precio_bajo` por cada producto cuyo precio bajó, con las unidades de ese producto. */
+  const bajadas = (antes: Licitacion, despues: Licitacion): Evento[] =>
+    (despues.productos ?? []).flatMap(p => {
+      const previo = antes.productos?.find(x => x.id === p.id)?.precioActual;
+      return previo !== undefined && p.precioActual !== undefined && p.precioActual < previo
+        ? [['licitacion.precio_bajo', { licitacionId: despues.id, productoId: p.id, precioAnterior: previo, precioNuevo: p.precioActual, totalUnidades: p.totalUnidades }] as Evento]
+        : [];
+    });
+
+  /** Reemplaza el carrito de un participante, como `actualizarCarrito`: vacío = sale. Anuncia el cambio y las bajadas. */
+  const cambiarCarrito = (id: string, negocioId: string, items: Item[], datos?: { nombre: string; comuna: string }): Paso => e => {
     const lic = licitacion(e, id);
     if (!lic || lic.estado !== 'abierta') return [];
-    const negocio: Negocio = { id: `c-sala-${e.negocios.length}`, nombre: datos.nombre, comuna: datos.comuna, rol: 'comprador' };
-    const participante: Participante = { negocioId: negocio.id, nombre: datos.nombre, comuna: datos.comuna, cantidad: datos.cantidad, en: ahoraIso() };
-    e.negocios = [...e.negocios, negocio];
-    modificarLicitacion(e, id, l => conDerivados({ ...l, participantes: [...l.participantes, participante] }));
+    const previo = lic.participantes.find(p => p.negocioId === negocioId);
+    const limpios = items.filter(i => i.cantidad > 0);
+    const accion = !previo ? 'entra' : limpios.length ? 'cambia' : 'sale';
+    if (!previo && !limpios.length) return [];
+    const participante = conCarrito(previo ?? { negocioId, nombre: datos?.nombre, comuna: datos?.comuna, cantidad: 0, en: ahoraIso() }, limpios);
+    modificarLicitacion(e, id, l => conDerivados({
+      ...l,
+      participantes: accion === 'sale' ? l.participantes.filter(p => p.negocioId !== negocioId)
+        : previo ? l.participantes.map(p => (p.negocioId === negocioId ? participante : p)) : [...l.participantes, participante],
+    }));
     const nueva = licitacion(e, id)!;
-    return [['licitacion.participante', { licitacion: nueva, participante }], ...bajada(lic, nueva)];
+    return [['licitacion.participante', { licitacionId: id, licitacion: nueva, participante, accion }], ...bajadas(lic, nueva)];
   };
 
-  const bajada = (antes: Licitacion, despues: Licitacion): Array<[TipoEvento, Record<string, unknown>]> =>
-    antes.precioActual !== undefined && despues.precioActual !== undefined && despues.precioActual < antes.precioActual
-      ? [['licitacion.precio_bajo', { licitacionId: despues.id, precioAnterior: antes.precioActual, precioNuevo: despues.precioActual, totalUnidades: despues.totalUnidades }]]
-      : [];
+  /** Un negocio nuevo (como lo registraría el backend) se suma con su carrito. */
+  const sumar = (id: string, datos: { nombre: string; comuna: string }, items: Item[]): Paso => e => {
+    const negocio: Negocio = { id: `c-sala-${e.negocios.length}`, nombre: datos.nombre, comuna: datos.comuna, rol: 'comprador' };
+    const pasos = cambiarCarrito(id, negocio.id, items, datos)(e);
+    if (pasos.length) e.negocios = [...e.negocios, negocio];
+    return pasos;
+  };
 
-  /** Un proveedor mejora: ofrece algo menos que el mejor precio de hoy (el del tramo o la mejor oferta). */
+  /** Alguien que ya estaba cambia su pedido: agrega un producto, cambia una cantidad o, a veces, sale. */
+  const editarAlguno = (id: string): Paso => e => {
+    const lic = licitacion(e, id);
+    const quienes = (lic?.participantes ?? []).filter(p => p.negocioId?.startsWith('c-sala-'));
+    if (!lic || quienes.length < 8) return [];
+    const p = aleatorio(quienes);
+    const items = [...(p.items ?? [])];
+    if (Math.random() < 0.2) return cambiarCarrito(id, p.negocioId!, [])(e);
+    const producto = aleatorio(CANASTA);
+    const actual = items.find(i => i.productoId === producto.id);
+    const cantidad = Math.min(20, (actual?.cantidad ?? 0) + aleatorio([1, 2, 3, 5]));
+    const nuevos = CANASTA.flatMap(x => (x.id === producto.id ? [{ productoId: x.id, cantidad }] : items.filter(i => i.productoId === x.id)));
+    return cambiarCarrito(id, p.negocioId!, nuevos)(e);
+  };
+
+  /**
+   * Competencia por producto, como server/red/competencia.ts: en un producto que ya cruzó un tramo, un rival
+   * baja el precio y el proveedor de la sala responde $100 menos (nunca bajo su piso). Gana siempre el de la sala.
+   */
   const ofertar = (id: string): Paso => e => {
     const lic = licitacion(e, id);
-    if (!lic || lic.estado !== 'abierta' || lic.participantes.length < 3) return [];
-    const proveedorId = aleatorio(COMPETIDORES.filter(p => p !== mejorOferta(lic)?.proveedorId));
-    const referencia = lic.precioActual ?? PRECIO_SOLO;
-    const precioUnitario = Math.max(PISO_OFERTA, referencia - aleatorio([200, 300, 400, 500, 700]));
-    if (precioUnitario >= referencia) return [];
+    if (!lic || lic.estado !== 'abierta') return [];
+    const candidatos = (lic.productos ?? []).filter(p => (p.totalUnidades ?? 0) >= 10);
+    if (!candidatos.length) return [];
+    const producto = aleatorio(candidatos);
+    const base = CANASTA.find(p => p.id === producto.id)!;
+    const ofertas = producto.ofertas ?? [];
+    const mejorRival = Math.min(...ofertas.filter(o => o.proveedorId !== PROVEEDOR_SALA).map(o => o.precioUnitario));
+    const propia = ofertas.find(o => o.proveedorId === PROVEEDOR_SALA)?.precioUnitario ?? Infinity;
+    const precio = producto.precioActual ?? base.precioSolo;
+    const redondear = (n: number) => Math.round(n / 10) * 10;
+    let proveedorId: string;
+    let precioUnitario: number;
+    if (Number.isFinite(mejorRival) && mejorRival <= Math.min(propia, precio)) {
+      proveedorId = PROVEEDOR_SALA;
+      precioUnitario = Math.max(base.piso, mejorRival - 100);
+    } else {
+      const [rival, sobrePiso] = aleatorio(RIVALES);
+      proveedorId = rival;
+      const paso = redondear(precio * aleatorio([0.01, 0.015, 0.02]));
+      precioUnitario = Math.max(base.piso + redondear((sobrePiso * base.piso) / CANASTA[0].piso), Math.min(precio, propia) - paso);
+    }
+    if (precioUnitario >= Math.min(precio, propia)) return [];
     const nota = e.notas.find(n => n.proveedorId === proveedorId)?.nota;
     const proveedorNombre = e.negocios.find(n => n.id === proveedorId)?.nombre;
-    const oferta: Oferta = { proveedorId, proveedorNombre, precioUnitario, plazoDias: 1, nota, en: ahoraIso() };
-    // Como el backend: cada proveedor tiene una sola oferta vigente, la nueva reemplaza a la anterior.
-    modificarLicitacion(e, id, l => conDerivados({ ...l, ofertas: [...l.ofertas.filter(x => x.proveedorId !== proveedorId), oferta] }));
+    const oferta: Oferta = { proveedorId, productoId: producto.id, proveedorNombre, precioUnitario, plazoDias: 1, nota, en: ahoraIso() };
+    // Como el backend: cada proveedor tiene una sola oferta vigente por producto, la nueva reemplaza a la anterior.
+    modificarLicitacion(e, id, l => conDerivados({
+      ...l,
+      productos: l.productos!.map(p => (p.id === producto.id ? { ...p, ofertas: [...(p.ofertas ?? []).filter(x => x.proveedorId !== proveedorId), oferta] } : p)),
+    }));
     const nueva = licitacion(e, id)!;
-    return [['licitacion.oferta', { licitacionId: id, licitacion: nueva, oferta, nota, mejor: mejorOferta(nueva) === oferta }], ...bajada(lic, nueva)];
+    const delProducto = nueva.productos!.find(p => p.id === producto.id)!;
+    const mejor = Math.min(...(delProducto.ofertas ?? []).map(o => o.precioUnitario)) === precioUnitario && precioUnitario <= (delProducto.precioActual ?? Infinity);
+    return [['licitacion.oferta', { licitacionId: id, productoId: producto.id, licitacion: nueva, oferta, nota, mejor }], ...bajadas(lic, nueva)];
   };
 
   const cerrar = (id: string) => {
     publicar(e => {
       const lic = licitacion(e, id);
       if (!lic || lic.estado !== 'abierta') return [];
-      const mejor = mejorOferta(lic);
-      const ganadora = mejor ? { ...mejor, nota: mejor.nota ?? 4.5, precioAjustado: mejor.precioUnitario } : undefined;
+      const propia = lic.productos?.[0]?.ofertas?.find(o => o.proveedorId === PROVEEDOR_SALA);
+      const ganadora = propia ? { ...propia, nota: propia.nota ?? 4.5, precioAjustado: propia.precioUnitario } : undefined;
       modificarLicitacion(e, id, l => ({ ...l, estado: 'cerrada', ganadora, cierraEn: l.cierraEn > ahoraIso() ? ahoraIso() : l.cierraEn }));
       return [['licitacion.cerrada', { licitacion: licitacion(e, id), ordenes: [] }]];
     });
     despues(ESPERA_SI_MS, () => confirmar(id));
   };
 
-  /** El proveedor dijo que sí: una orden por negocio, las facturas una por una y después el SII las acepta. */
+  /** El proveedor dijo que sí: una orden por negocio con una línea por producto, las facturas una por una y el SII las acepta. */
   const confirmar = (id: string) => {
     const lic = licitacion(estado, id);
     if (!lic || lic.estado === 'abierta' || confirmadas.has(id)) return;
     confirmadas.add(id);
-    const precio = lic.precioActual ?? PRECIO_SOLO;
+    const productos = lic.productos ?? [];
     const ordenes: OrdenCompra[] = lic.participantes.map((p, i) => ({
       id: `o-${id}-${i}`, compradorId: p.negocioId ?? '', proveedorId: lic.ganadora?.proveedorId ?? lic.proveedorId ?? PROVEEDOR_SALA,
-      estado: 'confirmada', creadaEn: ahoraIso(), items: [{ producto: PRODUCTO, cantidad: p.cantidad, precioUnitario: precio }],
+      estado: 'confirmada', creadaEn: ahoraIso(),
+      items: (p.items ?? []).map(item => {
+        const producto = productos.find(x => x.id === item.productoId)!;
+        return { productoId: producto.id, producto: producto.nombre, cantidad: item.cantidad, precioUnitario: producto.precioActual ?? producto.precioSolo };
+      }),
     }));
     publicar(e => {
       e.ordenes = [...e.ordenes, ...ordenes];
@@ -275,10 +374,9 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
 
     const documentos: Documento[] = [];
     ordenes.forEach((o, i) => despues(i * FACTURA_MS, () => publicar(e => {
-      const item = o.items[0];
       const documento: Documento = {
         id: `d-${o.id}`, ordenId: o.id, tipo: 33, folio: folio++, trackId: null, estadoSii: 'recibido',
-        monto: item.cantidad * item.precioUnitario, emitidoEn: ahoraIso(),
+        monto: o.items.reduce((s, item) => s + item.cantidad * item.precioUnitario, 0), emitidoEn: ahoraIso(),
       };
       documentos.push(documento);
       e.documentos = [...e.documentos, documento];
@@ -287,10 +385,9 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     })));
 
     const finEmision = ordenes.length * FACTURA_MS;
-    despues(finEmision + 600, () => publicar(e => {
+    despues(finEmision + 600, () => publicar(() => {
       const total = documentos.reduce((s, d) => s + (d.monto ?? 0), 0);
-      const unidades = lic.totalUnidades ?? 0;
-      return [['licitacion.facturada', { licitacionId: id, documentos: documentos.length, total, ahorroTotal: (PRECIO_SOLO - precio) * unidades }]];
+      return [['licitacion.facturada', { licitacionId: id, documentos: documentos.length, total, ahorroTotal: lic.ahorroTotal ?? 0 }]];
     }));
     ordenes.forEach((o, i) => despues(finEmision + 1500 + i * ACEPTADA_MS, () => publicar(e => {
       e.documentos = e.documentos.map(d => (d.ordenId === o.id ? { ...d, estadoSii: 'aceptado' } : d));
@@ -311,16 +408,17 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     alCambiar(estado, { tipo: 'red.reiniciada', datos: estado as unknown as Record<string, unknown>, en: ahoraIso() });
   }
 
-  /** Cada 1,5 s llega uno o dos negocios; al vencer el plazo, la compra cierra. */
+  /** Cada 1,5 s llega uno o dos negocios con su carrito y a veces alguien cambia el suyo; al vencer el plazo, la compra cierra. */
   const avanzarSala = () => {
     const lic = estado.licitaciones.find(l => l.estado === 'abierta');
     if (!lic) return;
     if (Date.parse(lic.cierraEn) <= Date.now()) return cerrar(lic.id);
-    const llegan = Math.random() < 0.25 ? 2 : 1;
+    const llegan = Math.random() < 0.4 ? 2 : 1;
     for (let i = 0; i < llegan; i++) {
       const [nombre, comuna] = nombres.next().value!;
-      publicar(sumar(lic.id, { nombre, comuna, cantidad: aleatorio(CANTIDADES) }));
+      publicar(sumar(lic.id, { nombre, comuna }, carritoAleatorio()));
     }
+    if (Math.random() < 0.3) publicar(editarAlguno(lic.id));
   };
 
   const avanzarOrden = () => {
@@ -344,7 +442,7 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
       pendientes.forEach(clearTimeout);
     },
     unirse(licitacionId, datos) {
-      publicar(sumar(licitacionId, datos));
+      publicar(sumar(licitacionId, datos, [{ productoId: datos.productoId ?? CANASTA[0].id, cantidad: datos.cantidad }]));
     },
     reiniciar,
     cerrar,

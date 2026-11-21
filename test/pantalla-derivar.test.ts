@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, ranking, resumenLicitacion, tipoDeBajada } from '../client/src/red/derivar.ts';
-import { contar, cuentaRegresiva, dinero, nota, textoEstadoSii } from '../client/src/red/formato.ts';
+import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, precioAjustado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
+import { contar, cuentaRegresiva, dinero, formatearTelefono, nota, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
 const base = (): EstadoRed => ({
@@ -135,6 +135,62 @@ test('con canasta, la escalera usa el producto principal y no el total de la can
   assert.equal(t.totalUnidades, 5);
   assert.equal(t.precioActual, 100);
   assert.equal(t.siguiente?.faltan, 5);
-  assert.equal(detalleCarrito(lic, lic.participantes[0]), '2 productos');
+  assert.equal(detalleCarrito(lic, lic.participantes[0]), '5 cajas · 20 rollos');
   assert.equal(detalleCarrito(lic, lic.participantes[1]), '3 rollos');
+});
+
+/** Canasta de dos productos con tramos distintos: rollos (10 → 90) y etiquetas (10 → 45). */
+const canasta = (): Licitacion => ({
+  id: 'L-1', producto: 'Caja de rollos', comuna: '', cierraEn: '', estado: 'abierta', ofertas: [], proveedorId: 'a',
+  productos: [
+    { id: 'rollos', nombre: 'Caja de rollos térmicos (50 un.)', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 100, tramos: [{ desde: 1, precioUnitario: 100 }, { desde: 10, precioUnitario: 90 }] },
+    {
+      id: 'etiquetas', nombre: 'Rollo de etiquetas', unidad: 'rollo', unidadPlural: 'rollos', precioSolo: 50, tramos: [{ desde: 1, precioUnitario: 50 }, { desde: 10, precioUnitario: 45 }],
+      ofertas: [{ proveedorId: 'b', productoId: 'etiquetas', precioUnitario: 44, plazoDias: 1 }, { proveedorId: 'a', productoId: 'etiquetas', precioUnitario: 43, plazoDias: 1 }],
+    },
+  ],
+  participantes: [
+    { nombre: 'Uno', cantidad: 9, items: [{ productoId: 'rollos', cantidad: 4 }, { productoId: 'etiquetas', cantidad: 5 }] },
+    { nombre: 'Dos', cantidad: 6, items: [{ productoId: 'etiquetas', cantidad: 6 }] },
+  ],
+});
+
+test('el aviso a pantalla completa sale al cruzar el tramo de cualquier producto, leído con sus propios tramos', () => {
+  const lic = canasta();
+  // Etiquetas cruza su tramo de 10: $50 → $45 es de tramo (con los tramos de los rollos parecería una oferta).
+  const etiquetas = bajadaDeProducto({ productoId: 'etiquetas', precioAnterior: 50, precioNuevo: 45, totalUnidades: 11 }, lic);
+  assert.deepEqual(etiquetas, { productoId: 'etiquetas', nombre: 'Etiquetas', unidad: 'rollo', tipo: 'tramo', anterior: 50, nuevo: 45 });
+  assert.equal(mostrarAviso(etiquetas!.tipo, 1000, null), true);
+  // El proveedor baja etiquetas a $43: se anima en su fila, sin aviso.
+  assert.equal(bajadaDeProducto({ productoId: 'etiquetas', precioAnterior: 45, precioNuevo: 43, totalUnidades: 11 }, lic)?.tipo, 'oferta');
+  // Sin productoId, es el primer producto (compatibilidad); un producto que no existe no avisa nada.
+  assert.equal(bajadaDeProducto({ precioAnterior: 100, precioNuevo: 90, totalUnidades: 10 }, lic)?.productoId, 'rollos');
+  assert.equal(bajadaDeProducto({ productoId: 'otro', precioAnterior: 100, precioNuevo: 90, totalUnidades: 10 }, lic), null);
+  // Dos cruces seguidos de productos distintos: el segundo espera la pausa.
+  assert.equal(mostrarAviso('tramo', 1000 + PAUSA_AVISO_MS - 1, 1000), false);
+});
+
+test('los totales de la canasta suman cada producto con su propio precio y ahorro', () => {
+  const lic = canasta();
+  lic.productos![1] = { ...lic.productos![1], totalUnidades: 11, precioActual: 43 };
+  // Rollos: 4 cajas a $100 (sin ahorro). Etiquetas: 11 rollos a $43 (ahorran $7 cada uno).
+  assert.deepEqual(totalesCanasta(lic), { negocios: 2, unidades: 15, monto: 4 * 100 + 11 * 43, ahorro: 11 * 7 });
+  // Si el backend manda los totales, mandan esos.
+  assert.deepEqual(totalesCanasta({ ...lic, totalNegocios: 3, totalUnidades: 20, montoTotal: 999, ahorroTotal: 111 }), { negocios: 3, unidades: 20, monto: 999, ahorro: 111 });
+
+  const [rollos, etiquetas] = productosDeCanasta(lic, base());
+  assert.equal(rollos.corto, 'Rollos térmicos');
+  assert.equal(rollos.tramos.siguiente?.faltan, 6);
+  assert.equal(etiquetas.porcentaje, 14);
+  assert.equal(etiquetas.negocios, 2);
+  assert.equal(etiquetas.lider?.proveedorId, 'a');
+  assert.equal(etiquetas.proveedores, 2);
+  assert.equal(productoQueCambio({ rollos: '4', etiquetas: '11' }, { rollos: '4', etiquetas: '12' }), 'etiquetas');
+});
+
+test('formatea teléfonos con su código de país', () => {
+  assert.equal(formatearTelefono('12084828247'), '+1 (208) 482-8247');
+  assert.equal(formatearTelefono('+56 9 1234 5678'), '+56 9 1234 5678');
+  assert.equal(formatearTelefono('34612345678'), '+34 612 345 678');
+  assert.equal(formatearTelefono('447911123456'), '+44 791 112 3456');
 });
