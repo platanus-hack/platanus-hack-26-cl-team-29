@@ -3,7 +3,7 @@ import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { Icono, LogoSii, Monograma, type NombreIcono } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
-  cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, resumenLicitacion, unidadDeLicitacion,
+  cicloDeOrden, contadores, describirEvento, licitacionActual, negocioPorId, ordenActual, ranking, totalesCanasta, unidadDeLicitacion,
   type CambioNota, type FilaRanking,
 } from '../red/derivar.ts';
 import { contar, dinero, haceCuanto, miles, nota, pedidoDe, unidadDe } from '../red/formato.ts';
@@ -120,20 +120,24 @@ export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: E
   );
 }
 
-/** Resumen de la compra conjunta en curso: precio de hoy, negocios y unidades. Lleva a /licitacion. */
+/** Resumen de la compra conjunta en curso: total de la canasta y ahorro, negocios y unidades. Lleva a /licitacion. */
 export function MiniLicitacion({ estado }: { estado: EstadoRed }) {
   const lic = licitacionActual(estado);
   if (!lic) return null;
-  const resumenLic = resumenLicitacion(lic, estado);
-  const unidad = unidadDeLicitacion(lic);
+  const c = totalesCanasta(lic);
+  const productos = lic.productos?.length ?? 1;
+  const unidad = productos > 1 ? { singular: 'unidad', plural: 'unidades' } : unidadDeLicitacion(lic);
   return (
     <a className="tarjeta mini-lic" href="/licitacion">
-      <p className="etiqueta">Compra conjunta {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}</p>
+      <p className="etiqueta">
+        Compra conjunta{productos > 1 ? ` · ${contar(productos, 'producto')}` : ''} {lic.estado !== 'abierta' && <span className="magenta">· cerrada</span>}
+      </p>
       <div className="mini-lic-precio">
-        <span className="numero-grande">{resumenLic.precioActual !== undefined ? dinero(resumenLic.precioActual) : 'Sin ofertas'}</span>
-        {resumenLic.precioSolo !== undefined && <span className="tachado">{dinero(resumenLic.precioSolo)}</span>}
+        <span className="numero-grande">{dinero(c.monto)}</span>
+        <span className="tenue">neto</span>
       </div>
-      <p>{contar(resumenLic.compradores, 'negocio')} · {contar(resumenLic.totalUnidades, unidad.singular, unidad.plural)}</p>
+      {c.ahorro > 0 && <p className="mini-lic-ahorro verde">la sala ahorra {dinero(c.ahorro)}</p>}
+      <p>{contar(c.negocios, 'negocio')} · {contar(c.unidades, unidad.singular, unidad.plural)}</p>
     </a>
   );
 }

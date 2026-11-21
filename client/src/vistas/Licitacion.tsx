@@ -1,12 +1,16 @@
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CurvaPrecio } from '../components/CurvaPrecio.tsx';
+import { TableroCanasta, useProductoDestacado } from '../components/Canasta.tsx';
 import { Escalera } from '../components/Escalera.tsx';
-import { Monograma } from '../components/Iconos.tsx';
+import { Icono, iconoProducto, Monograma } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import { Qr } from '../components/Qr.tsx';
-import { estadoTramos, licitacionActual, resumenLicitacion, tieneTramos, unidadDeLicitacion, type OfertaVista, type ResumenLicitacion } from '../red/derivar.ts';
+import {
+  estadoTramos, licitacionActual, licitacionDeProducto, negocioPorId, productosDeCanasta, resumenLicitacion, tieneTramos, totalesCanasta,
+  unidadDeLicitacion, type OfertaVista, type ProductoSala, type ResumenLicitacion, type TotalesCanasta,
+} from '../red/derivar.ts';
 import { contar, cuentaRegresiva, dinero, nota } from '../red/formato.ts';
-import type { Licitacion as LicitacionRed } from '../red/tipos.ts';
+import type { EstadoRed, Fuente, Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
 
 function detalleOferta(o: OfertaVista): string {
@@ -21,7 +25,7 @@ function motivoRiesgo(o: OfertaVista, mejor?: OfertaVista): string {
 
 type Unidad = { singular: string; plural: string };
 
-function Grupo({ lic, r, cerrada, unidad }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean; unidad: Unidad }) {
+function Grupo({ lic, r, cerrada, unidad, canasta }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean; unidad: Unidad; canasta?: TotalesCanasta }) {
   const [lista, caben] = useFilasQueCaben<HTMLUListElement>(8, r.compradores);
   const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   return (
@@ -31,7 +35,7 @@ function Grupo({ lic, r, cerrada, unidad }: { lic: LicitacionRed; r: ResumenLici
         <span className="numero-grande">{r.compradores}</span>
         {r.delPublico > 0 && <span className="mono verde">+{r.delPublico} del público</span>}
       </div>
-      <p className="sacos">{contar(r.totalUnidades, unidad.singular, unidad.plural)} en total</p>
+      <p className="sacos">{canasta ? contar(canasta.unidades, 'unidad', 'unidades') : contar(r.totalUnidades, unidad.singular, unidad.plural)} en total</p>
       <ul className="lista-grupo ajustable" ref={lista}>
         {r.ultimos.slice(0, caben).map((p, i) => (
           <li key={`${r.compradores - i}`}>
@@ -58,11 +62,16 @@ function Grupo({ lic, r, cerrada, unidad }: { lic: LicitacionRed; r: ResumenLici
   );
 }
 
-function Ofertas({ r, cerrada }: { r: ResumenLicitacion; cerrada: boolean }) {
+/** Título de la columna del producto en foco: su ícono y su nombre corto. */
+function DelProducto({ p }: { p?: ProductoSala }) {
+  return p ? <span className="del-producto">· <Icono nombre={iconoProducto(p.nombre)} /><span className="del-producto-nombre">{p.corto}</span></span> : null;
+}
+
+function Ofertas({ r, cerrada, producto }: { r: ResumenLicitacion; cerrada: boolean; producto?: ProductoSala }) {
   const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, r.ofertas.length);
   return (
     <section className="tarjeta apilada">
-      <p className="etiqueta">Ofertas de proveedores</p>
+      <p className="etiqueta lic-foco">Ofertas<DelProducto p={producto} /></p>
       {r.ofertas.length ? (
         <ul className="ofertas ajustable" ref={lista}>
           {r.ofertas.slice(0, caben).map(o => (
@@ -85,6 +94,27 @@ function Ofertas({ r, cerrada }: { r: ResumenLicitacion; cerrada: boolean }) {
   );
 }
 
+/** Toda la canasta: lo que paga y ahorra la sala, y una fila por producto con quien va ganando. */
+function Canasta({ lic, estado, productos, destacado, canasta }: {
+  lic: LicitacionRed; estado: EstadoRed; productos: ProductoSala[]; destacado?: string; canasta: TotalesCanasta;
+}) {
+  return (
+    <section className="tarjeta apilada lic-canasta">
+      <div className="mejor-oferta">
+        <div>
+          <p className="etiqueta">La sala paga hoy (neto)</p>
+          <div className="numero-grande">{dinero(canasta.monto)}</div>
+        </div>
+        <div className="precio-solo">
+          <p className="etiqueta">Y ahorra</p>
+          <div className="numero-grande verde">{dinero(canasta.ahorro)}</div>
+        </div>
+      </div>
+      <TableroCanasta productos={productos} destacado={destacado} logoEnSala={negocioPorId(estado, lic.proveedorId)?.logoUrl} />
+    </section>
+  );
+}
+
 export function Licitacion() {
   const { estado, fuente } = useRed();
   const ahora = useAhora(500);
@@ -100,6 +130,18 @@ export function Licitacion() {
   }
 
   const r = resumenLicitacion(lic, estado);
+  return <EnCurso lic={lic} estado={estado} r={r} ahora={ahora} fuente={fuente} />;
+}
+
+function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado: EstadoRed; r: ResumenLicitacion; ahora: number; fuente: Fuente }) {
+  const productos = productosDeCanasta(lic, estado);
+  /** El foco cambia como mucho cada 6 s: la columna de ofertas no salta con cada negocio que llega. */
+  const destacado = useProductoDestacado(productos, 6000);
+  const conCanasta = (lic.productos?.length ?? 0) > 1;
+  const foco = conCanasta ? productos.find(p => p.id === destacado) : undefined;
+  const vista = foco ? licitacionDeProducto(lic, foco.id) : lic;
+  const rFoco = foco ? resumenLicitacion(vista, estado) : r;
+  const canasta = conCanasta ? totalesCanasta(lic) : undefined;
   const restante = Date.parse(lic.cierraEn) - ahora;
   const cerrada = lic.estado === 'cerrada' || restante <= 0;
   const unidad = unidadDeLicitacion(lic);
@@ -110,7 +152,7 @@ export function Licitacion() {
         <div>
           <div className="lic-meta">
             <span className="en-vivo">Licitación en vivo</span>
-            <span>{lic.producto} · {lic.comuna}</span>
+            <span>{conCanasta ? `Canasta de ${productos.length} productos` : lic.producto} · {lic.comuna}</span>
             <AvisoFuente fuente={fuente} />
           </div>
           <h1 className="lic-titulo">
@@ -126,9 +168,9 @@ export function Licitacion() {
       </header>
 
       <div className="lic-cuerpo">
-        <Grupo lic={lic} r={r} cerrada={cerrada} unidad={unidad} />
+        <Grupo lic={lic} r={r} cerrada={cerrada} unidad={unidad} canasta={canasta} />
 
-        <section className="tarjeta apilada">
+        {canasta ? <Canasta lic={lic} estado={estado} productos={productos} destacado={destacado} canasta={canasta} /> : <section className="tarjeta apilada">
           <div className="mejor-oferta">
             <div>
               <p className="etiqueta">{r.curvaPorTramos ? 'Precio por' : 'Mejor oferta por'} {unidad.singular}</p>
@@ -146,15 +188,15 @@ export function Licitacion() {
           )}
           <CurvaPrecio puntos={r.curva} precioSolo={r.precioSolo} />
           <div className="leyenda"><i />{r.curvaPorTramos ? 'cada punto es un tramo de volumen que el grupo alcanzó' : 'cada punto es una contraoferta de un proveedor cuando el grupo crece'}</div>
-        </section>
+        </section>}
 
-        {tieneTramos(lic) && !r.ofertas.length ? (
+        {tieneTramos(vista) && !rFoco.ofertas.length ? (
           <section className="tarjeta apilada">
-            <p className="etiqueta">Precio por volumen</p>
-            <Escalera tramos={estadoTramos(lic)} unidad={unidad} className="vertical" />
+            <p className="etiqueta lic-foco">{foco ? 'Por volumen' : 'Precio por volumen'}<DelProducto p={foco} /></p>
+            <Escalera tramos={estadoTramos(vista)} unidad={unidadDeLicitacion(vista)} className="vertical" />
           </section>
         ) : (
-          <Ofertas r={r} cerrada={cerrada} />
+          <Ofertas r={rFoco} cerrada={cerrada} producto={foco} />
         )}
       </div>
     </main>

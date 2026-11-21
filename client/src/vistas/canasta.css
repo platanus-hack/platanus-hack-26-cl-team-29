@@ -1,0 +1,126 @@
+/* ---------- Tablero de la canasta (/sala y /licitacion) ---------- */
+/* Usa --u, la unidad de la pantalla que se proyecta (la define .sala o .proyeccion). */
+.proyeccion { --u: min(1vh, 0.56vw); }
+@media (max-aspect-ratio: 3/2) { .proyeccion { --u: min(1vh, 0.75vw); } }
+
+.tablero-canasta {
+  container-type: inline-size;
+  list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 0.8); min-width: 0;
+}
+/* Mismos carriles en todas las filas: ícono, producto y avance, precio, precio solo y quien va ganando. */
+.prod {
+  display: grid; align-items: center; column-gap: calc(var(--u) * 1.6);
+  grid-template-columns: calc(var(--u) * 5) minmax(0, 1fr) calc(var(--u) * 21) calc(var(--u) * 11) calc(var(--u) * 30);
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px;
+  padding: calc(var(--u) * 0.9) calc(var(--u) * 1.6);
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+/* El producto que se movió último: borde amarillo, sin tapar a los demás. */
+.prod.destacado { border-color: var(--color-primary); box-shadow: inset calc(var(--u) * 0.6) 0 0 var(--color-primary); }
+.prod-icono {
+  width: calc(var(--u) * 5); height: calc(var(--u) * 5); border-radius: 12px; display: grid; place-items: center;
+  background: var(--color-background); color: var(--color-primary); flex-shrink: 0;
+}
+.prod-icono .icono { width: 60%; height: 60%; }
+.prod-info { display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); min-width: 0; }
+.prod-nombre { font-size: calc(var(--u) * 2.3); font-weight: 800; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-avance { display: block; height: calc(var(--u) * 0.7); border-radius: 999px; }
+.prod-faltan { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-precio { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
+.prod-precio strong {
+  font-size: calc(var(--u) * 4.8); font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: var(--color-primary);
+  font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-block;
+  animation: voltear 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Bajada por una oferta: el precio cae en su fila con un destello verde. */
+.prod-precio strong.por-oferta { animation: bajar 1.2s cubic-bezier(0.2, 0.9, 0.2, 1); }
+.prod-por { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.4)); color: var(--color-tenue); white-space: nowrap; }
+.prod-solo {
+  display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * 0.3);
+  font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.8)); white-space: nowrap; color: var(--color-muted);
+}
+.prod-solo .verde { font-weight: 700; font-size: max(13px, calc(var(--u) * 2.2)); }
+.prod-lider {
+  display: flex; align-items: center; gap: calc(var(--u) * 1); min-width: 0;
+  border-left: 1px solid var(--color-border); padding-left: calc(var(--u) * 1.6);
+  animation: aparecer 0.5s ease-out;
+}
+.prod-lider .monograma { font-size: calc(var(--u) * 1.6); flex-shrink: 0; }
+.prod-lider-texto { display: flex; flex-direction: column; min-width: 0; }
+.prod-lider .nombre { font-size: calc(var(--u) * 1.9); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-lider-pie { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.4)); color: var(--color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-lider.vacio .prod-lider-pie { color: var(--color-tenue); }
+.prod-lider-corto { display: none; font-family: var(--font-mono); font-size: max(10px, calc(var(--u) * 1.2)); color: var(--color-primary); }
+
+/* Tablero angosto (4:3 o la columna de /licitacion): sin "por caja" ni unidades, y el proveedor solo con su monograma. */
+@container (max-width: 820px) {
+  .prod {
+    grid-template-columns: calc(var(--u) * 4.4) minmax(0, 1fr) auto calc(var(--u) * 8) calc(var(--u) * 5);
+    column-gap: calc(var(--u) * 1.2); padding: calc(var(--u) * 0.8) calc(var(--u) * 1.2);
+  }
+  .prod-icono { width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); }
+  .prod-nombre { font-size: calc(var(--u) * 2.1); }
+  .prod-precio strong { font-size: calc(var(--u) * 3.8); }
+  .prod-por, .prod-unidades, .prod-lider-texto { display: none; }
+  .prod-solo { font-size: max(11px, calc(var(--u) * 1.6)); }
+  .prod-lider { border-left: 0; padding-left: 0; flex-direction: column; justify-content: center; gap: calc(var(--u) * 0.3); }
+  .prod-lider-corto { display: block; }
+  .prod-lider.vacio { visibility: hidden; }
+}
+
+/* Tablero muy angosto (/licitacion en 4:3): el nombre arriba y el precio debajo, en la misma tarjeta. */
+@container (max-width: 480px) {
+  .prod {
+    grid-template-columns: calc(var(--u) * 4.4) auto minmax(0, 1fr) calc(var(--u) * 5);
+    grid-template-areas: 'icono info info lider' 'icono precio solo lider';
+    row-gap: calc(var(--u) * 0.6);
+  }
+  .prod-icono { grid-area: icono; }
+  .prod-info { grid-area: info; }
+  .prod-precio { grid-area: precio; align-items: flex-start; }
+  .prod-solo { grid-area: solo; flex-direction: row; align-items: baseline; gap: calc(var(--u) * 1); }
+  .prod-lider { grid-area: lider; }
+  .prod-faltan, .prod-solo .tachado, .prod-lider-corto { display: none; }
+  .prod-nombre { white-space: normal; font-size: calc(var(--u) * 1.9); }
+}
+
+/* ---------- Totales por producto al cerrar ---------- */
+.cierre-canasta {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 1.2);
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--u) * 30), 1fr));
+}
+.cierre-canasta li {
+  display: flex; align-items: center; gap: calc(var(--u) * 1.2); min-width: 0;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; padding: calc(var(--u) * 1) calc(var(--u) * 1.4);
+}
+.cierre-texto { display: flex; flex-direction: column; gap: calc(var(--u) * 0.3); min-width: 0; }
+.cierre-pie { font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.7)); color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cierre-pie strong { color: var(--color-primary); }
+@media (max-aspect-ratio: 3/2) { .cierre-canasta:not(.compacta) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Versión compacta, en la columna de resumen de las facturas: una fila por producto. */
+.cierre-canasta.compacta { grid-template-columns: minmax(0, 1fr); gap: calc(var(--u) * 0.6); }
+.cierre-canasta.compacta li { padding: calc(var(--u) * 0.4) 0; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: none; }
+.cierre-canasta.compacta .prod-icono { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); border-radius: 8px; }
+.cierre-canasta.compacta .prod-nombre { font-size: calc(var(--u) * 1.8); }
+.cierre-canasta.compacta .cierre-pie { font-size: max(11px, calc(var(--u) * 1.5)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tablero-canasta *, .cierre-canasta * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- /licitacion: la canasta en la columna central ---------- */
+.lic-canasta .tablero-canasta { margin-top: 1.6vh; }
+.lic-canasta .mejor-oferta .numero-grande.verde { color: var(--color-green); }
+.lic-foco { display: flex; align-items: center; gap: 0.5em; min-width: 0; white-space: nowrap; }
+.del-producto { display: flex; align-items: center; gap: 0.5em; min-width: 0; overflow: hidden; color: var(--color-text); }
+.del-producto .icono { width: 1.2em; height: 1.2em; flex-shrink: 0; }
+.del-producto-nombre { overflow: hidden; text-overflow: ellipsis; }
+.lic-canasta { container-type: inline-size; }
+.lic-canasta .mejor-oferta > div .numero-grande { font-size: min(clamp(30px, min(7vh, 3.4vw), 88px), 11cqi); white-space: nowrap; }
+/* En la proyección las filas llenan la tarjeta: más aire por producto en vez de un hueco abajo. */
+@media (min-width: 1024px) and (min-height: 600px) {
+  .lic-canasta .tablero-canasta { flex: 1 1 0; min-height: 0; grid-auto-rows: minmax(0, 1fr); max-height: calc(var(--u) * 60); }
+}
+
+/* ---------- /red: resumen de la compra conjunta ---------- */
+.mini-lic-ahorro { margin: 0.6vh 0 0; font-family: var(--font-mono); font-size: var(--t-cuerpo); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

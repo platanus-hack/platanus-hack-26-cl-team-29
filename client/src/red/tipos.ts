@@ -73,6 +73,8 @@ export interface ProductoCompra {
   unidadPlural: string;
   precioSolo: number;
   tramos: Tramo[];
+  /** Ofertas por este producto (cada una con su `productoId`). */
+  ofertas?: Oferta[];
   totalUnidades?: number;
   precioActual?: number;
   siguienteTramo?: SiguienteTramo | null;
@@ -80,6 +82,8 @@ export interface ProductoCompra {
 
 export interface Oferta {
   proveedorId: string;
+  /** Canasta: el producto por el que oferta. */
+  productoId?: string;
   precioUnitario: number;
   plazoDias: number;
   en?: string;
@@ -113,6 +117,9 @@ export interface Licitacion {
   productos?: ProductoCompra[];
   /** Lo que ahorra el grupo contra `precioSolo` de cada producto (neto), de toda la canasta. */
   ahorroTotal?: number;
+  /** Participantes con carrito y suma de unidades por `precioActual` de cada producto (neto). */
+  totalNegocios?: number;
+  montoTotal?: number;
   producto: string;
   comuna: string;
   cierraEn: string;

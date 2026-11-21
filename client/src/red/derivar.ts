@@ -224,8 +224,13 @@ export function calcularTramos(participantes: Participante[], tramos: Tramo[] | 
  */
 export function cantidadPrincipal(lic: Licitacion, p: Participante): number {
   const principal = lic.productos?.[0];
-  if (!principal || !p.items) return p.cantidad;
-  return p.items.find(i => i.productoId === principal.id)?.cantidad ?? 0;
+  return principal ? cantidadDe(p, principal.id) : p.cantidad;
+}
+
+/** Unidades de un producto de la canasta en el carrito de un participante (sin `items`, su `cantidad`). */
+export function cantidadDe(p: Participante, productoId: string): number {
+  if (!p.items) return p.cantidad;
+  return p.items.filter(i => i.productoId === productoId).reduce((s, i) => s + i.cantidad, 0);
 }
 
 /**
@@ -253,6 +258,124 @@ export function estadoTramos(lic: Licitacion): EstadoTramos {
 }
 
 export const tieneTramos = (lic: Licitacion) => (lic.tramos?.length ?? 0) > 0;
+
+// ---------- Canasta: cada producto con sus tramos y su competencia ----------
+
+/** "Caja de rollos térmicos 80 mm (50 un.)" → "Rollos térmicos 80 mm": sin la unidad del comienzo ni el paréntesis. */
+export function nombreCorto(nombre: string, unidad?: string): string {
+  let corto = nombre.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (unidad) corto = corto.replace(new RegExp(`^${unidad}s?\\s+de\\s+`, 'i'), '');
+  return corto ? corto[0].toUpperCase() + corto.slice(1) : nombre;
+}
+
+/**
+ * La licitación vista desde un producto de la canasta: los campos de un solo producto pasan a ser los de ese
+ * producto y quedan solo los participantes que lo piden. Así `estadoTramos`, `resumenLicitacion` y `competencia`
+ * sirven para cualquier producto. Sin canasta (o con un id que no existe), la licitación tal cual.
+ */
+export function licitacionDeProducto(lic: Licitacion, productoId: string): Licitacion {
+  const p = lic.productos?.find(x => x.id === productoId);
+  if (!p) return lic;
+  const principal = lic.productos![0].id === p.id;
+  return {
+    ...lic,
+    productos: [p],
+    producto: p.nombre,
+    unidad: p.unidad,
+    unidadPlural: p.unidadPlural,
+    precioSolo: p.precioSolo,
+    tramos: p.tramos,
+    ofertas: p.ofertas ?? (principal ? lic.ofertas : []),
+    totalUnidades: p.totalUnidades,
+    precioActual: p.precioActual,
+    siguienteTramo: p.siguienteTramo,
+    // La ganadora del backend es la del primer producto; en los demás gana la oferta más barata.
+    ganadora: principal ? lic.ganadora : undefined,
+    participantes: lic.participantes.filter(x => cantidadDe(x, p.id) > 0),
+  };
+}
+
+export interface ProductoSala {
+  id: string;
+  nombre: string;
+  /** Nombre para pantallas: sin la unidad del comienzo ni el paréntesis. */
+  corto: string;
+  unidad: { singular: string; plural: string };
+  tramos: EstadoTramos;
+  precioSolo?: number;
+  /** Cuánto menos que comprar solo, en %. */
+  porcentaje: number;
+  /** Negocios que piden este producto. */
+  negocios: number;
+  /** La oferta que va ganando este producto, si hay ofertas y alguna no supera el precio del tramo. */
+  lider?: OfertaSala;
+  /** Proveedores distintos que ofertaron por este producto. */
+  proveedores: number;
+}
+
+/** Ids de la canasta; una licitación sin canasta es una canasta de un producto (`producto`, como el backend). */
+const idsDeCanasta = (lic: Licitacion) => (lic.productos?.length ? lic.productos.map(p => p.id) : ['producto']);
+
+/** Cada producto de la canasta con su precio de hoy, su avance al siguiente tramo y quién va ganando. */
+export function productosDeCanasta(lic: Licitacion, estado: EstadoRed): ProductoSala[] {
+  return idsDeCanasta(lic).map(id => {
+    const vista = licitacionDeProducto(lic, id);
+    const tramos = estadoTramos(vista);
+    const precioSolo = vista.precioSolo;
+    const ofertas = competencia(vista, estado);
+    const unidad = unidadDeLicitacion(vista);
+    return {
+      id,
+      nombre: vista.producto,
+      corto: nombreCorto(vista.producto, unidad.singular),
+      unidad,
+      tramos,
+      precioSolo,
+      porcentaje: precioSolo && tramos.precioActual !== undefined ? Math.max(0, Math.round(((precioSolo - tramos.precioActual) / precioSolo) * 100)) : 0,
+      negocios: vista.participantes.length,
+      // Una oferta sobre el precio del tramo no manda: ahí gana el volumen y no se muestra un líder.
+      lider: ofertas.find(o => o.gana && (tramos.precioActual === undefined || o.precioUnitario <= tramos.precioActual)),
+      proveedores: new Set(ofertas.map(o => o.proveedorId)).size,
+    };
+  });
+}
+
+export interface TotalesCanasta {
+  negocios: number;
+  /** Unidades de todos los productos. */
+  unidades: number;
+  /** Lo que paga la sala hoy, neto. */
+  monto: number;
+  /** Lo que ahorra la sala contra comprar cada uno por su cuenta, neto. */
+  ahorro: number;
+}
+
+/** Totales de toda la canasta: los que manda el backend o, si faltan, calculados producto por producto. */
+export function totalesCanasta(lic: Licitacion): TotalesCanasta {
+  const porProducto = idsDeCanasta(lic).map(id => {
+    const vista = licitacionDeProducto(lic, id);
+    const t = estadoTramos(vista);
+    const precio = t.precioActual ?? 0;
+    return { unidades: t.totalUnidades, monto: t.totalUnidades * precio, ahorro: t.totalUnidades * Math.max(0, (vista.precioSolo ?? precio) - precio) };
+  });
+  const suma = (k: 'unidades' | 'monto' | 'ahorro') => porProducto.reduce((s, p) => s + p[k], 0);
+  return {
+    negocios: lic.totalNegocios ?? lic.participantes.filter(p => p.cantidad > 0).length,
+    unidades: lic.productos?.length ? (lic.totalUnidades ?? suma('unidades')) : suma('unidades'),
+    monto: lic.montoTotal ?? suma('monto'),
+    ahorro: lic.ahorroTotal ?? suma('ahorro'),
+  };
+}
+
+/** Firma de lo que se ve de cada producto: si cambia, ese producto se movió. */
+export function firmasDeCanasta(productos: ProductoSala[]): Record<string, string> {
+  return Object.fromEntries(productos.map(p => [p.id, `${p.tramos.totalUnidades}|${p.tramos.precioActual}|${p.lider?.clave ?? ''}`]));
+}
+
+/** El producto que cambió entre dos firmas (el último de la canasta si cambiaron varios); `undefined` si ninguno. */
+export function productoQueCambio(antes: Record<string, string>, ahora: Record<string, string>): string | undefined {
+  return Object.keys(ahora).filter(id => id in antes && antes[id] !== ahora[id]).at(-1);
+}
 
 /** Unidad de la licitación, en singular y plural: la del backend o la que se deduce del producto. */
 export function unidadDeLicitacion(lic: Licitacion): { singular: string; plural: string } {
@@ -312,12 +435,18 @@ export function nombreParticipante(estado: EstadoRed, lic: Licitacion, p: Partic
   return { nombre: p.nombre ?? n?.nombre ?? 'Negocio', comuna: p.comuna ?? n?.comuna ?? '', rubro: p.rubro ?? n?.rubro, cantidad: p.cantidad, detalle: detalleCarrito(lic, p) };
 }
 
-/** Lo que pidió un participante: "3 cajas" si es un solo producto, "3 productos" si arma una canasta. */
+/** Lo que pidió un participante: "3 cajas", "3 cajas · 2 rollos" o, con más de dos productos, "4 productos". */
 export function detalleCarrito(lic: Licitacion, p: Participante): string {
   const items = (p.items ?? []).filter(i => i.cantidad > 0);
+  if (items.length > 2) return contar(items.length, 'producto');
+  const partes = items.flatMap(i => {
+    const producto = lic.productos?.find(x => x.id === i.productoId);
+    return producto ? [contar(i.cantidad, producto.unidad, producto.unidadPlural)] : [];
+  });
+  // Dos productos con la misma unidad ("3 cajas · 1 caja") no se distinguen: se cuentan los productos.
+  const unidades = items.map(i => lic.productos?.find(x => x.id === i.productoId)?.unidad);
+  if (partes.length && partes.length === items.length && new Set(unidades).size === items.length) return partes.join(' · ');
   if (items.length > 1) return contar(items.length, 'producto');
-  const producto = items[0] && lic.productos?.find(x => x.id === items[0].productoId);
-  if (producto) return contar(items[0].cantidad, producto.unidad, producto.unidadPlural);
   const u = unidadDeLicitacion(lic);
   return contar(p.cantidad, u.singular, u.plural);
 }
@@ -425,6 +554,30 @@ export function tipoDeBajada(datos: Record<string, unknown>, tramos: Tramo[] | u
   return delTramo === nuevo ? 'tramo' : 'oferta';
 }
 
+export interface BajadaProducto {
+  productoId: string;
+  /** Nombre corto del producto, para el aviso. */
+  nombre: string;
+  unidad: string;
+  tipo: TipoBajada;
+  anterior?: number;
+  nuevo: number;
+}
+
+/**
+ * Un `licitacion.precio_bajo` leído con los tramos de SU producto (sin `productoId`, el primero de la canasta):
+ * cruzar el tramo 10 de etiquetas es de tramo aunque el precio no sea un tramo de los rollos.
+ */
+export function bajadaDeProducto(datos: Record<string, unknown>, lic: Licitacion): BajadaProducto | null {
+  const id = texto(datos.productoId) ?? idsDeCanasta(lic)[0];
+  if (lic.productos?.length && !lic.productos.some(p => p.id === id)) return null;
+  const vista = licitacionDeProducto(lic, id);
+  const tipo = tipoDeBajada(datos, vista.tramos);
+  if (!tipo) return null;
+  const unidad = unidadDeLicitacion(vista);
+  return { productoId: id, nombre: nombreCorto(vista.producto, unidad.singular), unidad: unidad.singular, tipo, anterior: numero(datos.precioAnterior), nuevo: numero(datos.precioNuevo)! };
+}
+
 /** El aviso a pantalla completa se muestra solo si es de tramo y pasó la pausa desde el anterior. */
 export function mostrarAviso(tipo: TipoBajada | null, ahora: number, ultimoAviso: number | null): boolean {
   return tipo === 'tramo' && (ultimoAviso === null || ahora - ultimoAviso >= PAUSA_AVISO_MS);
@@ -474,6 +627,8 @@ export interface FacturaSala {
   comuna: string;
   rubro?: string;
   unidades: number;
+  /** Líneas de la factura (una por producto). */
+  lineas: number;
   /** "3 cajas" o, si la factura trae varios productos de la canasta, "3 productos". */
   detalle: string;
   monto: number;
@@ -493,6 +648,9 @@ export interface ResumenSala {
   unidad: { singular: string; plural: string };
   tramos: EstadoTramos;
   precioSolo?: number;
+  /** Cada producto de la canasta (uno si la compra no tiene canasta). */
+  productos: ProductoSala[];
+  canasta: TotalesCanasta;
   /** Participantes, el más nuevo primero; `n` es su número de llegada (estable, sirve de clave). */
   muro: Array<{ n: number } & ReturnType<typeof nombreParticipante>>;
   facturas: FacturaSala[];
@@ -539,7 +697,8 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
         nombre: comprador?.nombre ?? 'Negocio',
         comuna: comprador?.comuna ?? '',
         rubro: comprador?.rubro,
-        unidades: item?.cantidad ?? 0,
+        unidades: orden.items.reduce((s, i) => s + i.cantidad, 0),
+        lineas: orden.items.length,
         // Con canasta, una factura puede traer varias líneas: se cuentan los productos.
         detalle: orden.items.length > 1 ? contar(orden.items.length, 'producto') : item ? cantidadDeItem(lic, item) : '',
         monto: d.monto ?? orden.items.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0),
@@ -552,8 +711,7 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
   const todasFacturadas = ordenes.length > 0 && facturas.length >= ordenes.length;
   const fase: FaseSala =
     finalizada || todasFacturadas ? 'lista' : facturas.length ? 'facturando' : cerrada ? 'cerrada' : 'abierta';
-  const precioFinal = tramos.precioActual;
-  const ahorroCalculado = lic.precioSolo !== undefined && precioFinal !== undefined ? Math.max(0, lic.precioSolo - precioFinal) * tramos.totalUnidades : 0;
+  const canasta = totalesCanasta(lic);
   const total = numero(finalizada?.datos.total);
   const ahorro = numero(finalizada?.datos.ahorroTotal);
   const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, lic, p) })).reverse();
@@ -563,12 +721,14 @@ export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoR
     unidad: unidadDeLicitacion(lic),
     tramos,
     precioSolo: lic.precioSolo,
+    productos: productosDeCanasta(lic, estado),
+    canasta,
     muro,
     facturas,
     aceptadas: facturas.filter(f => facturaAceptada(f.estadoSii)).length,
     ordenes: ordenes.length,
     totalNeto: total ?? facturas.reduce((s, f) => s + f.monto, 0),
-    ahorroTotal: ahorro ?? lic.ahorroTotal ?? ahorroCalculado,
+    ahorroTotal: ahorro ?? canasta.ahorro,
   };
 }
 
@@ -593,7 +753,7 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
   const proveedor = negocioPorId(estado, proveedorId)?.nombre ?? texto(objeto(e.datos.oferta).proveedorNombre);
   const item = orden?.items?.[0];
   const lic = licitacionActual(estado, texto(e.datos.licitacionId));
-  const producto = lic?.productos?.find(x => x.id === texto(e.datos.productoId));
+  const producto = lic?.productos?.find(x => x.id === (texto(e.datos.productoId) ?? texto(objeto(e.datos.oferta).productoId)));
   const porUnidad = `por ${producto ? producto.unidad : lic ? unidadDeLicitacion(lic).singular : 'unidad'}`;
   switch (e.tipo) {
     case 'orden.creada':
@@ -634,6 +794,8 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const p = objeto(e.datos.participante);
       const quien = texto(p.nombre) ?? negocioPorId(estado, texto(p.negocioId))?.nombre ?? 'Un negocio';
       const comuna = texto(p.comuna);
+      if (e.datos.accion === 'sale') return `${quien} salió de la compra`;
+      if (e.datos.accion === 'cambia') return `${quien} cambió su pedido`;
       return `${quien}${comuna ? ` en ${comuna}` : ''} se sumó a la compra`;
     }
     case 'licitacion.oferta': {
@@ -642,7 +804,8 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     }
     case 'licitacion.precio_bajo': {
       const nuevo = numero(e.datos.precioNuevo);
-      return nuevo ? `La compra conjunta bajó a ${dinero(nuevo)} ${porUnidad}` : 'Bajó el precio de la compra conjunta';
+      const quien = producto && (lic?.productos?.length ?? 0) > 1 ? nombreCorto(producto.nombre, producto.unidad) : 'La compra conjunta';
+      return nuevo ? `${quien} bajó a ${dinero(nuevo)} ${porUnidad}` : 'Bajó el precio de la compra conjunta';
     }
     case 'licitacion.facturada': {
       const docs = numero(e.datos.documentos) ?? lista(e.datos.documentos).length;
