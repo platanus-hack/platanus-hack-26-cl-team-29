@@ -10,6 +10,8 @@ import { crearRedSalaFalsa } from '../server/agente/red-sala-falsa.ts';
 import { enmascarar } from '../server/agente/envios.ts';
 import type { Negocio } from '../server/agente/puerto.ts';
 import type { MessageHandler, OutboundMessage } from '../server/whatsapp/index.ts';
+import { crearAlmacenBorradoresMemoria } from '../server/agente/borradores.ts';
+import type { AlmacenBorradores } from '../server/agente/borradores.ts';
 
 // Datos ficticios: ni teléfonos ni negocios reales. La canasta es la de la demo.
 const PROVEEDOR: Negocio = { id: 'prov', nombre: 'Proveedor Demo', comuna: 'Santiago', rol: 'proveedor', telefono: '56900000101' };
@@ -26,7 +28,7 @@ const PRODUCTOS = [
 ];
 const LICITACION = { id: 'L-sala', proveedorId: PROVEEDOR.id, productos: PRODUCTOS, cierraEn: new Date(Date.now() + 3_600_000).toISOString() };
 
-function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string | { razonSocial: string; direccion: string; comuna: string } | null>; conSend?: boolean; certificados?: { enlace(telefono: string): string } } = {}) {
+function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof LICITACION> = {}, opciones: { sinCanasta?: boolean; conPdf?: boolean; interprete?: Interprete; ruts?: Record<string, string | { razonSocial: string; direccion: string; comuna: string } | null>; conSend?: boolean; certificados?: { enlace(telefono: string): string }; almacenBorradores?: AlmacenBorradores } = {}) {
   const red = crearRedSalaFalsa([PROVEEDOR, REGISTRADO], { ...LICITACION, ...licitacion }, opciones);
   const enviados: { to: string; body: string; en: number }[] = [];
   const interactivos: OutboundMessage[] = [];
@@ -53,6 +55,7 @@ function montar(tiempos: Partial<TiemposSala> = {}, licitacion: Partial<typeof L
   const agente = conectarAgente(whatsapp, red, {
     interprete: opciones.interprete ?? interpreteDeReglas,
     ...(opciones.certificados ? { certificados: opciones.certificados } : {}),
+    ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
     log: { info: registrar, warn: registrar, error: registrar },
     env: {},
     sala: { ventanaCascadaMs: 20, minimoDifusionMs: 150, vigilarCierreMs: 0, ...tiempos },
@@ -533,4 +536,61 @@ test('si el SII no confirma un RUT válido, el registro sigue con la dirección 
   assert.match(ultimo(yo), /^Listo, quedaste registrado ✓ Tu factura sale a tu RUT, Av\. Escuela Agrícola 1710, Macul\.[\s\S]*Listo, Almacén Javier entra con 2 cajas de rollos\./);
   assert.deepEqual(await carrito('Almacén Javier'), [{ productoId: 'rollos', cantidad: 2 }]);
   assert.equal(red.rutPorTelefono.get(yo), '77865227-7');
+});
+
+test('registro: corrige el RUT en vez de leerlo como dirección, y acepta dirección en el mismo mensaje, "sin número" y la comuna aparte', async t => {
+  const { agente, escribir, ultimo, red } = montar({}, {}, { ruts: {
+    '11111111-1': { razonSocial: 'Persona Equivocada', direccion: 'Calle Uno 1', comuna: 'Macul' },
+    '22222222-2': 'Negocio Correcto SpA',
+    '33333333-3': 'Parcela El Tambo',
+  } });
+  t.after(() => agente.desconectar());
+
+  // Dio un RUT, vio que no era el suyo y escribió el correcto: se consulta de nuevo.
+  const ana = '56911111801';
+  await escribir(ana, 'hola');
+  await escribir(ana, '2');
+  await escribir(ana, '11.111.111-1');
+  assert.match(ultimo(ana), /Persona Equivocada[\s\S]*¿Tu factura va a Calle Uno 1, Macul\?/);
+  await escribir(ana, '22.222.222-2');
+  assert.match(ultimo(ana), /^Tu factura saldrá a nombre de Negocio Correcto SpA\./);
+  await escribir(ana, 'ese era el rut, consulta de nuevo');
+  assert.match(ultimo(ana), /¿Cuál es el RUT de tu negocio\?/);
+  await escribir(ana, '22222222-2');
+  await escribir(ana, 'Av. Grecia 1234, Ñuñoa');
+  assert.match(ultimo(ana), /^Listo, quedaste registrado ✓ Tu factura sale a nombre de Negocio Correcto SpA, Av\. Grecia 1234, Ñuñoa\./);
+  assert.equal(red.rutPorTelefono.get(ana), undefined, 'el RUT queda al sumarse a la compra');
+
+  // RUT y dirección rural en el mismo mensaje.
+  const beto = '56911111802';
+  await escribir(beto, 'hola');
+  await escribir(beto, '2');
+  await escribir(beto, '33333333-3 y direccion el tambo sin numero, san vicente de tagua tagua');
+  assert.match(ultimo(beto), /^Listo, quedaste registrado ✓ Tu factura sale a nombre de Parcela El Tambo, el tambo sin numero, san vicente de tagua tagua\./);
+
+  // Calle y número sin comuna: se pide solo la comuna.
+  const caro = '56911111803';
+  await escribir(caro, 'hola');
+  await escribir(caro, '2');
+  await escribir(caro, '33333333-3');
+  await escribir(caro, 'Parcela 83 el tambo');
+  assert.equal(ultimo(caro), '¿En qué comuna? Ej: Ñuñoa');
+  await escribir(caro, 'San Vicente');
+  assert.match(ultimo(caro), /^Listo, quedaste registrado ✓ .*Parcela 83 el tambo, San Vicente\./);
+});
+
+test('el registro a medias sobrevive a un reinicio del servidor', async t => {
+  const almacenBorradores = crearAlmacenBorradoresMemoria();
+  const antes = montar({}, {}, { ruts: { '22222222-2': 'Negocio Correcto SpA' }, almacenBorradores });
+  const tel = '56911111804';
+  await antes.escribir(tel, 'hola');
+  await antes.escribir(tel, '2');
+  await antes.escribir(tel, '22222222-2');
+  assert.match(antes.ultimo(tel), /¿Cuál es la dirección de tu negocio/);
+  antes.agente.desconectar();
+
+  const despues = montar({}, {}, { ruts: { '22222222-2': 'Negocio Correcto SpA' }, almacenBorradores });
+  t.after(() => despues.agente.desconectar());
+  await despues.escribir(tel, 'Av. Grecia 1234, Ñuñoa');
+  assert.match(despues.ultimo(tel), /^Listo, quedaste registrado ✓ Tu factura sale a nombre de Negocio Correcto SpA/);
 });

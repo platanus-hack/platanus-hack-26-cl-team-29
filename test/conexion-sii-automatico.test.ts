@@ -127,7 +127,7 @@ test('un RCT (error en carátula) deja la conexión sin emitir hasta corregir la
   const { conexion } = montar({ rangos: { 33: [{ desde: 1, hasta: 9, fecha: hoy }] } });
   const oyentes: ((c: CambioEstadoSii) => void)[] = [];
   const real = { ...crearSiiFalso(), emitirFactura: async () => ({ folio: 1, trackId: 'T1', estadoSii: 'recibido' }), alCambiarEstado: (o: (c: CambioEstadoSii) => void) => { oyentes.push(o); } } as unknown as SiiReal;
-  const sii = crearSiiConmutable({ falso: crearSiiFalso(), conexion, crearReal: () => real });
+  const sii = crearSiiConmutable({ falso: crearSiiFalso(), conexionDe: async () => conexion, crearReal: () => real });
   await conexion.subirCertificado(pfxBase64, CLAVE_PFX, RUT_EMPRESA);
   await conexion.esperarBusquedas();
   assert.equal((await conexion.estado()).conectado, true);

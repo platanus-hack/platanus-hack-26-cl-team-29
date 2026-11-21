@@ -9,7 +9,7 @@ import type { DatosEmision, EventoRed, Licitacion, PuertoSii } from '../server/r
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { consultaConFicha, RUT_EMPRESA } from './sii-apoyo.ts';
 
-const ENV = { DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099' };
+const ENV = { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: '+56 9 0000 0099' };
 
 async function redDePrueba(sii: PuertoSii = crearSiiFalso()) {
   const repo = crearRepositorioMemoria();
@@ -143,7 +143,7 @@ test('con el SII real: folios consecutivos del CAF en un sobre y un reinicio de 
   assert.equal((await folios.buscar(33, 10))?.estado, 'recibido', 'el reinicio no toca los folios');
 });
 
-test('licitación antigua sin proveedor fijo: gana el menor precio ajustado por nota y solo compran los negocios', async () => {
+test('licitación antigua sin proveedor fijo: el producto lo gana el menor precio ajustado por nota y compran todos', async () => {
   const { red, repo } = await redDePrueba();
   // Guardada antes de la canasta: sin `productos` ni `items` en los participantes.
   const antigua = {
@@ -159,10 +159,9 @@ test('licitación antigua sin proveedor fijo: gana el menor precio ajustado por 
   const red2 = await crearRed({ repo, sii: crearSiiFalso(), env: ENV });
   await red2.unirseALicitacion('L-0', { nombre: 'Público', cantidad: 2 });
   const ordenes = await red2.cerrarLicitacion('L-0');
-  assert.equal(ordenes.length, 1, 'una por negocio participante, no por el público');
-  assert.equal(ordenes[0].proveedorId, PROVEEDOR_DEMO);
-  assert.equal(ordenes[0].items[0].precioUnitario, 17200);
-  assert.equal(red2.estadoDeLaRed().licitaciones.find(l => l.id === 'L-0')?.ganadora?.proveedorId, PROVEEDOR_DEMO);
+  assert.equal(ordenes.length, 2, 'una por participante; al público se le crea su negocio');
+  assert.ok(ordenes.every(o => o.proveedorId === PROVEEDOR_DEMO && o.items[0].precioUnitario === 17200));
+  assert.equal(red2.estadoDeLaRed().licitaciones.find(l => l.id === 'L-0')?.productos[0]?.ganadora?.proveedorId, PROVEEDOR_DEMO);
   assert.ok(red);
 });
 

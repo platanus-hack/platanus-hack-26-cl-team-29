@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
+import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, resumenSala, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
 import { cuentaRegresiva, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
@@ -177,4 +177,24 @@ test('los totales de la canasta suman cada producto con su propio precio y ahorr
   assert.equal(etiquetas.lider?.proveedorId, 'a');
   assert.equal(etiquetas.proveedores, 2);
   assert.equal(productoQueCambio({ rollos: '4', etiquetas: '11' }, { rollos: '4', etiquetas: '12' }), 'etiquetas');
+});
+
+test('con varios proveedores la sala espera el sí de cada uno y no termina con la factura del primero', () => {
+  const e = base();
+  const lic = {
+    id: 'L-1', producto: 'Rollos', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32000, cierraEn: '2026-11-21T10:00:00Z',
+    tramos: [{ desde: 1, precioUnitario: 32000 }], ofertas: [], estado: 'cerrada', ordenIds: ['o1', 'o2'],
+    participantes: [{ negocioId: 'x', nombre: 'Almacén Equis', cantidad: 2 }],
+  } as unknown as Licitacion;
+  e.ordenes = [
+    { id: 'o1', compradorId: 'x', proveedorId: 'a', items: [{ producto: 'Rollos', cantidad: 1, precioUnitario: 25000 }], estado: 'facturada', creadaEn: '2026-11-21T10:00:00Z' },
+    { id: 'o2', compradorId: 'x', proveedorId: 'b', items: [{ producto: 'Rollos', cantidad: 1, precioUnitario: 26000 }], estado: 'enviada', creadaEn: '2026-11-21T10:00:00Z' },
+  ];
+  e.documentos = [{ id: 'd1', ordenId: 'o1', tipo: 33, folio: 10, trackId: '', estadoSii: 'simulado', monto: 25000 }];
+  const facturadaPorUno = { tipo: 'licitacion.facturada' as const, datos: { licitacionId: 'L-1', proveedorId: 'a', documentos: 1 }, en: '' };
+  const s = resumenSala(lic, e, [facturadaPorUno], Date.parse('2026-11-21T11:00:00Z'));
+  assert.equal(s.proveedor, 'Panificadora Uno y Molinos Dos');
+  assert.equal(s.fase, 'facturando', 'falta la factura de Molinos');
+  assert.equal(s.quienFacturo, 'Panificadora Uno ya facturó · falta el sí de Molinos Dos');
+  assert.equal(describirEvento(facturadaPorUno, e), 'Panificadora Uno emitió 1 factura de la compra conjunta');
 });

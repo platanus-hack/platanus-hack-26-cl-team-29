@@ -12,6 +12,7 @@ import type { EventoRed } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { generarCaf, RUT_EMPRESA, RUT_FIRMANTE } from './sii-apoyo.ts';
 
+
 const ENV = { PDF_LLAVE: 'llave-de-prueba' };
 
 /** Texto visible del PDF: pdfkit escribe cada cadena en hexadecimal (WinAnsi) dentro de streams comprimidos. */
@@ -87,7 +88,7 @@ test('el PDF417 codifica los bytes Latin-1 exactos del TED, con nivel de segurid
 
 async function servidor() {
   const repo = crearRepositorioMemoria();
-  await sembrarSiVacio(repo, new Date(), {});
+  await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1' });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: ENV });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));

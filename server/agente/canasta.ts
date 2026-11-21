@@ -92,6 +92,12 @@ export function cortoDe(p: Pick<ProductoCompra, 'nombre' | 'unidad'>): string {
   return (palabrasDelNombre(p.nombre, p.unidad)[0] ?? p.nombre).toLowerCase();
 }
 
+/** El producto de la canasta que nombra un texto libre ("rollos", "las cajas de guantes", "café"); undefined si ninguno. */
+export function productoNombrado(texto: string, l: LicitacionSala): ProductoCompra | undefined {
+  const id = productoDeTexto(sinTildes(texto).split(/[^a-z0-9]+/).filter(Boolean), catalogoDe(l, 0));
+  return id ? productosDe(l).find(p => p.id === id) : undefined;
+}
+
 export function catalogoDe(l: LicitacionSala, maximo: number): Catalogo {
   return {
     maximo,

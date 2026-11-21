@@ -24,7 +24,7 @@ export function precioVigente(l: Pick<Licitacion, 'productos' | 'participantes' 
 /** Precio vigente de cada producto de la canasta, por id. */
 export const preciosVigentes = (l: Licitacion) => new Map(l.productos.map(p => [p.id, precioVigente(l, p.id)]));
 
-function vistaProducto(l: Licitacion, p: ProductoCompra): ProductoCompraVista {
+export function vistaProducto(l: Licitacion, p: ProductoCompra): ProductoCompraVista {
   const total = unidadesDe(l, p.id);
   return { ...structuredClone(p), totalUnidades: total, precioActual: precioVigente(l, p.id), siguienteTramo: siguienteTramo(p.tramos, total) };
 }

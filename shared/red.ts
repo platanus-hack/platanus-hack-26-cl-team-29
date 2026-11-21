@@ -3,6 +3,21 @@
 
 export type Rol = 'comprador' | 'proveedor';
 
+/**
+ * Un negocio tiene un rol principal (`rol`, el que dibujan las pantallas) y, si se registró como proveedor por
+ * WhatsApp, `vende`: puede vender y también comprar, pero nunca a sí mismo.
+ */
+interface ConRol {
+  rol: Rol;
+  vende?: boolean;
+}
+
+/** Puede ofertar y recibir órdenes: un proveedor o un negocio registrado como proveedor. */
+export const puedeVender = (n: ConRol): boolean => n.rol === 'proveedor' || n.vende === true;
+
+/** Puede sumarse a una compra: un comprador o un proveedor registrado por WhatsApp. Los proveedores ficticios no compran. */
+export const puedeComprar = (n: ConRol): boolean => n.rol === 'comprador' || n.vende === true;
+
 export type EstadoOrden = 'enviada' | 'confirmada' | 'facturada' | 'recibida' | 'reclamada' | 'corregida';
 
 /** Tipos de `red:evento`. Toda acción que cambia datos emite uno. */
@@ -20,6 +35,10 @@ export type TipoEventoRed =
   | 'licitacion.cerrada'
   | 'licitacion.precio_bajo'
   | 'licitacion.facturada'
+  // Un proveedor sumó un producto a la canasta de la compra conjunta.
+  | 'licitacion.producto'
+  // Un negocio nuevo, o uno que ahora también vende (registro de proveedor por WhatsApp).
+  | 'negocio.registrado'
   | 'red.reiniciada'
   // Folios del SII del proveedor conectado: bajos, reponiéndose o repuestos (`AvisoFolios`, sin secretos).
   | 'sii.folios'

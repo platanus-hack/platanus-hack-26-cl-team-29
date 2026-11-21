@@ -5,6 +5,9 @@ import express from 'express';
 import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSiiFalso, COMPRADOR_DEMO, PROVEEDOR_DEMO } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 
+// Estos tests recorren la demo con sus negocios ficticios (sin DEMO_FICTICIOS la red parte vacía).
+process.env.DEMO_FICTICIOS = '1';
+
 test('las rutas /api/red recorren el ciclo de la orden y traducen errores a HTTP', async () => {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo);

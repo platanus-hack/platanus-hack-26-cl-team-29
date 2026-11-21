@@ -4,8 +4,9 @@ import { Server } from 'socket.io';
 import pg from 'pg';
 import { createWhatsApp } from './whatsapp/index.ts';
 import { crearRutasRed, iniciarRed } from './red/index.ts';
-import { iniciarConexionSii } from './conexion-sii/index.ts';
-import { conectarAgente } from './agente/index.ts';
+import { iniciarConexionSii, resumenDeConexion } from './conexion-sii/index.ts';
+import { conectarAgente, crearAlmacenBorradores } from './agente/index.ts';
+
 import { crearCertificados } from './certificados/index.ts';
 import { crearInterpreteDesdeEnv } from './ia/index.ts';
 import { iniciarLocales } from './locales/index.ts';
@@ -26,7 +27,19 @@ red.escuchar(evento => io.emit('red:evento', evento));
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
 conexionSii.escuchar(evento => io.emit('red:evento', evento));
 const certificados = await crearCertificados({ db: dbRed });
-export const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(process.env, red), certificados });
+// Cada proveedor registrado por WhatsApp conecta el SII de su empresa con el certificado que subió.
+const conexionDeProveedores = {
+  async conectar(rutEmpresa: string, rutTitular: string) {
+    const certificado = await certificados.certificadoDe(rutTitular);
+    if (!certificado) throw new Error('no encontré tu certificado conectado');
+    await conexionSii.conectarProveedor(rutEmpresa, certificado);
+  },
+  estado: async (rutEmpresa: string) => resumenDeConexion(await conexionSii.estadoDeProveedor(rutEmpresa)),
+};
+export const agente = conectarAgente(whatsapp, red, {
+  interprete: crearInterpreteDesdeEnv(process.env, red), certificados, conexionSii: conexionDeProveedores,
+  almacenBorradores: await crearAlmacenBorradores(dbRed),
+});
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
 const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento', hallazgo));

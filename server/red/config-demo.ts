@@ -36,7 +36,12 @@ export interface ConfigDemo {
   whatsappNumero: string | null;
   /** Precio mínimo oculto del proveedor real cuando compite (DEMO_PRECIO_PISO). */
   precioPiso: number;
-  /** Proveedores ficticios compiten en vivo contra el real (DEMO_COMPETENCIA=0 lo apaga). */
+  /**
+   * Datos ficticios de la demo (DEMO_FICTICIOS=1): negocios sembrados, el proveedor único de la sala y sus rivales.
+   * Apagado por defecto: la red parte vacía y la llenan personas reales por WhatsApp.
+   */
+  ficticios: boolean;
+  /** Proveedores ficticios compiten en vivo contra el real. Solo con `ficticios` (DEMO_COMPETENCIA=0 lo apaga). */
   competencia: boolean;
 }
 
@@ -113,6 +118,7 @@ export function configDemo(env: NodeJS.ProcessEnv = process.env): ConfigDemo {
   const productos = leerProductos(env.DEMO_PRODUCTOS, precioPiso)
     ?? [rollos, ...OTROS_PRODUCTOS.map(p => ({ ...structuredClone(p), piso: pisoPorDefecto(p.tramos, p.precioSolo) }))];
   const primero = productos[0]!;
+  const ficticios = env.DEMO_FICTICIOS?.trim() === '1';
   return {
     productos,
     proveedor: {
@@ -129,6 +135,7 @@ export function configDemo(env: NodeJS.ProcessEnv = process.env): ConfigDemo {
     minutos: positivo(env.DEMO_MINUTOS, 5),
     whatsappNumero: env.DEMO_WHATSAPP_NUMERO?.replace(/\D/g, '') || null,
     precioPiso,
-    competencia: env.DEMO_COMPETENCIA?.trim() !== '0',
+    ficticios,
+    competencia: ficticios && env.DEMO_COMPETENCIA?.trim() !== '0',
   };
 }

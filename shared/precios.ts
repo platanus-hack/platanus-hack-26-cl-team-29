@@ -42,16 +42,36 @@ export function unidadesDe(
   return l.participantes.reduce((s, p) => s + (p.items ?? []).filter(i => i.productoId === productoId).reduce((t, i) => t + i.cantidad, 0), 0);
 }
 
+/** Descuento de cada tramo automático sobre el precio de un producto creado por un proveedor. */
+const TRAMOS_AUTOMATICOS: readonly [desde: number, factor: number][] = [[1, 1], [10, 0.95], [25, 0.9], [50, 0.85]];
+
+/** Tramos de un producto nuevo desde su precio: 5 % menos desde 10 unidades, 10 % desde 25 y 15 % desde 50 ($10). */
+export const tramosAutomaticos = (precio: number): Tramo[] =>
+  TRAMOS_AUTOMATICOS.map(([desde, factor]) => ({ desde, precioUnitario: Math.round((precio * factor) / 10) * 10 }));
+
+type ConOfertas = ConPrecio & {
+  ofertas?: readonly { proveedorId: string; precioUnitario: number }[];
+  /** Quien creó el producto: sus tramos son su precio por volumen. */
+  proveedorId?: string;
+};
+
 /**
- * Lo que paga el grupo hoy por un producto: el tramo alcanzado o, si es menor, la oferta del proveedor de la
- * compra conjunta (`proveedorId`) por ese producto. Nunca sobre el precio del tramo.
+ * Lo que paga el grupo hoy por un producto.
+ * - Con proveedor fijo de la compra conjunta (`proveedorFijo`, la demo con ficticios): el tramo alcanzado o, si es
+ *   menor, la oferta de ese proveedor. Nunca sobre el precio del tramo.
+ * - Sin él: la mejor oferta de cualquier proveedor o, si es menor, el tramo de quien creó el producto (sus tramos son
+ *   su oferta por volumen). Sin ofertas ni creador, el tramo queda como referencia.
  */
-export function precioDelProducto(
-  p: ConPrecio & { ofertas?: readonly { proveedorId: string; precioUnitario: number }[] }, unidades: number, proveedorId?: string,
-): number {
+export function precioDelProducto(p: ConOfertas, unidades: number, proveedorFijo?: string): number {
   const tramo = precioPorVolumen(p, unidades);
-  const propia = proveedorId ? p.ofertas?.find(o => o.proveedorId === proveedorId) : undefined;
-  return propia && unidades > 0 ? Math.min(tramo, propia.precioUnitario) : tramo;
+  if (unidades <= 0) return tramo;
+  if (proveedorFijo) {
+    const propia = p.ofertas?.find(o => o.proveedorId === proveedorFijo);
+    return propia ? Math.min(tramo, propia.precioUnitario) : tramo;
+  }
+  const ofertas = (p.ofertas ?? []).map(o => o.precioUnitario);
+  if (ofertas.length === 0) return tramo;
+  return Math.min(...ofertas, p.proveedorId ? tramo : Infinity);
 }
 
 type Linea = { cantidad: number; precioUnitario: number };

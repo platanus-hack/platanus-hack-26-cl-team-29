@@ -213,7 +213,7 @@ function Facturando({ s }: { s: ResumenSala }) {
     <div className={`sala-facturas ${lista ? 'final' : ''}`}>
       <section className="sala-facturas-muro">
         <p className="etiqueta">
-          {s.proveedor} dijo que sí · un solo envío al SII{fuera > 0 ? ` · y ${fuera} más` : ''}
+          {s.quienFacturo}{fuera > 0 ? ` · y ${fuera} más` : ''}
         </p>
         <ul className="muro-facturas" ref={ref}>
           {s.facturas.slice(0, caben).map(f => <Factura key={f.id} f={f} />)}

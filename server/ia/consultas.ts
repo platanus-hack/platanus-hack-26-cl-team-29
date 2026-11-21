@@ -2,6 +2,7 @@
 // sin teléfonos: todo sale de la foto pública (`estadoPublico`) y de la compra conjunta abierta.
 import { nombreEnFrase } from '../../shared/documentos.ts';
 import { totalOrden } from '../../shared/precios.ts';
+import { puedeVender } from '../../shared/red.ts';
 import type { Red } from '../red/index.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from '../red/index.ts';
 
@@ -45,7 +46,7 @@ export function crearConsultasRed(red: RedConsultable): Consultas {
       const canonico = producto ? normalizarProducto(producto) : undefined;
       if (producto && !canonico) return { aviso: `"${producto}" no está en el catálogo`, disponibles: PRODUCTOS_DISPONIBLES };
       return negocios
-        .filter(n => n.rol === 'proveedor')
+        .filter(puedeVender)
         .map(n => ({
           nombre: n.nombre,
           comuna: n.comuna,
@@ -58,7 +59,7 @@ export function crearConsultasRed(red: RedConsultable): Consultas {
 
     catalogo() {
       const { negocios } = red.estadoPublico();
-      const proveedores = negocios.filter(n => n.rol === 'proveedor');
+      const proveedores = negocios.filter(puedeVender);
       return PRODUCTOS_DISPONIBLES.map(nombre => {
         const precios = proveedores.map(p => precioDe(p.id, nombre)).filter((x): x is number => x !== undefined);
         return { producto: nombre, precioNetoDesde: precios.length ? Math.min(...precios) : null };

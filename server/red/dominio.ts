@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { neto, precioAjustado, precioPorVolumen, unidadesDe } from '../../shared/precios.ts';
-import { precioVigente, preciosVigentes, productoDe, vistaLicitacion } from './compra.ts';
+import { neto, precioAjustado, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
+import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { pluralDe } from '../../shared/texto.ts';
+import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
@@ -18,8 +20,8 @@ import type { DocumentoImpreso } from '../sii/index.ts';
 import type { PuertoSii, ResultadoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
 import type {
-  Coleccion, DatosRed, Documento, EstadoOrden, EstadoRed, EventoRed, Item, ItemCarrito, Licitacion, LicitacionVista, Negocio,
-  Oferta, OrdenCompra, Participante, Rubro, TipoDocumento, TipoEventoRed, TipoEventoReputacion,
+  Coleccion, DatosRed, Documento, EstadoOrden, EstadoRed, EventoRed, Ganadora, Item, ItemCarrito, Licitacion, LicitacionVista, Negocio,
+  Oferta, OrdenCompra, Participante, ProductoCompra, ProductoCompraVista, Rubro, TipoDocumento, TipoEventoRed, TipoEventoReputacion,
 } from './tipos.ts';
 
 export type CodigoError =
@@ -146,6 +148,25 @@ export interface ContribuyenteDeRut extends DatosContribuyente {
 
 export type NuevaOferta = Omit<Oferta, 'en'>;
 
+export interface NuevoProducto {
+  proveedorId: string;
+  nombre: string;
+  /** Unidad de venta en singular ("caja"); el plural se deduce si no viene. */
+  unidad: string;
+  unidadPlural?: string;
+  /** Precio neto por unidad comprando de a una: el primer tramo. */
+  precio: number;
+}
+
+export interface NuevoProveedor {
+  telefono: string;
+  /** RUT de la empresa que emite las facturas (con o sin puntos y guion). */
+  rut: string;
+  /** Nombre de fantasía; por defecto la razón social del SII. */
+  nombre?: string;
+  comuna?: string;
+}
+
 export interface Red {
   crearOrden(nueva: NuevaOrden): Promise<OrdenCompra>;
   /** Antes de confirmar: cuántas unidades dirá la guía de despacho (52), si son menos que las pedidas. */
@@ -169,19 +190,32 @@ export interface Red {
   licitacionAbierta(): SinTelefono<LicitacionVista> | null;
   ofertar(licitacionId: string, oferta: NuevaOferta): Promise<LicitacionVista>;
   /**
-   * Cierra y crea una orden por participante (`enviada`) con todos los ítems de su carrito, al proveedor de la
-   * compra conjunta y al precio vigente de cada producto. Al público sin negocio le crea un negocio comprador. Sin proveedor fijo
-   * (licitación antigua), gana la mejor oferta ajustada y solo compran los negocios.
+   * Un proveedor suma un producto a la canasta abierta: nombre, unidad y su precio. Sus tramos salen del precio
+   * (`tramosAutomaticos`) y son su oferta por volumen; los demás proveedores pueden ofertar por él. Emite `licitacion.producto`.
+   */
+  crearProducto(licitacionId: string, producto: NuevoProducto): Promise<{ licitacion: LicitacionVista; producto: ProductoCompraVista }>;
+  /**
+   * Cierra y crea las órdenes (`enviada`). Al público sin negocio le crea un negocio comprador.
+   * - Con proveedor fijo (la demo con ficticios): una orden por participante a ese proveedor, al precio vigente de cada producto.
+   * - Sin él: cada producto lo gana la mejor oferta ajustada por nota y plazo (`ganadora`); el creador del producto
+   *   compite con su tramo. Nadie se compra a sí mismo: las líneas de un participante que también ganó van a la
+   *   siguiente mejor oferta, y si no hay otra quedan fuera. Una orden por participante y proveedor ganador.
    * Idempotente: si ya cerró, devuelve las mismas órdenes.
    */
   cerrarLicitacion(licitacionId: string): Promise<OrdenCompra[]>;
   /**
-   * El proveedor dijo que sí: confirma todas las órdenes de la compra conjunta y emite todas sus facturas 33
-   * (una por comprador, una línea de detalle por producto) en UN sobre del SII. Se puede volver a llamar si el SII falló: solo emite lo que falta. Devuelve las facturas.
+   * Un proveedor dijo que sí: confirma sus órdenes de la compra conjunta y emite sus facturas 33 (una por comprador,
+   * una línea por producto) en UN sobre del SII, con su emisor. Sin `proveedorId`, todos (un sobre por proveedor).
+   * Se puede volver a llamar si el SII falló: solo emite lo que falta. Devuelve las facturas.
    */
-  confirmarOrdenesDeLicitacion(licitacionId: string): Promise<Documento[]>;
+  confirmarOrdenesDeLicitacion(licitacionId: string, proveedorId?: string): Promise<Documento[]>;
   /** Registra un negocio comprador, o reusa el del mismo teléfono. Con `rut`, lo consulta en el SII y lo guarda. */
   registrarComprador(datos: NuevoComprador): Promise<Negocio>;
+  /**
+   * Registra al proveedor de un teléfono con el RUT de su empresa (consultado en el SII), o deja que el comprador de ese
+   * teléfono también venda (`vende`). Emite `negocio.registrado`.
+   */
+  registrarProveedor(datos: NuevoProveedor): Promise<Negocio>;
   /**
    * Valida el RUT (módulo 11) y trae sus datos del SII, una sola vez por RUT. `datos_invalidos` si no es válido
    * o el SII no lo conoce; `sii_no_disponible` si la consulta falló. Con `telefono`, también `datos_invalidos` si
@@ -197,7 +231,7 @@ export interface Red {
   negocioPorTelefono(telefono: string): Negocio | null;
   negocioPorId(id: string): Negocio | null;
   /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
-  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string): Promise<Documento | null>;
+  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string): Promise<Documento | null>;
   /**
    * Solo interno: el documento y su representación impresa (con RUT y TED) para dibujar el PDF, o null si no
    * existe o se emitió sin ella. Nunca va en respuestas JSON ni eventos.
@@ -307,7 +341,7 @@ export async function crearRed({
   function negocio(id: string, rol: Negocio['rol']): Negocio {
     const n = datos.negocios.find(x => x.id === id);
     if (!n) throw new ErrorRed('no_encontrado', `No existe el negocio ${id}`);
-    if (n.rol !== rol) throw new ErrorRed('datos_invalidos', `${n.nombre} no es ${rol}`);
+    if (!(rol === 'comprador' ? puedeComprar : puedeVender)(n)) throw new ErrorRed('datos_invalidos', `${n.nombre} no es ${rol}`);
     return n;
   }
 
@@ -443,7 +477,7 @@ export async function crearRed({
       if (!factura) throw new ErrorRed('transicion_invalida', `La orden ${o.id} no tiene factura`);
       const comprador = negocio(o.compradorId, 'comprador');
       const motivo = `Faltan ${faltante} de ${item.cantidad} unidades de ${item.producto}`;
-      const { estadoSii } = await sii.registrarReclamo({ factura, receptor: comprador, motivo });
+      const { estadoSii } = await sii.registrarReclamo({ factura, receptor: comprador, motivo, emisor: negocio(o.proveedorId, 'proveedor') });
       o.estado = 'reclamada';
       o.reclamo = { producto: item.producto, faltante, en: ahora(), estadoSii };
       await guardar('ordenes', o);
@@ -532,7 +566,7 @@ export async function crearRed({
       const existente = negocioId ? negocio(negocioId, 'comprador')
         : tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
       if (existente) {
-        if (existente.rol !== 'comprador') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
+        if (!puedeComprar(existente)) throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
         if (delSii) await asignarRut(existente, delSii);
         return structuredClone(existente);
       }
@@ -545,6 +579,25 @@ export async function crearRed({
       };
       if (delSii) Object.assign(n, camposRut(delSii));
       await guardar('negocios', n);
+      return structuredClone(n);
+    });
+  }
+
+  async function registrarProveedor({ telefono, rut, nombre, comuna }: NuevoProveedor) {
+    const tel = normalizarTelefono(telefono ?? '');
+    if (!tel) throw new ErrorRed('datos_invalidos', 'Falta el teléfono del proveedor');
+    // Sin respuesta del SII, el registro sigue con el nombre que dio: sus facturas salen con la ficha de su conexión al SII.
+    const delSii = await rutParaFactura({ rut, nombre, telefono }, false);
+    return enFila('compradores', async () => {
+      const existente = datos.negocios.find(n => normalizarTelefono(n.telefono) === tel);
+      const n: Negocio = existente ?? {
+        id: `n-p-${randomUUID().slice(0, 8)}`, nombre: textoCorto(nombre) || textoCorto(delSii.razonSocial),
+        comuna: textoCorto(comuna) || textoCorto(delSii.comuna), rol: 'proveedor', telefono: telefono.trim(),
+      };
+      n.vende = true;
+      Object.assign(n, camposRut(delSii));
+      await guardar('negocios', n);
+      emitir('negocio.registrado', { negocio: n });
       return structuredClone(n);
     });
   }
@@ -577,16 +630,16 @@ export async function crearRed({
    * RUT que no son de empresas en certificación) y la persona dio su dirección, los que declaró: su factura igual sale a
    * su RUT, con el nombre de su negocio. Un RUT inválido o que el SII dice que no existe sigue fallando.
    */
-  async function rutParaFactura(q: DuenoCarrito): Promise<ContribuyenteDeRut> {
+  async function rutParaFactura(q: Pick<DuenoCarrito, 'rut' | 'nombre' | 'telefono' | 'direccionFactura'>, exigirDireccion = true): Promise<ContribuyenteDeRut> {
     try {
       return await consultarRut(q.rut!, q.telefono);
     } catch (error) {
       const rut = validarRut(q.rut);
       const d = q.direccionFactura;
-      if (!(error instanceof ErrorRed) || error.codigo !== 'sii_no_disponible' || !rut || !d) throw error;
+      if (!(error instanceof ErrorRed) || error.codigo !== 'sii_no_disponible' || !rut || (exigirDireccion && !d)) throw error;
       return {
         rut, razonSocial: textoCorto(q.nombre) || 'Sin razón social', giro: 'Sin informar',
-        direccion: textoCorto(d.direccion), comuna: textoCorto(d.comuna), actividades: [], declarado: true,
+        direccion: textoCorto(d?.direccion), comuna: textoCorto(d?.comuna), actividades: [], declarado: true,
       };
     }
   }
@@ -601,7 +654,7 @@ export async function crearRed({
     if (!q.telefono) return undefined;
     const tel = normalizarTelefono(q.telefono);
     const existente = tel ? datos.negocios.find(n => normalizarTelefono(n.telefono) === tel) : undefined;
-    if (existente?.rol === 'proveedor') throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
+    if (existente && !puedeComprar(existente)) throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
     if (existente) {
       if (q.rut !== undefined) await asignarRut(existente, await rutParaFactura(q));
       return conDireccion(existente, q);
@@ -767,6 +820,89 @@ export async function crearRed({
     });
   }
 
+  /** Id legible y único del producto en la canasta: "Café molido 1 kg" → "cafe-molido-1-kg". */
+  function idDeProducto(l: Licitacion, nombre: string) {
+    const base = sinTildes(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'producto';
+    let id = base;
+    for (let k = 2; l.productos.some(p => p.id === id); k++) id = `${base}-${k}`;
+    return id;
+  }
+
+  function crearProducto(licitacionId: string, n: NuevoProducto) {
+    return enFila(licitacionId, async () => {
+      const l = licitacionEnCurso(licitacionId);
+      const proveedor = negocio(n.proveedorId, 'proveedor');
+      const nombre = String(n.nombre ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const unidad = String(n.unidad ?? '').trim().toLowerCase().slice(0, 20);
+      const precio = Number(n.precio);
+      if (nombre.length < 3 || !unidad) throw new ErrorRed('datos_invalidos', 'El producto necesita nombre y unidad de venta');
+      if (!Number.isInteger(precio) || precio <= 0) throw new ErrorRed('datos_invalidos', 'El precio debe ser un entero positivo, en pesos');
+      if (l.productos.some(p => sinTildes(p.nombre) === sinTildes(nombre))) {
+        throw new ErrorRed('datos_invalidos', `"${nombre}" ya está en la canasta: oferta por él`);
+      }
+      const producto: ProductoCompra = {
+        id: idDeProducto(l, nombre), nombre, unidad, unidadPlural: String(n.unidadPlural ?? '').trim() || pluralDe(unidad),
+        precioSolo: precio, tramos: tramosAutomaticos(precio), ofertas: [], proveedorId: proveedor.id,
+      };
+      l.productos.push(producto);
+      await guardar('licitaciones', l);
+      const licitacion = vistaLicitacion(l);
+      const vista = vistaProducto(l, producto);
+      emitir('licitacion.producto', { licitacionId: l.id, licitacion, producto: vista, proveedorNombre: proveedor.nombre });
+      return { licitacion, producto: vista };
+    });
+  }
+
+  /**
+   * Ofertas de un producto al cerrar, de la mejor a la peor por precio ajustado: las ofertas explícitas y el tramo
+   * alcanzado de quien creó el producto (lo que pide por ese volumen). Una por proveedor, la más barata.
+   */
+  function candidatasDe(l: Licitacion, p: ProductoCompra): Ganadora[] {
+    const porProveedor = new Map<string, Oferta>();
+    const tramoDelCreador: Oferta[] = p.proveedorId
+      ? [{ proveedorId: p.proveedorId, productoId: p.id, precioUnitario: precioPorVolumen(p, unidadesDe(l, p.id)), plazoDias: 1, en: ahora() }]
+      : [];
+    for (const o of [...p.ofertas, ...tramoDelCreador]) {
+      const actual = porProveedor.get(o.proveedorId);
+      if (!actual || o.precioUnitario < actual.precioUnitario) porProveedor.set(o.proveedorId, o);
+    }
+    return [...porProveedor.values()]
+      .map(o => {
+        const nota = notaDeProveedor(o.proveedorId);
+        return { ...o, nota, precioAjustado: precioAjustado(o, nota) };
+      })
+      .sort((a, b) => a.precioAjustado - b.precioAjustado);
+  }
+
+  /** Compra de cada participante sin proveedor fijo: por cada línea, la mejor oferta que no sea suya. */
+  function comprasPorProducto(l: Licitacion) {
+    const candidatas = new Map(l.productos.map(p => [p.id, candidatasDe(l, p)]));
+    for (const p of l.productos) {
+      const g = candidatas.get(p.id)![0];
+      if (g) p.ganadora = g;
+    }
+    const compras: { participante: Participante; proveedorId: string; precio: (productoId: string) => number; items: ItemCarrito[] }[] = [];
+    const sinProveedor: { productoId: string; cantidad: number }[] = [];
+    for (const participante of l.participantes) {
+      const porProveedor = new Map<string, { items: ItemCarrito[]; precios: Map<string, number> }>();
+      for (const i of participante.items) {
+        const g = candidatas.get(i.productoId)?.find(c => c.proveedorId !== participante.negocioId);
+        if (!g) {
+          sinProveedor.push({ productoId: i.productoId, cantidad: i.cantidad });
+          continue;
+        }
+        const grupo = porProveedor.get(g.proveedorId) ?? { items: [], precios: new Map<string, number>() };
+        grupo.items.push(i);
+        grupo.precios.set(i.productoId, g.precioUnitario);
+        porProveedor.set(g.proveedorId, grupo);
+      }
+      for (const [proveedorId, { items, precios }] of porProveedor) {
+        compras.push({ participante, proveedorId, items, precio: id => precios.get(id)! });
+      }
+    }
+    return { compras, sinProveedor };
+  }
+
   // Compra conjunta: una orden por participante al proveedor único, al precio del tramo alcanzado.
   // Sin proveedor fijo (licitación antigua): gana el menor precio ajustado por nota y plazo, y solo
   // compran los negocios participantes.
@@ -777,56 +913,53 @@ export async function crearRed({
       const yaCerrada = datos.licitaciones.find(x => x.id === licitacionId && x.estado === 'cerrada');
       if (yaCerrada) return structuredClone(datos.ordenes.filter(o => yaCerrada.ordenIds?.includes(o.id)));
       const l = licitacionEnCurso(licitacionId);
-      const compras: { participante: Participante; proveedorId: string; precio: (productoId: string) => number }[] = [];
+      let compras: ReturnType<typeof comprasPorProducto>['compras'] = [];
+      let sinProveedor: ReturnType<typeof comprasPorProducto>['sinProveedor'] = [];
       if (l.proveedorId) {
         negocio(l.proveedorId, 'proveedor');
         const precios = preciosVigentes(l);
-        for (const p of l.participantes) compras.push({ participante: p, proveedorId: l.proveedorId, precio: id => precios.get(id)! });
+        for (const p of l.participantes) compras.push({ participante: p, proveedorId: l.proveedorId, items: p.items, precio: id => precios.get(id)! });
       } else {
-        const candidatas = (l.productos[0]?.ofertas ?? []).map(o => {
-          const nota = notaDeProveedor(o.proveedorId);
-          return { ...o, nota, precioAjustado: precioAjustado(o, nota) };
-        });
-        candidatas.sort((a, b) => a.precioAjustado - b.precioAjustado);
-        if (candidatas[0]) l.ganadora = candidatas[0];
-        const g = l.ganadora;
-        if (g) for (const p of l.participantes.filter(x => x.negocioId)) compras.push({ participante: p, proveedorId: g.proveedorId, precio: () => g.precioUnitario });
+        ({ compras, sinProveedor } = comprasPorProducto(l));
       }
       l.estado = 'cerrada';
       await guardar('licitaciones', l);
       const ordenes: OrdenCompra[] = [];
       const nombres = new Map(l.productos.map(x => [x.id, x.nombre]));
-      for (const { participante: p, proveedorId, precio } of compras) {
+      for (const { participante: p, proveedorId, precio, items } of compras) {
         p.negocioId ??= (await registrarComprador({ nombre: p.nombre, comuna: p.comuna, telefono: p.telefono, rubro: p.rubro })).id;
-        const items = p.items.map(i => ({ productoId: i.productoId, producto: nombres.get(i.productoId) ?? l.producto, cantidad: i.cantidad, precioUnitario: precio(i.productoId) }));
-        ordenes.push(await crearOrden({ compradorId: p.negocioId, proveedorId, items }));
+        const lineas = items.map(i => ({ productoId: i.productoId, producto: nombres.get(i.productoId) ?? l.producto, cantidad: i.cantidad, precioUnitario: precio(i.productoId) }));
+        ordenes.push(await crearOrden({ compradorId: p.negocioId, proveedorId, items: lineas }));
       }
       l.ordenIds = ordenes.map(o => o.id);
       await guardar('licitaciones', l);
-      emitir('licitacion.cerrada', { licitacion: vistaLicitacion(l), ordenes });
+      emitir('licitacion.cerrada', { licitacion: vistaLicitacion(l), ordenes, sinProveedor });
       return ordenes;
     });
   }
 
-  // El proveedor confirma la compra conjunta: todas las facturas 33 en un solo sobre del SII.
-  function confirmarOrdenesDeLicitacion(licitacionId: string) {
+  // Un proveedor confirma su parte de la compra conjunta: sus facturas 33 en un solo sobre del SII, con su emisor.
+  function confirmarOrdenesDeLicitacion(licitacionId: string, proveedorId?: string) {
     return enFila(licitacionId, async () => {
       const l = datos.licitaciones.find(x => x.id === licitacionId);
       if (!l) throw new ErrorRed('no_encontrado', `No existe la licitación ${licitacionId}`);
       if (l.estado !== 'cerrada' || !l.ordenIds) throw new ErrorRed('transicion_invalida', `La licitación ${licitacionId} todavía no cierra`);
-      const ordenes = l.ordenIds.map(id => datos.ordenes.find(o => o.id === id)).filter((o): o is OrdenCompra => !!o);
+      const ordenes = l.ordenIds.map(id => datos.ordenes.find(o => o.id === id))
+        .filter((o): o is OrdenCompra => !!o && (!proveedorId || o.proveedorId === proveedorId));
       const ocupada = ordenes.find(o => enCurso.has(o.id));
       if (ocupada) throw new ErrorRed('ocupado', `${ocupada.id} se está procesando, intenta de nuevo`);
       for (const o of ordenes) enCurso.add(o.id);
       try {
         for (const o of ordenes.filter(x => x.estado === 'enviada')) await confirmar(o);
         const confirmadas = ordenes.filter(o => o.estado === 'confirmada');
-        const sinFactura = confirmadas.filter(o => !documento(o.id, 33));
-        if (sinFactura.length > 0) {
-          const resultados = await sii.emitirFacturas(sinFactura.map(o => ({
+        // Un sobre por emisor: cada proveedor factura con su propio RUT y sus folios.
+        const sobres = new Map<string, OrdenCompra[]>();
+        for (const o of confirmadas.filter(x => !documento(x.id, 33))) sobres.set(o.proveedorId, [...(sobres.get(o.proveedorId) ?? []), o]);
+        for (const sobre of sobres.values()) {
+          const resultados = await sii.emitirFacturas(sobre.map(o => ({
             orden: o, emisor: negocio(o.proveedorId, 'proveedor'), receptor: negocio(o.compradorId, 'comprador'),
           })));
-          for (const [k, o] of sinFactura.entries()) await guardarDocumento(o.id, 33, neto(o.items), resultados[k]!);
+          for (const [k, o] of sobre.entries()) await guardarDocumento(o.id, 33, neto(o.items), resultados[k]!);
         }
         for (const o of confirmadas) {
           o.estado = 'facturada';
@@ -839,14 +972,14 @@ export async function crearRed({
       const precioSolo = (i: Item) => productoDe(l, i.productoId)?.precioSolo ?? l.precioSolo;
       const ahorroTotal = ordenes.reduce((s, o) => s + o.items.reduce((t, i) => t + (precioSolo(i) - i.precioUnitario) * i.cantidad, 0), 0);
       emitir('licitacion.facturada', {
-        licitacionId: l.id, documentos: facturas.length, total: facturas.reduce((s, d) => s + d.monto, 0), ahorroTotal,
+        licitacionId: l.id, ...(proveedorId ? { proveedorId } : {}), documentos: facturas.length, total: facturas.reduce((s, d) => s + d.monto, 0), ahorroTotal,
       });
       return structuredClone(facturas);
     });
   }
 
-  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string) {
-    const doc = datos.documentos.find(d => d.tipo === tipo && d.folio === folio);
+  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string) {
+    const doc = datos.documentos.find(d => d.tipo === tipo && d.folio === folio && (!ordenId || d.ordenId === ordenId));
     // Tras reiniciar la demo el documento ya no está en la red, pero su folio sigue usado en el SII.
     if (!doc) return null;
     if (doc.estadoSii !== estadoSii) {
@@ -866,8 +999,8 @@ export async function crearRed({
     return estado;
   }
 
-  sii.alCambiarEstado?.(({ tipo, folio, estadoSii }) => {
-    actualizarEstadoDocumento(tipo, folio, estadoSii).catch(error => console.error('[red] no se pudo actualizar el documento', error));
+  sii.alCambiarEstado?.(({ tipo, folio, estadoSii, ordenId }) => {
+    actualizarEstadoDocumento(tipo, folio, estadoSii, ordenId).catch(error => console.error('[red] no se pudo actualizar el documento', error));
   });
 
   function estadoDeLaRed(): EstadoRed {
@@ -875,7 +1008,7 @@ export async function crearRed({
     // El ranking es la historia de proveedores ficticios de harina: la empresa real de la sala no entra (su nota
     // va en su panel), ni sus competidores (su nota viaja en cada `licitacion.oferta`).
     const fuera = new Set<string>([PROVEEDOR_SALA, ...COMPETIDORES_SALA.map(c => c.id)]);
-    for (const n of datos.negocios) if (n.rol === 'proveedor' && !fuera.has(n.id)) notas[n.id] = notaDeProveedor(n.id);
+    for (const n of datos.negocios) if (puedeVender(n) && !fuera.has(n.id)) notas[n.id] = notaDeProveedor(n.id);
     return structuredClone({
       negocios: datos.negocios, ordenes: datos.ordenes, documentos: datos.documentos, notas, licitaciones: datos.licitaciones.map(vistaLicitacion),
     });
@@ -914,7 +1047,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, cerrarLicitacion, confirmarOrdenesDeLicitacion, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

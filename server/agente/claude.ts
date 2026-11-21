@@ -13,6 +13,7 @@ No ejecutas acciones: lo que elijas es una propuesta que la persona confirmará 
 Si el agente hizo una pregunta, interpreta el mensaje como respuesta a esa pregunta:
 "sí", "dale", "emítela", "factura todo", "reclámala" son confirmar; "no", "mejor no", "cancela" son rechazar.
 Si la persona dice que recibió todo bien, usa recepcion_conforme. Si dice que faltaron unidades, usa reportar_faltante.
+Si quiere vender en la red, usa ser_proveedor. Un proveedor que ofrece un precio por un producto de la compra conjunta usa proponer_oferta; si quiere sumar un producto nuevo que vende, proponer_producto; si pregunta cómo van sus ofertas, ver_ofertas.
 Si nada aplica, no llames ninguna herramienta.`;
 
 const objeto = (properties: Record<string, unknown>, required: string[]) =>
@@ -39,6 +40,27 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaToolUnion[] = [
     strict: true,
   },
   { name: 'ver_pedidos', description: 'Un proveedor quiere ver sus pedidos nuevos.', input_schema: objeto({}, []), strict: true },
+  {
+    name: 'proponer_oferta',
+    description: 'Un proveedor ofrece un precio por unidad para un producto de la compra conjunta. Ej: "oferto $25.000 por los rollos".',
+    input_schema: objeto({
+      precio_unitario: { type: 'integer', description: 'Precio neto por unidad, en pesos, mayor que cero.' },
+      producto: { type: 'string', description: 'El producto, tal como lo nombró. Si no lo dijo, se omite y el sistema le pregunta.' },
+    }, ['precio_unitario']),
+    strict: true,
+  },
+  {
+    name: 'proponer_producto',
+    description: 'Un proveedor quiere sumar un producto nuevo a la compra conjunta. Ej: "vendo café molido 1 kg a $12.000 la bolsa".',
+    input_schema: objeto({
+      nombre: { type: 'string', description: 'Nombre del producto con su formato. Ej: "Café molido 1 kg".' },
+      unidad: { type: 'string', description: 'Unidad de venta en singular. Ej: "bolsa", "caja". Si no la dijo, "unidad".' },
+      precio: { type: 'integer', description: 'Precio neto por unidad, en pesos, comprando de a una.' },
+    }, ['nombre', 'unidad', 'precio']),
+    strict: true,
+  },
+  { name: 'ser_proveedor', description: 'La persona quiere vender en la red (registrarse como proveedor).', input_schema: objeto({}, []), strict: true },
+  { name: 'ver_ofertas', description: 'Un proveedor pregunta cómo van sus ofertas en la compra conjunta.', input_schema: objeto({}, []), strict: true },
 ];
 
 const SISTEMA_SALA = `Eres el intérprete de un agente de WhatsApp. Una sala completa de pequeños negocios de Chile arma una compra conjunta de varios productos.
@@ -159,8 +181,9 @@ export function crearInterpreteClaude(apiKey: string, model: string): Interprete
 }
 
 export function deHerramienta(nombre: string, input: unknown): Intencion {
-  const datos = (input ?? {}) as { producto?: unknown; cantidad?: unknown; proveedor?: unknown };
+  const datos = (input ?? {}) as { producto?: unknown; cantidad?: unknown; proveedor?: unknown; precio_unitario?: unknown; nombre?: unknown; unidad?: unknown; precio?: unknown };
   const cantidad = Number(datos.cantidad);
+  const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   switch (nombre) {
     case 'proponer_pedido':
       return typeof datos.producto === 'string' && cantidad > 0
@@ -175,6 +198,19 @@ export function deHerramienta(nombre: string, input: unknown): Intencion {
     case 'rechazar': return { tipo: 'no' };
     case 'recepcion_conforme': return { tipo: 'conforme' };
     case 'ver_pedidos': return { tipo: 'ver_pedidos' };
+    case 'proponer_oferta': {
+      const precio = Number(datos.precio_unitario);
+      if (!Number.isInteger(precio) || precio <= 0) return { tipo: 'otro' };
+      return { tipo: 'ofertar', precio, ...(texto(datos.producto) ? { producto: texto(datos.producto) } : {}) };
+    }
+    case 'proponer_producto': {
+      const precio = Number(datos.precio);
+      return texto(datos.nombre) && Number.isInteger(precio) && precio > 0
+        ? { tipo: 'crear_producto', nombre: texto(datos.nombre), unidad: texto(datos.unidad).toLowerCase() || 'unidad', precio }
+        : { tipo: 'otro' };
+    }
+    case 'ser_proveedor': return { tipo: 'ser_proveedor' };
+    case 'ver_ofertas': return { tipo: 'ver_ofertas' };
     default: return { tipo: 'otro' };
   }
 }
