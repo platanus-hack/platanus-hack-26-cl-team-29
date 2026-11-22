@@ -356,6 +356,8 @@
 .bm-cerrar-antes { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
 .bm-cerrar-antes h2 { font-size: var(--text-sm); font-weight: 600; }
 
+/* Cabecera, pestañas, filtros y lista: un bloque por fila, separados con el ritmo de la marca (antes iban pegados). */
+.bm-facturas { display: flex; flex-direction: column; gap: var(--espacio-4); min-width: 0; }
 .bm-facturas .bm-cabecera > :not(:first-child) { flex-shrink: 0; }
 .bm-facturas .bm-cabecera { align-items: center; }
 .bm-faltaron { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); }
