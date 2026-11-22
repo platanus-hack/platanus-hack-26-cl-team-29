@@ -361,7 +361,7 @@
 /* Comprar | Vender: arriba del menú (y en la barra de arriba del teléfono), un clic cambia de lado. */
 .bm-modo { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; border-radius: var(--radius-lg); background: var(--color-muted); }
 .bm-modo a, .bm-modo span { display: flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: calc(var(--radius-lg) - 3px); font-size: var(--text-sm); color: var(--color-muted-foreground); text-decoration: none; white-space: nowrap; }
-.bm-modo .activo { background: var(--color-background); color: var(--color-foreground); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+.bm-modo .activo { background: var(--color-background); color: var(--color-foreground); font-weight: 600; box-shadow: var(--sombra-flotante); }
 .bm-modo a:hover { color: var(--color-foreground); }
 .bm-modo a:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
 .bm-superior .bm-modo { flex: 1; max-width: 240px; }

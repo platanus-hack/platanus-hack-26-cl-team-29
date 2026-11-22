@@ -46,6 +46,33 @@ test('quien conecta su SII después de ofertar compite al cerrar', async () => {
   assert.deepEqual(ordenes.map(o => o.proveedorId), [ana.id]);
 });
 
+test('al conectar su SII, sus ofertas pasan a competir en vivo, sin esperar al cierre', async () => {
+  const conSii = new Set<string>();
+  const red = await redConFacturacion(conSii);
+  const eventos: { tipo: string; datos: Record<string, unknown> }[] = [];
+  red.escuchar(e => eventos.push(e as never));
+  const ana = await red.registrarProveedor({ telefono: TEL.ana, rut: '11111111-1', nombre: 'Ana' });
+  const beto = await red.registrarProveedor({ telefono: TEL.beto, rut: '22222222-2', nombre: 'Beto' });
+  conSii.add(beto.id);
+  await red.ofertar(LICITACION_SALA, { proveedorId: ana.id, productoId: 'guantes', precioUnitario: 5_000, plazoDias: 1 });
+  await red.ofertar(LICITACION_SALA, { proveedorId: beto.id, productoId: 'guantes', precioUnitario: 8_000, plazoDias: 1 });
+  await red.agregarAlCarrito(LICITACION_SALA, { telefono: TEL.caro, nombre: 'Kiosco Caro', rut: '33333333-3', productoId: 'guantes', cantidad: 3 });
+  const guantes = () => red.licitacionAbierta()!.productos.find(p => p.id === 'guantes')!;
+  assert.equal(guantes().precioActual, 8_000);
+  eventos.length = 0;
+  conSii.add(ana.id);
+  await red.revisarFacturacion();
+  assert.equal(guantes().ofertas.find(o => o.proveedorId === ana.id)?.pendienteSii, undefined, 'ya no está pendiente');
+  assert.equal(guantes().precioActual, 5_000, 'su oferta baja el precio del grupo en vivo');
+  const cambio = eventos.find(e => e.tipo === 'licitacion.producto');
+  assert.equal(cambio?.datos.cambio, 'facturacion');
+  assert.equal(cambio?.datos.compite, true);
+  assert.ok(eventos.some(e => e.tipo === 'licitacion.precio_bajo'), 'avisa la baja de precio');
+  eventos.length = 0;
+  await red.revisarFacturacion();
+  assert.equal(eventos.length, 0, 'sin cambios no emite nada');
+});
+
 test('el rechazo de folios por falta de verificación de actividad llega explicado, sin rutas del portal', () => {
   const sii = 'No ha sido posible completar su solicitud. Esto debido a que El Servicio de Impuestos Internos informa que no puede '
     + 'emitir este tipo de documento tributario electronico porque no registra Verificacion de Actividades.';

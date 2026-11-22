@@ -40,7 +40,11 @@ export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuy
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
-conexionSii.escuchar(evento => io.emit('red:evento', evento));
+conexionSii.escuchar(evento => {
+  io.emit('red:evento', evento);
+  // Llegaron folios: quien ahora puede facturar empieza a competir en vivo, sin esperar al cierre.
+  if (evento.tipo === 'sii.folios') void red.revisarFacturacion().catch(error => console.error('[red] revisar facturación:', error));
+});
 const certificados = await crearCertificados({ db: dbRed });
 // Avisos de compra abierta a compradores registrados (BASTA para no recibir más): docs/decisiones/20261121-1604-avisos-de-compra-abierta.md
 const avisos = await iniciarAvisos({ red, whatsapp, db: dbRed, emitir: evento => io.emit('red:evento', evento) });
@@ -50,6 +54,8 @@ const conexionDeProveedores = {
     const certificado = await certificados.certificadoDe(rutTitular);
     if (!certificado) throw new Error('no encontré tu certificado conectado');
     await conexionSii.conectarProveedor(rutEmpresa, certificado);
+    // Su SII quedó conectado: sus ofertas pasan a competir en vivo (docs/decisiones/20261122-0238-vender-exige-facturar.md).
+    await red.revisarFacturacion();
   },
   estado: async (rutEmpresa: string) => resumenDeConexion(await conexionSii.estadoDeProveedor(rutEmpresa)),
 };
