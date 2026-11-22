@@ -29,7 +29,7 @@ import './canal.css';
 type Seccion = 'inicio' | 'ventas' | 'compras' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'ventas', titulo: 'Ventas', icono: 'caja' },
-  { id: 'compras', titulo: 'Compras en grupo', corto: 'Compras', icono: 'grupo' },
+  { id: 'compras', titulo: 'Pedidos en grupo', corto: 'En grupo', icono: 'grupo' },
   { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
   { id: 'productos', titulo: 'Productos', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
   { id: 'facturas', titulo: 'Facturas', icono: 'documento' },

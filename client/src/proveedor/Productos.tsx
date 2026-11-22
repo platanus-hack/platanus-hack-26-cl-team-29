@@ -48,7 +48,7 @@ export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { ab
       <header className="bm-cabecera">
         <div>
           <h1 className="bm-titulo">Tus productos</h1>
-          <p className="bm-bajada">Tu precio base por unidad y cuánto baja según la cantidad. Con esto compites en las compras en grupo.</p>
+          <p className="bm-bajada">Tu precio base por unidad y cuánto baja según la cantidad. Con esto compites en los pedidos en grupo.</p>
         </div>
         <button type="button" className="bm-boton bm-mas" aria-label="Agregar un producto" onClick={() => editar(NUEVO)} disabled={!!borrador && !borrador.clave}>
           <span aria-hidden="true">+</span>

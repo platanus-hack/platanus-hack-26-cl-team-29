@@ -1,4 +1,4 @@
-// "Compras en grupo" del proveedor: todas las compras abiertas sin proveedor fijo (las inician los compradores) y, en
+// "Pedidos en grupo" del proveedor (para el comprador son sus "compras en grupo"): todas las compras abiertas sin proveedor fijo (las inician los compradores) y, en
 // Cerradas, las que ganó o perdió. Cada una abre su detalle (DESIGN.md, Paper "C3"): a la izquierda el frasco y la
 // escalera que ve el comprador; a la derecha su oferta (su precio para el volumen del grupo, si va ganando y "Mejorar mi
 // oferta"), el ranking de ofertas y los locales que van. Su lista entra sola; a mano la mejora o la pone si no estaba.
@@ -61,15 +61,15 @@ export function Compras({ foto, yo, ruta, ...props }: PropsAccion & { foto: Foto
     <div className="bp-pagina">
       <header className="bm-cabecera">
         <div>
-          <h1 className="bm-titulo">Compras en grupo</h1>
+          <h1 className="bm-titulo">Pedidos en grupo</h1>
           <p className="bm-bajada">Lo que están comprando en grupo los negocios. Con lo que tienes en tu lista compites solo; al cerrar gana el mejor precio para el grupo.</p>
         </div>
       </header>
-      <Pestanas etiqueta="Compras en grupo" activa={pestana} onCambio={setPestana}
+      <Pestanas etiqueta="Pedidos en grupo" activa={pestana} onCambio={setPestana}
         pestanas={[['abiertas', 'Abiertas', abiertas.length], ['cerradas', 'Cerradas', cerradas.length]]} />
       {!lista.length ? (
         <p className="bp-nada">
-          {pestana === 'abiertas' ? 'No hay compras en grupo abiertas ahora. Cuando un negocio inicie una, aparece aquí.' : 'Aquí quedan las compras en que competiste: las que ganaste y las que no.'}
+          {pestana === 'abiertas' ? 'No hay pedidos en grupo abiertos ahora. Cuando un negocio inicie uno, aparece aquí.' : 'Aquí quedan los pedidos en grupo en que competiste: los que ganaste y los que no.'}
         </p>
       ) : (
         <ul className="bm-tarjeta bp-filas">
@@ -115,9 +115,9 @@ function DetalleCompra({ api, token, alCambiar, foto, fila, ahora }: PropsAccion
     <div className="bp-pagina">
       <header className="bm-cabecera">
         <div>
-          <a className="bm-miga" href="#compras">Compras en grupo › {p.nombre}</a>
+          <a className="bm-miga" href="#compras">Pedidos en grupo › {p.nombre}</a>
           <h1 className="bm-titulo">{p.nombre}</h1>
-          <p className="bm-bajada">{abierta ? 'Los negocios se suman y el precio baja con el volumen. Gana el mejor precio para todo el grupo.' : 'Esta compra en grupo ya cerró.'}</p>
+          <p className="bm-bajada">{abierta ? 'Los negocios se suman y el precio baja con el volumen. Gana el mejor precio para todo el grupo.' : 'Este pedido en grupo ya cerró.'}</p>
         </div>
         <Cierre lic={lic} abierta={abierta} ahora={ahora} />
       </header>
@@ -134,7 +134,7 @@ function DetalleCompra({ api, token, alCambiar, foto, fila, ahora }: PropsAccion
                 {mia.minimo ? <div><dt>Tu pedido mínimo</dt><dd>{contar(mia.minimo, p.unidad, p.unidadPlural)}</dd></div> : null}
                 <div><dt><span className={`bp-estado ${estado.tono}`}>{estado.texto}</span></dt><dd>{mia.automatica ? 'Desde tu lista' : 'A mano'}</dd></div>
               </dl>
-            ) : <p className="bm-bajada">{abierta ? 'Todavía no compites en esta compra. Pon tu precio por cantidad y entras.' : 'No ofertaste en esta compra.'}</p>}
+            ) : <p className="bm-bajada">{abierta ? 'Todavía no compites en este pedido. Pon tu precio por cantidad y entras.' : 'No ofertaste en este pedido.'}</p>}
             {abierta && faltaMinimo > 0 && (
               <p className="bm-nota">Al grupo le faltan {contar(faltaMinimo, p.unidad, p.unidadPlural)} para tu mínimo. Si gana tu oferta y no llegan, puedes cancelar el pedido.</p>
             )}
