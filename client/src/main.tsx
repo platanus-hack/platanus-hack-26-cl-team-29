@@ -6,10 +6,8 @@ import { Proveedor } from './canal/Proveedor.tsx';
 import { Navegador } from './components/Navegador.tsx';
 import { iniciarTema } from './marca/tema.ts';
 import { Licitacion } from './vistas/Licitacion.tsx';
-import { Proveedores } from './vistas/Proveedores.tsx';
 import { Pagos } from './vistas/Pagos.tsx';
 import { RedEnVivo } from './vistas/RedEnVivo.tsx';
-import { Sala } from './vistas/Sala.tsx';
 import { Unirse } from './vistas/Unirse.tsx';
 
 // El mapa trae MapLibre, que pesa: se descarga solo al entrar a /mapa.
@@ -22,15 +20,19 @@ const VISTAS: Record<string, ComponentType> = {
   '/mapa': Mapa,
   '/red-3d': Red3D,
   '/licitacion': Licitacion,
-  '/sala': Sala,
   '/unirse': Unirse,
   '/app': MiNegocio,
   '/proveedor': Proveedor,
-  '/proveedores': Proveedores,
   '/pagos': Pagos,
 };
 
 iniciarTema(); // modo claro u oscuro de la marca, antes de dibujar para que no parpadee
+
+// El buscador de proveedores vive ahora en /app (Proveedores → Todos): los enlaces viejos a su ficha siguen sirviendo.
+if (location.pathname.replace(/\/+$/, '') === '/proveedores') {
+  const p = new URLSearchParams(location.search).get('p');
+  location.replace(`/app#proveedores${p ? `/${encodeURIComponent(p)}` : ''}`);
+}
 
 const Vista = VISTAS[location.pathname.replace(/\/+$/, '')] ?? RedEnVivo;
 

@@ -47,34 +47,3 @@ export function useFilasQueCaben<T extends HTMLElement>(maximo: number, cambios:
   }, [maximo, cambios]);
   return [ref, caben] as const;
 }
-
-/**
- * Grilla que se llena con celdas enteras. Las columnas las define el CSS (`repeat(auto-fill, minmax(...))`,
- * en unidades de la pantalla, así el ancho mínimo crece con la proyección) y aquí solo se cuentan; las filas
- * salen del alto de la celda más alta. Así no queda ninguna celda cortada.
- * Sin alto acotado (con scroll), deja `maximo` celdas.
- */
-export function useGrillaQueCabe<T extends HTMLElement>(maximo: number, cambios: unknown) {
-  const ref = useRef<T>(null);
-  const [grilla, setGrilla] = useState({ columnas: 1, caben: maximo });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const medir = () => {
-      const estilo = getComputedStyle(el);
-      const gapY = parseFloat(estilo.rowGap) || 0;
-      const columnas = Math.max(1, estilo.gridTemplateColumns.split(' ').filter(Boolean).length);
-      const celdas = Array.from(el.children) as HTMLElement[];
-      if (!celdas.length || estilo.overflow !== 'hidden') return setGrilla({ columnas, caben: maximo });
-      const alto = Math.max(...celdas.map(c => c.offsetHeight));
-      const filas = Math.max(1, Math.floor((el.clientHeight + gapY) / (alto + gapY)));
-      setGrilla({ columnas, caben: Math.min(maximo, columnas * filas) });
-    };
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(el);
-    document.fonts?.ready.then(medir);
-    return () => ro.disconnect();
-  }, [maximo, cambios]);
-  return [ref, grilla] as const;
-}

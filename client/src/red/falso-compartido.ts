@@ -1,4 +1,4 @@
-// Una sola red falsa para todas las pestañas del navegador: sin backend, /red, /mapa y /sala
+// Una sola red falsa para todas las pestañas del navegador: sin backend, /red y /mapa
 // abiertas a la vez muestran los mismos datos y los mismos eventos, en vivo.
 // La pestaña que toma el candado corre el guion y lo transmite; las demás solo escuchan.
 

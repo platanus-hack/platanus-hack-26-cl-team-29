@@ -325,7 +325,7 @@ body {
 .oferta.riesgo .nombre-oferta, .oferta.riesgo .precio { color: var(--color-tenue); }
 .oferta.riesgo .aviso { color: var(--color-magenta); }
 
-/* ---------- Escalera de precios por volumen (/licitacion y /sala) ---------- */
+/* ---------- Escalera de precios por volumen (/licitacion) ---------- */
 .escalera { display: flex; flex-direction: column; gap: 1.2vh; min-height: 0; }
 .peldanos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.8vh; }
 .peldano {

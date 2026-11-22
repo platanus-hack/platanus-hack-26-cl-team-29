@@ -3,7 +3,7 @@
 //   se suma por primera vez a una compra --> el bot le ofrece su invitación (una vez por compra)
 //   escribe "invitar" --> el bot se la vuelve a dar (con límite por teléfono)
 //   llega alguien con un código --> queda invitado por ese negocio; al sumarse, a quien invitó le llega un WhatsApp
-//                                   y /sala muestra "X invitó a Y" (`invitacion.sumada`, solo nombres)
+//                                   y /red muestra "X invitó a Y" (`invitacion.sumada`, solo nombres)
 // Decisión: docs/decisiones/20261121-1614-trae-a-tu-vecino.md
 import { randomInt } from 'node:crypto';
 import { lineaInvitacion, mensajeAlBotConCodigo, rutaInvitacion, textoInvitacion } from '../../shared/avisos.ts';

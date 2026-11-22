@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bajadaDeProducto, cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, mostrarAviso, normalizarEstado, PAUSA_AVISO_MS, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, resumenSala, tipoDeBajada, totalesCanasta } from '../client/src/red/derivar.ts';
+import { cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, normalizarEstado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, totalesCanasta } from '../client/src/red/derivar.ts';
 import { cuentaRegresiva, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
@@ -85,29 +85,6 @@ test('documento.actualizado muestra el nuevo estado en el SII', () => {
   assert.equal(describirEvento(ev, base()), 'Factura folio 7 · aceptado por el SII');
 });
 
-test('la bajada de precio tapa la pantalla solo al cruzar un tramo, y como mucho una vez cada 6 s', () => {
-  const tramos = [
-    { desde: 1, precioUnitario: 32000 },
-    { desde: 10, precioUnitario: 29900 },
-    { desde: 25, precioUnitario: 27900 },
-  ];
-  // Un negocio se suma y el grupo pasa de 9 a 12 cajas: el precio nuevo es el del tramo de 10.
-  const porTramo = tipoDeBajada({ precioAnterior: 32000, precioNuevo: 29900, totalUnidades: 12 }, tramos);
-  assert.equal(porTramo, 'tramo');
-  // Un proveedor ofrece menos que el tramo: se anima en el lugar, no tapa la pantalla.
-  assert.equal(tipoDeBajada({ precioAnterior: 29900, precioNuevo: 29500, totalUnidades: 12 }, tramos), 'oferta');
-  // Cruzar un tramo cuyo precio queda bajo la mejor oferta también es de tramo.
-  assert.equal(tipoDeBajada({ precioAnterior: 28100, precioNuevo: 27900, totalUnidades: 30 }, tramos), 'tramo');
-  // Sin bajada real o sin datos, nada.
-  assert.equal(tipoDeBajada({ precioAnterior: 29900, precioNuevo: 29900, totalUnidades: 12 }, tramos), null);
-  assert.equal(tipoDeBajada({}, tramos), null);
-
-  assert.equal(mostrarAviso('tramo', 10_000, null), true);
-  assert.equal(mostrarAviso('tramo', 10_000 + PAUSA_AVISO_MS - 1, 10_000), false);
-  assert.equal(mostrarAviso('tramo', 10_000 + PAUSA_AVISO_MS, 10_000), true);
-  assert.equal(mostrarAviso('oferta', 50_000, null), false);
-});
-
 test('con canasta, la escalera usa el producto principal y no el total de la canasta', () => {
   const lic: Licitacion = {
     id: 'L-1', producto: 'Caja de rollos', comuna: '', cierraEn: '', estado: 'abierta', ofertas: [],
@@ -146,21 +123,6 @@ const canasta = (): Licitacion => ({
   ],
 });
 
-test('el aviso a pantalla completa sale al cruzar el tramo de cualquier producto, leído con sus propios tramos', () => {
-  const lic = canasta();
-  // Etiquetas cruza su tramo de 10: $50 → $45 es de tramo (con los tramos de los rollos parecería una oferta).
-  const etiquetas = bajadaDeProducto({ productoId: 'etiquetas', precioAnterior: 50, precioNuevo: 45, totalUnidades: 11 }, lic);
-  assert.deepEqual(etiquetas, { productoId: 'etiquetas', nombre: 'Etiquetas', unidad: 'rollo', tipo: 'tramo', anterior: 50, nuevo: 45 });
-  assert.equal(mostrarAviso(etiquetas!.tipo, 1000, null), true);
-  // El proveedor baja etiquetas a $43: se anima en su fila, sin aviso.
-  assert.equal(bajadaDeProducto({ productoId: 'etiquetas', precioAnterior: 45, precioNuevo: 43, totalUnidades: 11 }, lic)?.tipo, 'oferta');
-  // Sin productoId, es el primer producto (compatibilidad); un producto que no existe no avisa nada.
-  assert.equal(bajadaDeProducto({ precioAnterior: 100, precioNuevo: 90, totalUnidades: 10 }, lic)?.productoId, 'rollos');
-  assert.equal(bajadaDeProducto({ productoId: 'otro', precioAnterior: 100, precioNuevo: 90, totalUnidades: 10 }, lic), null);
-  // Dos cruces seguidos de productos distintos: el segundo espera la pausa.
-  assert.equal(mostrarAviso('tramo', 1000 + PAUSA_AVISO_MS - 1, 1000), false);
-});
-
 test('los totales de la canasta suman cada producto con su propio precio y ahorro', () => {
   const lic = canasta();
   lic.productos![1] = { ...lic.productos![1], totalUnidades: 11, precioActual: 43 };
@@ -177,24 +139,4 @@ test('los totales de la canasta suman cada producto con su propio precio y ahorr
   assert.equal(etiquetas.lider?.proveedorId, 'a');
   assert.equal(etiquetas.proveedores, 2);
   assert.equal(productoQueCambio({ rollos: '4', etiquetas: '11' }, { rollos: '4', etiquetas: '12' }), 'etiquetas');
-});
-
-test('con varios proveedores la sala espera el sí de cada uno y no termina con la factura del primero', () => {
-  const e = base();
-  const lic = {
-    id: 'L-1', producto: 'Rollos', unidad: 'caja', unidadPlural: 'cajas', precioSolo: 32000, cierraEn: '2026-11-21T10:00:00Z',
-    tramos: [{ desde: 1, precioUnitario: 32000 }], ofertas: [], estado: 'cerrada', ordenIds: ['o1', 'o2'],
-    participantes: [{ negocioId: 'x', nombre: 'Almacén Equis', cantidad: 2 }],
-  } as unknown as Licitacion;
-  e.ordenes = [
-    { id: 'o1', compradorId: 'x', proveedorId: 'a', items: [{ producto: 'Rollos', cantidad: 1, precioUnitario: 25000 }], estado: 'facturada', creadaEn: '2026-11-21T10:00:00Z' },
-    { id: 'o2', compradorId: 'x', proveedorId: 'b', items: [{ producto: 'Rollos', cantidad: 1, precioUnitario: 26000 }], estado: 'enviada', creadaEn: '2026-11-21T10:00:00Z' },
-  ];
-  e.documentos = [{ id: 'd1', ordenId: 'o1', tipo: 33, folio: 10, trackId: '', estadoSii: 'simulado', monto: 25000 }];
-  const facturadaPorUno = { tipo: 'licitacion.facturada' as const, datos: { licitacionId: 'L-1', proveedorId: 'a', documentos: 1 }, en: '' };
-  const s = resumenSala(lic, e, [facturadaPorUno], Date.parse('2026-11-21T11:00:00Z'));
-  assert.equal(s.proveedor, 'Panificadora Uno y Molinos Dos');
-  assert.equal(s.fase, 'facturando', 'falta la factura de Molinos');
-  assert.equal(s.quienFacturo, 'Panificadora Uno ya facturó · falta el sí de Molinos Dos');
-  assert.equal(describirEvento(facturadaPorUno, e), 'Panificadora Uno emitió 1 factura de la compra conjunta');
 });

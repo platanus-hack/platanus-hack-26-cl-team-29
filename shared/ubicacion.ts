@@ -93,7 +93,7 @@ export function ubicarProveedor(p: { clave: string; comuna: string; region: stri
 
 /** Un proveedor en los mapas, como lo entrega GET /api/proveedores/mapa: lo mínimo para dibujarlo y abrir su ficha. */
 export interface ProveedorMapa {
-  /** RUT o id de la red: abre /proveedores?p=<clave>. */
+  /** RUT o id de la red: abre su ficha en /app#proveedores/<clave>. */
   clave: string;
   nombre: string;
   categoria: string | null;

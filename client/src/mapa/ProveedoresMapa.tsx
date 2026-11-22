@@ -19,7 +19,7 @@ export function useProveedoresMapa(evento: number | undefined): ProveedorMapa[] 
 /** Radio del punto en píxeles: crece con los organismos que le compran, sin tapar el mapa. */
 export const radioProveedorMp = (organismos: number) => 2.5 + 1.1 * Math.sqrt(Math.min(organismos, 60));
 
-export const ficha = (clave: string) => `/proveedores?p=${encodeURIComponent(clave)}`;
+export const ficha = (clave: string) => `/app#proveedores/${encodeURIComponent(clave)}`;
 
 /** Tarjeta al hacer clic en un proveedor de Mercado Público: nombre, categoría, organismos y su ficha completa. */
 export function FichaMercadoPublico({ proveedor: p, alCerrar }: { proveedor: ProveedorMapa; alCerrar: () => void }) {

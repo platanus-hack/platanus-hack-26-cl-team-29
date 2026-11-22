@@ -91,23 +91,3 @@ export function TableroCanasta({ productos, destacado, destellos = [], logoEnSal
     </ul>
   );
 }
-
-/** Totales por producto al cerrar: unidades, precio final y ahorro, en tarjetas compactas. */
-export function CierreCanasta({ productos, className = '' }: { productos: ProductoSala[]; className?: string }) {
-  return (
-    <ul className={`cierre-canasta ${className}`}>
-      {productos.map(p => (
-        <li key={p.id}>
-          <span className="prod-icono"><Icono nombre={iconoProducto(p.nombre)} /></span>
-          <span className="cierre-texto">
-            <span className="prod-nombre">{p.corto}</span>
-            <span className="cierre-pie">
-              {contar(p.tramos.totalUnidades, p.unidad.singular, p.unidad.plural)} a <strong>{p.tramos.precioActual !== undefined ? dinero(p.tramos.precioActual) : '-'}</strong>
-              {p.porcentaje > 0 && <span className="verde"> -{p.porcentaje}%</span>}
-            </span>
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}

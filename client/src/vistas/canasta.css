@@ -1,4 +1,4 @@
-/* ---------- Tablero de la canasta (/sala y /licitacion) ---------- */
+/* ---------- Tablero de la canasta (/licitacion) ---------- */
 /* Usa --u, la unidad de la pantalla que se proyecta (la define .sala o .proyeccion). */
 .proyeccion { --u: min(1vh, 0.56vw); }
 @media (max-aspect-ratio: 3/2) { .proyeccion { --u: min(1vh, 0.75vw); } }

@@ -11,7 +11,7 @@ import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
 import { Inicio } from '../comprador/Inicio.tsx';
 import { ComprasEnGrupo, rutaDeCompra, type RutaCompra } from '../comprador/ComprasEnGrupo.tsx';
-import { Proveedores } from '../comprador/Proveedores.tsx';
+import { Proveedores, rutaDeProveedor } from '../comprador/Proveedores.tsx';
 import { Sii } from '../comprador/Sii.tsx';
 import { Recepcion } from '../comprador/Recepcion.tsx';
 import { puedeVender } from '../../../shared/red.ts';
@@ -24,17 +24,17 @@ const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'facturas', titulo: 'SII', icono: 'documento' }, { id: 'credito', titulo: 'Crédito', icono: 'tarjeta' },
 ];
 
-/** `#compra/...` → la lista, iniciar una o un producto (ver `rutaDeCompra`). Sin hash, la portada. */
-const rutaDelHash = (): { seccion: Seccion; compra: RutaCompra } => {
+/** `#compra/...` → la lista, iniciar una o un producto (ver `rutaDeCompra`); `#proveedores/<clave>` → su ficha. Sin hash, la portada. */
+const rutaDelHash = (): { seccion: Seccion; compra: RutaCompra; ficha: string | null } => {
   const [s, ...resto] = location.hash.slice(1).split('/');
-  return { seccion: SECCIONES.find(x => x.id === s)?.id ?? 'inicio', compra: rutaDeCompra(resto) };
+  return { seccion: SECCIONES.find(x => x.id === s)?.id ?? 'inicio', compra: rutaDeCompra(resto), ficha: s === 'proveedores' ? rutaDeProveedor(resto) : null };
 };
 
 
 export function MiNegocio() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const { token, entrar, vencer, salir } = useSesion(api);
-  const { seccion, compra } = useRutaDelHash(rutaDelHash);
+  const { seccion, compra, ficha } = useRutaDelHash(rutaDelHash);
 
   const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
 
@@ -59,7 +59,7 @@ export function MiNegocio() {
       {seccion === 'compra' && compra.vista === 'lista' && vigente && participa && (
         <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>
       )}
-      {seccion === 'proveedores' && <Proveedores foto={foto} yo={yo} />}
+      {seccion === 'proveedores' && <Proveedores foto={foto} yo={yo} cambio={cambio} ficha={ficha} />}
       {seccion === 'recepcion' && <Recepcion api={api} token={token} ordenes={yo.ordenes} negocios={foto.negocios} />}
       {seccion === 'facturas' && (
         <Sii api={api} token={token} cambio={cambio} negocios={foto.negocios} panel="comprador" vende={puedeVender(yo.negocio)} compra vencer={vencer} />

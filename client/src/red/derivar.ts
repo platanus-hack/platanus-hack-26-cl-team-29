@@ -4,8 +4,8 @@ import type { Documento, EstadoRed, EventoRed, ItemOrden, Licitacion, Negocio, N
 import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts';
 import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
-import { contar, enumerar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
+import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo } from '../../../shared/precios.ts';
+import { contar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
 import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
@@ -519,56 +519,7 @@ export function resumenLicitacion(lic: Licitacion, estado: EstadoRed): ResumenLi
   };
 }
 
-// ---------- La sala compra junta ----------
-
-/** Cómo se muestra una bajada de precio en /sala. */
-export type TipoBajada = 'tramo' | 'oferta';
-
-/** Ningún aviso a pantalla completa antes de este tiempo desde el anterior. */
-export const PAUSA_AVISO_MS = 6000;
-
-/**
- * Decide cómo mostrar un `licitacion.precio_bajo`: `tramo` (aviso a pantalla completa) si el precio nuevo
- * es el del tramo que el grupo acaba de alcanzar; `oferta` (animación en el lugar) si lo bajó un proveedor.
- * `null` si el evento no trae una bajada real.
- */
-export function tipoDeBajada(datos: Record<string, unknown>, tramos: Tramo[] | undefined): TipoBajada | null {
-  const anterior = numero(datos.precioAnterior);
-  const nuevo = numero(datos.precioNuevo);
-  const unidades = numero(datos.totalUnidades);
-  if (anterior === undefined || nuevo === undefined || nuevo >= anterior) return null;
-  const delTramo = unidades === undefined ? undefined : tramoAlcanzado(tramos, unidades)?.precioUnitario;
-  return delTramo === nuevo ? 'tramo' : 'oferta';
-}
-
-export interface BajadaProducto {
-  productoId: string;
-  /** Nombre corto del producto, para el aviso. */
-  nombre: string;
-  unidad: string;
-  tipo: TipoBajada;
-  anterior?: number;
-  nuevo: number;
-}
-
-/**
- * Un `licitacion.precio_bajo` leído con los tramos de SU producto (sin `productoId`, el primero de la canasta):
- * cruzar el tramo 10 de etiquetas es de tramo aunque el precio no sea un tramo de los rollos.
- */
-export function bajadaDeProducto(datos: Record<string, unknown>, lic: Licitacion): BajadaProducto | null {
-  const id = texto(datos.productoId) ?? idsDeCanasta(lic)[0];
-  if (lic.productos?.length && !lic.productos.some(p => p.id === id)) return null;
-  const vista = licitacionDeProducto(lic, id);
-  const tipo = tipoDeBajada(datos, vista.tramos);
-  if (!tipo) return null;
-  const unidad = unidadDeLicitacion(vista);
-  return { productoId: id, nombre: nombreCorto(vista.producto, unidad.singular), unidad: unidad.singular, tipo, anterior: numero(datos.precioAnterior), nuevo: numero(datos.precioNuevo)! };
-}
-
-/** El aviso a pantalla completa se muestra solo si es de tramo y pasó la pausa desde el anterior. */
-export function mostrarAviso(tipo: TipoBajada | null, ahora: number, ultimoAviso: number | null): boolean {
-  return tipo === 'tramo' && (ultimoAviso === null || ahora - ultimoAviso >= PAUSA_AVISO_MS);
-}
+// ---------- Proveedores compitiendo ----------
 
 export interface OfertaSala {
   /** Clave estable por oferta: el backend reemplaza la oferta anterior de cada proveedor. */
@@ -602,145 +553,6 @@ export function competencia(lic: Licitacion, estado: EstadoRed): OfertaSala[] {
     gana: mejor?.n === n,
     enEscenario: !!lic.proveedorId && o.proveedorId === lic.proveedorId,
   })).reverse();
-}
-
-/** abierta → cerrada (espera el sí del proveedor) → facturando (llegan las facturas) → lista (total y ahorro). */
-export type FaseSala = 'abierta' | 'cerrada' | 'facturando' | 'lista';
-
-export interface FacturaSala {
-  id: string;
-  folio: number | null;
-  nombre: string;
-  comuna: string;
-  rubro?: string;
-  unidades: number;
-  /** Líneas de la factura (una por producto). */
-  lineas: number;
-  /** "3 cajas" o, si la factura trae varios productos de la canasta, "3 productos". */
-  detalle: string;
-  monto: number;
-  estadoSii: string | null;
-}
-
-/** "3 cajas" con la unidad del producto de la canasta (o la de la licitación). */
-function cantidadDeItem(lic: Licitacion, item: ItemOrden): string {
-  const producto = lic.productos?.find(x => x.id === item.productoId || x.nombre === item.producto);
-  const u = producto ? { singular: producto.unidad, plural: producto.unidadPlural } : unidadDeLicitacion(lic);
-  return contar(item.cantidad, u.singular, u.plural);
-}
-
-export interface ResumenSala {
-  fase: FaseSala;
-  proveedor: string;
-  /** Quién ya dijo que sí y quién falta, cuando venden varios: "Insumos Beto ya facturó · falta el sí de Andina". */
-  quienFacturo: string;
-  unidad: { singular: string; plural: string };
-  tramos: EstadoTramos;
-  precioSolo?: number;
-  /** Cada producto de la canasta (uno si la compra no tiene canasta). */
-  productos: ProductoSala[];
-  canasta: TotalesCanasta;
-  /** Participantes, el más nuevo primero; `n` es su número de llegada (estable, sirve de clave). */
-  muro: Array<{ n: number } & ReturnType<typeof nombreParticipante>>;
-  facturas: FacturaSala[];
-  aceptadas: number;
-  ordenes: number;
-  totalNeto: number;
-  ahorroTotal: number;
-}
-
-const ACEPTADO = new Set(['aceptado', 'reparo']);
-export const facturaAceptada = (estadoSii: string | null) => !!estadoSii && ACEPTADO.has(estadoSii);
-
-/**
- * Órdenes que salieron de esta compra conjunta: las de `ordenIds` o, si el backend no las manda,
- * las del mismo proveedor creadas después de que se sumó el primer participante.
- */
-export function ordenesDeLicitacion(lic: Licitacion, estado: EstadoRed): OrdenCompra[] {
-  if (lic.ordenIds) {
-    const ids = new Set(lic.ordenIds);
-    return estado.ordenes.filter(o => ids.has(o.id));
-  }
-  const primera = Math.min(...lic.participantes.map(p => (p.en ? Date.parse(p.en) : Infinity)));
-  return estado.ordenes.filter(o => !!lic.proveedorId && o.proveedorId === lic.proveedorId && Date.parse(o.creadaEn) >= primera);
-}
-
-function eventoFacturada(eventos: EventoRed[], licitacionId: string, ordenes: readonly OrdenCompra[]) {
-  const varios = new Set(ordenes.map(o => o.proveedorId)).size > 1;
-  return eventos.find(e => e.tipo === 'licitacion.facturada' && e.datos.licitacionId === licitacionId && !(varios && e.datos.proveedorId));
-}
-
-/** "X dijo que sí · un solo envío al SII" o, con varios proveedores, quién facturó y de quién falta el sí. */
-function quienFacturo(estado: EstadoRed, ordenes: readonly OrdenCompra[], conFactura: ReadonlySet<string>): string {
-  const nombre = (id: string) => negocioPorId(estado, id)?.nombre ?? 'Un proveedor';
-  const ids = [...new Set(ordenes.map(o => o.proveedorId))];
-  const listos = ids.filter(id => ordenes.every(o => o.proveedorId !== id || conFactura.has(o.id))).map(nombre);
-  const faltan = ids.map(nombre).filter(n => !listos.includes(n));
-  if (ids.length <= 1) return `${listos[0] ?? faltan[0] ?? 'El proveedor'} dijo que sí · un solo envío al SII`;
-  if (faltan.length === 0) return `${enumerar(listos)} dijeron que sí · un envío al SII por proveedor`;
-  return `${listos.length ? `${enumerar(listos)} ya ${segun(listos.length, 'facturó', 'facturaron')} · ` : ''}falta el sí de ${enumerar(faltan)}`;
-}
-
-/** Quién vende en la compra: los proveedores con órdenes ("A y B") o, antes de cerrar, el ganador o el fijo. */
-function proveedoresDeLaSala(lic: Licitacion, estado: EstadoRed, ordenes: readonly OrdenCompra[]): string {
-  const conOrdenes = [...new Set(ordenes.map(o => o.proveedorId))].map(id => negocioPorId(estado, id)?.nombre ?? 'un proveedor');
-  if (conOrdenes.length) return enumerar(conOrdenes);
-  return negocioPorId(estado, lic.ganadora?.proveedorId ?? lic.proveedorId)?.nombre ?? lic.ganadora?.proveedorNombre ?? 'el proveedor';
-}
-
-export function resumenSala(lic: Licitacion, estado: EstadoRed, eventos: EventoRed[], ahora: number): ResumenSala {
-  const tramos = estadoTramos(lic);
-  const ordenes = ordenesDeLicitacion(lic, estado);
-  const porOrden = new Map(ordenes.map(o => [o.id, o]));
-  const porOrdenDeFactura = new Map(estado.documentos.map(d => [d.id, d.ordenId]));
-  const facturas = estado.documentos
-    .filter(d => d.tipo === 33 && porOrden.has(d.ordenId))
-    .sort((a, b) => (b.folio ?? 0) - (a.folio ?? 0))
-    .map(d => {
-      const orden = porOrden.get(d.ordenId)!;
-      const comprador = negocioPorId(estado, orden.compradorId);
-      const item = orden.items[0];
-      return {
-        id: d.id,
-        folio: d.folio,
-        nombre: comprador?.nombre ?? 'Negocio',
-        comuna: comprador?.comuna ?? '',
-        rubro: comprador?.rubro,
-        unidades: orden.items.reduce((s, i) => s + i.cantidad, 0),
-        lineas: orden.items.length,
-        // Con canasta, una factura puede traer varias líneas: se cuentan los productos.
-        detalle: orden.items.length > 1 ? contar(orden.items.length, 'producto') : item ? cantidadDeItem(lic, item) : '',
-        monto: d.monto ?? totalOrden(orden),
-        estadoSii: d.estadoSii,
-      };
-    });
-  // Con varios proveedores, cada uno factura lo suyo: su `licitacion.facturada` trae `proveedorId` y no cierra la sala.
-  const finalizada = eventoFacturada(eventos, lic.id, ordenes);
-  const cerrada = lic.estado !== 'abierta' || Date.parse(lic.cierraEn) <= ahora;
-  // Lista: llegó `licitacion.facturada` o (al recargar la pantalla) todas las órdenes ya tienen su factura.
-  const todasFacturadas = ordenes.length > 0 && facturas.length >= ordenes.length;
-  const fase: FaseSala =
-    finalizada || todasFacturadas ? 'lista' : facturas.length ? 'facturando' : cerrada ? 'cerrada' : 'abierta';
-  const canasta = totalesCanasta(lic);
-  const total = numero(finalizada?.datos.total);
-  const ahorro = numero(finalizada?.datos.ahorroTotal);
-  const muro = porLlegada(lic).map((p, i) => ({ n: i, ...nombreParticipante(estado, lic, p) })).reverse();
-  return {
-    fase,
-    proveedor: proveedoresDeLaSala(lic, estado, ordenes),
-    quienFacturo: quienFacturo(estado, ordenes, new Set(facturas.map(f => porOrdenDeFactura.get(f.id)!))),
-    unidad: unidadDeLicitacion(lic),
-    tramos,
-    precioSolo: lic.precioSolo,
-    productos: productosDeCanasta(lic, estado),
-    canasta,
-    muro,
-    facturas,
-    aceptadas: facturas.filter(f => facturaAceptada(f.estadoSii)).length,
-    ordenes: ordenes.length,
-    totalNeto: total ?? facturas.reduce((s, f) => s + f.monto, 0),
-    ahorroTotal: ahorro ?? canasta.ahorro,
-  };
 }
 
 // ---------- Feed "Pasando ahora" ----------
