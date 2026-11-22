@@ -231,3 +231,37 @@ test('las rutas exigen la sesión del proveedor y nunca devuelven el certificado
     server.close();
   }
 });
+
+test('cada proveedor ve su propia conexión y, solo en la demo, puede elegir usar la de la empresa del panel', async () => {
+  const propias = new Map<string, ReturnType<typeof conexionDePrueba>>();
+  const panel = conexionDePrueba();
+  const usa = new Set<string>();
+  const panelConectado = { empresa: 'DEVLAS SPA', conectado: true };
+  // Lo mismo que arma iniciarConexionSii: la del RUT del proveedor de la sesión, o la del panel si eligió la demo.
+  const rutas = crearRutasConexionSii(async res => {
+    const rut = (res.locals.proveedor as { rut: string }).rut;
+    if (!propias.has(rut)) propias.set(rut, conexionDePrueba());
+    const usando = usa.has(rut);
+    return {
+      conexion: usando ? panel : propias.get(rut)!,
+      demo: { empresa: panelConectado.empresa, usando, fijar: async usar => { if (usar) usa.add(rut); else usa.delete(rut); } },
+    };
+  });
+  const app = express().use(express.json())
+    .use('/sii', (req, res, next) => { res.locals.proveedor = { rut: String(req.headers['x-rut']) }; next(); }, rutas);
+  const server = app.listen(0);
+  const url = `http://localhost:${(server.address() as AddressInfo).port}/sii`;
+  const pedir = async (rut: string, metodo = 'GET', ruta = '', body?: unknown) => (await fetch(url + ruta, {
+    method: metodo, headers: { 'content-type': 'application/json', 'x-rut': rut }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })).json();
+  try {
+    const ana = await pedir('11111111-1');
+    assert.deepEqual([ana.conectado, ana.demo], [false, { empresa: 'DEVLAS SPA', usando: false }], 'Ana ve la suya, sin conectar, con la opción demo');
+    const conDemo = await pedir('11111111-1', 'POST', '/demo', { usar: true });
+    assert.equal(conDemo.demo.usando, true);
+    assert.equal((await pedir('22222222-2')).demo.usando, false, 'Beto sigue con la suya');
+    assert.equal((await pedir('11111111-1', 'POST', '/demo', { usar: false })).demo.usando, false);
+  } finally {
+    server.close();
+  }
+});

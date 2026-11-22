@@ -9,7 +9,7 @@ import { demandaManual, minimoDeFolios, POLITICA_FOLIOS } from '../../../shared/
 import { ErrorCanal, type CanalApi } from './api.ts';
 import type { CafSii, EstadoConexionSii, FoliosSii, PasoSii } from './tipos.ts';
 
-type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiTraerFolios' | 'siiDesconectar'>;
+type MetodosSii = Pick<CanalApi, 'siiEstado' | 'siiCertificado' | 'siiAutomatico' | 'siiConsultarEmpresa' | 'siiGuardarEmpresa' | 'siiCaf' | 'siiFolio' | 'siiTraerFolios' | 'siiDesconectar' | 'siiUsarDemo'>;
 
 const vacia = (): EstadoConexionSii => ({
   conectado: false, puedeGuardar: true, titular: null, venceEl: null,
@@ -192,6 +192,11 @@ export function crearConexionSiiFalsa(verificar: (token: string) => void): Metod
       verificar(token);
       c = vacia();
       return copia();
+    },
+
+    // Con datos de prueba no hay otra empresa conectada: la opción demo no existe.
+    async siiUsarDemo() {
+      throw new ErrorCanal('Con datos de prueba no hay una conexión de demo.');
     },
   };
 }

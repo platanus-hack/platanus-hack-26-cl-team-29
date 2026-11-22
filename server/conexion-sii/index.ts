@@ -1,5 +1,6 @@
 // "Conectar mi SII": API pública del módulo. Fuera de server/conexion-sii/ se importa solo este archivo.
 import type express from 'express';
+import type { Response } from 'express';
 import type pg from 'pg';
 import { crearAlmacenFolios, crearSiiReal } from '../red/index.ts';
 import type { ConsultarContribuyente, DatosContribuyente } from '../red/contribuyente.ts';
@@ -16,6 +17,8 @@ import { crearPortalConexion } from './portal.ts';
 import { consultarContribuyentePublico, ErrorStc, iniciarPortalSii } from '../sii-portal/index.ts';
 import type { ConsultaPublicaContribuyente } from '../sii-portal/index.ts';
 import { crearRutasConexionSii } from './rutas.ts';
+import type { ConexionDeLaSesion } from './rutas.ts';
+import { crearDemoSii } from './demo.ts';
 import { crearSiiConmutable } from './sii-conmutable.ts';
 
 export { crearConexionSii, ErrorConexion } from './conexion.ts';
@@ -84,6 +87,7 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
   const almacenPanel = await almacenDe(db);
   const conexion = crear(almacenPanel, await crearAlmacenFolios(db));
   const porRut = new Map<string, Promise<ConexionSii>>();
+  const demo = await crearDemoSii(db);
 
   /**
    * La conexión de la empresa de un proveedor. Si es la misma empresa conectada desde el panel, esa (comparten folios:
@@ -101,8 +105,25 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
     return c;
   }
 
-  /** Quien emite: un proveedor registrado por WhatsApp usa la conexión de su empresa; los demás, la del panel. */
-  const conexionDe = async (emisor: Negocio | undefined) => (emisor?.vende && emisor.rut ? conexionDeRut(emisor.rut) : conexion);
+  /**
+   * Quien emite: un proveedor registrado por WhatsApp usa la conexión de su empresa (o la del panel si eligió la de la
+   * demo); los demás, la del panel.
+   */
+  const conexionDe = async (emisor: Negocio | undefined) =>
+    (emisor?.vende && emisor.rut && !demo.usa(emisor.rut) ? conexionDeRut(emisor.rut) : conexion);
+
+  /** La conexión del proveedor de la sesión del panel y, si el panel está conectado, la opción de usarla (demo). */
+  async function deLaSesion(res: Response): Promise<ConexionDeLaSesion> {
+    const p = res.locals.proveedor as { rut?: string; vende?: boolean } | undefined;
+    if (!p?.vende || !p.rut) return { conexion };
+    const rut = p.rut;
+    const panel = await conexion.estado();
+    const usando = demo.usa(rut);
+    const opcion = panel.conectado && panel.empresa && panel.rutEmisor !== rut
+      ? { demo: { empresa: panel.empresa.razonSocial, usando, fijar: (usar: boolean) => demo.fijar(rut, usar) } }
+      : {};
+    return { conexion: usando && opcion.demo ? conexion : await conexionDeRut(rut), ...opcion };
+  }
   // RUT de terceros: siempre la consulta pública STC, sin certificado ni sesión. El portal con certificado no sirve
   // para terceros (falla y suma segundos por comprador). Si la STC no responde, el error llega a la red con el texto
   // del SII y el registro sigue con la dirección que declare la persona.
@@ -117,7 +138,7 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
   return {
     conexion,
     consultarContribuyente,
-    rutas: crearRutasConexionSii(conexion),
+    rutas: crearRutasConexionSii(deLaSesion),
     async conectarProveedor(rutEmpresa, { pfx, clave }) {
       const c = await conexionDeRut(rutEmpresa);
       // La empresa ya conectada desde el panel no se vuelve a conectar: reemplazar su certificado repetiría la

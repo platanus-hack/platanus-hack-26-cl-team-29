@@ -303,7 +303,14 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     res.status(201).json(await red.emitirNotaCredito(id(req)));
   });
 
-  if (conexionSii) rutas.use('/proveedor/sii', exigir('proveedor'), limitarSii, conexionSii);
+  // Su conexión al SII: la de su empresa (por su RUT) o, solo en la demo, la del panel si la eligió.
+  if (conexionSii) {
+    rutas.use('/proveedor/sii', exigir('proveedor'), limitarSii, (req: ConSesion, res: Response, next: NextFunction) => {
+      const n = yo(req);
+      res.locals.proveedor = { id: n.id, ...(n.rut ? { rut: n.rut } : {}), ...(n.vende ? { vende: true } : {}) };
+      next();
+    }, conexionSii);
+  }
   if (catalogo) {
     rutas.use('/proveedor/catalogo', exigir('proveedor'), porNegocio(60), (req: ConSesion, res: Response, next: NextFunction) => {
       res.locals.proveedor = { id: yo(req).id, ...(yo(req).rut ? { rut: yo(req).rut } : {}) };

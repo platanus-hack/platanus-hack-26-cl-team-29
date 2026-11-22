@@ -52,10 +52,13 @@ export function ConectarSii({ api, token }: Props) {
   }
 
   const factura = estado.folios.find(f => f.tipo === 33);
+  const usandoDemo = !!estado.demo?.usando;
   return (
     <section className="tarjeta cn-sii-conexion">
       <div className="cn-fila-meta">
-        <span className={`cn-chip cn-con-sii ${estado.conectado ? 'conectado' : ''}`}><LogoSii tam={14} />{estado.conectado ? 'SII conectado' : 'SII sin conectar'}</span>
+        <span className={`cn-chip cn-con-sii ${estado.conectado ? 'conectado' : ''}`}>
+          <LogoSii tam={14} />{usandoDemo ? `Usando ${estado.demo!.empresa} (Demo)` : estado.conectado ? 'SII conectado' : 'SII sin conectar'}
+        </span>
         <span className="mono tenue">Certificación (maullin)</span>
       </div>
       {estado.conectado && estado.empresa ? (
@@ -71,16 +74,34 @@ export function ConectarSii({ api, token }: Props) {
           </p>
         </>
       )}
-      {!abierta && (
+      {!abierta && !usandoDemo && (
         <button type="button" className={`boton cn-ancho ${estado.conectado ? 'secundario cn-secundario' : 'cn-boton-sii'}`} onClick={() => setAbierta(true)}>
           <LogoSii /> {estado.conectado ? 'Ver conexión' : 'Conectar mi SII'}
         </button>
       )}
-      {abierta && (
+      {estado.demo && (!estado.conectado || usandoDemo) && <UsarDemo api={api} token={token} demo={estado.demo} alCambiar={setEstado} />}
+      {abierta && !usandoDemo && (
         <Pasos api={api} token={token} estado={estado} alCambiar={setEstado} onCerrar={() => setAbierta(false)} />
       )}
       <p className="nota-demo cn-sub">En uso real, cada proveedor conecta su propio certificado y sus folios.</p>
     </section>
+  );
+}
+
+/** Solo demo: emitir con la empresa de la demo en vez de subir su certificado, o dejar de hacerlo. */
+function UsarDemo({ api, token, demo, alCambiar }: Props & { demo: NonNullable<EstadoConexionSii['demo']>; alCambiar: (e: EstadoConexionSii) => void }) {
+  const { enviando, error, enviar } = useEnvio();
+  const cambiar = (usar: boolean) => enviar(async () => alCambiar(await api.siiUsarDemo(token, usar)));
+  return (
+    <>
+      {demo.usando
+        ? <p className="mono tenue cn-texto">Tus facturas salen emitidas por {demo.empresa} en el SII de certificación. Es solo para la demo.</p>
+        : null}
+      <button type="button" className="cn-boton-texto" disabled={enviando} onClick={() => cambiar(!demo.usando)}>
+        {enviando ? 'Cambiando...' : demo.usando ? 'Dejar de usar la conexión de la demo' : `o usar ${demo.empresa} (Demo)`}
+      </button>
+      {error && <p className="error">{error}</p>}
+    </>
   );
 }
 
