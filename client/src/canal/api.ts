@@ -43,6 +43,8 @@ export interface CanalApi {
   carrito(token: string, licitacionId: string, items: ItemCarrito[]): Promise<void>;
   /** Productos que ya existen en la plataforma y se parecen a lo escrito, con su unidad (la biblioteca). */
   buscarProductos(q: string): Promise<ProductoConocido[]>;
+  /** Quien la inició cierra la compra en grupo antes, si ya llegó al mínimo de la oferta que gana. */
+  cerrarSolicitud(token: string, licitacionId: string): Promise<void>;
   /** Inicia una compra en grupo de un producto con su cantidad; devuelve dónde quedó para abrirla. */
   abrirSolicitud(token: string, s: NuevaSolicitud): Promise<{ licitacionId: string; productoId: string }>;
   /** Sale de la compra conjunta (vacía el carrito). */
@@ -168,6 +170,7 @@ export function crearApiReal(): CanalApi {
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
     buscarProductos: async q => (await llamar<{ productos: ProductoConocido[] }>(`/productos?${new URLSearchParams({ q })}`)).productos,
+    cerrarSolicitud: async (token, id) => { await llamar(`/yo/solicitudes/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     abrirSolicitud: async (token, solicitud) => {
       const l = await llamar<{ id: string; productos: { id: string }[] }>('/yo/solicitudes', { token, cuerpo: solicitud });
       return { licitacionId: l.id, productoId: l.productos[0].id };

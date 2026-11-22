@@ -205,6 +205,11 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     res.status(201).json(l);
   });
 
+  // Quien inició la compra en grupo la cierra antes, si ya llegó al mínimo de la oferta que gana.
+  rutas.post('/yo/solicitudes/:id/cerrar', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
+    res.json(await red.cerrarAntes(id(req), yo(req).id));
+  });
+
   rutas.put('/yo/carrito', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     exigirRut(yo(req));
     const b = cuerpo(req);

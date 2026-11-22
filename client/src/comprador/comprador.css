@@ -388,3 +388,5 @@
 .bm-fila-proveedor { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 0; }
 .bm-fila-proveedor + .bm-fila-proveedor { border-top: var(--border-width) solid var(--color-border); }
 .bm-nota-proveedor { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bm-cerrar-antes { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.bm-cerrar-antes h2 { font-size: var(--text-sm); font-weight: 600; }
