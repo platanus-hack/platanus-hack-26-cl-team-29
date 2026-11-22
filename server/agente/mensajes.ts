@@ -308,8 +308,7 @@ export const enlaceCertificadoRegistro = (url: string) =>
 /** Sin razón social (el SII no confirmó el RUT): la factura sale a su RUT con el nombre de su negocio. */
 export const registroListo = (razonSocial: string | undefined, d: { direccion: string; comuna: string }) =>
   `Listo, quedaste registrado ✓ Tu factura sale ${razonSocial ? `a nombre de ${razonSocial}` : 'a tu RUT'}, ${d.direccion}, ${d.comuna}.`;
-export const RUT_SIN_CONFIRMAR = 'No pude confirmar tu RUT en el SII en este momento, pero seguimos: '
-  + 'tu factura sale a ese RUT con el nombre de tu negocio y la dirección que me des.';
+export { RUT_SIN_CONFIRMAR } from '../../shared/rut.ts';
 
 /** La dirección del SII para su RUT: confirmarla o escribir otra. Las opciones salen como botones. */
 export const confirmarDireccion = (d: { direccion: string; comuna: string }) =>

@@ -529,7 +529,7 @@ test('si el SII no confirma un RUT válido, el registro sigue con la dirección 
   const yo = '56911111901';
   await escribir(yo, 'Almacén Javier, 2 cajas de rollos');
   await escribir(yo, '77.865.227-7');
-  assert.match(ultimo(yo), /^No pude confirmar tu RUT en el SII en este momento, pero seguimos[\s\S]*¿Cuál es la dirección de tu negocio para la factura\?/);
+  assert.match(ultimo(yo), /^No pudimos confirmar tu RUT con el SII ahora\.[\s\S]*¿Cuál es la dirección de tu negocio para la factura\?/);
   await escribir(yo, 'Av. Escuela Agrícola 1710, Macul');
   assert.match(ultimo(yo), /^Listo, quedaste registrado ✓ Tu factura sale a tu RUT, Av\. Escuela Agrícola 1710, Macul\.[\s\S]*Listo, Almacén Javier entra con 2 cajas de rollos\./);
   assert.deepEqual(await carrito('Almacén Javier'), [{ productoId: 'rollos', cantidad: 2 }]);

@@ -64,6 +64,8 @@ export interface FacturaA {
   comuna: string;
   /** Datos de prueba: el SII todavía no está conectado para consultar RUT. */
   simulado?: boolean;
+  /** El SII no respondió: la persona escribe sus datos y el registro sigue (se confirma después). */
+  sinConfirmar?: boolean;
 }
 
 /** `GET /api/red/yo`. */

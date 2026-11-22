@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { enlaceWhatsapp, formatearTelefono, telefonoParaWhatsapp } from '../../../shared/telefono.ts';
-import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
+import { formatearRutAlEscribir, RUT_INVALIDO, RUT_SIN_CONFIRMAR, validarRut } from '../../../shared/rut.ts';
 import { Logo } from '../marca/Logo.tsx';
 import { ICONO_FLUJO } from '../marca/recursos.ts';
 import { BotonTema } from '../marca/BotonTema.tsx';
@@ -215,11 +215,12 @@ const RUBRO_DEL_GIRO: Array<[RegExp, string]> = [
   [/cafeter|caf[eé]\b/i, 'cafe'], [/restaur|fuente de soda|comida/i, 'restaurante'], [/botiller|licor|bebidas alcoh/i, 'botilleria'],
   [/farmac/i, 'farmacia'],
 ];
-const AYUDA_RUT: Record<'nada' | 'buscando' | 'listo' | 'simulado' | 'error', string> = {
+const AYUDA_RUT: Record<'nada' | 'buscando' | 'listo' | 'simulado' | 'sinConfirmar' | 'error', string> = {
   nada: 'Con tu RUT traemos tus datos del SII. Tu factura sale a ese RUT (ambiente de certificación).',
   buscando: 'Buscando en el SII...',
   listo: 'Datos del SII: revísalos y corrige lo que haga falta.',
   simulado: 'Datos de prueba del SII: revísalos y corrige lo que haga falta.',
+  sinConfirmar: RUT_SIN_CONFIRMAR,
   error: '',
 };
 const rubroDelGiro = (giro: string) => RUBRO_DEL_GIRO.find(([re]) => re.test(giro))?.[1];
@@ -309,7 +310,7 @@ function FormularioNegocio({ onEntrar, consultarRut }: {
     <form className="bm-formulario" onSubmit={enviar}>
       <Campo etiqueta="RUT de tu negocio o persona" ayuda={
         <span id="bm-rut-ayuda" className={avisoRut ? 'bm-ayuda bm-error' : 'bm-ayuda'} role={avisoRut ? 'alert' : 'status'}>
-          {avisoRut || <><LogoSii tam={14} />{AYUDA_RUT[delSii.estado === 'listo' && delSii.datos.simulado ? 'simulado' : delSii.estado]}</>}
+          {avisoRut || <><LogoSii tam={14} />{AYUDA_RUT[delSii.estado !== 'listo' ? delSii.estado : delSii.datos.sinConfirmar ? 'sinConfirmar' : delSii.datos.simulado ? 'simulado' : 'listo']}</>}
         </span>
       }>
         <input ref={campoRut} value={rut} onChange={e => { setRut(formatearRutAlEscribir(e.target.value)); setRutRevisado(false); setErrorRut(''); }} onBlur={() => setRutRevisado(true)}

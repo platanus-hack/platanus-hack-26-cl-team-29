@@ -53,3 +53,6 @@ export function formatearRutAlEscribir(texto: string): string {
   const s = soloRut(texto);
   return s.length < 2 ? s : formatearRut(`${s.slice(0, -1)}-${s.slice(-1)}`);
 }
+
+/** El SII no respondió la consulta de un RUT: el registro sigue con lo que escribió la persona y se confirma después. Web y WhatsApp. */
+export const RUT_SIN_CONFIRMAR = 'No pudimos confirmar tu RUT con el SII ahora.';

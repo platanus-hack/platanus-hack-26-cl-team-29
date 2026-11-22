@@ -21,7 +21,7 @@ import type { SinTelefono } from './publico.ts';
 import { calcularNota } from './reputacion.ts';
 import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.ts';
 import type { ConsultarContribuyente, DatosContribuyente } from './contribuyente.ts';
-import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
+import { RUT_INVALIDO, RUT_SIN_CONFIRMAR, validarRut } from '../../shared/rut.ts';
 import { RUBROS } from './tipos.ts';
 import { COMPETIDORES_SALA, LICITACION_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
@@ -332,12 +332,18 @@ export interface OpcionesRed {
    * Crédito Bando (server/pagos/) exige ahí la tarjeta inscrita.
    */
   antesDeEntrar?: (n: Negocio) => void | Promise<void>;
+  /**
+   * Cuánto se espera a la consulta de un RUT antes de seguir con lo declarado (ms) y cuándo se vuelve a consultar un RUT
+   * declarado para reemplazarlo por los datos del SII. Por defecto 6 s y 30 s, 2 min y 10 min; los tests los acortan.
+   */
+  esperaRutMs?: number;
+  reintentosRutMs?: readonly number[];
 }
 
 export const FALTA_RUT = 'Falta tu RUT: tu factura sale a tu nombre en el SII.';
 export const RUT_DESCONOCIDO = 'No encontramos ese RUT en el SII. Revísalo e intenta de nuevo.';
 export const RUT_DE_OTRO_TELEFONO = 'Ese RUT ya está registrado con otro número de teléfono. Escribe el RUT de tu negocio.';
-export const SII_NO_DISPONIBLE = 'No pudimos consultar tu RUT en el SII. Intenta de nuevo en un momento.';
+export const SII_NO_DISPONIBLE = RUT_SIN_CONFIRMAR;
 
 const netoDespachado = (items: Item[]) => items.reduce((s, i) => s + (i.cantidadDespachada ?? i.cantidad) * i.precioUnitario, 0);
 /** Rubro conocido, sin tildes ni mayúsculas; uno desconocido es `otro` y vacío, undefined. */
@@ -377,6 +383,7 @@ function migrarLicitacion(l: Licitacion) {
 export async function crearRed({
   repo, sii, reloj = () => new Date(), env = process.env,
   consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar, precioDeReferencia, existeProducto,
+  esperaRutMs = 6000, reintentosRutMs = [30_000, 120_000, 600_000],
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
   const aSiMismo = env.DEMO_COMPRA_A_SI_MISMO === '1';
@@ -635,7 +642,7 @@ export async function crearRed({
     if (conocido && !conocido.declarado) return { rut, ...structuredClone(conocido) };
     let encontrado: DatosContribuyente | null;
     try {
-      encontrado = await consultarContribuyente(rut);
+      encontrado = await conEspera(consultarContribuyente(rut));
     } catch (error) {
       // Lo declarado antes sirve de respaldo mientras el SII no responda.
       if (conocido) return { rut, ...structuredClone(conocido) };
@@ -649,6 +656,39 @@ export async function crearRed({
     // El SII manda en razón social y giro; la dirección que dio la persona se queda si el SII no trae una.
     const direccion = encontrado.direccion && encontrado.comuna ? {} : conocido ? { direccion: conocido.direccion, comuna: conocido.comuna } : {};
     return { rut, ...structuredClone(encontrado), ...direccion };
+  }
+
+  /** La consulta del SII con un tope de espera: nadie se queda esperando si el SII está lento o bloquea (la consulta sigue en la fila). */
+  function conEspera<T>(consulta: Promise<T>): Promise<T> {
+    let tope: ReturnType<typeof setTimeout> | undefined;
+    const vencida = new Promise<never>((_, rechazar) => {
+      tope = setTimeout(() => rechazar(new Error(`el SII no respondió en ${esperaRutMs} ms`)), esperaRutMs);
+    });
+    return Promise.race([consulta, vencida]).finally(() => clearTimeout(tope));
+  }
+
+  /**
+   * Un negocio que quedó con datos declarados (el SII no respondió al registrarse) se vuelve a consultar más tarde, por
+   * la misma fila de consultas: cuando el SII responde, sus datos reemplazan a los declarados (`asignarRut`).
+   */
+  function confirmarRutDespues(negocioId: string, intento = 0) {
+    const espera = reintentosRutMs[intento];
+    if (espera === undefined) return;
+    const t = setTimeout(async () => {
+      const n = datos.negocios.find(x => x.id === negocioId);
+      if (!n?.rut || !n.contribuyente?.declarado) return;
+      try {
+        const delSii = await consultarContribuyente(n.rut);
+        if (!delSii) return void console.error(`[red] el SII no conoce el RUT declarado del negocio ${n.id}: queda con lo declarado`);
+        // La dirección que dio la persona manda sobre la del SII (como en `conDireccion`): el SII confirma razón social y giro.
+        const { direccion, comuna } = n.contribuyente;
+        await asignarRut(n, { rut: n.rut, ...delSii, ...(direccion && comuna ? { direccion, comuna } : {}) });
+        emitir('negocio.actualizado', { negocio: n });
+      } catch {
+        confirmarRutDespues(negocioId, intento + 1);
+      }
+    }, espera);
+    t.unref?.();
   }
 
   const camposRut = ({ rut, ...contribuyente }: ContribuyenteDeRut): Pick<Negocio, 'rut' | 'contribuyente'> => ({ rut, contribuyente });
@@ -670,11 +710,13 @@ export async function crearRed({
     exigirRutDelTelefono(delSii.rut, n.telefono);
     Object.assign(n, camposRutConservando(n, delSii));
     await guardar('negocios', n);
+    if (delSii.declarado) confirmarRutDespues(n.id);
   }
 
   async function registrarComprador({ nombre, comuna, telefono, rubro, rut, negocioId, direccionFactura }: NuevoComprador) {
-    // La consulta al SII va antes de la fila: una sala que se suma de golpe no espera detrás de cada consulta.
-    const delSii = rut === undefined ? undefined : await consultarRut(rut, telefono);
+    // La consulta al SII va antes de la fila: una sala que se suma de golpe no espera detrás de cada consulta. Si el SII no
+    // responde, sigue con lo que escribió la persona (declarado) y se confirma después.
+    const delSii = rut === undefined ? undefined : await rutParaFactura({ rut, nombre, telefono, direccionFactura }, false);
     return enFila('compradores', async () => {
       const tel = telefono ? normalizarTelefono(telefono) : '';
       const existente = negocioId ? negocio(negocioId, 'comprador')
@@ -693,6 +735,7 @@ export async function crearRed({
       };
       if (delSii) Object.assign(n, camposRut(delSii));
       await guardar('negocios', n);
+      if (delSii?.declarado) confirmarRutDespues(n.id);
       return structuredClone(await conDireccion(n, { direccionFactura }));
     });
   }
@@ -711,6 +754,7 @@ export async function crearRed({
       n.vende = true;
       Object.assign(n, camposRutConservando(n, delSii));
       await guardar('negocios', n);
+      if (delSii.declarado) confirmarRutDespues(n.id);
       emitir('negocio.registrado', { negocio: n });
       return structuredClone(n);
     });
