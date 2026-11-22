@@ -414,3 +414,5 @@
   width: 64px; height: 36px; padding: 0 10px; font: inherit; border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md); background: var(--color-background); color: var(--color-foreground);
 }
+.bm-direccion { padding: 16px; }
+.bm-direccion h2 { font-size: var(--text-sm); font-weight: 600; }

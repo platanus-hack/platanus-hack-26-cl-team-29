@@ -8,5 +8,7 @@ export const cuerpo = (req: Request): Record<string, unknown> => (req.body && ty
 export const texto = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
 /** Nombre, comuna y rubro de quien se registra como comprador desde la web, con su RUT. */
-export const nuevoComprador = (b: Record<string, unknown>, rut: string) =>
-  ({ nombre: texto(b.nombre) ?? '', comuna: texto(b.comuna), rubro: texto(b.rubro), rut });
+export const nuevoComprador = (b: Record<string, unknown>, rut: string) => {
+  const direccion = texto(b.direccion)?.trim(), comuna = texto(b.comuna)?.trim();
+  return { nombre: texto(b.nombre) ?? '', comuna: texto(b.comuna), rubro: texto(b.rubro), rut, ...(direccion && comuna ? { direccionFactura: { direccion, comuna } } : {}) };
+};

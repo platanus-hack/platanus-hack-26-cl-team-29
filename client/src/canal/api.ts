@@ -43,6 +43,8 @@ export interface CanalApi {
   carrito(token: string, licitacionId: string, items: ItemCarrito[]): Promise<void>;
   /** Productos que ya existen en la plataforma y se parecen a lo escrito, con su unidad (la biblioteca). */
   buscarProductos(q: string): Promise<ProductoConocido[]>;
+  /** La dirección de su factura (la consulta pública del SII no la trae). */
+  fijarDireccion(token: string, d: { direccion: string; comuna: string }): Promise<void>;
   /** Confirma la recepción de un pedido facturado: llegó todo (acuse en el SII) o faltaron N (reclamo en el SII). */
   recepcion(token: string, ordenId: string, r: Recepcion): Promise<void>;
   /** Quien la inició cierra la compra en grupo antes, si ya llegó al mínimo de la oferta que gana. */
@@ -172,6 +174,7 @@ export function crearApiReal(): CanalApi {
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
     buscarProductos: async q => (await llamar<{ productos: ProductoConocido[] }>(`/productos?${new URLSearchParams({ q })}`)).productos,
+    fijarDireccion: async (token, d) => { await llamar('/yo/direccion', { token, cuerpo: d, metodo: 'PUT' }); },
     recepcion: async (token, ordenId, r) => { await llamar(`/yo/ordenes/${encodeURIComponent(ordenId)}/recepcion`, { token, cuerpo: r }); },
     cerrarSolicitud: async (token, id) => { await llamar(`/yo/solicitudes/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     abrirSolicitud: async (token, solicitud) => {

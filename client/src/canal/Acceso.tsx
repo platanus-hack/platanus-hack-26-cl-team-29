@@ -132,6 +132,23 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
   );
 }
 
+/** Dirección y comuna del negocio: van en su factura del SII. Las piden el registro y Facturas si faltan. */
+export function CamposDireccion({ direccion, comuna, onDireccion, onComuna }: {
+  direccion: string; comuna: string; onDireccion: (v: string) => void; onComuna: (v: string) => void;
+}) {
+  return (
+    <>
+      <Campo etiqueta="Dirección de tu negocio">
+        <input value={direccion} onChange={e => onDireccion(e.target.value)} placeholder="Av. Irarrázaval 1234" autoComplete="street-address" maxLength={70} required />
+      </Campo>
+      <Campo etiqueta="Comuna">
+        <input value={comuna} onChange={e => onComuna(e.target.value)} list="bm-comunas" placeholder="Ñuñoa" maxLength={40} required />
+        <datalist id="bm-comunas">{COMUNAS.map(c => <option key={c} value={c} />)}</datalist>
+      </Campo>
+    </>
+  );
+}
+
 export function Campo({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?: ReactNode; children: ReactNode }) {
   return (
     <label className="bm-campo">
@@ -172,6 +189,7 @@ function FormularioNegocio({ onEntrar }: { onEntrar: (datos: DatosEntrada) => Pr
   const [errorRut, setErrorRut] = useState('');
   const campoRut = useRef<HTMLInputElement>(null);
   const [comuna, setComuna] = useState('');
+  const [direccion, setDireccion] = useState('');
   const [rubro, setRubro] = useState<string>();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
@@ -189,10 +207,11 @@ function FormularioNegocio({ onEntrar }: { onEntrar: (datos: DatosEntrada) => Pr
     if (!nombre.trim()) return setError('Escribe el nombre de tu negocio.');
     setError('');
     if (!validarRut(rut)) return marcarRut(rut ? RUT_INVALIDO : 'Escribe tu RUT: tu factura sale a ese RUT.');
+    if (!direccion.trim() || !comuna.trim()) return setError('Escribe la dirección y la comuna de tu negocio: van en tu factura.');
     setEnviando(true);
     setErrorRut('');
     try {
-      await onEntrar({ nombre: nombre.trim(), comuna: comuna.trim(), rut, ...(rubro ? { rubro } : {}) });
+      await onEntrar({ nombre: nombre.trim(), comuna: comuna.trim(), direccion: direccion.trim(), rut, ...(rubro ? { rubro } : {}) });
     } catch (err) {
       const mensaje = mensajeDeError(err, 'No pudimos registrarte. Inténtalo de nuevo.');
       if (/\bRUT\b|SII/.test(mensaje)) marcarRut(mensaje); else setError(mensaje);
@@ -214,10 +233,7 @@ function FormularioNegocio({ onEntrar }: { onEntrar: (datos: DatosEntrada) => Pr
           placeholder="12.345.678-5" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={12} required
           aria-invalid={!!avisoRut} aria-describedby="bm-rut-ayuda" />
       </Campo>
-      <Campo etiqueta="Comuna (opcional)">
-        <input value={comuna} onChange={e => setComuna(e.target.value)} list="bm-comunas" placeholder="Ñuñoa" maxLength={40} />
-        <datalist id="bm-comunas">{COMUNAS.map(c => <option key={c} value={c} />)}</datalist>
-      </Campo>
+      <CamposDireccion direccion={direccion} comuna={comuna} onDireccion={setDireccion} onComuna={setComuna} />
       <fieldset className="bm-campo bm-rubros">
         <legend className="bm-campo-etiqueta">Rubro (opcional)</legend>
         <div className="bm-chips">

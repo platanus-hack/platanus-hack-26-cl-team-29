@@ -2,20 +2,21 @@
 // "Recibidas" (lo que le facturaron como comprador), con su folio, la contraparte, el monto y su estado en el SII.
 // Un negocio que compra y vende ve los dos lados. Se vuelve a pedir con cada `red:evento`.
 
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useState, type FormEvent, type ReactNode } from 'react';
 import { dinero } from '../../../shared/formato.ts';
 import { totalOrden } from '../../../shared/precios.ts';
 import { Monograma } from '../canal/iconos.tsx';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from '../canal/api.ts';
-import { Confirmar, ListaDocumentos, useConfirmacion } from '../canal/piezas.tsx';
-import type { OrdenCanal } from '../canal/tipos.ts';
+import { Confirmar, ListaDocumentos, useConfirmacion, useEnvio } from '../canal/piezas.tsx';
+import type { FacturaA, OrdenCanal } from '../canal/tipos.ts';
+import { CamposDireccion } from '../canal/Acceso.tsx';
 import { useDatosConSesion } from '../canal/useCanal.ts';
 import { Pestanas } from './Pestanas.tsx';
 import '../proveedor/proveedor.css';
 
 type Pestana = 'emitidas' | 'recibidas';
-interface Lado { documentos: Documento[]; ordenes: OrdenCanal[] }
+interface Lado { documentos: Documento[]; ordenes: OrdenCanal[]; facturaA?: FacturaA | null }
 const NADA: Lado = { documentos: [], ordenes: [] };
 
 /** Facturas, notas de crédito y guías: lo que queda registrado en el SII. */
@@ -28,8 +29,8 @@ export function Facturas({ api, token, cambio, negocios, vende, compra, vencer, 
   /** Arriba a la derecha (en el panel del proveedor, el botón del SII). */
   acciones?: ReactNode;
 }) {
-  const emitidas = useDatosConSesion(api, token, cambio, (a, t) => (vende ? a.yoProveedor(t) : Promise.resolve(NADA)), vencer).datos ?? NADA;
-  const recibidas = useDatosConSesion(api, token, cambio, (a, t) => (compra ? a.yo(t) : Promise.resolve(NADA)), vencer).datos ?? NADA;
+  const emitidas = useDatosConSesion<Lado>(api, token, cambio, (a, t) => (vende ? a.yoProveedor(t) : Promise.resolve(NADA)), vencer).datos ?? NADA;
+  const recibidas = useDatosConSesion<Lado>(api, token, cambio, (a, t) => (compra ? a.yo(t) : Promise.resolve(NADA)), vencer).datos ?? NADA;
   const [pestana, setPestana] = useState<Pestana>(vende ? 'emitidas' : 'recibidas');
   const lado = pestana === 'emitidas' ? emitidas : recibidas;
   const docs = delSii(lado.documentos);
@@ -50,6 +51,7 @@ export function Facturas({ api, token, cambio, negocios, vende, compra, vencer, 
       </header>
       <Pestanas etiqueta="Facturas" activa={pestana} onCambio={setPestana}
         pestanas={[['emitidas', 'Emitidas', delSii(emitidas.documentos).length], ['recibidas', 'Recibidas', delSii(recibidas.documentos).length]]} />
+      {compra && recibidas.facturaA && !recibidas.facturaA.direccion && <CompletarDireccion api={api} token={token} comuna={recibidas.facturaA.comuna} />}
       {pestana === 'recibidas' && (
         <PorRecibir api={api} token={token} ordenes={recibidas.ordenes.filter(o => o.estado === 'facturada')} proveedor={id => nombre(id) ?? 'Proveedor'} />
       )}
@@ -124,5 +126,25 @@ function Recibir({ api, token, orden, proveedor }: { api: CanalApi; token: strin
         </div>
       )}
     </li>
+  );
+}
+
+/** Sin dirección (la consulta pública del SII no la trae), sus facturas no se pueden emitir: la completa aquí. */
+function CompletarDireccion({ api, token, comuna: comunaSii }: { api: CanalApi; token: string; comuna: string }) {
+  const [direccion, setDireccion] = useState('');
+  const [comuna, setComuna] = useState(comunaSii);
+  const { enviando, error, enviar } = useEnvio();
+  const guardar = (e: FormEvent) => {
+    e.preventDefault();
+    void enviar(() => api.fijarDireccion(token, { direccion: direccion.trim(), comuna: comuna.trim() }), 'No pudimos guardar tu dirección. Inténtalo de nuevo.');
+  };
+  return (
+    <form className="bm-tarjeta bm-formulario bm-direccion" onSubmit={guardar}>
+      <h2>Completa tu dirección de facturación</h2>
+      <p className="bm-bajada">El SII no nos entrega tu dirección y sin ella tus proveedores no pueden emitirte la factura.</p>
+      <div className="bm-nueva-fila"><CamposDireccion direccion={direccion} comuna={comuna} onDireccion={setDireccion} onComuna={setComuna} /></div>
+      {error && <p className="bm-error" role="alert">{error}</p>}
+      <button className="bm-boton" disabled={enviando || !direccion.trim() || !comuna.trim()}>{enviando ? 'Guardando...' : 'Guardar dirección'}</button>
+    </form>
   );
 }

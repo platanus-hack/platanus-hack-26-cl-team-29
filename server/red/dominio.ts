@@ -148,6 +148,8 @@ export interface NuevoComprador {
   rut?: string;
   /** Un comprador ya registrado (sesión web): se reusa en vez de crear otro. */
   negocioId?: string;
+  /** Dirección para su factura (la consulta pública del SII no la trae): sin ella, su factura no se puede emitir. */
+  direccionFactura?: { direccion: string; comuna: string };
 }
 
 /** Lo que el comprador ve de sí mismo: a quién sale su factura. Solo para su dueño, nunca en datos públicos. */
@@ -258,6 +260,8 @@ export interface Red {
   confirmarOrdenesDeLicitacion(licitacionId: string, proveedorId?: string): Promise<Documento[]>;
   /** Registra un negocio comprador, o reusa el del mismo teléfono. Con `rut`, lo consulta en el SII y lo guarda. */
   registrarComprador(datos: NuevoComprador): Promise<Negocio>;
+  /** La dirección para la factura de un comprador con RUT (la consulta pública del SII no la trae). */
+  fijarDireccionFactura(negocioId: string, d: { direccion: string; comuna: string }): Promise<Negocio>;
   /**
    * Registra al proveedor de un teléfono con el RUT de su empresa (consultado en el SII), o deja que el comprador de ese
    * teléfono también venda (`vende`). Emite `negocio.registrado`.
@@ -631,15 +635,26 @@ export async function crearRed({
 
   const camposRut = ({ rut, ...contribuyente }: ContribuyenteDeRut): Pick<Negocio, 'rut' | 'contribuyente'> => ({ rut, contribuyente });
 
+  /**
+   * Los datos del SII de su RUT, sin perder la dirección que ya había dado para ese mismo RUT: la consulta pública no
+   * trae dirección, y volver a consultarla (por ejemplo, al registrarse como proveedor) no debe borrarla.
+   */
+  const camposRutConservando = (n: Negocio, delSii: ContribuyenteDeRut): Pick<Negocio, 'rut' | 'contribuyente'> => {
+    const nuevos = camposRut(delSii);
+    const antes = n.rut === delSii.rut ? n.contribuyente : undefined;
+    if (!antes || !nuevos.contribuyente) return nuevos;
+    return { ...nuevos, contribuyente: { ...nuevos.contribuyente, direccion: nuevos.contribuyente.direccion || antes.direccion, comuna: nuevos.contribuyente.comuna || antes.comuna } };
+  };
+
   /** Deja el RUT y sus datos del SII en el negocio (si cambió o reemplazan a los declarados) y lo guarda. */
   async function asignarRut(n: Negocio, delSii: ContribuyenteDeRut) {
     if (n.rut === delSii.rut && n.contribuyente && (delSii.declarado || !n.contribuyente.declarado)) return;
     exigirRutDelTelefono(delSii.rut, n.telefono);
-    Object.assign(n, camposRut(delSii));
+    Object.assign(n, camposRutConservando(n, delSii));
     await guardar('negocios', n);
   }
 
-  async function registrarComprador({ nombre, comuna, telefono, rubro, rut, negocioId }: NuevoComprador) {
+  async function registrarComprador({ nombre, comuna, telefono, rubro, rut, negocioId, direccionFactura }: NuevoComprador) {
     // La consulta al SII va antes de la fila: una sala que se suma de golpe no espera detrás de cada consulta.
     const delSii = rut === undefined ? undefined : await consultarRut(rut, telefono);
     return enFila('compradores', async () => {
@@ -649,7 +664,7 @@ export async function crearRed({
       if (existente) {
         if (!puedeComprar(existente)) throw new ErrorRed('datos_invalidos', `${existente.nombre} es proveedor, no puede comprar en la red`);
         if (delSii) await asignarRut(existente, delSii);
-        return structuredClone(existente);
+        return structuredClone(await conDireccion(existente, { direccionFactura }));
       }
       const limpio = textoCorto(nombre);
       if (!limpio) throw new ErrorRed('datos_invalidos', 'Falta el nombre');
@@ -660,7 +675,7 @@ export async function crearRed({
       };
       if (delSii) Object.assign(n, camposRut(delSii));
       await guardar('negocios', n);
-      return structuredClone(n);
+      return structuredClone(await conDireccion(n, { direccionFactura }));
     });
   }
 
@@ -676,7 +691,7 @@ export async function crearRed({
         comuna: textoCorto(comuna) || textoCorto(delSii.comuna), rol: 'proveedor', telefono: telefono.trim(),
       };
       n.vende = true;
-      Object.assign(n, camposRut(delSii));
+      Object.assign(n, camposRutConservando(n, delSii));
       await guardar('negocios', n);
       emitir('negocio.registrado', { negocio: n });
       return structuredClone(n);
@@ -693,6 +708,13 @@ export async function crearRed({
     const p = productoDe(l, productoId);
     if (!p) throw new ErrorRed('datos_invalidos', `No existe el producto ${productoId}. Productos: ${l.productos.map(x => x.id).join(', ')}`);
     return p;
+  }
+
+  async function fijarDireccionFactura(negocioId: string, d: { direccion: string; comuna: string }) {
+    const n = negocio(negocioId, 'comprador');
+    if (!n.rut || !n.contribuyente) throw new ErrorRed('datos_invalidos', 'Primero registra el RUT de tu negocio');
+    if (!textoCorto(d?.direccion) || !textoCorto(d?.comuna)) throw new ErrorRed('datos_invalidos', 'Escribe la dirección y la comuna');
+    return structuredClone(await conDireccion(n, { direccionFactura: d }));
   }
 
   /** La dirección que dio la persona reemplaza la del SII en sus datos de contribuyente (los que usa la factura). */
@@ -1221,7 +1243,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, fijarDireccionFactura, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };
