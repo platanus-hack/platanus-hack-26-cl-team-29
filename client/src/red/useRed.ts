@@ -90,6 +90,14 @@ export function useRed() {
       setEventos([]);
       recibirEstado(inicial);
       setFuente('real');
+      // Lo que pasó antes de abrir la pantalla (los últimos eventos): el feed no parte vacío a mitad de la demo.
+      fetch('/api/red/eventos', { headers: { accept: 'application/json' } })
+        .then(r => (r.ok ? (r.json() as Promise<EventoRed[]>) : []))
+        .then(previos => activo && setEventos(es => [
+          ...es,
+          ...previos.map(e => ({ ...e, clave: ++contador.current, recibido: Date.parse(e.en) || Date.now() })),
+        ].slice(0, MAX_EVENTOS)))
+        .catch(() => {});
       socket = io();
       socket.on('red:evento', (e: EventoRed) => {
         if (e.tipo === 'red.reiniciada') return reiniciar(e.datos);

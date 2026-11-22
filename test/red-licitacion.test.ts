@@ -28,7 +28,7 @@ test('la compra conjunta parte abierta, con el proveedor de la sala, tramos y pr
   assert.equal(l.producto, 'Caja de rollos térmicos 80 mm (50 un.)');
   assert.deepEqual([l.unidad, l.unidadPlural, l.precioSolo, l.totalUnidades, l.precioActual], ['caja', 'cajas', 32000, 0, 32000]);
   assert.deepEqual(l.siguienteTramo, { desde: 1, precioUnitario: 32000, faltan: 1 });
-  assert.ok(!(PROVEEDOR_SALA in red.estadoPublico().notas), 'la empresa real no entra al ranking ficticio');
+  assert.equal(typeof red.estadoPublico().notas[PROVEEDOR_SALA], 'number', 'el proveedor de la compra tiene su nota en la red');
 });
 
 test('el precio baja por tramos a medida que la sala se suma y avisa con licitacion.precio_bajo', async () => {

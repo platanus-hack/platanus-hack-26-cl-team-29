@@ -48,6 +48,13 @@ test('el .jsonl.gz se lee en streaming y entrega las órdenes en lotes', async (
   assert.deepEqual([leido.lineas, leido.ordenes, lotes.map(l => l.length)], [4, 3, [2, 1]]);
 });
 
+test('un corte de la descarga del OCDS rechaza la lectura en vez de botar el servidor', async () => {
+  const cortada = new Readable({ read() {} });
+  cortada.push(gzipSync(readFileSync(MUESTRA_OCDS)).subarray(0, 20));
+  setImmediate(() => cortada.destroy(Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })));
+  await assert.rejects(leerOcds(cortada, { desde: '2025-11-21', alLote: async () => {} }), /ECONNRESET/);
+});
+
 test('la pasada de la API retoma desde el último día guardado y no repite ese día', async () => {
   const almacen = crearAlmacenMemoria();
   const pedidos: string[] = [];

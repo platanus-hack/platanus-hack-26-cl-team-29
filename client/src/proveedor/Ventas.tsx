@@ -2,7 +2,7 @@
 // grupo y los pedidos sueltos) y los reclamos. Toda acción en el SII pasa por un paso de confirmación en la página.
 
 import { useCallback, type ReactNode } from 'react';
-import { nota } from '../../../shared/formato.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
 import { dineroMasIva, totalOrden } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
@@ -40,7 +40,7 @@ export function Ventas({ yo, lic, config, comprador, ...props }: PropsAccion & {
   const reclamos = yo.ordenes.filter(o => o.estado === 'reclamada');
   const compraPendiente = lic && !estaFacturada(lic, yo.ordenes) ? lic : undefined;
   const porConfirmar = nuevos.length + (compraPendiente ? 1 : 0);
-  const hoy = ventasDeHoy(yo.ordenes, ahora);
+  const hoy = ventasDeHoy(yo.ordenes, ahora, yo.documentos);
   const emitidas = yo.documentos.filter(d => d.tipo === 33).length;
 
   return (
@@ -51,6 +51,7 @@ export function Ventas({ yo, lic, config, comprador, ...props }: PropsAccion & {
           <TotalConIva neto={hoy.total} alinear="inicio" className="bp-cifra bp-cifra-iva" />
           <p className="bm-bajada">
             {contar(hoy.pedidos, 'pedido confirmado', 'pedidos confirmados')}
+            {hoy.notasDeCredito > 0 && <> · {dinero(hoy.notasDeCredito)} neto en notas de crédito</>}
             {porConfirmar > 0 && <> · <span className="bp-miel">{porConfirmar} por confirmar</span></>}
           </p>
         </div>

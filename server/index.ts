@@ -20,7 +20,7 @@ import { crearRutasCatalogo, crearRutasOperacionCatalogo, iniciarCatalogos } fro
 import { crearBiblioteca } from './catalogo/biblioteca.ts';
 import { conectarOfertasDeListas } from './catalogo/ofertas.ts';
 import { crearEquivalenciasDesdeEnv } from './catalogo/equivalencias.ts';
-import type { Negocio } from './red/tipos.ts';
+import type { EventoRed, Negocio } from './red/tipos.ts';
 
 const app = express();
 const http = createServer(app);
@@ -44,7 +44,14 @@ let aprenderProducto: NonNullable<OpcionesRed['aprenderProducto']> = async () =>
 const consultarContribuyente = process.env.SII_CONSULTA_RUT === 'falsa' ? undefined : conexionSii.consultarContribuyente;
 export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u), existeProducto: (p, u) => existeProducto(p, u),
   aprenderProducto: (p, u) => aprenderProducto(p, u), mismoProducto: equivalencias.mismo });
-red.escuchar(evento => io.emit('red:evento', evento));
+// Los últimos eventos (lo mismo que ya viaja por el socket): una pantalla que se abre a mitad de la demo muestra lo
+// que pasó, en vez de un feed vacío. Se vacía al reiniciar la demo.
+const eventosRecientes: EventoRed[] = [];
+red.escuchar(evento => {
+  io.emit('red:evento', evento);
+  if (evento.tipo === 'red.reiniciada') eventosRecientes.length = 0;
+  else { eventosRecientes.unshift(evento); eventosRecientes.splice(30); }
+});
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 // Una factura y una guía de despacho por negocio de la compra abierta: los folios se reponen mientras la gente se suma.
 conexionSii.fijarDemanda(tipo => (tipo === 33 || tipo === 52 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
@@ -105,6 +112,7 @@ app.set('trust proxy', 1); // Render pone un proxy delante: req.ip es la IP real
 app.use('/api/whatsapp', whatsapp.router); // antes de express.json(): el webhook firma el body crudo
 app.use(certificados.rutas); // página y subida del certificado por link privado (antes del fallback del front)
 app.use(express.json());
+app.get('/api/red/eventos', (_req, res) => { res.json(eventosRecientes); });
 app.get('/api/health', async (_req, res) => {
   res.json((await db.query('select now()')).rows[0]);
 });

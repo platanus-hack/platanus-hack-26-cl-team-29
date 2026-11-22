@@ -96,7 +96,11 @@ export async function leerOcds(
   const tamano = o.tamanoLote ?? 500;
   let lote: OrdenMP[] = [];
   let lineas = 0, ordenes = 0;
-  for await (const linea of createInterface({ input: comprimido.pipe(createGunzip()), crlfDelay: Infinity })) {
+  // `pipe` no pasa los errores de la descarga: un corte de red (ECONNRESET) quedaba como 'error' sin oyente y botaba el
+  // servidor entero. Así el error llega al gunzip y esta función lo rechaza, para que quien la llama lo registre.
+  const descomprimido = comprimido.pipe(createGunzip());
+  comprimido.once('error', error => descomprimido.destroy(error));
+  for await (const linea of createInterface({ input: descomprimido, crlfDelay: Infinity })) {
     lineas++;
     if (!puedeTraerComida(linea)) continue;
     try {

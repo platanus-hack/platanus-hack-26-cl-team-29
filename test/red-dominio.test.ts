@@ -90,8 +90,10 @@ test('estadoDeLaRed entrega la foto completa y no se puede alterar desde afuera'
   const { red } = await redDePrueba({ ahora: new Date() });
   const foto = red.estadoDeLaRed();
   assert.equal(foto.negocios.length, 12);
+  // Todos los que venden, también el proveedor de la compra y sus competidores: una sola nota para todas las vistas.
   assert.deepEqual(foto.notas, {
     [PROVEEDOR_DEMO]: 4.7, 'n-molinos-del-sur': 4.6, 'n-harinas-andes': 4.5, 'n-distribuidora-sur': 4.4,
+    'n-proveedor-demo': 4.8, 'n-papelera-central': 4.6, 'n-insumos-del-sur': 4.5, 'n-rollos-express': 4.4,
   });
   assert.equal(foto.licitaciones[0].estado, 'abierta');
   foto.negocios.length = 0;
@@ -128,7 +130,9 @@ test('la guía de un despacho parcial dice menos que la orden y la factura', asy
 
 test('un reclamo baja a Molinos 0,4 (del segundo al cuarto lugar) y la nota de crédito del mismo día recupera 0,2', async () => {
   const { red } = await redDePrueba({ ahora: new Date('2026-11-21T15:00:00Z') });
-  const ranking = () => Object.entries(red.estadoDeLaRed().notas).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  // El ranking de los proveedores de harina (los de la sala tienen su propia historia).
+  const HARINA = new Set([PROVEEDOR_DEMO, 'n-molinos-del-sur', 'n-harinas-andes', 'n-distribuidora-sur']);
+  const ranking = () => Object.entries(red.estadoDeLaRed().notas).filter(([id]) => HARINA.has(id)).sort((a, b) => b[1] - a[1]).map(([id]) => id);
   assert.equal(ranking().indexOf('n-molinos-del-sur'), 1);
   const orden = await red.crearOrden({ compradorId: COMPRADOR_DEMO, proveedorId: 'n-molinos-del-sur', items: [{ producto: 'harina', cantidad: 4 }] });
   await red.confirmarOrden(orden.id);

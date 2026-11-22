@@ -3,6 +3,7 @@
 
 import { totalOrden } from '../../../shared/precios.ts';
 import type { EstadoOrden } from '../../../shared/red.ts';
+import type { Documento } from '../red/tipos.ts';
 
 /** El tono de la etiqueta: miel pide acción, oliva es dinero que entró, rojo es un reclamo. */
 export type TonoEstado = 'accion' | 'neutro' | 'camino' | 'listo' | 'reclamo';
@@ -27,6 +28,7 @@ export const GRUPOS_PEDIDO = [
 export type GrupoPedido = (typeof GRUPOS_PEDIDO)[number]['id'];
 
 interface Pedido {
+  id?: string;
   estado: EstadoOrden;
   creadaEn: string;
   items: readonly { cantidad: number; precioUnitario: number }[];
@@ -44,11 +46,17 @@ export function contarPorGrupo(pedidos: readonly Pedido[]): Record<GrupoPedido, 
 
 const mismoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 
-/** Lo vendido hoy: los pedidos de hoy que el proveedor ya confirmó (los por confirmar todavía no son venta). */
-export function ventasDeHoy(pedidos: readonly Pedido[], ahora: number): { total: number; pedidos: number } {
+/**
+ * Lo vendido hoy: los pedidos de hoy que el proveedor ya confirmó (los por confirmar todavía no son venta), menos las
+ * notas de crédito de esos pedidos (lo que faltó no se vendió). `notasDeCredito` es el neto descontado, en positivo.
+ */
+export function ventasDeHoy(pedidos: readonly Pedido[], ahora: number, documentos: readonly Pick<Documento, 'tipo' | 'ordenId' | 'monto'>[] = []):
+  { total: number; pedidos: number; notasDeCredito: number } {
   const hoy = new Date(ahora);
   const vendidos = pedidos.filter(p => p.estado !== 'enviada' && mismoDia(new Date(p.creadaEn), hoy));
-  return { total: vendidos.reduce((s, p) => s + totalOrden(p), 0), pedidos: vendidos.length };
+  const ids = new Set(vendidos.map(p => p.id).filter(Boolean));
+  const notasDeCredito = documentos.filter(d => d.tipo === 61 && ids.has(d.ordenId)).reduce((s, d) => s + Math.abs(d.monto ?? 0), 0);
+  return { total: vendidos.reduce((s, p) => s + totalOrden(p), 0) - notasDeCredito, pedidos: vendidos.length, notasDeCredito };
 }
 
 /** El largo de cada barra de la "vista del comprador" en Precios: el más caro llena la barra y el más barato queda en un tercio. */

@@ -56,7 +56,7 @@
 /* ---------- Logo del SII (marca/LogoSii.tsx) ----------
    Sin fondo ni baldosa (DESIGN.md, "Reglas"). Azul sobre claro; en blanco sobre el azul del SII, en oscuro y en proyección. */
 .logo-sii { height: 1.15em; width: auto; flex-shrink: 0; vertical-align: -0.22em; display: inline-block; }
-.bm-boton.sii .logo-sii, .bm-boton-sii .logo-sii, .bp-boton-sii .logo-sii, .paso.sii.hecho .logo-sii, .paso.sii.ultimo .logo-sii,
+.bm-boton.sii .logo-sii, .bm-boton-sii .logo-sii, .bp-boton-sii .logo-sii,
 [data-tema='oscuro'] .logo-sii, .bando-proyeccion .logo-sii { filter: brightness(0) invert(1); }
 
 .bm-boton-texto {
