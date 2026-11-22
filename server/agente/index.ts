@@ -188,9 +188,42 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
 
   /** Pendiente iniciada por la contraparte: se pregunta ahora si no hay otra en curso, o al terminar la actual. */
   async function encolar(negocio: Negocio, p: Pendiente) {
+    await depurar(negocio.id);
     const cola = [...(colas.get(negocio.id) ?? []), p];
     fijarCola(negocio.id, cola);
     if (cola.length === 1) await enviar(negocio.telefono, p.mensaje, 'agente');
+  }
+
+  /**
+   * Si una pregunta pendiente todavía tiene sentido: la cola sobrevive a los reinicios y lo mismo se puede hacer en la
+   * web, así que "¿Las facturo todas?" de una compra ya facturada desde el panel ya no se pregunta.
+   */
+  function vigente(p: Pendiente, { ordenes, licitaciones = [] }: Awaited<ReturnType<Red['estadoDeLaRed']>>): boolean {
+    const estadoDe = (id: string) => ordenes.find(o => o.id === id)?.estado;
+    const abierta = (id: string) => licitaciones.some(l => l.id === id && l.estado === 'abierta');
+    switch (p.tipo) {
+      case 'facturar_licitacion': {
+        const l = licitaciones.find(x => x.id === p.licitacionId) as { ordenIds?: readonly string[] } | undefined;
+        // Sin la lista de sus pedidos (red antigua), no se sabe: se deja.
+        return !l?.ordenIds || l.ordenIds.some(id => ['enviada', 'confirmada'].includes(estadoDe(id) ?? ''));
+      }
+      case 'confirmar_ordenes': return p.ordenIds.some(id => estadoDe(id) === 'enviada');
+      case 'recepcion': case 'reclamar': return estadoDe(p.ordenId) === 'facturada';
+      case 'nota_credito': return estadoDe(p.ordenId) === 'reclamada';
+      case 'sumarse': case 'cambiar_cantidad': return abierta(p.licitacionId);
+      case 'cerrar_antes': return p.licitacionIds.some(abierta);
+      case 'elegir_cierre': return p.opciones.some(o => abierta(o.id));
+      default: return true;
+    }
+  }
+
+  /** Saca de la cola lo que ya no tiene sentido preguntar (ver `vigente`). */
+  async function depurar(negocioId: string) {
+    const cola = colas.get(negocioId);
+    if (!cola?.length) return;
+    const estado = await red.estadoDeLaRed();
+    const quedan = cola.filter(p => vigente(p, estado));
+    if (quedan.length !== cola.length) fijarCola(negocioId, quedan);
   }
 
   /** Lo guardado vuelve como JSON: las fechas de las pendientes se rehacen. */
@@ -567,7 +600,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
 
   async function confirmar(negocio: Negocio): Promise<string> {
     const p = tomar(negocio.id); // se saca antes de ejecutar: idempotencia ante un "sí" repetido
-    if (!p) return reproponerFacturacion(negocio) ?? m.NADA_PENDIENTE;
+    if (!p) return (await reproponerFacturacion(negocio)) ?? m.NADA_PENDIENTE;
     try {
       return await ejecutar(negocio, p);
     } catch (error) {
@@ -646,10 +679,13 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   }
 
   /** El proveedor dijo "todavía no" a facturar la compra conjunta y ahora dice que sí: se le vuelve a preguntar. */
-  function reproponerFacturacion(negocio: Negocio): string | null {
+  async function reproponerFacturacion(negocio: Negocio): Promise<string | null> {
     const pendiente = puedeVender(negocio) ? sala?.pendienteDeFacturar(negocio.id) : null;
     if (!pendiente) return null;
-    alFrente(negocio.id, { tipo: 'facturar_licitacion', licitacionId: pendiente.licitacionId, mensaje: pendiente.mensaje });
+    const p: Pendiente = { tipo: 'facturar_licitacion', licitacionId: pendiente.licitacionId, mensaje: pendiente.mensaje };
+    // Facturada desde el panel, la sala no se entera: no se vuelve a preguntar.
+    if (!vigente(p, await red.estadoDeLaRed())) return null;
+    alFrente(negocio.id, p);
     return pendiente.mensaje;
   }
 
@@ -688,6 +724,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       return;
     }
     const negocio = (await red.negocioPorTelefono(telefono)) ?? sala?.proveedorPorTelefono(telefono) ?? null;
+    if (negocio) await depurar(negocio.id);
     // SÍ a un aviso de compra abierta: se suma con el flujo de siempre de la sala, si no hay otra pregunta en curso.
     if (aviso && sala && !(negocio && actual(negocio.id))) {
       await ctx.reply(await sala.atenderPublico(telefono, 'me sumo', negocio?.nombre ?? aviso.sumarse));
@@ -759,6 +796,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const respuesta = await responder(negocio, intencion);
     await ctx.reply(respuesta);
     // Si se resolvió lo que se preguntaba y asomó algo que esperaba en la cola, se pregunta ahora.
+    await depurar(negocio.id);
     const siguiente = actual(negocio.id);
     if (siguiente && siguiente !== antes && siguiente.mensaje !== respuesta) await ctx.reply(siguiente.mensaje);
   }
