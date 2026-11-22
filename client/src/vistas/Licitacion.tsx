@@ -12,11 +12,12 @@ import {
 } from '../red/derivar.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
-import { cuentaRegresiva } from '../red/formato.ts';
+import { cuentaRegresiva, textoEstadoSii } from '../red/formato.ts';
 import type { EstadoRed, Fuente, Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed } from '../red/useRed.ts';
 import { enlaceWhatsapp } from '../../../shared/telefono.ts';
 import { Logo } from '../marca/Logo.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import './licitacion.css';
 
 function detalleOferta(o: OfertaVista): string {
@@ -75,7 +76,7 @@ function Grupo({ lic, r, cerrada, unidad, canasta, whatsappNumero }: { lic: Lici
             <Qr className="qr" texto={chat || urlUnirse} />
             <div>
               <p>{chat ? 'Escanea, envía el mensaje y pide por WhatsApp' : 'Escanea y mira cómo baja el precio'}</p>
-              <p className="url">{chat ? 'o en ' : ''}{urlUnirse.replace(/^https?:\/\//, '')}</p>
+              <p className="url">{chat ? 'o en ' : ''}{urlUnirse.replace(/^https?:\/\//, '').split('?')[0]}</p>
             </div>
           </div>
         </div>
@@ -111,6 +112,42 @@ function Ofertas({ r, cerrada, producto }: { r: ResumenLicitacion; cerrada: bool
         </ul>
       ) : (
         <p className="vacio">Esperando la primera oferta.</p>
+      )}
+    </section>
+  );
+}
+
+/** Las facturas 33 de esta compra: las órdenes de sus participantes con el proveedor de la compra (o cualquiera, sin uno fijo). */
+function facturasDeLaCompra(lic: LicitacionRed, estado: EstadoRed) {
+  const participantes = new Set(lic.participantes.map(p => p.negocioId));
+  const ordenes = new Map(estado.ordenes
+    .filter(o => participantes.has(o.compradorId) && (!lic.proveedorId || o.proveedorId === lic.proveedorId))
+    .map(o => [o.id, o]));
+  return estado.documentos
+    .filter(d => d.tipo === 33 && ordenes.has(d.ordenId))
+    .map(d => ({ d, comprador: negocioPorId(estado, ordenes.get(d.ordenId)!.compradorId)?.nombre ?? 'Negocio' }));
+}
+
+/** Al cerrar, el momento SII en grande: cada factura del lote con su folio y lo que dice el SII, en vivo. */
+function FacturasSii({ facturas }: { facturas: ReturnType<typeof facturasDeLaCompra> }) {
+  const [lista, caben] = useFilasQueCaben<HTMLUListElement>(5, facturas.length);
+  return (
+    <section className="tarjeta apilada lic-facturas">
+      <p className="etiqueta lic-foco"><LogoSii /> {facturas.length ? `${contar(facturas.length, 'factura emitida', 'facturas emitidas')} en el SII` : 'Facturando en el SII'}</p>
+      {facturas.length ? (
+        <ul className="ofertas ajustable" ref={lista}>
+          {facturas.slice(0, caben).map(({ d, comprador }) => (
+            <li key={d.id} className="oferta">
+              <div className="nombre-oferta"><Monograma nombre={comprador} /><span className="nombre">{comprador}</span></div>
+              <div className="linea">
+                <span className="precio">Folio {d.folio ?? '-'}</span>
+                <span className="detalle lic-estado-sii"><LogoSii /> {textoEstadoSii(d.estadoSii)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vacio">El proveedor confirma y sale una factura por negocio en un solo envío.</p>
       )}
     </section>
   );
@@ -168,6 +205,7 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
   const restante = Date.parse(lic.cierraEn) - ahora;
   const cerrada = lic.estado === 'cerrada' || restante <= 0;
   const unidad = unidadDeLicitacion(lic);
+  const facturas = facturasDeLaCompra(lic, estado);
 
   return (
     <Proyeccion className="proyeccion">
@@ -175,7 +213,9 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
         <div>
           <div className="lic-meta">
             <Logo fondo="oscuro" className="lic-logo" />
-            <span className="en-vivo">Licitación en vivo</span>
+            {cerrada
+              ? <span className="en-vivo contorno">{facturas.length ? 'Facturada en el SII' : 'Cerrada'}</span>
+              : <span className="en-vivo">Licitación en vivo</span>}
             <span>{conCanasta ? `Canasta de ${productos.length} productos` : lic.producto} · {lic.comuna}</span>
             <AvisoFuente fuente={fuente} />
           </div>
@@ -214,7 +254,9 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
           <div className="leyenda"><i />{r.curvaPorTramos ? 'cada punto es un tramo de volumen que el grupo alcanzó' : 'cada punto es una contraoferta de un proveedor cuando el grupo crece'}</div>
         </section>}
 
-        {tieneTramos(vista) && !rFoco.ofertas.length ? (
+        {cerrada ? (
+          <FacturasSii facturas={facturas} />
+        ) : tieneTramos(vista) && !rFoco.ofertas.length ? (
           <section className="tarjeta apilada">
             <p className="etiqueta lic-foco">{foco ? 'Por volumen' : 'Precio por volumen'}<DelProducto p={foco} /></p>
             <Escalera tramos={estadoTramos(vista)} unidad={unidadDeLicitacion(vista)} className="vertical" />

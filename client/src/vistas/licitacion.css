@@ -32,3 +32,11 @@
 
 /* "En vivo" en proyección: el rojo es claro para leerse sobre carbón, así que la píldora lleva texto tinta (7:1). */
 .bando-proyeccion .en-vivo:not(.contorno) { color: var(--bando-tinta); }
+
+/* Texto junto al QR: en proyección nada baja de 18 px (DESIGN.md, modo proyección). */
+.lic-marca .sumate p { font-family: var(--font-sans); font-size: clamp(18px, 2vh, 24px); line-height: 1.3; }
+
+/* Las facturas del lote al cerrar: el logo del SII junto al título y al estado de cada folio. */
+.lic-marca .lic-facturas .lic-foco { display: flex; align-items: center; gap: var(--espacio-2); }
+.lic-marca .lic-estado-sii { display: inline-flex; align-items: center; gap: var(--espacio-1); }
+.lic-marca .sumate .url { word-break: normal; overflow-wrap: anywhere; }

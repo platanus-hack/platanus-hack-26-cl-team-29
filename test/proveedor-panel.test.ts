@@ -17,7 +17,13 @@ test('lo vendido hoy cuenta solo pedidos de hoy ya confirmados', () => {
     pedido('facturada'), pedido('recibida', '2026-11-21T08:00:00', 1, 5000),
     pedido('recibida', '2026-11-20T18:00:00'), // ayer
   ], AHORA);
-  assert.deepEqual(ventas, { total: 25000, pedidos: 2 });
+  assert.deepEqual(ventas, { total: 25000, pedidos: 2, notasDeCredito: 0 });
+});
+
+test('lo vendido hoy descuenta las notas de crédito de esos pedidos', () => {
+  const pedidos = [{ ...pedido('reclamada'), id: 'oc-1' }, { ...pedido('facturada'), id: 'oc-2' }];
+  const documentos = [{ tipo: 33 as const, ordenId: 'oc-1', monto: 20000 }, { tipo: 61 as const, ordenId: 'oc-1', monto: -5000 }];
+  assert.deepEqual(ventasDeHoy(pedidos, AHORA, documentos), { total: 35000, pedidos: 2, notasDeCredito: 5000 });
 });
 
 test('la barra más cara se llena, la más barata queda en un tercio y un solo precio llena la suya', () => {

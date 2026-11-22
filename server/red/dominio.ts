@@ -1339,11 +1339,10 @@ export async function crearRed({
   });
 
   function estadoDeLaRed(): EstadoRed {
+    // Una sola nota por proveedor para todas las vistas (ranking, ofertas del proyector, panel): la de `notaDeProveedor`,
+    // también la del proveedor de la compra y sus competidores.
     const notas: Record<string, number> = {};
-    // El ranking es la historia de proveedores ficticios de harina: la empresa real de la sala no entra (su nota
-    // va en su panel), ni sus competidores (su nota viaja en cada `licitacion.oferta`).
-    const fuera = new Set<string>([PROVEEDOR_SALA, ...COMPETIDORES_SALA.map(c => c.id)]);
-    for (const n of datos.negocios) if (puedeVender(n) && !fuera.has(n.id)) notas[n.id] = notaDeProveedor(n.id);
+    for (const n of datos.negocios) if (puedeVender(n)) notas[n.id] = notaDeProveedor(n.id);
     return structuredClone({
       negocios: datos.negocios, ordenes: datos.ordenes, documentos: datos.documentos, notas, licitaciones: datos.licitaciones.map(l => vistaLicitacion(l)),
     });
