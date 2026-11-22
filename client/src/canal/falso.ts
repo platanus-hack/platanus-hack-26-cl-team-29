@@ -14,7 +14,10 @@ import { pluralDe, sinTildes } from '../../../shared/texto.ts';
 import { CANTIDAD_MAXIMA } from '../../../shared/red.ts';
 import { mismoProducto, sugerirProductos } from '../../../shared/productos.ts';
 import { esUnidad } from '../../../shared/unidades.ts';
-import { duenoDeTramos, errorDeTramos, ordenarTramos, precioDelProducto, puedeCerrarAntes, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
+import {
+  duenoDeTramos, errorDeTramos, ofertasQueCompiten, ordenarTramos, precioDeOferta, precioDelProducto, precioDelReparto, puedeCerrarAntes, repartirPorStock,
+  totalesDeCanasta, totalOrden, unidadesDisponibles,
+} from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
 import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
@@ -35,6 +38,9 @@ const CONFIG: ConfigRed = {
 };
 
 const PROVEEDOR_DEMO = 'p-papelera';
+/** `?prueba&sinsii`: el proveedor de prueba se ve como uno real que todavía no conectó su SII. */
+const SIN_SII = typeof location !== 'undefined' && new URLSearchParams(location.search).has('sinsii');
+
 /** Con datos de prueba, este teléfono entra como el proveedor y cualquier código de 6 dígitos sirve. */
 export const TELEFONO_PROVEEDOR_FALSO = '56900000000';
 
@@ -74,10 +80,19 @@ const tramoEn = (p: ProductoCompra, unidades: number) => [...p.tramos].reverse()
 function conDerivados(lic: LicitacionCanal): LicitacionCanal {
   const productos = (lic.productos ?? []).map(p => {
     const totalUnidades = lic.participantes.reduce((s, x) => s + (x.items ?? []).filter(i => i.productoId === p.id).reduce((a, i) => a + i.cantidad, 0), 0);
-    // Como el backend: el tramo alcanzado o la mejor oferta a ese volumen; sin nada, el precio de referencia.
-    const precioActual = precioDelProducto(p, totalUnidades, lic.proveedorId);
+    // Como el backend: con proveedor fijo, el tramo o su oferta; sin él, el reparto por stock (la mejor primero, aquí
+    // solo por precio) y el precio de la parte más cara que hace falta. Sin nada, el precio de referencia.
+    const reparto = lic.proveedorId || totalUnidades <= 0 ? undefined : repartirPorStock(
+      ofertasQueCompiten(p.ofertas).map(o => ({ ...o, precioUnitario: precioDeOferta(o, totalUnidades) })).sort((a, b) => a.precioUnitario - b.precioUnitario),
+      totalUnidades);
+    const precioActual = (reparto && precioDelReparto(reparto.partes)) ?? precioDelProducto(p, totalUnidades, lic.proveedorId);
+    const disponibles = lic.proveedorId ? undefined : unidadesDisponibles(p);
     const sig = p.tramos.find(t => t.desde > totalUnidades && t.precioUnitario < precioActual);
-    return { ...p, totalUnidades, precioActual, siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null };
+    return {
+      ...p, totalUnidades, precioActual, siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null,
+      ...(disponibles !== undefined ? { quedan: Math.max(0, disponibles - totalUnidades) } : {}),
+      ...(reparto && reparto.partes.length > 1 ? { cubreElMejor: reparto.partes[0]!.cantidad } : {}),
+    };
   });
   const p0 = productos[0];
   return {
@@ -117,7 +132,11 @@ function sembrar() {
   // Una compra que inició un comprador (sin proveedor fijo): Molinos del Sur compite con su lista y su pedido mínimo.
   const cafe = {
     id: 'cafe-molido-1-kg', nombre: 'Café molido 1 kg', unidad: 'bolsa', unidadPlural: 'bolsas', precioSolo: 0, tramos: [],
-    ofertas: [{ proveedorId: 'p-molinos', productoId: 'cafe-molido-1-kg', precioUnitario: 12_500, tramos: [{ desde: 1, precioUnitario: 12_500 }, { desde: 20, precioUnitario: 11_200 }], minimo: 30, automatica: true as const, plazoDias: 1, en: hace(20 * MINUTO) }],
+    ofertas: [
+      { proveedorId: 'p-molinos', productoId: 'cafe-molido-1-kg', precioUnitario: 12_500, tramos: [{ desde: 1, precioUnitario: 12_500 }, { desde: 20, precioUnitario: 11_200 }], minimo: 30, automatica: true as const, plazoDias: 1, en: hace(20 * MINUTO) },
+      // Más barata pero con poco stock: el grupo ve que el resto lo cubre el siguiente (como el reparto del backend).
+      { proveedorId: 'p-andes', productoId: 'cafe-molido-1-kg', precioUnitario: 11_900, stock: 10, plazoDias: 1, en: hace(15 * MINUTO) },
+    ],
   };
   const solicitud: LicitacionCanal = {
     id: 'L-2', producto: cafe.nombre, unidad: cafe.unidad, unidadPlural: cafe.unidadPlural, comuna: 'Ñuñoa', cierraEn: new Date(Date.now() + 6 * 60 * MINUTO).toISOString(),
@@ -477,6 +496,8 @@ export function crearApiFalsa(): CanalApi {
         documentos: red.documentos.filter(d => ordenes.some(o => o.id === d.ordenId)),
         nota: red.notas.get(proveedor.id) ?? null,
         notaAnterior: red.notasAnteriores.get(proveedor.id),
+        // `?prueba&sinsii`: el proveedor de prueba todavía no puede facturar (para ver el aviso de conectar el SII).
+        ...(SIN_SII ? { puedeFacturar: false } : {}),
       });
     },
 
