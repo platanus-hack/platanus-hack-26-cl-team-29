@@ -18,7 +18,7 @@ const CONSULTAS: Anthropic.Beta.BetaToolUnion[] = [
   },
   {
     name: 'proveedores',
-    description: 'Proveedores de la red con su comuna y su nota (1 a 5, sale de entregas y reclamos reales). Con un producto, incluye el precio neto de cada uno.',
+    description: 'Proveedores de la red con su comuna y su nota (1 a 5, sale de entregas y reclamos reales). Con un producto, solo los que lo tienen en su lista, con su precio neto base y su pedido mínimo.',
     input_schema: objeto({
       producto: { type: 'string', description: 'Producto por el que se pregunta, como lo dijo la persona. Ej: "harina".' },
     }, []),
@@ -26,7 +26,7 @@ const CONSULTAS: Anthropic.Beta.BetaToolUnion[] = [
   },
   {
     name: 'catalogo',
-    description: 'Productos que se pueden pedir en la red y el precio neto más bajo de cada uno.',
+    description: 'Los productos que hoy venden los proveedores de Bando (sus listas), con su unidad, el precio neto base más bajo y cuántos proveedores lo venden.',
     input_schema: objeto({}, []),
     strict: true,
   },

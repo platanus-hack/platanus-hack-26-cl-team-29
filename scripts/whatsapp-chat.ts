@@ -15,6 +15,7 @@ import { iniciarRed } from '../server/red/index.ts';
 import { conectarAgente } from '../server/agente/index.ts';
 import { crearInterpreteDesdeEnv } from '../server/ia/index.ts';
 import { crearCertificados } from '../server/certificados/index.ts';
+import { iniciarCatalogos } from '../server/catalogo/index.ts';
 
 const args = process.argv.slice(2);
 const flag = (nombre: string) => {
@@ -37,7 +38,8 @@ const url = `${local}/api/whatsapp/webhook`;
 // El link del certificado apunta a este servidor local: ábrelo en el navegador para subir un .pfx.
 const certificados = await crearCertificados({ env: { ...env, PUBLIC_URL: local }, log: silencio });
 app.use(certificados.rutas);
-const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(env, red), env, certificados });
+const catalogos = await iniciarCatalogos({ db: null, emitir: () => {} });
+const agente = conectarAgente(whatsapp, red, { interprete: crearInterpreteDesdeEnv(env, red, catalogos), env, certificados });
 certificados.alConectar((tel, rut) => agente.certificadoConectado(tel, rut));
 
 const rol = flag('como') === 'proveedor' ? 'proveedor' : 'comprador';
