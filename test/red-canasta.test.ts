@@ -199,7 +199,9 @@ test('el carrito por la web: PUT y DELETE con la sesión, config con la canasta 
     await red.actualizarCarrito('L-1', { telefono: ANA, nombre: 'Ana', items: [{ productoId: 'rollos', cantidad: 1 }] });
     const { cuerpo: { token, negocio } } = await entrarConCodigo((r, b) => pedir('POST', r, b), buzon, '+56 9 3333 3333', { nombre: 'Carla', rubro: 'Panadería', rut: '33333333-3' });
     assert.equal(negocio.rubro, 'panaderia');
-    assert.equal((await pedir('POST', '/licitaciones/L-1/unirse', { nombre: 'Dani', rubro: 'astronauta', rut: '44444444-4', cantidad: 1 })).cuerpo.participante.rubro, 'otro');
+    const dani = await entrarConCodigo((r, b) => pedir('POST', r, b), buzon, '+56 9 4444 4444', { nombre: 'Dani', rubro: 'astronauta', rut: '44444444-4' });
+    assert.equal(dani.cuerpo.negocio.rubro, 'otro', 'un rubro desconocido queda como otro');
+    assert.equal((await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [{ productoId: 'rollos', cantidad: 1 }] }, dani.cuerpo.token)).status, 200);
     assert.equal((await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [] })).status, 401);
     const puesto = await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [{ productoId: 'etiquetas', cantidad: 3 }, { productoId: 'bolsas', cantidad: 1 }] }, token);
     assert.equal(puesto.status, 200);

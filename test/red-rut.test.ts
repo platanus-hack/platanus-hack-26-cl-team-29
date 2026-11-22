@@ -144,7 +144,6 @@ test('ni la foto pública ni los eventos ni las respuestas de la web llevan el R
     const puesto = await pedir('PUT', '/yo/carrito', { licitacionId: 'L-1', items: [{ productoId: 'rollos', cantidad: 2 }] }, token);
     assert.equal(puesto.status, 200);
     privado(puesto.cuerpo);
-    assert.equal((await pedir('POST', '/licitaciones/L-1/unirse', { nombre: 'Público', cantidad: 1 })).status, 400, 'la página del QR también pide RUT');
 
     // Su dueño sí ve a quién sale su factura.
     const yo = (await pedir('GET', '/yo', undefined, token)).cuerpo;

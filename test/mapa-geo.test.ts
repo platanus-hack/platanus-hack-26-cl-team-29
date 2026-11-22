@@ -61,21 +61,20 @@ test('cada evento late en el negocio correcto, y uno incompleto no late', () => 
 
 test('dos pestañas con la red falsa ven la misma foto y los mismos eventos', async () => {
   const visto: Record<'a' | 'b', string[]> = { a: [], b: [] };
-  const firma = (estado: EstadoRed, evento?: EventoRed) => `${evento?.tipo ?? 'foto'}:${estado.negocios.length}:${estado.licitaciones[0]?.participantes.length}`;
+  const firma = (estado: EstadoRed, evento?: EventoRed) => `${evento?.tipo ?? 'foto'}:${estado.negocios.length}:${estado.licitaciones[0]?.estado}`;
   const a = iniciarRedFalsaCompartida((s, ev) => visto.a.push(firma(s, ev)));
   await new Promise(r => setTimeout(r, 50));
   const b = iniciarRedFalsaCompartida((s, ev) => visto.b.push(firma(s, ev)));
   await new Promise(r => setTimeout(r, 100));
-  // La segunda pestaña suma un negocio: el guion corre en la primera y las dos lo ven.
-  b.unirse('l-1', { nombre: 'Kiosco de prueba', comuna: 'Macul', cantidad: 3 });
+  // La segunda pestaña cierra la compra: el guion corre en la primera y las dos lo ven.
+  b.cerrar('l-1');
   await new Promise(r => setTimeout(r, 100));
   a.detener();
   b.detener();
   assert.ok(visto.b.length >= 2, 'la segunda pestaña recibió la foto al abrir y el cambio');
   assert.equal(visto.b.at(-1), visto.a.at(-1));
-  // La siembra trae 4 negocios en la compra; el quinto es el que sumó la segunda pestaña.
-  const sumado = visto.a.find(x => x.startsWith('licitacion.participante:') && x.endsWith(':5'));
-  assert.ok(sumado && visto.b.includes(sumado));
+  const cierre = visto.a.find(x => x.endsWith(':cerrada'));
+  assert.ok(cierre && visto.b.includes(cierre), 'las dos pestañas vieron el cierre');
 });
 
 test('cada evento late una sola vez, y los viejos se marcan sin latir', () => {

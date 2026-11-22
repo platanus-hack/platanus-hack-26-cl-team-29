@@ -39,12 +39,6 @@ async function mensajeDeError(r: Response, porDefecto: string): Promise<string> 
   return typeof cuerpo?.mensaje === 'string' ? cuerpo.mensaje : `${porDefecto} (${r.status})`;
 }
 
-export interface DatosUnirse {
-  nombre: string;
-  comuna: string;
-  cantidad: number;
-}
-
 export function useRed() {
   const [estado, setEstado] = useState<EstadoRed | null>(null);
   const [eventos, setEventos] = useState<EventoVisto[]>([]);
@@ -140,16 +134,6 @@ export function useRed() {
     return () => clearTimeout(t);
   }, [cambios]);
 
-  const unirse = useCallback(async (licitacionId: string, datos: DatosUnirse) => {
-    if (falsa.current) return falsa.current.unirse(licitacionId, datos);
-    const r = await fetch(`/api/red/licitaciones/${encodeURIComponent(licitacionId)}/unirse`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(datos),
-    });
-    if (!r.ok) throw new Error(await mensajeDeError(r, 'No pudimos sumarte'));
-  }, []);
-
   /** Devuelve lo que responde el backend (por ejemplo `{ cobrados, fallidos }` al cobrar). */
   const accionDemo = useCallback(async (accion: AccionDemo, token: string, licitacionId = ''): Promise<unknown> => {
     if (falsa.current) {
@@ -161,7 +145,7 @@ export function useRed() {
     return r.json().catch(() => null);
   }, []);
 
-  return { estado, eventos, cambios, fuente, unirse, accionDemo };
+  return { estado, eventos, cambios, fuente, accionDemo };
 }
 
 /** GET /api/red/config. Con la red falsa usa su config; si el backend todavía no tiene la ruta, sin número. */

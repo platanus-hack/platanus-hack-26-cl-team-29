@@ -1,18 +1,15 @@
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { configDemo } from './config-demo.ts';
-import { ErrorRed, FALTA_RUT } from './dominio.ts';
-import { cuerpo, nuevoComprador, texto } from './peticion.ts';
-import type { CodigoError, Recepcion, Red } from './dominio.ts';
+import { ErrorRed } from './dominio.ts';
+import type { CodigoError, Red } from './dominio.ts';
 import { generarPdf } from '../sii/index.ts';
 import { nombreArchivoPdf, tokenPdfValido } from './pdf-enlace.ts';
-import { sinTelefonos } from './publico.ts';
 import { crearRutasWeb } from './rutas-web.ts';
 import type { EnvioCodigo } from './rutas-web.ts';
 import { crearCodigosAcceso } from './acceso.ts';
 import { crearSesiones, mismoSecreto } from './sesiones.ts';
 import { limitarPor } from '../limite.ts';
-import { validarRut } from '../../shared/rut.ts';
 import type { Sesiones } from './sesiones.ts';
 
 const ESTADO_HTTP: Record<CodigoError, number> = {
@@ -32,8 +29,6 @@ export interface OpcionesRutas {
   sesiones?: Sesiones;
   /** Manda el código de acceso por WhatsApp. Sin él (tests), ningún código sale y nadie entra a la web. */
   enviarCodigo?: (telefono: string, texto: string) => Promise<EnvioCodigo>;
-  /** Pedidos por minuto de un mismo RUT al entrar o sumarse desde la página pública (nunca por IP: la sala comparte el wifi). */
-  limitePorMinuto?: number;
   /** Rutas "Conectar mi SII" del proveedor (server/conexion-sii). */
   conexionSii?: express.Router;
   /** Catálogo del proveedor armado desde sus facturas (server/catalogo): el del panel y la ruta de operación del equipo. */
@@ -46,11 +41,10 @@ export interface OpcionesRutas {
 export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, opciones: OpcionesRutas = {}): express.Router {
   const rutas = express.Router();
   const id = (req: Request) => String(req.params.id);
-  const porRut = limitarPor(opciones.limitePorMinuto ?? 20, 60_000, req => validarRut(cuerpo(req).rut));
   // Las acciones del presentador comparten un solo token: el límite es para el token, no para cada IP.
   const limitarDemo = limitarPor(20, 60_000, () => 'demo');
 
-  // Acciones de escenario (reiniciar, confirmar la compra si falla WhatsApp), protegidas con DEMO_TOKEN.
+  // Acciones de escenario (reiniciar, cerrar o confirmar la compra si falla WhatsApp), protegidas con DEMO_TOKEN.
   // Sin la variable la ruta no existe (404).
   const exigirTokenDemo = (req: Request, res: Response, next: NextFunction) => {
     if (!env.DEMO_TOKEN) {
@@ -93,61 +87,12 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     res.json({ whatsappNumero: c.whatsappNumero, proveedorLogoUrl: c.proveedorLogoUrl, productos, producto: c.producto, unidad: c.unidad, unidadPlural: c.unidadPlural });
   });
 
-  rutas.post('/ordenes', async (req, res) => {
-    const b = cuerpo(req);
-    res.status(201).json(await red.crearOrden({
-      compradorId: String(b.compradorId ?? ''), proveedorId: String(b.proveedorId ?? ''), items: b.items as never,
-    }));
-  });
-
-  rutas.post('/ordenes/:id/despacho', async (req, res) => {
-    const b = cuerpo(req);
-    res.json(await red.fijarDespacho(id(req), Number(b.cantidad), texto(b.producto)));
-  });
-
-  rutas.post('/ordenes/:id/confirmar', async (req, res) => {
-    res.json(await red.confirmarOrden(id(req)));
-  });
-
-  rutas.post('/ordenes/:id/recepcion', async (req, res) => {
-    const b = cuerpo(req);
-    const recepcion: Recepcion = b.conforme === true
-      ? { conforme: true }
-      : { faltante: Number(b.faltante), ...(typeof b.producto === 'string' ? { producto: b.producto } : {}) };
-    res.json(await red.registrarRecepcion(id(req), recepcion));
-  });
-
-  rutas.post('/ordenes/:id/nota-credito', async (req, res) => {
-    res.status(201).json(await red.emitirNotaCredito(id(req)));
-  });
-
-  // Página del QR sin sesión (nombre, comuna y RUT). Un negocio usa /yo/unirse con su sesión; aquí no se
-  // acepta `negocioId` ni `telefono`, para que nadie cambie la cantidad de otro. Sin RUT válido no se suma:
-  // cada factura sale al RUT de quien compra.
-  rutas.post('/licitaciones/:id/unirse', porRut, async (req, res) => {
-    const b = cuerpo(req);
-    if (typeof b.rut !== 'string' || !b.rut.trim()) throw new ErrorRed('datos_invalidos', FALTA_RUT);
-    const negocio = await red.registrarComprador(nuevoComprador(b, b.rut));
-    res.json(await red.unirseALicitacion(id(req), {
-      negocioId: negocio.id,
-      ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
-      cantidad: Number(b.cantidad),
-    }));
-  });
-
   rutas.post('/demo/reiniciar', exigirTokenDemo, limitarDemo, async (_req, res) => {
     res.json(await red.reiniciarDemo());
   });
 
-  rutas.post('/licitaciones/:id/ofertas', async (req, res) => {
-    const b = cuerpo(req);
-    res.json(sinTelefonos(await red.ofertar(id(req), {
-      proveedorId: String(b.proveedorId ?? ''), precioUnitario: Number(b.precioUnitario), plazoDias: Number(b.plazoDias),
-      ...(typeof b.productoId === 'string' ? { productoId: b.productoId } : {}),
-    })));
-  });
-
-  rutas.post('/licitaciones/:id/cerrar', async (req, res) => {
+  // Cierre de escenario desde el panel del presentador. El proveedor cierra su compra con sesión (rutas-web.ts).
+  rutas.post('/licitaciones/:id/cerrar', exigirTokenDemo, limitarDemo, async (req, res) => {
     res.json(await red.cerrarLicitacion(id(req)));
   });
 

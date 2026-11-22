@@ -8,32 +8,32 @@ import { sembrarSiVacio } from '../server/red/semilla.ts';
 // Estos tests recorren la demo con sus negocios ficticios (sin DEMO_FICTICIOS la red parte vacía).
 process.env.DEMO_FICTICIOS = '1';
 
-test('las rutas /api/red recorren el ciclo de la orden y traducen errores a HTTP', async () => {
+test('sin sesión no se cambian datos: las rutas viejas no existen y cerrar exige DEMO_TOKEN', async () => {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo);
-  const app = express().use(express.json()).use('/api/red', crearRutasRed(await crearRed({ repo, sii: crearSiiFalso() })));
+  const red = await crearRed({ repo, sii: crearSiiFalso() });
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, { DEMO_TOKEN: 'secreto-de-prueba' }));
   const server = app.listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
-  const post = (ruta: string, body: unknown = {}) =>
-    fetch(url + ruta, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const post = (ruta: string, body: unknown = {}, token?: string) => fetch(url + ruta, {
+    method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { 'x-demo-token': token } : {}) }, body: JSON.stringify(body),
+  });
 
   try {
-    const creada = await post('/ordenes', {
+    const orden = await red.crearOrden({
       compradorId: COMPRADOR_DEMO, proveedorId: PROVEEDOR_DEMO, items: [{ producto: 'Harina 25 kg', cantidad: 5, precioUnitario: 18000 }],
     });
-    assert.equal(creada.status, 201);
-    const { id } = await creada.json();
+    for (const ruta of ['/ordenes', `/ordenes/${orden.id}/despacho`, `/ordenes/${orden.id}/confirmar`, `/ordenes/${orden.id}/recepcion`,
+      `/ordenes/${orden.id}/nota-credito`, '/licitaciones/L-1/ofertas', '/licitaciones/L-1/unirse']) {
+      assert.equal((await post(ruta, { conforme: true, nombre: 'Ana', rut: '22222222-2', cantidad: 1 })).status, 404, ruta);
+    }
+    assert.equal(red.estadoPublico().ordenes.find(o => o.id === orden.id)?.estado, orden.estado, 'nada cambió la orden');
 
-    assert.equal((await post(`/ordenes/${id}/recepcion`, { conforme: true })).status, 409);
-    assert.equal((await post(`/ordenes/${id}/confirmar`)).status, 200);
-    assert.equal((await (await post(`/ordenes/${id}/recepcion`, { faltante: 2 })).json()).estado, 'reclamada');
-    assert.equal((await (await post(`/ordenes/${id}/nota-credito`)).json()).tipo, 61);
-    assert.equal((await post('/ordenes', { compradorId: 'x' })).status, 404);
-    assert.equal((await post('/licitaciones/L-1/unirse', { nombre: 'Ana', cantidad: 0 })).status, 400);
-
-    const estado = await (await fetch(`${url}/estado`)).json();
-    assert.equal(estado.ordenes[0].estado, 'corregida');
-    assert.ok(estado.notas[PROVEEDOR_DEMO] < 4.7);
+    assert.equal((await post('/licitaciones/L-1/cerrar')).status, 403);
+    assert.equal((await post('/licitaciones/L-1/cerrar', {}, 'otro')).status, 403);
+    assert.equal(red.estadoPublico().licitaciones[0].estado, 'abierta');
+    assert.equal((await post('/licitaciones/L-1/cerrar', {}, 'secreto-de-prueba')).status, 200);
+    assert.equal(red.estadoPublico().licitaciones[0].estado, 'cerrada');
   } finally {
     server.close();
   }

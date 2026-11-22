@@ -13,7 +13,6 @@ import { precioDelProducto, siguienteTramo, totalesDeCanasta, totalOrden, unidad
 
 export interface RedFalsa {
   detener(): void;
-  unirse(licitacionId: string, datos: { nombre: string; comuna: string; cantidad: number; productoId?: string }): void;
   reiniciar(): void;
   cerrar(licitacionId: string): void;
   confirmar(licitacionId: string): void;
@@ -425,9 +424,6 @@ export function iniciarRedFalsa(alCambiar: (estado: EstadoRed, evento?: EventoRe
     detener() {
       timers.forEach(clearInterval);
       pendientes.forEach(clearTimeout);
-    },
-    unirse(licitacionId, datos) {
-      publicar(sumar(licitacionId, datos, [{ productoId: datos.productoId ?? CANASTA[0].id, cantidad: datos.cantidad }]));
     },
     reiniciar,
     cerrar,

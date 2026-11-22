@@ -6,7 +6,7 @@ import { iniciarRedFalsa, type RedFalsa } from './falso.ts';
 import type { EstadoRed, EventoRed } from './tipos.ts';
 
 const NOMBRE = 'domino-red-falsa';
-const ACCIONES = ['unirse', 'reiniciar', 'cerrar', 'confirmar'] as const;
+const ACCIONES = ['reiniciar', 'cerrar', 'confirmar'] as const;
 type Accion = (typeof ACCIONES)[number];
 
 type Mensaje =
@@ -57,7 +57,6 @@ export function iniciarRedFalsaCompartida(alCambiar: (estado: EstadoRed, evento?
       soltar?.();
       canal.close();
     },
-    unirse: pedir('unirse'),
     reiniciar: pedir('reiniciar'),
     cerrar: pedir('cerrar'),
     confirmar: pedir('confirmar'),
