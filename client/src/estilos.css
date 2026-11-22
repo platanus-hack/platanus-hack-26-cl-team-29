@@ -427,82 +427,79 @@ body {
 .confirmacion .numero-grande { font-size: 64px; }
 .bajada { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
 
-/* Menú de vistas: arriba a la derecha, se desvanece cuando no se usa. */
+/* Menú de vistas: arriba a la derecha, se desvanece cuando no se usa. Con la marca (DESIGN.md): el componente lleva la clase de la marca,
+   así toma Inter, los neutros y el modo oscuro; el movimiento sigue los tokens (y se apaga con reduced-motion). */
 .navegador {
   position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 1000;
+  top: var(--espacio-3);
+  right: var(--espacio-3);
+  z-index: var(--z-navegador);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--espacio-2);
+  background: transparent;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--duracion-base) ease;
 }
 .navegador-visible {
   opacity: 1;
   pointer-events: auto;
 }
 .navegador-boton {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  letter-spacing: var(--tracking-wide);
+  font: 600 var(--text-xs) / var(--leading-xs) var(--font-sans);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 8px 14px;
+  color: var(--color-foreground);
+  background: var(--color-background);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: var(--espacio-2) var(--espacio-3);
+  box-shadow: var(--sombra-flotante);
   cursor: pointer;
+  transition: border-color var(--duracion-rapida) ease;
 }
 .navegador-boton:hover,
 .navegador-boton[aria-expanded='true'] {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--color-foreground);
 }
 .navegador-lista {
   list-style: none;
   margin: 0;
-  padding: 6px;
+  padding: var(--espacio-1);
   min-width: 260px;
   max-width: calc(100vw - 24px);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  background: var(--color-background);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--sombra-flotante);
 }
 .navegador-lista a {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  color: var(--color-text);
+  padding: var(--espacio-2) var(--espacio-3);
+  border-radius: var(--radius-lg);
+  color: var(--color-foreground);
   text-decoration: none;
 }
 .navegador-lista a:hover {
-  background: #1f1f1f;
+  background: var(--color-secondary);
 }
 .navegador-lista a[aria-current='page'] {
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
+  background: var(--color-muted);
+  box-shadow: inset 3px 0 0 var(--bando-miel);
 }
 .navegador-nombre {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
 }
 .navegador-detalle {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  opacity: 0.75;
-}
-@media (prefers-reduced-motion: reduce) {
-  .navegador {
-    transition: none;
-  }
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--color-faint-fg);
 }
 
 /* ---------- Iconografía (components/Iconos.tsx) ---------- */
