@@ -76,7 +76,7 @@ export function MiNegocio() {
   return (
     <Marco secciones={secciones} activa={seccion} negocio={yo.negocio} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
       {error && <p className="bm-error">{error}</p>}
-      {seccion === 'inicio' && <Inicio foto={foto} yo={yo} config={config} secciones={SECCIONES} evento={cambio} />}
+      {seccion === 'inicio' && <Inicio foto={foto} negocio={yo.negocio} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="comprar" />}
       {seccion === 'compra' && <ComprasEnGrupo api={api} token={token} foto={foto} yo={yo} productoId={productoId} />}
       {seccion === 'compra' && !productoId && vigente && participa && (
         <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>

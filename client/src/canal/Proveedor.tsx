@@ -1,6 +1,7 @@
 // /proveedor: panel web del proveedor con la marca Bando (DESIGN.md, Paper "2 · Proveedor"). Las mismas acciones
 // que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
-// cambiar sus precios por volumen. Inicio, Pedidos y Precios están rediseñados; Reparto y Facturas van por el puente.
+// cambiar sus precios por volumen. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Precios
+// están rediseñados; Reparto y Facturas van por el puente.
 
 import { useEffect, useRef, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
@@ -17,16 +18,18 @@ import type { YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { Marco, type SeccionMarco } from '../comprador/Marco.tsx';
-import { InicioProveedor } from '../proveedor/Inicio.tsx';
+import { Inicio } from '../comprador/Inicio.tsx';
+import { Ventas } from '../proveedor/Ventas.tsx';
 import { Pedidos } from '../proveedor/Pedidos.tsx';
 import { Precios } from '../proveedor/Precios.tsx';
 import { contarPorGrupo } from '../proveedor/pedidos.ts';
 import '../proveedor/proveedor.css';
 import './canal.css';
 
-type Seccion = 'inicio' | 'pedidos' | 'precios' | 'reparto' | 'facturas';
+type Seccion = 'inicio' | 'ventas' | 'pedidos' | 'precios' | 'reparto' | 'facturas';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
-  { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
+  { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'ventas', titulo: 'Ventas', icono: 'caja' },
+  { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
   { id: 'precios', titulo: 'Precios', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
   { id: 'facturas', titulo: 'Facturas', icono: 'documento' },
 ];
@@ -61,7 +64,10 @@ export function Proveedor() {
   return (
     <Marco secciones={secciones} activa={seccion} negocio={yo.proveedor} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
       {error && <p className="bm-error">{error}</p>}
-      {seccion === 'inicio' && <InicioProveedor {...props} yo={yo} lic={lic} config={config} comprador={comprador} irA={s => { location.hash = s; }} />}
+      {seccion === 'inicio' && (
+        <Inicio foto={foto} negocio={yo.proveedor} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="vender" />
+      )}
+      {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
       {seccion === 'pedidos' && <Pedidos yo={yo} config={config} comprador={comprador} />}
       {seccion === 'precios' && (
         <>

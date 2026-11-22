@@ -1,5 +1,5 @@
 // Pedidos del proveedor (DESIGN.md, Paper "P2c"): cuántos hay en cada estado y la lista, el más nuevo primero.
-// Las acciones (confirmar, facturar, nota de crédito) viven en Inicio; aquí se lee el estado de cada uno.
+// Las acciones (confirmar, facturar, nota de crédito) viven en Ventas; aquí se lee el estado de cada uno.
 
 import { useState } from 'react';
 import { dinero } from '../../../shared/formato.ts';
@@ -9,7 +9,7 @@ import { useAhora } from '../red/useRed.ts';
 import type { Negocio } from '../red/tipos.ts';
 import { Monograma } from '../canal/iconos.tsx';
 import type { ConfigRed, YoProveedor } from '../canal/tipos.ts';
-import { detalleDe } from './Inicio.tsx';
+import { detalleDe } from './Ventas.tsx';
 import { contarPorGrupo, ESTADO_PEDIDO, grupoDe, GRUPOS_PEDIDO, type GrupoPedido } from './pedidos.ts';
 
 export function Pedidos({ yo, config, comprador }: { yo: YoProveedor; config: ConfigRed | null; comprador: (id: string) => Negocio | undefined }) {
@@ -25,7 +25,7 @@ export function Pedidos({ yo, config, comprador }: { yo: YoProveedor; config: Co
       <header className="bm-cabecera">
         <div>
           <h1 className="bm-titulo">Pedidos</h1>
-          <p className="bm-bajada">Confirmas en Inicio. Cobras apenas el local confirma la recepción.</p>
+          <p className="bm-bajada">Confirmas en Ventas. Cobras apenas el local confirma la recepción.</p>
         </div>
       </header>
 

@@ -19,6 +19,13 @@ export interface ItemPedido {
   cantidad: number;
 }
 
+/** Un producto que el proveedor suma a la compra en grupo: el precio es el de comprar solo (primer tramo). */
+export interface ProductoNuevo {
+  nombre: string;
+  unidad: string;
+  precio: number;
+}
+
 export interface CanalApi {
   modo: Modo;
   config(): Promise<ConfigRed>;
@@ -43,6 +50,10 @@ export interface CanalApi {
   yoProveedor(token: string): Promise<YoProveedor>;
   cerrar(token: string, licitacionId: string): Promise<void>;
   facturar(token: string, licitacionId: string): Promise<void>;
+  /** Abre una compra en grupo nueva con su primer producto, si no hay otra abierta; cierra en `minutos`. */
+  abrirCompra(token: string, producto: ProductoNuevo & { minutos: number }): Promise<void>;
+  /** Suma un producto suyo a la compra en grupo abierta; sus tramos salen automáticos del precio. */
+  sumarProducto(token: string, licitacionId: string, producto: ProductoNuevo): Promise<void>;
   /** Sus tramos por volumen de un producto de la compra abierta (solo el dueño del producto). */
   fijarTramos(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
   confirmarOrden(token: string, ordenId: string): Promise<void>;
@@ -156,6 +167,10 @@ export function crearApiReal(): CanalApi {
     yoProveedor: async token => normalizarYoProveedor(await llamar('/proveedor/yo', { token })),
     cerrar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },
+    abrirCompra: async (token, producto) => { await llamar('/proveedor/compras', { token, cuerpo: producto }); },
+    sumarProducto: async (token, id, producto) => {
+      await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos`, { token, cuerpo: producto });
+    },
     fijarTramos: async (token, id, productoId, tramos) => {
       await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/tramos`, { token, cuerpo: { tramos }, metodo: 'PUT' });
     },

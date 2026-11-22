@@ -4,9 +4,9 @@ import { buscarEnApp, type FuentesBusqueda } from '../client/src/comprador/busqu
 
 const FUENTES: FuentesBusqueda = {
   productos: [{ id: 'rollos', nombre: 'Caja de rollos térmicos 80 mm' }, { id: 'guantes', nombre: 'Guantes de nitrilo' }],
-  ordenes: [{ id: 'o1', proveedorId: 'p1', items: [{ producto: 'Harina 25 kg' }] }],
+  ordenes: [{ id: 'o1', proveedorId: 'p1', compradorId: 'c1', items: [{ producto: 'Harina 25 kg' }] }],
   documentos: [{ tipo: 33, folio: 5190, ordenId: 'o1' }, { tipo: 61, folio: null, ordenId: 'o1' }],
-  negocios: [{ id: 'p1', nombre: 'Molinos del Sur' }],
+  negocios: [{ id: 'p1', nombre: 'Molinos del Sur' }, { id: 'c1', nombre: 'Panadería El Trigal' }],
   secciones: [{ id: 'credito', titulo: 'Crédito' }, { id: 'facturas', titulo: 'Facturas' }],
 };
 
@@ -21,4 +21,10 @@ test('todas las palabras tienen que aparecer, y con menos de 2 letras no busca',
   assert.deepEqual(buscarEnApp('rollos 80', FUENTES).map(r => r.href), ['#compra/rollos']);
   assert.deepEqual(buscarEnApp('rollos nitrilo', FUENTES), []);
   assert.deepEqual(buscarEnApp('g', FUENTES), []);
+});
+
+test('desde el panel del proveedor, los pedidos se buscan por el comprador y la compra en grupo lleva a /app', () => {
+  const vendiendo = { ...FUENTES, contraparte: 'compradorId' as const, rutaCompra: '/app#compra' };
+  assert.deepEqual(buscarEnApp('trigal', vendiendo).map(r => [r.tipo, r.detalle]), [['pedido', 'Panadería El Trigal']]);
+  assert.deepEqual(buscarEnApp('termicos', vendiendo).map(r => r.href), ['/app#compra/rollos']);
 });

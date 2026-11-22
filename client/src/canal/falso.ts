@@ -3,12 +3,12 @@
 // Simula a la contraparte: el proveedor confirma y factura solo, y emite la nota de crédito tras un reclamo.
 
 import type { Documento, EventoRed, Negocio, Participante, ProductoCompra, TipoDocumento, TipoEventoRed } from '../red/tipos.ts';
-import { ErrorCanal, type CanalApi } from './api.ts';
+import { ErrorCanal, type CanalApi, type ProductoNuevo } from './api.ts';
 import { crearConexionSiiFalsa } from './sii-falso.ts';
 import { CANASTA_DEMO } from '../../../shared/canasta-demo.ts';
 import { armarCatalogo, historialDeEjemplo, lineasDeEjemplo, resumenDeFacturas, type CatalogoProveedor } from '../../../shared/catalogo.ts';
-import { pluralDe } from '../../../shared/texto.ts';
-import { duenoDeTramos, errorDeTramos, ordenarTramos, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
+import { pluralDe, sinTildes } from '../../../shared/texto.ts';
+import { duenoDeTramos, errorDeTramos, ordenarTramos, totalesDeCanasta, totalOrden, tramosAutomaticos, type Tramo } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
 import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
@@ -268,6 +268,26 @@ export function crearApiFalsa(): CanalApi {
     licitaciones: red.licitaciones.map(conDerivados),
   });
 
+  /** Valida lo que escribió el proveedor: el id, el nombre, la unidad y los tramos automáticos desde su precio. */
+  const productoEscrito = ({ nombre, unidad, precio }: ProductoNuevo): [string, string, string, Tramo[]] => {
+    exigir(nombre.trim().length >= 3 && !!unidad.trim(), 'El producto necesita nombre y unidad de venta.');
+    exigir(Number.isInteger(precio) && precio > 0, 'El precio debe ser un entero positivo, en pesos.');
+    return [sinTildes(nombre).replace(/\W+/g, '-'), nombre.trim(), unidad.trim().toLowerCase(), tramosAutomaticos(precio)];
+  };
+
+  /** Un producto del proveedor a la compra abierta: del catálogo o escrito a mano (como "vendo ..." por WhatsApp). */
+  const sumarALaCanasta = async (token: string, id: string, nombre: string, unidad: string, tramos: Tramo[]) => {
+    await espera(500);
+    const proveedor = quien(token);
+    const lic = red.licitaciones.find(l => l.estado === 'abierta');
+    if (!lic?.productos) throw new ErrorCanal('No hay una compra conjunta abierta.');
+    exigir(!lic.productos.some(x => sinTildes(x.nombre) === sinTildes(nombre)), `"${nombre}" ya está en la canasta.`);
+    lic.productos.push({
+      id, nombre, unidad, unidadPlural: pluralDe(unidad), precioSolo: tramos[0].precioUnitario, tramos, ofertas: [], proveedorId: proveedor.id,
+    });
+    avisar('licitacion.producto', { licitacionId: lic.id });
+  };
+
   return {
     ...crearConexionSiiFalsa(token => { quien(token); }),
     modo: 'falso',
@@ -495,17 +515,28 @@ export function crearApiFalsa(): CanalApi {
     },
 
     async sumarDelCatalogo(token, clave) {
+      const p = catalogoDeEjemplo().productos.find(x => x.clave === clave);
+      if (!p) throw new ErrorCanal('Ese producto no está en tu catálogo.');
+      await sumarALaCanasta(token, clave, p.nombre, p.unidad, p.tramos);
+    },
+
+    async sumarProducto(token, _licitacionId, producto) {
+      await sumarALaCanasta(token, ...productoEscrito(producto));
+    },
+
+    async abrirCompra(token, { minutos, ...producto }) {
       await espera(500);
       const proveedor = quien(token);
-      const p = catalogoDeEjemplo().productos.find(x => x.clave === clave);
-      const lic = red.licitaciones.find(l => l.estado === 'abierta');
-      if (!p || !lic?.productos) throw new ErrorCanal('No hay una compra conjunta abierta.');
-      exigir(!lic.productos.some(x => x.nombre === p.nombre), `"${p.nombre}" ya está en la canasta.`);
-      lic.productos.push({
-        id: clave, nombre: p.nombre, unidad: p.unidad, unidadPlural: pluralDe(p.unidad), precioSolo: p.tramos[0].precioUnitario,
-        tramos: p.tramos, ofertas: [], proveedorId: proveedor.id,
-      });
-      avisar('licitacion.producto', { licitacionId: lic.id });
+      exigir(!red.licitaciones.some(l => l.estado === 'abierta'), 'Ya hay una compra en grupo abierta: suma tu producto a ella.');
+      const [id, nombre, unidad, tramos] = productoEscrito(producto);
+      const p = { id, nombre, unidad, unidadPlural: pluralDe(unidad), precioSolo: tramos[0].precioUnitario, tramos, ofertas: [], proveedorId: proveedor.id };
+      const lic = {
+        id: `L-${red.licitaciones.length + 1}`, productos: [p], producto: nombre, unidad, unidadPlural: p.unidadPlural, comuna: proveedor.comuna,
+        cierraEn: new Date(Date.now() + minutos * 60_000).toISOString(), precioSolo: p.precioSolo, proveedorId: proveedor.id,
+        tramos, participantes: [], ofertas: [], estado: 'abierta' as const,
+      };
+      red.licitaciones.push(lic);
+      avisar('licitacion.abierta', { licitacionId: lic.id });
     },
 
     escuchar(alCambiar) {

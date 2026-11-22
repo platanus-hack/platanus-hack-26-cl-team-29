@@ -47,6 +47,7 @@ export interface OpcionesProveedores {
 export type PropuestaProveedor = { readonly mensaje: string } & (
   | { readonly tipo: 'ofertar'; readonly licitacionId: string; readonly productoId: string; readonly precio: number }
   | { readonly tipo: 'crear_producto'; readonly licitacionId: string; readonly nombre: string; readonly unidad: string; readonly precio: number }
+  | { readonly tipo: 'abrir_compra'; readonly nombre: string; readonly unidad: string; readonly precio: number }
 );
 
 export interface Proveedores {
@@ -184,12 +185,18 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
 
   async function proponerProducto(_proveedor: Negocio, nombre: string, unidad: string, precio: number): Promise<PropuestaProveedor | string> {
     const l = await abierta();
-    if (!l) return m.SIN_COMPRA_ABIERTA;
+    // Sin compra abierta, el producto abre una nueva (si la red sabe abrirla).
+    if (!l) return red.abrirCompra ? { tipo: 'abrir_compra', nombre, unidad, precio, mensaje: m.proponerAbrirCompra(nombre, unidad, tramosAutomaticos(precio)) } : m.SIN_COMPRA_ABIERTA;
     if (productosDe(l).some(p => normalizar(p.nombre) === normalizar(nombre))) return m.productoYaExiste(nombre);
     return { tipo: 'crear_producto', licitacionId: l.id, nombre, unidad, precio, mensaje: m.proponerProducto(nombre, unidad, tramosAutomaticos(precio)) };
   }
 
   async function ejecutar(proveedor: Negocio, p: PropuestaProveedor): Promise<string> {
+    if (p.tipo === 'abrir_compra') {
+      const l = await red.abrirCompra!({ proveedorId: proveedor.id, nombre: p.nombre, unidad: p.unidad, precio: p.precio });
+      o.log.info(`[proveedor] ${proveedor.id} abrió la compra ${l.id}`);
+      return m.compraAbierta(productosDe(l)[0]!, l.cierraEn);
+    }
     if (p.tipo === 'crear_producto') {
       const { producto } = await red.crearProducto(p.licitacionId, { proveedorId: proveedor.id, nombre: p.nombre, unidad: p.unidad, precio: p.precio });
       o.log.info(`[proveedor] ${proveedor.id} sumó ${producto.id} a ${p.licitacionId}`);
