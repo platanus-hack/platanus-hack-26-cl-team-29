@@ -87,8 +87,10 @@
 .red-bando .paso.hecho { border-color: var(--carril); }
 .red-bando .paso.ultimo { border: 2px solid var(--carril); box-shadow: none; background: color-mix(in srgb, var(--carril) 10%, var(--color-background)); }
 .red-bando .paso.sii.hecho, .red-bando .paso.sii.ultimo { background: color-mix(in srgb, var(--bando-sii) 12%, var(--color-background)); }
+.red-bando .paso.sii.hecho, .red-bando .paso.sii.ultimo { color: var(--color-foreground); }
 .red-bando .paso.sii.hecho p, .red-bando .paso.sii.ultimo p { color: var(--color-muted-foreground); }
 .red-bando .paso.sii .num { color: var(--color-faint-fg); }
+.red-bando .paso.sii:is(.hecho, .ultimo) .num { color: var(--color-muted-foreground); }
 
 /* ---------- Feed "Pasando ahora" ---------- */
 @keyframes destello-miel { from { background: var(--bando-miel-50); } to { background: transparent; } }
@@ -122,6 +124,8 @@
 .bando-ui .mini-lic .numero-grande { color: var(--color-foreground); font-size: clamp(40px, 6.2vh, 72px); letter-spacing: -1.5px; }
 .bando-ui .mini-lic-ahorro { margin-top: 0.6vh; font-size: var(--t-cuerpo); font-weight: 600; color: var(--bando-oliva-texto); }
 .bando-ui .mini-lic p:last-child { color: var(--color-muted-foreground); }
+.bando-ui .mini-lic :is(.etiqueta, .tenue) { color: var(--color-muted-foreground); }
+.bando-ui .mini-lic .etiqueta .magenta { color: var(--color-foreground); }
 
 @media (max-width: 640px) {
   .bando-ui .red-cabecera { padding-right: 0; }

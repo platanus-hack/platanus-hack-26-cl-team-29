@@ -145,6 +145,15 @@ sistema; el botón sol/luna (`<BotonTema />`, en el marco y en la entrada) lo fi
 - El logo va con `<Logo />` (`fondo="tema"`): cambia solo a la versión sobre oscuro.
 - Ilustraciones, abejas e íconos de flujo llevan la clase `ilustracion`. **Nunca van sobre un fondo, baldosa ni cuadro**,
   en ningún modo: en oscuro llevan solo un contorno crema de medio píxel para que el trazo negro se lea.
+- **Fondo y texto no se cruzan.** `--color-muted` y `--color-secondary` son fondos; `--color-foreground`,
+  `--color-muted-foreground` y `--color-faint-fg` son textos. Un texto sobre un bloque de color lleva el color de texto
+  que le corresponde a ese bloque, nunca el del bloque. Los estados (`--color-destructive`, `--color-info`) ya tienen
+  el tono que se lee como texto en cada modo.
+- **Contraste medido, no a ojo:** `npm run contraste` imprime una función para el navegador (consola, o `evaluate` del
+  MCP de Playwright o de Claude in Chrome) que mide cada texto visible de la pantalla abierta en claro y en oscuro y
+  lista lo que no llega a 4,5:1 (3:1 si es grande). Se corre en cada vista y estado que se cambia (menú abierto,
+  modal, hover, error) antes de mergear; la meta es cero hallazgos. Lo atenuado a propósito (pasos pendientes de
+  `/red`, botones deshabilitados) queda fuera.
 
 ## Tipografía
 

@@ -11,7 +11,8 @@
     "start": "node server/index.ts",
     "test": "node --test",
     "duplicados": "jscpd",
-    "marca": "node scripts/revisar-marca.ts"
+    "marca": "node scripts/revisar-marca.ts",
+    "contraste": "node scripts/contraste.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1",

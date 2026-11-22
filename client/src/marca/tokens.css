@@ -84,8 +84,8 @@
   /* Estados */
   --color-success: #21C45D;
   --color-warning: #FBBD23;
-  --color-destructive: #EF4343;
-  --color-info: #2563EB;           /* "en camino": un estado que avanza solo, sin acción pendiente */
+  --color-destructive: #C62828;    /* error y reclamo: se usa como texto, 5,6:1 sobre blanco */
+  --color-info: #1D4ED8;           /* "en camino": un estado que avanza solo, sin acción pendiente (6,7:1) */
 
   /* Tipografía */
   --font-sans: "Inter", system-ui, sans-serif;
