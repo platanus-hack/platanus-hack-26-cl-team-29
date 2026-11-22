@@ -86,10 +86,28 @@ export const proponerSumarse = (p: ProductoCompra, cantidad: number, cierraEn: s
   + `Cierra a las ${horaEnChile(Date.parse(cierraEn))}. ¿Te sumo con ${contar(cantidad, p.unidad, p.unidadPlural)}?\n` + opciones('Sí, súmame', 'No');
 export const sumadoAOtraCompra = (producto: string, total: number) =>
   `Listo, vas con ${total} en la compra en grupo de "${producto}". Mientras más negocios se suman, más baja el precio.`;
-export const proponerSolicitud = (producto: string, cantidad: number) =>
-  `Ningún proveedor de la red tiene precio fijo para "${producto}". ¿Abro una compra en grupo con tus ${cantidad}? `
-  + 'Otros negocios se suman, los proveedores ofertan y gana el mejor precio para todo el grupo. Cierra en 24 horas.\n'
+/** Ofrece abrir una compra en grupo; con `hoy` (lo que dan las listas), cuántos lo venden y a cuánto sale su cantidad. */
+export const proponerSolicitud = (producto: string, cantidad: number, unidad: string, hoy?: { proveedores: number; precio: number }) =>
+  (hoy
+    ? `"${producto}": ${contar(hoy.proveedores, 'proveedor', 'proveedores')} ${segun(hoy.proveedores, 'lo vende', 'lo venden')} en Bando. `
+      + `Con tus ${miles(cantidad)}, hoy sale a ${dinero(hoy.precio)} por ${unidad}. ¿Abro una compra en grupo? `
+      + 'Si se suman otros negocios, el precio puede bajar para todos. Cierra en 24 horas.\n'
+    : `¿Abro una compra en grupo de "${producto}" con tus ${miles(cantidad)}? `
+      + 'Otros negocios se suman, los proveedores ofertan y gana el mejor precio para todo el grupo. Cierra en 24 horas.\n')
   + opciones('Sí, ábrela', 'No');
+export const SIN_COMPRA_PARA_CERRAR = 'No tienes compras en grupo abiertas iniciadas por ti. Solo quien inicia una compra en grupo la puede cerrar antes.';
+export const cualCerrar = (productos: readonly string[]) =>
+  `Tienes ${contar(productos.length, 'compra en grupo abierta', 'compras en grupo abiertas')}: ${productos.map(p => `"${p}"`).join(', ')}. `
+  + `Escribe, por ejemplo, "cerrar compra de ${productos[0]}".`;
+export const todaviaNoSeCierra = (producto: string, minimo?: number, unidades?: number) =>
+  minimo && unidades !== undefined && unidades < minimo
+    ? `Todavía no puedes cerrar "${producto}": el proveedor que gana pide un mínimo de ${miles(minimo)} y van ${miles(unidades)}.`
+    : `Todavía no puedes cerrar "${producto}": ningún proveedor ha ofertado aún.`;
+export const proponerCierre = (producto: string, negocios: number, unidades: number, precio: number, unidad: string) =>
+  `¿Cierro ahora la compra en grupo de "${producto}"? Van ${contar(negocios, 'negocio')} con ${miles(unidades)} en total, `
+  + `a ${dinero(precio)} por ${unidad}. El proveedor que gana recibe los pedidos.\n` + opciones('Sí, ciérrala', 'No');
+export const compraCerradaAntes = (producto: string, pedidos: number) =>
+  `Listo, cerraste la compra en grupo de "${producto}". El proveedor recibió ${contar(pedidos, 'pedido')} para confirmar y facturar.`;
 export const solicitudAbierta = (producto: string, cantidad: number, cierraEn: string) =>
   `Listo, abriste una compra en grupo de "${producto}" con tus ${cantidad}. Cierra mañana a las ${horaEnChile(Date.parse(cierraEn))}. `
   + 'Les avisamos a los negocios de la red para que se sumen.';
@@ -171,7 +189,8 @@ export function unidadDe(p: Pick<ProductoCompra, 'unidad' | 'unidadPlural'>, n: 
 }
 
 /** "la caja" / "el rollo": la gente escribe en femenino o masculino según la unidad. */
-const articulo = (p: Pick<ProductoCompra, 'unidad'>) => (/a$/i.test(p.unidad) ? 'la' : 'el');
+/** "la caja", "la unidad", "el rollo". */
+const articulo = (p: Pick<ProductoCompra, 'unidad'>) => (/(a|d)$/i.test(p.unidad) ? 'la' : 'el');
 
 /** "4 cajas de rollos" */
 export const itemTexto = (p: ProductoCompra, cantidad: number) => `${cantidad} ${unidadDe(p, cantidad)} de ${cortoDe(p)}`;
@@ -319,7 +338,9 @@ export function bajoPrecio(bajas: readonly BajaDePrecio[], negocios: number): st
   const ya = `Ya son ${contar(negocios, 'negocio')}.`;
   const cosa = (b: BajaDePrecio) => `${articulo(b.producto)} ${b.producto.unidad} de ${cortoDe(b.producto)}`;
   const porOferta = bajas.filter(b => b.ofertas.length > 0).map(b => {
-    const porque = b.ofertas.map((o, k) => `${o.proveedorNombre} ${k === 0 ? 'ofertó' : 'respondió'} ${dinero(o.precioUnitario)}.`).join(' ');
+    // Con tramos, el precio base de la oferta no es el del grupo: entonces se dice quién ofertó, sin su precio base.
+    const conPrecio = b.ofertas.at(-1)!.precioUnitario === b.precio;
+    const porque = b.ofertas.map((o, k) => `${o.proveedorNombre} ${k === 0 ? 'ofertó' : 'respondió'}${conPrecio ? ` ${dinero(o.precioUnitario)}` : ''}.`).join(' ');
     return `${porque} ${mayuscula(cosa(b))} ya va en ${dinero(b.precio)}.`;
   });
   const porTramo = bajas.filter(b => b.ofertas.length === 0);

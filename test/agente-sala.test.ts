@@ -592,3 +592,10 @@ test('el registro a medias sobrevive a un reinicio del servidor', async t => {
   await despues.escribir(tel, 'Av. Grecia 1234, Ñuñoa');
   assert.match(despues.ultimo(tel), /^Listo, quedaste registrado ✓ Tu factura sale a nombre de Negocio Correcto SpA/);
 });
+
+test('baja por una oferta con tramos: dice quién ofertó sin su precio base, y "la unidad"', async () => {
+  const { bajoPrecio } = await import('../server/agente/mensajes.ts');
+  const p = { id: 'coca', nombre: 'CocaCola 330ml', unidad: 'unidad', unidadPlural: 'unidades', precioActual: 850, precioSolo: 1000 } as never;
+  assert.equal(bajoPrecio([{ producto: p, precio: 850, ofertas: [{ proveedorNombre: 'Cecilia bistro', precioUnitario: 950 }] }], 1),
+    'Cecilia bistro ofertó. La unidad de cocacola ya va en $850.');
+});

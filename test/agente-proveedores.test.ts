@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';
-import { conectarAgente } from '../server/agente/index.ts';
+import { conectarAgente, type OpcionesAgente } from '../server/agente/index.ts';
 import type { ListaDeProductos } from '../server/agente/proveedor.ts';
 import { sugerirProductos, type ProductoConocido } from '../shared/productos.ts';
 import { interpretarConReglas, interpreteDeReglas } from '../server/agente/intencion.ts';
@@ -16,7 +16,7 @@ const ANA = '56911110001';
 const BETO = '56911110002';
 const CARO = '56911110003';
 
-async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos, biblioteca?: { buscar(q: string): ProductoConocido[] }) {
+async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos, biblioteca?: OpcionesAgente['biblioteca']) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), {});
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
@@ -160,12 +160,12 @@ test('por WhatsApp: sin compra abierta, "vendo ..." agrega el producto a su list
   assert.deepEqual(lista.map(p => [p.nombre, p.unidad, p.tramos[0].precioUnitario]), [['Etiquetas adhesivas', 'rollo', 2000]]);
 });
 
-test('por WhatsApp: un comprador pide algo que nadie vende a precio fijo y abre una compra en grupo', async t => {
+test('por WhatsApp: un comprador abre una compra en grupo de algo nuevo', async t => {
   const { red, agente, escribir, ultimo } = await montar();
   t.after(() => agente.desconectar());
   await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
   await escribir(CARO, 'quiero comprar 10 servilletas de papel');
-  assert.match(ultimo(CARO), /Ningún proveedor de la red tiene precio fijo para "Servilletas de papel"\. ¿Abro una compra en grupo con tus 10\?/);
+  assert.match(ultimo(CARO), /¿Abro una compra en grupo de "Servilletas de papel" con tus 10\?/);
   await escribir(CARO, 'si');
   assert.match(ultimo(CARO), /abriste una compra en grupo de "Servilletas de papel" con tus 10/);
   const abierta = red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta' && l.producto === 'Servilletas de papel')!;
@@ -179,14 +179,17 @@ test('por WhatsApp: un comprador pide algo que nadie vende a precio fijo y abre 
 
 test('por WhatsApp: "cocacola" sugiere los productos parecidos de la biblioteca o crear uno nuevo', async t => {
   const conocidos: ProductoConocido[] = [{ nombre: 'Coca-Cola 3 lts', unidad: 'botella' }, { nombre: 'Coca Cola lata 330 ml', unidad: 'unidad' }];
-  const { red, agente, escribir, ultimo } = await montar({}, undefined, { buscar: q => sugerirProductos(q, conocidos) });
+  // Un proveedor vende la de 3 lts a $3.000, y a $2.500 desde 10: con 12 sale a $2.500.
+  const cotizar = (nombre: string, _u: string, cantidad: number) => (nombre === 'Coca-Cola 3 lts' ? { proveedores: 1, precio: cantidad >= 10 ? 2500 : 3000 } : undefined);
+  const { red, agente, escribir, ultimo } = await montar({}, undefined, { buscar: q => sugerirProductos(q, conocidos), cotizar });
   t.after(() => agente.desconectar());
   await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
 
   await escribir(CARO, 'quiero comprar 12 cocacola');
   assert.match(ultimo(CARO), /parecidos a "cocacola"\. ¿Cuál es\?\n1\. Coca-Cola 3 lts \(por botella\)\n2\. Coca Cola lata 330 ml \(por unidad\)$/);
   await escribir(CARO, '1');
-  assert.match(ultimo(CARO), /¿Abro una compra en grupo con tus 12\?/);
+  assert.match(ultimo(CARO), /"Coca-Cola 3 lts": 1 proveedor lo vende en Bando\. Con tus 12, hoy sale a \$2\.500 por botella\. ¿Abro una compra en grupo\?/);
+  assert.doesNotMatch(ultimo(CARO), /Ningún proveedor/);
   await escribir(CARO, 'si');
   const abierta = red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta' && l.producto === 'Coca-Cola 3 lts')!;
   assert.deepEqual([abierta.unidad, abierta.totalUnidades], ['botella', 12]);
@@ -229,4 +232,27 @@ test('por WhatsApp: "vendo ..." va a la lista del proveedor aunque haya una comp
   await escribir(ANA, 'si');
   assert.ok(!red.licitacionAbierta()!.productos.some(p => /heineken/i.test(p.nombre)), 'no entra a la compra de la sala');
   assert.deepEqual(catalogos.listas()[0]?.productos.map(p => [p.nombre, p.unidad]), [['Cerveza heineken 330 ml', 'lata']]);
+});
+
+test('por WhatsApp: quien abrió una compra en grupo la cierra antes con "cerrar la compra", si ya hay oferta', async t => {
+  const { red, agente, escribir, ultimo } = await montar();
+  t.after(() => agente.desconectar());
+  const caro = await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+  await red.registrarComprador({ nombre: 'Beto', comuna: 'Ñuñoa', telefono: BETO, rut: '11.111.111-1' });
+  await red.cerrarLicitacion(red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta')!.id);
+  const l = await red.abrirSolicitud({ compradorId: caro.id, producto: 'Servilletas de papel', unidad: 'paquete', cantidad: 10 });
+
+  await escribir(BETO, 'cerrar la compra');
+  assert.match(ultimo(BETO), /Solo quien inicia una compra en grupo la puede cerrar antes/);
+
+  await escribir(CARO, 'cerrar la compra');
+  assert.match(ultimo(CARO), /Todavía no puedes cerrar "Servilletas de papel": ningún proveedor ha ofertado aún/);
+
+  const ana = await red.registrarProveedor({ telefono: ANA, rut: '76.086.428-5' });
+  await red.ofertar(l.id, { proveedorId: ana.id, productoId: l.productos[0]!.id, precioUnitario: 900, plazoDias: 1 });
+  await escribir(CARO, 'cierra la compra en grupo ya');
+  assert.match(ultimo(CARO), /¿Cierro ahora la compra en grupo de "Servilletas de papel"\? Van 1 negocio con 10 en total, a \$900 por paquete/);
+  await escribir(CARO, 'si');
+  assert.match(ultimo(CARO), /Listo, cerraste la compra en grupo de "Servilletas de papel"\. El proveedor recibió 1 pedido/);
+  assert.equal(red.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.estado, 'cerrada');
 });
