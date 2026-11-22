@@ -21,7 +21,12 @@ La lista de precios de un proveedor oferta sola en una compra en grupo solo si e
 
 ## Consecuencias
 - Sin `TYPESAFE_API_KEY` todo sigue igual que antes (solo regla exacta). Va en Render como variable de entorno.
-- Por ahora solo en las ofertas automáticas de las listas (`server/catalogo/ofertas.ts`). Pendientes, mismo
-  `Equivalencias.mismo`: compra repetida al abrir (`server/red/dominio.ts`) y precio de referencia
-  (`server/catalogo/index.ts`).
+- Una sola instancia en \`server/index.ts\`, usada en:
+  - ofertas automáticas de las listas (\`server/catalogo/ofertas.ts\`);
+  - abrir una compra (\`server/red/dominio.ts\`, opciones \`aprenderProducto\` y \`mismoProducto\`): antes de abrir se
+    compara lo escrito con las listas y las compras abiertas; si ya hay una del mismo producto, "súmate a ella";
+  - precio de referencia y "ningún proveedor lo vende" (\`catalogos.referencia\`, opción \`mismo\`);
+  - agente de WhatsApp: "quiero coca cola 3 litros" propone sumarse a la compra abierta de "Coca-Cola 3 L".
+- Fuera a propósito: el autocompletado (una llamada por tecla no aporta: ya busca por palabras) y la agrupación de
+  líneas de facturas del catálogo (\`shared/catalogo.ts\`, función pura y sin red).
 - No compara unidades distintas (caja de 12 contra unidad): eso es conversión de unidades, aparte.

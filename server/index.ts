@@ -37,9 +37,13 @@ let antesDeEntrar: (n: Negocio) => void | Promise<void> = () => {};
 let precioDeReferencia: NonNullable<OpcionesRed['precioDeReferencia']> = () => undefined;
 // Solo se compra en grupo lo que algún proveedor vende (está en su lista).
 let existeProducto: NonNullable<OpcionesRed['existeProducto']> = () => true;
+// Mismo producto escrito distinto (Jev con TYPESAFE_API_KEY; sin ella, solo el nombre exacto). Una sola instancia para todo el servidor.
+const equivalencias = crearEquivalenciasDesdeEnv(process.env);
+let aprenderProducto: NonNullable<OpcionesRed['aprenderProducto']> = async () => {};
 // SII_CONSULTA_RUT=falsa: la consulta de RUT de prueba (pruebas de carga sin consultar al SII de verdad).
 const consultarContribuyente = process.env.SII_CONSULTA_RUT === 'falsa' ? undefined : conexionSii.consultarContribuyente;
-export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u), existeProducto: (p, u) => existeProducto(p, u) });
+export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u), existeProducto: (p, u) => existeProducto(p, u),
+  aprenderProducto: (p, u) => aprenderProducto(p, u), mismoProducto: equivalencias.mismo });
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 // Una factura y una guía de despacho por negocio de la compra abierta: los folios se reponen mientras la gente se suma.
@@ -64,13 +68,13 @@ const conexionDeProveedores = {
   estado: async (rutEmpresa: string) => resumenDeConexion(await conexionSii.estadoDeProveedor(rutEmpresa)),
 };
 // Catálogo de cada proveedor (su lista y lo que sugieren sus facturas): se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
-const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
+const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento), mismo: equivalencias.mismo });
 const biblioteca = crearBiblioteca(catalogos);
 // Cada lista de precios compite sola en las compras en grupo que piden ese producto (escrito igual o, con Jev, distinto).
-conectarOfertasDeListas(red, catalogos, console, crearEquivalenciasDesdeEnv(process.env));
+conectarOfertasDeListas(red, catalogos, console, equivalencias);
 export const agente = conectarAgente(whatsapp, red, {
   interprete: crearInterpreteDesdeEnv(process.env, red, catalogos), certificados, conexionSii: conexionDeProveedores,
-  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos, biblioteca,
+  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos, biblioteca, equivalencias,
 });
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
@@ -87,6 +91,11 @@ const pagos = await iniciarPagos({
 antesDeEntrar = pagos.exigirTarjeta;
 precioDeReferencia = (p, u) => catalogos.referencia(p, u) ?? referenciaPublica(mercadoPublico.foto().ordenes, p);
 existeProducto = (p, u) => catalogos.referencia(p, u) !== undefined;
+// Lo que escribe un comprador se compara con las listas y con las compras abiertas antes de abrir otra.
+aprenderProducto = async (nombre, unidad) => equivalencias.aprender({ nombre, unidad }, [
+  ...catalogos.listas().flatMap(l => l.productos),
+  ...(await red.estadoDeLaRed()).licitaciones.filter(l => l.estado === 'abierta').flatMap(l => l.productos),
+]);
 red.escuchar(e => {
   const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
   if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });

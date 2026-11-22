@@ -74,9 +74,11 @@ export interface OpcionesCatalogos {
   /** El origen cuando nadie cargó archivos. Por defecto, el historial de ejemplo. */
   origenPorDefecto?: (proveedor: ProveedorCatalogo) => OrigenXml;
   ahora?: () => Date;
+  /** ¿Mismo producto? Por defecto el nombre exacto; el servidor le suma lo aprendido con Jev (equivalencias.ts). */
+  mismo?: typeof mismoProducto;
 }
 
-export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => origenEjemplo(p.rut), ahora = () => new Date() }: OpcionesCatalogos): Promise<Catalogos> {
+export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => origenEjemplo(p.rut), ahora = () => new Date(), mismo = mismoProducto }: OpcionesCatalogos): Promise<Catalogos> {
   const guardados = new Map<string, Guardado>();
   if (db) {
     await db.query('create table if not exists catalogo_proveedores (proveedor_id text primary key, datos jsonb not null)');
@@ -225,7 +227,7 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
     listas: () => [...guardados].filter(([, g]) => g.manuales?.length).map(([proveedorId, g]) => ({ proveedorId, productos: g.manuales! })),
     alCambiarLista: oyente => { oyentesDeListas.add(oyente); },
     referencia(nombre, unidad) {
-      const precios = [...guardados.values()].flatMap(g => g.manuales ?? []).filter(p => mismoProducto(p, { nombre, unidad })).map(p => p.tramos[0].precioUnitario);
+      const precios = [...guardados.values()].flatMap(g => g.manuales ?? []).filter(p => mismo(p, { nombre, unidad })).map(p => p.tramos[0].precioUnitario);
       return precios.length ? Math.min(...precios) : undefined;
     },
     async quitar(id, clave) {

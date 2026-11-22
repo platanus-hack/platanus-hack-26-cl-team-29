@@ -322,6 +322,10 @@ export interface OpcionesRed {
   precioDeReferencia?: (producto: string, unidad: IdUnidad) => number | undefined;
   /** Si algún proveedor vende ese producto (en su lista). Sin él, no se valida; con él, no se abren compras de lo que nadie vende. */
   existeProducto?: (producto: string, unidad: IdUnidad) => boolean;
+  /** Antes de abrir una compra: averigua si lo escrito es un producto que ya existe escrito distinto (server/catalogo/equivalencias.ts). */
+  aprenderProducto?: (producto: string, unidad: IdUnidad) => Promise<void>;
+  /** ¿Mismo producto? Por defecto `mismoProducto` (nombre exacto); el servidor le suma lo aprendido con Jev. */
+  mismoProducto?: (a: { nombre: string; unidad: string }, b: { nombre: string; unidad: string }) => boolean;
   reloj?: () => Date;
   /** Variables de la demo (proveedor, producto, tramos). Por defecto `process.env`. */
   env?: NodeJS.ProcessEnv;
@@ -383,6 +387,7 @@ function migrarLicitacion(l: Licitacion) {
 export async function crearRed({
   repo, sii, reloj = () => new Date(), env = process.env,
   consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar, precioDeReferencia, existeProducto,
+  aprenderProducto, mismoProducto: esMismo = mismoProducto,
   esperaRutMs = 6000, reintentosRutMs = [30_000, 120_000, 600_000],
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
@@ -1078,6 +1083,7 @@ export async function crearRed({
       const nombre = String(n.producto ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
       const unidad = unidadDeTexto(String(n.unidad ?? '') || 'unidad');
       if (!unidad) throw new ErrorRed('datos_invalidos', 'Elige la unidad de venta de la lista (caja, bolsa, kilo...)');
+      await aprenderProducto?.(nombre, unidad).catch(() => {});
       if (existeProducto && !existeProducto(nombre, unidad)) {
         throw new ErrorRed('datos_invalidos', `Ningún proveedor vende "${nombre}" todavía: cuando alguno lo agregue a su lista, podrás comprarlo en grupo`);
       }
@@ -1086,7 +1092,7 @@ export async function crearRed({
       if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA) throw new ErrorRed('datos_invalidos', `La cantidad va de 1 a ${CANTIDAD_MAXIMA}`);
       const hoy = Number(n.precioHoy);
       const referencia = Number.isInteger(hoy) && hoy > 0 ? hoy : precioDeReferencia?.(nombre, unidad) ?? 0;
-      const repetida = datos.licitaciones.find(x => x.estado === 'abierta' && x.productos.some(p => mismoProducto(p, { nombre, unidad })));
+      const repetida = datos.licitaciones.find(x => x.estado === 'abierta' && x.productos.some(p => esMismo(p, { nombre, unidad })));
       if (repetida) throw new ErrorRed('datos_invalidos', `Ya hay una compra en grupo abierta de "${nombre}": súmate a ella`);
       const pedidos = Number(n.minutos);
       const minutos = Number.isInteger(pedidos) && pedidos > 0 ? Math.min(pedidos, MAXIMO_MINUTOS_SOLICITUD) : MINUTOS_SOLICITUD;

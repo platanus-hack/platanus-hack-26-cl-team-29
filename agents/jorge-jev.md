@@ -8,13 +8,13 @@ libre
 - (nada)
 
 ## Archivos que estoy tocando
-- server/catalogo/equivalencias.ts, server/catalogo/ofertas.ts
+- server/catalogo/equivalencias.ts, server/catalogo/ofertas.ts; mínimo en server/red/dominio.ts, server/agente/index.ts, server/catalogo/index.ts
 
 ## Hecho
-- Mismo producto escrito distinto con Jev en las ofertas automáticas de las listas
+- Mismo producto escrito distinto con Jev: ofertas automáticas, compra repetida, precio de referencia y agente de WhatsApp
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- Dueños de server/red/dominio.ts: usar `Equivalencias.mismo` en el chequeo de compra repetida si les sirve.
+- Dueños de server/red y server/agente: toqué una línea cada uno para usar `Equivalencias` (opcional; sin ella, igual que antes).

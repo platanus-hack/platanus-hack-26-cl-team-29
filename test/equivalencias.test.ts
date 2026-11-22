@@ -69,3 +69,25 @@ test('la lista del proveedor oferta en la compra aunque el producto esté escrit
   assert.equal(ofertas.at(-1)?.productoId, 'p1');
   assert.equal(ofertas.at(-1)?.precioUnitario, 18_000);
 });
+
+test('no se abre una segunda compra del mismo producto escrito distinto: se aprende antes de abrir', async () => {
+  const { crearRed, crearRepositorioMemoria, crearSiiFalso } = await import('../server/red/index.ts');
+  const { sembrarSiVacio } = await import('../server/red/semilla.ts');
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo, new Date(), {});
+  // Jev falso: la Zero es otro producto; lo demás con "coca" es la misma Coca-Cola.
+  const eq = crearEquivalencias(async (ofertado, c) => c.map(() => (/zero/i.test(ofertado) ? 0.02 : 0.96)), silencio);
+  let abiertos: { nombre: string; unidad: string }[] = [];
+  const red = await crearRed({
+    repo, sii: crearSiiFalso(), env: {}, mismoProducto: eq.mismo,
+    aprenderProducto: (nombre, unidad) => eq.aprender({ nombre, unidad }, abiertos),
+  });
+  const telefono = (n: number) => `+56 9 4000 000${n}`;
+  const ana = (await red.registrarComprador({ nombre: 'Ana', comuna: 'Ñuñoa', telefono: telefono(1) })).id;
+  const beto = (await red.registrarComprador({ nombre: 'Beto', comuna: 'Ñuñoa', telefono: telefono(2) })).id;
+  const primera = await red.abrirSolicitud({ compradorId: ana, producto: 'Coca-Cola 3 L', unidad: 'unidad', cantidad: 6 });
+  abiertos = primera.productos;
+  await assert.rejects(red.abrirSolicitud({ compradorId: beto, producto: 'coca cola 3 litros', unidad: 'unidad', cantidad: 6 }), /súmate a ella/);
+  // Un producto distinto sí abre la suya.
+  await red.abrirSolicitud({ compradorId: beto, producto: 'Coca-Cola Zero 3 L', unidad: 'unidad', cantidad: 6 });
+});

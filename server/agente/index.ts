@@ -16,6 +16,7 @@ import { CANTIDAD_MAXIMA, puedeComprar, puedeVender } from '../../shared/red.ts'
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
 import { mejorOferta, puedeCerrarAntes } from '../../shared/precios.ts';
 import type { Biblioteca } from '../catalogo/biblioteca.ts';
+import type { Equivalencias } from '../catalogo/equivalencias.ts';
 import { itemsDe, productosDe } from './canasta.ts';
 import { crearProveedores } from './proveedor.ts';
 import type { EstadoSiiProveedor, ListaDeProductos, PropuestaProveedor, Proveedores } from './proveedor.ts';
@@ -114,6 +115,8 @@ export interface OpcionesAgente {
   readonly biblioteca?: Pick<Biblioteca, 'buscar'> & Partial<Pick<Biblioteca, 'cotizar'>>;
   /** La lista de productos de cada proveedor (server/catalogo): "vendo ..." la llena por WhatsApp. */
   readonly productos?: ListaDeProductos;
+  /** Mismo producto escrito distinto (server/catalogo/equivalencias.ts): para sumarse a la compra abierta que ya existe. */
+  readonly equivalencias?: Equivalencias;
   readonly ahora?: () => Date;
   readonly log?: Log;
   /** Tiempos y límites de la compra conjunta; por defecto los de la demo. */
@@ -354,8 +357,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   /** Si ya hay una compra en grupo abierta de ese producto, propone sumarse a ella; si no, abrir una. */
   async function proponerSolicitud(comprador: Negocio, nombre: string, unidad: string, cantidad: number): Promise<string> {
     const { licitaciones = [] } = await red.estadoDeLaRed();
-    const abierta = licitaciones.filter(l => l.estado === 'abierta' && Date.parse(l.cierraEn) > ahora().getTime())
-      .flatMap(l => productosDe(l).filter(p => mismoNombre(p.nombre, nombre)).map(p => ({ l, p })))[0];
+    const abiertas = licitaciones.filter(l => l.estado === 'abierta' && Date.parse(l.cierraEn) > ahora().getTime());
+    await opciones.equivalencias?.aprender({ nombre, unidad }, abiertas.flatMap(productosDe));
+    const esLaMisma = (p: { nombre: string; unidad: string }) => mismoNombre(p.nombre, nombre) || !!opciones.equivalencias?.mismo(p, { nombre, unidad });
+    const abierta = abiertas.flatMap(l => productosDe(l).filter(esLaMisma).map(p => ({ l, p })))[0];
     if (['crear_orden', 'abrir_solicitud', 'sumarse'].includes(actual(comprador.id)?.tipo ?? '')) tomar(comprador.id);
     if (abierta && red.agregarAlCarrito) {
       const mensaje = m.proponerSumarse(abierta.p, cantidad, abierta.l.cierraEn);
