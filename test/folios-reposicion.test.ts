@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decidirReposicion, demandaManual, esperaTrasFallo, minimoDeFolios, type Situacion } from '../shared/folios.ts';
+import { decidirReposicion, demandaManual, demandaParaTener, esperaTrasFallo, minimoDeFolios, type Situacion } from '../shared/folios.ts';
 import { crearPortalConexion, crearReposicion, GESTION_INICIAL } from '../server/conexion-sii/index.ts';
 import type { FuenteFolios, GestionFolios, PortalConexion } from '../server/conexion-sii/index.ts';
 import * as portalSii from '../server/sii-portal/index.ts';
@@ -158,4 +158,11 @@ test('anular no existe: ni el portal ni la conexión tienen cómo hacerlo', () =
   const conexion = crearPortalConexion({} as PortalSii);
   assert.ok(!Object.keys(conexion).some(k => /anul/i.test(k)));
   assert.ok(!Object.keys(portalSii).some(k => /anul/i.test(k)));
+});
+
+test('el objetivo de la operación deja exactamente esos folios libres como mínimo', () => {
+  assert.equal(minimoDeFolios(33, demandaParaTener(33, 200)), 200, 'factura: el margen de 5 no se suma dos veces');
+  assert.equal(minimoDeFolios(52, demandaParaTener(52, 200)), 200);
+  assert.equal(minimoDeFolios(61, demandaParaTener(61, 50)), 50);
+  assert.equal(minimoDeFolios(33, demandaParaTener(33, 3)), 10, 'nunca bajo el piso');
 });

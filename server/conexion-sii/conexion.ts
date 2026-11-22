@@ -14,7 +14,7 @@ import type { AlmacenConexion, CafGuardado, ConexionGuardada } from './almacen.t
 import { cifrar, descifrar, llaveDesdeEnv } from './cifrado.ts';
 import { esErrorPortal } from '../sii-portal/index.ts';
 import { siguienteEnRango, type RangoFolios } from '../red/index.ts';
-import { demandaManual } from '../../shared/folios.ts';
+import { demandaManual, demandaParaTener, OBJETIVO_MAXIMO } from '../../shared/folios.ts';
 import type { PortalConexion } from './portal.ts';
 import { buscarPrimerLibre, type RespuestaFolio } from './primer-libre.ts';
 import { crearReposicion, GESTION_INICIAL, type FuenteFolios, type Reposicion } from './reposicion.ts';
@@ -54,8 +54,11 @@ export interface ConexionSii {
   guardarEmpresa(datos: Record<string, unknown>): Promise<EstadoConexionSii>;
   subirCaf(xmlBase64: unknown): Promise<{ estado: EstadoConexionSii; avisos: string[] }>;
   fijarFolio(tipo: unknown, folio: unknown): Promise<EstadoConexionSii>;
-  /** "Traer más folios" del panel: la misma reposición automática, en segundo plano (avisa con `sii.folios`). */
-  traerFolios(tipo: unknown): Promise<EstadoConexionSii>;
+  /**
+   * "Traer más folios" del panel: la misma reposición automática, en segundo plano (avisa con `sii.folios`). Con
+   * `objetivo` (solo la operación del equipo) repone hasta tener esos folios libres, con tope OBJETIVO_MAXIMO.
+   */
+  traerFolios(tipo: unknown, objetivo?: unknown): Promise<EstadoConexionSii>;
   /** Reposición automática de folios de esta conexión (antes de facturar, después de emitir). */
   readonly folios: Reposicion;
   desconectar(): Promise<EstadoConexionSii>;
@@ -537,13 +540,18 @@ export function crearConexionSii({
       return estado();
     },
 
-    async traerFolios(tipoEntrada) {
+    async traerFolios(tipoEntrada, objetivoEntrada) {
       const tipo = Number(tipoEntrada) as TipoDocumento;
       if (!TIPOS_DOCUMENTO.includes(tipo)) throw new ErrorConexion(400, 'Tipo de documento no válido.');
       if (!(await fuente.credenciales())) throw new ErrorConexion(409, 'Primero conecta tu certificado y tu empresa.');
       const e = await reposicion.estado(tipo);
       if (e.estado === 'en_espera') throw new ErrorConexion(409, `El SII pidió esperar antes de volver a intentarlo.${e.mensajeSii ? ` El SII dice: «${e.mensajeSii}»` : ''}`);
-      void reposicion.reponer(tipo, { demanda: demandaManual(tipo, e.libres), conexion: true });
+      const objetivo = objetivoEntrada === undefined ? null : Number(objetivoEntrada);
+      if (objetivo !== null && !(Number.isInteger(objetivo) && objetivo > 0 && objetivo <= OBJETIVO_MAXIMO)) {
+        throw new ErrorConexion(400, `El objetivo de folios va de 1 a ${OBJETIVO_MAXIMO}.`);
+      }
+      const demanda = objetivo === null ? demandaManual(tipo, e.libres) : demandaParaTener(tipo, objetivo);
+      void reposicion.reponer(tipo, { demanda, conexion: true });
       return estado();
     },
 

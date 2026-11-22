@@ -43,8 +43,10 @@ export function crearRutasConexionSii(conexionDe: ConexionSii | ((res: Response)
   });
 
   // "Traer más folios": la misma reposición automática (reobtener primero, pedir solo lo que falta, nunca anular).
+  // Con la ruta de operación del equipo (res.locals.operacion) se puede fijar `objetivo`: los folios libres a tener.
   rutas.post('/folios/:tipo', async (req, res) => {
-    res.json(await (await conexion(res)).traerFolios(req.params.tipo));
+    const objetivo = res.locals.operacion ? cuerpo(req).objetivo : undefined;
+    res.json(await (await conexion(res)).traerFolios(req.params.tipo, objetivo));
   });
 
   rutas.post('/certificado', async (req, res) => {

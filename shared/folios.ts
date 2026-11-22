@@ -36,6 +36,13 @@ export const minimoDeFolios = (tipo: TipoDocumento, demanda: number): number =>
 export const demandaManual = (tipo: TipoDocumento, libres: number): number =>
   libres + POLITICA_FOLIOS[tipo].piso - POLITICA_FOLIOS[tipo].margen;
 
+/** Tope de folios libres que la operación del equipo puede pedir tener de una vez (el SII igual aplica su MAX_AUTOR). */
+export const OBJETIVO_MAXIMO = 300;
+
+/** Demanda con que la reposición termina con `objetivo` folios libres (minimoDeFolios suma el margen del tipo). */
+export const demandaParaTener = (tipo: TipoDocumento, objetivo: number): number =>
+  Math.max(0, objetivo - POLITICA_FOLIOS[tipo].margen);
+
 export interface Situacion {
   tipo: TipoDocumento;
   /** Folios libres hoy en los CAF guardados. */
