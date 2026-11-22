@@ -177,3 +177,36 @@ test('el carrito y las acciones del proveedor tienen tope por sesión, y un nego
 
 const pedirPut = async (s: Awaited<ReturnType<typeof servidor>>, ruta: string, body: unknown, token: string) =>
   fetch(s.url + ruta, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+
+test('el proveedor suma un producto a la compra en grupo desde la web, con tramos que salen del precio', async () => {
+  const s = await servidor();
+  try {
+    const prov = await entrarAlPanel(s);
+    const r = await s.post('/proveedor/licitacion/L-1/productos', { nombre: 'Café molido 1 kg', unidad: 'Bolsa', precio: 12000 }, prov);
+    assert.equal(r.status, 201);
+    assert.deepEqual([r.cuerpo.producto.nombre, r.cuerpo.producto.unidad, r.cuerpo.producto.tramos[0].precioUnitario], ['Café molido 1 kg', 'bolsa', 12000]);
+    assert.equal((await s.post('/proveedor/licitacion/L-1/productos', { nombre: 'cafe molido 1 kg', unidad: 'bolsa', precio: 11000 }, prov)).status, 400);
+    const ana = await entrar(s, 'Ana');
+    assert.equal((await s.post('/proveedor/licitacion/L-1/productos', { nombre: 'Té verde', unidad: 'caja', precio: 5000 }, ana)).status, 403);
+  } finally {
+    s.server.close();
+  }
+});
+
+test('sin compra abierta, el proveedor abre una nueva desde la web con su producto y su duración', async () => {
+  const s = await servidor();
+  try {
+    const prov = await entrarAlPanel(s);
+    const cuerpo = { nombre: 'Etiquetas adhesivas', unidad: 'rollo', precio: 2000, minutos: 60 };
+    assert.equal((await s.post('/proveedor/compras', cuerpo, prov)).status, 400, 'con una abierta, se suma a ella');
+    await s.post('/proveedor/licitacion/L-1/cerrar', {}, prov);
+    const antes = Date.now();
+    const r = await s.post('/proveedor/compras', cuerpo, prov);
+    assert.equal(r.status, 201);
+    assert.deepEqual([r.cuerpo.id, r.cuerpo.estado, r.cuerpo.productos[0].nombre], ['L-2', 'abierta', 'Etiquetas adhesivas']);
+    assert.ok(Math.abs(Date.parse(r.cuerpo.cierraEn) - antes - 60 * 60_000) < 5000);
+    assert.equal(s.red.licitacionAbierta()?.id, 'L-2');
+  } finally {
+    s.server.close();
+  }
+});

@@ -7,7 +7,10 @@ import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
-import { CANTIDAD_MAXIMA } from './config-demo.ts';
+import { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
+
+/** Lo más larga que puede ser una compra en grupo: una semana. */
+const MAXIMO_MINUTOS = 7 * 24 * 60;
 import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import type { SinTelefono } from './publico.ts';
@@ -201,6 +204,8 @@ export interface Red {
    * (`tramosAutomaticos`) y son su oferta por volumen; los demás proveedores pueden ofertar por él. Emite `licitacion.producto`.
    */
   crearProducto(licitacionId: string, producto: NuevoProducto): Promise<{ licitacion: LicitacionVista; producto: ProductoCompraVista }>;
+  /** Abre una compra en grupo nueva con el primer producto del proveedor, si no hay otra abierta. Emite `licitacion.abierta`. */
+  abrirCompra(producto: NuevoProducto & { minutos?: number }): Promise<LicitacionVista>;
   /**
    * El dueño de un producto (quien lo creó o el proveedor fijo de la compra) cambia sus tramos mientras la compra está
    * abierta (`errorDeTramos`: el precio que ya alcanzó el grupo no sube). Emite `licitacion.producto` con
@@ -856,8 +861,34 @@ export async function crearRed({
     });
   }
 
+  /**
+   * Un proveedor abre una compra en grupo nueva con su primer producto, si no hay otra abierta. Queda como su
+   * proveedor (vende a todo el grupo) y cierra en `minutos` (por defecto DEMO_MINUTOS). Emite `licitacion.abierta`.
+   */
+  function abrirCompra(n: NuevoProducto & { minutos?: number }) {
+    return enFila('abrir-compra', async () => {
+      if (datos.licitaciones.some(x => x.estado === 'abierta')) {
+        throw new ErrorRed('datos_invalidos', 'Ya hay una compra en grupo abierta: suma tu producto a ella');
+      }
+      const proveedor = negocio(n.proveedorId, 'proveedor');
+      const producto = productoNuevo({ productos: [] }, n);
+      const minutos = Number.isInteger(n.minutos) && n.minutos! > 0 ? Math.min(n.minutos!, MAXIMO_MINUTOS) : configDemo(env).minutos;
+      let k = datos.licitaciones.length + 1;
+      while (datos.licitaciones.some(x => x.id === `L-${k}`)) k++;
+      const l: Licitacion = {
+        id: `L-${k}`, productos: [producto], producto: producto.nombre, unidad: producto.unidad, unidadPlural: producto.unidadPlural,
+        comuna: proveedor.comuna, cierraEn: new Date(reloj().getTime() + minutos * 60_000).toISOString(), precioSolo: producto.precioSolo,
+        proveedorId: proveedor.id, tramos: structuredClone(producto.tramos), participantes: [], ofertas: [], estado: 'abierta',
+      };
+      await guardar('licitaciones', l);
+      const licitacion = vistaLicitacion(l);
+      emitir('licitacion.abierta', { licitacionId: l.id, licitacion, proveedorNombre: proveedor.nombre });
+      return licitacion;
+    });
+  }
+
   /** Id legible y único del producto en la canasta: "Café molido 1 kg" → "cafe-molido-1-kg". */
-  function idDeProducto(l: Licitacion, nombre: string) {
+  function idDeProducto(l: Pick<Licitacion, 'productos'>, nombre: string) {
     const base = sinTildes(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'producto';
     let id = base;
     for (let k = 2; l.productos.some(p => p.id === id); k++) id = `${base}-${k}`;
@@ -873,22 +904,28 @@ export async function crearRed({
     return propios;
   }
 
+  /** Valida lo que manda el proveedor y arma el producto de la canasta (sin repetir uno que ya está). */
+  function productoNuevo(l: Pick<Licitacion, 'productos'>, n: NuevoProducto): ProductoCompra {
+    const proveedor = negocio(n.proveedorId, 'proveedor');
+    const nombre = String(n.nombre ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const unidad = String(n.unidad ?? '').trim().toLowerCase().slice(0, 20);
+    const precio = Number(n.precio);
+    if (nombre.length < 3 || !unidad) throw new ErrorRed('datos_invalidos', 'El producto necesita nombre y unidad de venta');
+    if (!Number.isInteger(precio) || precio <= 0) throw new ErrorRed('datos_invalidos', 'El precio debe ser un entero positivo, en pesos');
+    if (l.productos.some(p => sinTildes(p.nombre) === sinTildes(nombre))) {
+      throw new ErrorRed('datos_invalidos', `"${nombre}" ya está en la canasta: oferta por él`);
+    }
+    return {
+      id: idDeProducto(l, nombre), nombre, unidad, unidadPlural: String(n.unidadPlural ?? '').trim() || pluralDe(unidad),
+      precioSolo: precio, tramos: tramosDelProducto(precio, n.tramos), ofertas: [], proveedorId: proveedor.id,
+    };
+  }
+
   function crearProducto(licitacionId: string, n: NuevoProducto) {
     return enFila(licitacionId, async () => {
       const l = licitacionEnCurso(licitacionId);
       const proveedor = negocio(n.proveedorId, 'proveedor');
-      const nombre = String(n.nombre ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
-      const unidad = String(n.unidad ?? '').trim().toLowerCase().slice(0, 20);
-      const precio = Number(n.precio);
-      if (nombre.length < 3 || !unidad) throw new ErrorRed('datos_invalidos', 'El producto necesita nombre y unidad de venta');
-      if (!Number.isInteger(precio) || precio <= 0) throw new ErrorRed('datos_invalidos', 'El precio debe ser un entero positivo, en pesos');
-      if (l.productos.some(p => sinTildes(p.nombre) === sinTildes(nombre))) {
-        throw new ErrorRed('datos_invalidos', `"${nombre}" ya está en la canasta: oferta por él`);
-      }
-      const producto: ProductoCompra = {
-        id: idDeProducto(l, nombre), nombre, unidad, unidadPlural: String(n.unidadPlural ?? '').trim() || pluralDe(unidad),
-        precioSolo: precio, tramos: tramosDelProducto(precio, n.tramos), ofertas: [], proveedorId: proveedor.id,
-      };
+      const producto = productoNuevo(l, n);
       l.productos.push(producto);
       await guardar('licitaciones', l);
       const licitacion = vistaLicitacion(l);
@@ -1113,7 +1150,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, abrirCompra, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

@@ -1,5 +1,7 @@
-// Portada de /app después de entrar: una búsqueda sobre toda la app y "¿Qué vas a hacer hoy?" con dos caminos,
-// comprar o vender. Los proveedores se buscan en el servidor (red + Mercado Público); lo demás, en lo que ya está cargado.
+// La portada después de entrar, igual en /app y en /proveedor: una búsqueda sobre toda la app y "¿Qué vas a hacer
+// hoy?" con dos caminos, comprar (/app) o vender (/proveedor). `desde` dice en cuál de los dos está, para que cada
+// camino lleve a su sección sin recargar si ya está ahí. Los proveedores se buscan en el servidor (red + Mercado
+// Público); lo demás, en lo que ya está cargado.
 
 import { useMemo, useState } from 'react';
 import { contar } from '../../../shared/texto.ts';
@@ -7,7 +9,8 @@ import { puedeVender } from '../../../shared/red.ts';
 import { enlaceWhatsapp } from '../../../shared/telefono.ts';
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
 import { productosDe } from '../canal/carrito.ts';
-import type { ConfigRed, FotoRed, YoComprador } from '../canal/tipos.ts';
+import type { ConfigRed, FotoRed, OrdenCanal } from '../canal/tipos.ts';
+import type { Documento, Negocio } from '../red/tipos.ts';
 import { ICONO_FLUJO } from '../marca/recursos.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
@@ -21,9 +24,17 @@ const ETIQUETA: Record<Resultado['tipo'] | 'proveedor', string> = {
 };
 const MAXIMO_PROVEEDORES = 5;
 
-export function Inicio({ foto, yo, config, secciones, evento }: {
-  foto: FotoRed; yo: YoComprador; config: ConfigRed | null; secciones: readonly { id: string; titulo: string }[]; evento: number;
+/** Adónde lleva cada camino y cómo se busca, según desde qué lado se abre la portada. */
+const LADOS = {
+  comprar: { comprar: '#compra', vender: '/proveedor#ventas', contraparte: 'proveedorId' },
+  vender: { comprar: '/app#compra', vender: '#ventas', contraparte: 'compradorId' },
+} as const;
+
+export function Inicio({ foto, negocio, ordenes, documentos, config, secciones, evento, desde }: {
+  foto: FotoRed; negocio: Negocio; ordenes: readonly OrdenCanal[]; documentos: readonly Documento[]; config: ConfigRed | null;
+  secciones: readonly { id: string; titulo: string }[]; evento: number; desde: keyof typeof LADOS;
 }) {
+  const lado = LADOS[desde];
   const ahora = useAhora();
   const [q, setQ] = useState('');
   const lic = licitacionVigente(foto.licitaciones);
@@ -31,7 +42,7 @@ export function Inicio({ foto, yo, config, secciones, evento }: {
   const productos = useMemo(() => (abierta ? productosDe(abierta) : []), [abierta]);
 
   const buscando = q.trim().length >= LARGO_MINIMO;
-  const locales = buscarEnApp(q, { productos, ordenes: yo.ordenes, documentos: yo.documentos, negocios: foto.negocios, secciones });
+  const locales = buscarEnApp(q, { productos, ordenes, documentos, negocios: foto.negocios, secciones, contraparte: lado.contraparte, rutaCompra: lado.comprar });
   const { datos } = useJson<{ resultados: ProveedorEncontrado[] }>(buscando ? `/api/proveedores?${new URLSearchParams({ q: q.trim() })}` : null, evento);
   const proveedores = buscando ? (datos?.resultados ?? []).slice(0, MAXIMO_PROVEEDORES) : [];
   const resultados = [
@@ -39,7 +50,7 @@ export function Inicio({ foto, yo, config, secciones, evento }: {
     ...proveedores.map(p => ({ tipo: 'proveedor' as const, titulo: p.nombre, detalle: [p.comuna, p.region].filter(Boolean).join(', '), href: `/proveedores?p=${encodeURIComponent(p.clave)}` })),
   ];
 
-  const vende = puedeVender(yo.negocio);
+  const vende = puedeVender(negocio);
   const quieroVender = enlaceWhatsapp(config?.whatsappNumero, 'Quiero vender en Bando');
 
   return (
@@ -70,7 +81,7 @@ export function Inicio({ foto, yo, config, secciones, evento }: {
         <section className="bm-hoy">
           <h1>¿Qué vas a hacer hoy?</h1>
           <div className="bm-caminos">
-            <a className="bm-camino" href="#compra">
+            <a className="bm-camino" href={lado.comprar}>
               <img className="ilustracion" src={ICONO_FLUJO.comprarEnGrupo} alt="" />
               <span className="bm-camino-titulo">Comprar</span>
               <span className="bm-camino-texto">
@@ -79,7 +90,7 @@ export function Inicio({ foto, yo, config, secciones, evento }: {
                   : 'Pide a un proveedor o súmate a la próxima compra en grupo.'}
               </span>
             </a>
-            <a className="bm-camino" href={vende ? '/proveedor' : quieroVender || '/proveedor'} {...(!vende && quieroVender ? { target: '_blank', rel: 'noreferrer' } : {})}>
+            <a className="bm-camino" href={vende ? lado.vender : quieroVender || lado.vender} {...(!vende && quieroVender ? { target: '_blank', rel: 'noreferrer' } : {})}>
               <img className="ilustracion" src={ICONO_FLUJO.comoVende} alt="" />
               <span className="bm-camino-titulo">Vender</span>
               <span className="bm-camino-texto">

@@ -137,3 +137,22 @@ test('con DEMO_PROVEEDOR_SIN_CERTIFICADO=1 se puede vender sin certificado escri
   await escribir(ANA, 'si');
   assert.match(ultimo(ANA), /ofertaste \$25\.000/);
 });
+
+test('por WhatsApp: sin compra abierta, "vendo ..." abre una compra en grupo nueva con ese producto', async t => {
+  const { red, agente, escribir, ultimo } = await montar();
+  t.after(() => agente.desconectar());
+  await escribir(ANA, 'quiero vender');
+  await agente.certificadoConectado(ANA, '11111111-1');
+  await escribir(ANA, '1');
+  await red.cerrarLicitacion(LICITACION_SALA);
+  assert.equal(red.licitacionAbierta(), null);
+
+  await escribir(ANA, 'vendo etiquetas adhesivas a $2.000 el rollo');
+  assert.match(ultimo(ANA), /No hay una compra en grupo abierta\. ¿Abro una con "Etiquetas adhesivas" a \$2\.000 por rollo\?/);
+  await escribir(ANA, 'si');
+  assert.match(ultimo(ANA), /abriste una compra en grupo con "Etiquetas adhesivas"/);
+  const abierta = red.licitacionAbierta()!;
+  assert.notEqual(abierta.id, LICITACION_SALA);
+  assert.deepEqual([abierta.productos.map(p => p.nombre), abierta.proveedorId], [['Etiquetas adhesivas'], red.negocioPorTelefono(ANA)!.id]);
+  await assert.rejects(red.abrirCompra({ proveedorId: abierta.proveedorId!, nombre: 'Té verde', unidad: 'caja', precio: 5000 }), /Ya hay una compra en grupo abierta/);
+});

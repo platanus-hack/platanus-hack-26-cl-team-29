@@ -132,7 +132,7 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
   );
 }
 
-function Campo({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?: ReactNode; children: ReactNode }) {
+export function Campo({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?: ReactNode; children: ReactNode }) {
   return (
     <label className="bm-campo">
       <span className="bm-campo-etiqueta">{etiqueta}</span>

@@ -1,4 +1,4 @@
-// Inicio del proveedor (DESIGN.md, Paper "P2"): lo vendido hoy en grande, lo que espera su confirmación (la compra en
+// Ventas del proveedor (DESIGN.md, Paper "P2"): lo vendido hoy en grande, lo que espera su confirmación (la compra en
 // grupo y los pedidos sueltos) y los reclamos. Toda acción en el SII pasa por un paso de confirmación en la página.
 
 import { useCallback, type ReactNode } from 'react';
@@ -27,8 +27,8 @@ export function detalleDe(orden: OrdenCanal, config: ConfigRed | null): string {
   return orden.items.map(i => `${i.producto} × ${cantidadEn(i.cantidad, unidadPara(i.producto, config))}`).join(', ');
 }
 
-export function InicioProveedor({ yo, lic, config, comprador, irA, ...props }: PropsAccion & {
-  yo: YoProveedor; lic?: LicitacionCanal; config: ConfigRed | null; comprador: (id: string) => Negocio | undefined; irA: (s: string) => void;
+export function Ventas({ yo, lic, config, comprador, ...props }: PropsAccion & {
+  yo: YoProveedor; lic?: LicitacionCanal; config: ConfigRed | null; comprador: (id: string) => Negocio | undefined;
 }) {
   const ahora = useAhora();
   // Las órdenes de la compra en grupo se facturan juntas desde su fila, no una por una.
@@ -51,7 +51,7 @@ export function InicioProveedor({ yo, lic, config, comprador, irA, ...props }: P
             {porConfirmar > 0 && <> · <span className="bp-miel">{porConfirmar} por confirmar</span></>}
           </p>
         </div>
-        <a className="bm-boton secundario" href="#precios">Tus precios</a>
+        <a className="bm-boton secundario" href="#precios">{lic && estaAbierta(lic, ahora) ? 'Sumar un producto' : 'Abrir una compra en grupo'}</a>
       </header>
 
       <div className="bp-columnas">
@@ -74,7 +74,7 @@ export function InicioProveedor({ yo, lic, config, comprador, irA, ...props }: P
             <p><strong className="bp-cifra-chica">{yo.nota === null ? '-' : nota(yo.nota)}</strong>
               <span>{yo.nota === null ? 'Se calcula con tus primeras entregas.' : 'Sube con cada entrega conforme y baja con cada reclamo.'}</span></p>
           </section>
-          <a className="bm-tarjeta bp-dato bp-enlace" href="#facturas" onClick={() => irA('facturas')}>
+          <a className="bm-tarjeta bp-dato bp-enlace" href="#facturas">
             <h2 className="bp-con-sii"><LogoSii tam={16} /> Facturas en el SII</h2>
             <p><strong className="bp-cifra-chica">{emitidas}</strong><span>{emitidas === 1 ? 'emitida' : 'emitidas'}, una por negocio. Ver documentos</span></p>
           </a>
