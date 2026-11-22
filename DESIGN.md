@@ -243,7 +243,9 @@ Las primitivas ya traen estas medidas; quedan aquí como referencia para diseña
 
 Dos familias que **no se mezclan en una misma fila**:
 
-- **Íconos de interfaz**: de línea, trazo 2 px, estilo Lucide; un solo set en toda la app.
+- **Íconos de interfaz**: de línea, trazo 2 px, estilo Lucide; un solo set en toda la app, salvo el menú lateral.
+- **Íconos del menú lateral** (ilustrados, a color, 22 px; Paper "C2" y "P2"): uno por sección, en `ICONO_MENU` de
+  [`client/src/marca/recursos.ts`](client/src/marca/recursos.ts). En oscuro van sobre una baldosa crema.
 - **Íconos de flujo** (ilustrados, a color, mínimo 32 px): uno por cada cosa que hace Bando. Van en índices, tarjetas de
   cada flujo, onboarding y estados vacíos. En código, `ICONO_FLUJO` de [`client/src/marca/recursos.ts`](client/src/marca/recursos.ts).
 
@@ -328,6 +330,7 @@ manual-de-marca.html   el manual completo
 02-iconos-flujos/      flujo-1 … flujo-7
 03-ilustraciones/      escenas y panal-0 … panal-3
 04-abejas/             volando, celebra, señala
+05-iconos-menu/        íconos del menú lateral (64 px): inicio, grupo, pedidos, recepcion, proveedores, facturas, tramos, stock, reparto, configuracion
 06-aplicaciones/       ícono de app 1024, perfil de WhatsApp 640, imagen para compartir 1200×630
 ```
 

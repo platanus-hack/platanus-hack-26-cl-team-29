@@ -25,11 +25,11 @@ import './canal.css';
 
 type Seccion = 'inicio' | 'ventas' | 'compras' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
-  { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'ventas', titulo: 'Ventas', icono: 'caja' },
+  { id: 'inicio', titulo: 'Inicio', icono: 'inicio' }, { id: 'ventas', titulo: 'Ventas', icono: 'stock' },
   { id: 'compras', titulo: 'Pedidos en grupo', corto: 'En grupo', icono: 'grupo' },
-  { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
-  { id: 'productos', titulo: 'Productos', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
-  { id: 'facturas', titulo: 'SII', icono: 'documento' },
+  { id: 'pedidos', titulo: 'Pedidos', icono: 'pedidos' },
+  { id: 'productos', titulo: 'Productos', icono: 'tramos' }, { id: 'reparto', titulo: 'Reparto', icono: 'reparto' },
+  { id: 'facturas', titulo: 'SII', icono: 'facturas' },
 ];
 
 /** `#compras/L-3/cafe` → la sección y lo que viene después (el detalle de una compra). */
