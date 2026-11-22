@@ -17,8 +17,8 @@ export const faltaTarjeta = (enlace: string): string =>
   `Para comprar con Bando inscribe tu tarjeta una vez. Bando le paga al proveedor al tiro y tú pagas a 30 días, sin trámites.\n\nSe inscribe en Transbank (Bando nunca ve el número): ${enlace}\n\nCuando esté lista, vuelve a mandar tu pedido.`;
 
 export const creditoOtorgado = (d: Datos): string => d.plazoDias
-  ? `Bando ya le pagó ${dinero(d.monto)} a ${d.proveedor}. Tú pagas el ${fechaCorta(d.venceEn)}${d.tarjeta ? `, solo, con tu ${d.tarjeta}` : ''}.`
-  : `Bando ya le pagó ${dinero(d.monto)} a ${d.proveedor}. Esta compra supera tu cupo disponible, así que se cobra hoy${d.tarjeta ? ` en tu ${d.tarjeta}` : ''}.`;
+  ? `Bando le paga ${dinero(d.monto)} a ${d.proveedor} por ti. Tú pagas el ${fechaCorta(d.venceEn)}${d.tarjeta ? `, solo, con tu ${d.tarjeta}` : ''}.`
+  : `Bando le paga ${dinero(d.monto)} a ${d.proveedor} por ti. Esta compra supera tu cupo disponible, así que se cobra hoy${d.tarjeta ? ` en tu ${d.tarjeta}` : ''}.`;
 
 export const recordatorio = (d: Datos): string =>
   `El ${fechaCorta(d.venceEn)} cobramos ${dinero(d.monto)} de tu compra a ${d.proveedor}${d.tarjeta ? ` en tu ${d.tarjeta}` : ''}. No tienes que hacer nada.`;
@@ -29,5 +29,10 @@ export const cobrado = (d: Datos & { disponible: number; subioA: string | null }
 export const cobroFallido = (d: Datos, enlace: string): string =>
   `No pudimos cobrar ${dinero(d.monto)} de tu compra a ${d.proveedor}. Lo intentamos de nuevo mañana. Si cambiaste de tarjeta, inscribe la nueva: ${enlace}`;
 
-export const pagoAlProveedor = (d: { monto: number; folio: number | null }): string =>
-  `Bando te pagó ${dinero(d.monto)}${d.folio ? ` por la factura folio ${d.folio}` : ''}. No esperas los 30 días: el plazo del comprador lo asume Bando.`;
+const porFactura = (folio: number | null) => (folio ? ` por la factura folio ${folio}` : '');
+
+export const pagoPorTransferir = (d: { monto: number; folio: number | null; conCuenta: boolean; panel: string }): string =>
+  `Bando te paga ${dinero(d.monto)}${porFactura(d.folio)}. No esperas los 30 días del comprador: te avisamos apenas se transfiera.${d.conCuenta ? '' : `\n\nDeja tu cuenta para recibirlo en tu panel: ${d.panel}`}`;
+
+export const pagoTransferido = (d: { monto: number; folio: number | null; cuenta: string | null }): string =>
+  `Bando te transfirió ${dinero(d.monto)}${porFactura(d.folio)}${d.cuenta ? ` a tu ${d.cuenta}` : ''}.`;

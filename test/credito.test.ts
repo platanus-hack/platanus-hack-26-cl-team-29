@@ -23,11 +23,12 @@ test('al facturar, Bando paga al proveedor y abre el crédito; al cobrar con tar
   const factura = (n: number, monto = 50_000) => ({ rut, negocioId: 'n-1', proveedorId: 'p-1', ordenId: `o-${n}`, documentoId: `d-${n}`, monto });
 
   const c = await libro.otorgar(factura(1));
-  assert.deepEqual([c?.plazoDias, c?.venceEn, c?.estado, !!c?.pagadoAlProveedorEn], [30, '2026-12-21', 'vigente', true]);
+  assert.deepEqual([c?.plazoDias, c?.venceEn, c?.estado, !!c?.pagadoAlProveedorEn], [30, '2026-12-21', 'vigente', false]);
   assert.equal(await libro.otorgar(factura(1)), null, 'una factura abre un solo crédito');
   assert.equal((await libro.otorgar(factura(2, 600_000)))?.plazoDias, 0, 'lo que no cabe en el cupo se cobra hoy');
 
-  assert.deepEqual(await libro.cobrarVencidos(true), { cobrados: 0, fallidos: 2 }, 'sin tarjeta no se cobra');
+  assert.deepEqual(await libro.cobrarVencidos(true), { cobrados: 0, fallidos: 0 }, 'al adelantar el tiempo, a quien no tiene tarjeta no se le intenta cobrar');
+  assert.deepEqual(await libro.cobrarVencidos(), { cobrados: 0, fallidos: 1 }, 'lo vencido hoy sí se intenta (y falla sin tarjeta)');
   const { token } = await libro.iniciarInscripcion(rut, 'http://x/vuelta');
   assert.equal(await libro.terminarInscripcion(token), true);
   assert.deepEqual(libro.resumen(rut).tarjeta, { marca: 'Visa', ultimos4: '6623' });
@@ -115,17 +116,41 @@ test('se recuerda una sola vez 3 días antes, y el cobro avisa cuando sube de ni
 test('los avisos de WhatsApp dicen monto, proveedor, fecha y tarjeta', async () => {
   const a = await import('../server/pagos/avisos.ts');
   const d = { monto: 114_240, proveedor: 'Distribuidora Sur', venceEn: '2026-12-21', plazoDias: 30, tarjeta: 'Visa terminada en 6623' };
-  assert.equal(a.creditoOtorgado(d), 'Bando ya le pagó $114.240 a Distribuidora Sur. Tú pagas el 21-12-2026, solo, con tu Visa terminada en 6623.');
+  assert.equal(a.creditoOtorgado(d), 'Bando le paga $114.240 a Distribuidora Sur por ti. Tú pagas el 21-12-2026, solo, con tu Visa terminada en 6623.');
   assert.match(a.cobrado({ ...d, disponible: 300_000, subioA: 'Confiable' }), /Cupo disponible: \$300\.000\. Subiste a Confiable/);
-  assert.match(a.pagoAlProveedor({ monto: 114_240, folio: 1234 }), /^Bando te pagó \$114\.240 por la factura folio 1234/);
+  assert.match(a.pagoPorTransferir({ monto: 114_240, folio: 1234, conCuenta: false, panel: 'https://bando.test/proveedor' }), /^Bando te paga \$114\.240 por la factura folio 1234[\s\S]*Deja tu cuenta[\s\S]*bando\.test\/proveedor$/);
+  assert.equal(a.pagoTransferido({ monto: 114_240, folio: 1234, cuenta: 'BancoEstado · Cuenta vista o RUT terminada en 6789' }), 'Bando te transfirió $114.240 por la factura folio 1234 a tu BancoEstado · Cuenta vista o RUT terminada en 6789.');
 });
 
-test('el proveedor ve lo que Bando le pagó por cada factura, sin datos del comprador', async () => {
+test('el proveedor ve lo que Bando le paga por cada factura, sin datos del comprador', async () => {
   const libro = await crearLibro({
     tarjetas: tablaMemoria<Tarjeta>(), creditos: tablaMemoria<Credito>(), pasarela: crearPasarelaFalsa(),
     avisar: () => {}, ahora: () => new Date('2026-11-21T15:00:00Z'),
   });
   await libro.otorgar({ rut: '76000000-0', negocioId: 'n-1', proveedorId: 'p-1', ordenId: 'o-1', documentoId: 'd-1', monto: 59_500 });
   await libro.otorgar({ rut: '76000000-0', negocioId: 'n-1', proveedorId: 'p-2', ordenId: 'o-2', documentoId: 'd-2', monto: 10_000 });
-  assert.deepEqual(libro.pagosAlProveedor('p-1'), [{ ordenId: 'o-1', documentoId: 'd-1', monto: 59_500, en: '2026-11-21T15:00:00.000Z' }]);
+  assert.deepEqual(libro.pagosAlProveedor('p-1'), [{ ordenId: 'o-1', documentoId: 'd-1', monto: 59_500, en: '2026-11-21T15:00:00.000Z', transferido: false }]);
+});
+
+test('el pago al proveedor queda por transferir hasta que el equipo lo marca; se marca una sola vez', async () => {
+  const avisos: string[] = [];
+  const libro = await crearLibro({ tarjetas: tablaMemoria<Tarjeta>(), creditos: tablaMemoria<Credito>(), pasarela: crearPasarelaFalsa(), avisar: a => avisos.push(a.tipo) });
+  const c = (await libro.otorgar({ rut: '76000000-0', negocioId: 'n', proveedorId: 'p', ordenId: 'o', documentoId: 'd', monto: 10_000 }))!;
+  assert.deepEqual(libro.porTransferir().map(x => x.id), [c.id]);
+  assert.equal(libro.pagosAlProveedor('p')[0]?.transferido, false);
+  assert.ok(await libro.marcarTransferido(c.id, ' 123456 '));
+  assert.equal(await libro.marcarTransferido(c.id), null, 'no se marca dos veces');
+  assert.deepEqual([libro.porTransferir().length, libro.pagosAlProveedor('p')[0]?.transferido, libro.transferidos()[0]?.comprobante], [0, true, '123456']);
+  assert.ok(avisos.includes('proveedor.pagado'));
+});
+
+test('la cuenta del proveedor se valida igual en la web y en el servidor', async () => {
+  const { validarCuenta, cuentaCorta } = await import('../shared/cuenta-bancaria.ts');
+  const { digitoVerificador } = await import('../shared/rut.ts');
+  // Datos ficticios: RUT generado y número de cuenta inventado.
+  const rut = `30111001-${digitoVerificador('30111001')}`;
+  const ok = validarCuenta({ banco: 'BancoEstado', tipo: 'vista', numero: '123-456-789', rutTitular: rut, titular: ' Almacén Uno ' });
+  assert.deepEqual(typeof ok === 'object' && [ok.numero, ok.titular, cuentaCorta(ok)], ['123456789', 'Almacén Uno', 'BancoEstado · Cuenta vista o RUT terminada en 6789']);
+  assert.equal(validarCuenta({ banco: 'Banco Inventado', tipo: 'vista', numero: '1234', rutTitular: rut, titular: 'X' }), 'Elige tu banco de la lista.');
+  assert.equal(validarCuenta({ banco: 'BancoEstado', tipo: 'vista', numero: '12ab', rutTitular: rut, titular: 'X' }), 'El número de cuenta lleva solo dígitos (entre 4 y 20).');
 });

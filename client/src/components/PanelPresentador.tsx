@@ -6,7 +6,7 @@ import { contar } from '../../../shared/texto.ts';
 /** El token vive solo en la pestaña (sessionStorage): nunca en el código ni en localStorage. */
 const CLAVE_TOKEN = 'sala.tokenDemo';
 
-function leerToken(): string {
+export function leerToken(): string {
   try {
     return sessionStorage.getItem(CLAVE_TOKEN) ?? '';
   } catch {
@@ -14,7 +14,7 @@ function leerToken(): string {
   }
 }
 
-function guardarToken(token: string) {
+export function guardarToken(token: string) {
   try {
     sessionStorage.setItem(CLAVE_TOKEN, token);
   } catch {

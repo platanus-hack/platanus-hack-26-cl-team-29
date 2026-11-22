@@ -868,7 +868,11 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
     // Crédito Bando: el comprador nunca se nombra (su deuda es privada).
     case 'credito.otorgado': {
       const monto = numero(e.datos.monto);
-      return `Bando le pagó${monto ? ` ${dinero(monto)}` : ''} a ${proveedor ?? 'un proveedor'} al instante`;
+      return `Bando le paga${monto ? ` ${dinero(monto)}` : ''} a ${proveedor ?? 'un proveedor'}; el negocio paga a plazo`;
+    }
+    case 'proveedor.pagado': {
+      const monto = numero(e.datos.monto);
+      return `Bando le transfirió${monto ? ` ${dinero(monto)}` : ''} a ${proveedor ?? 'un proveedor'}`;
     }
     case 'credito.cobrado': {
       const monto = numero(e.datos.monto);
@@ -1130,7 +1134,7 @@ export function detalleEvento(e: EventoRed, estado: EstadoRed, eventos: readonly
       return {
         resumen: cobro ?? aPlazo,
         filas: [
-          ...fila(e.tipo === 'credito.otorgado' ? 'Bando pagó al proveedor' : 'Monto', monto !== undefined && `${dinero(monto)} con IVA`),
+          ...fila(e.tipo === 'credito.otorgado' ? 'Bando le paga al proveedor' : 'Monto', monto !== undefined && `${dinero(monto)} con IVA`),
           ...fila('Proveedor', proveedor),
           ...fila('Plazo del comprador', aPlazo),
           ...fila('Vence', vence && fechaCorta(vence)),

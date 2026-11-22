@@ -1,8 +1,9 @@
-// Libro del crédito Bando: por cada factura de una compra, Bando le paga al proveedor al instante y le abre al comprador
-// un crédito a su plazo; al vencer lo cobra en su tarjeta inscrita. Tarjetas y créditos van por RUT: sobreviven a un
+// Libro del crédito Bando: por cada factura de una compra, Bando le debe el total al proveedor (lo transfiere el equipo y lo
+// marca como transferido) y le abre al comprador un crédito a su plazo; al vencer lo cobra en su tarjeta inscrita. Tarjetas y créditos van por RUT: sobreviven a un
 // reinicio de la demo (que cambia los ids de los negocios) y la confianza se acumula entre rondas.
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import type { CuentaBancaria } from '../../shared/cuenta-bancaria.ts';
 import { lineaDeCredito, vencimiento, type HistorialCredito, type LineaCredito } from '../../shared/credito.ts';
 import type { PasarelaTarjetas, TarjetaInscrita } from './oneclick.ts';
 
@@ -26,8 +27,10 @@ export interface Credito {
   plazoDias: number;
   /** `AAAA-MM-DD`. */
   venceEn: string;
-  /** Bando le pagó al proveedor (al otorgar el crédito). */
-  pagadoAlProveedorEn: string;
+  /** Bando le transfirió al proveedor (lo marca el equipo después de transferir desde el banco); sin él, está por transferir. */
+  pagadoAlProveedorEn?: string;
+  /** Número de operación de la transferencia, si lo anotaron. */
+  comprobante?: string;
   estado: 'vigente' | 'pagado' | 'atrasado';
   cobro?: { en: string; autorizacion: string };
   /** Se le recordó por WhatsApp que se viene el cobro. */
@@ -36,6 +39,12 @@ export interface Credito {
 }
 
 /** Una tabla jsonb por colección (Postgres) o un Map (sin base). */
+/** La cuenta donde el proveedor recibe sus pagos (id = id del proveedor en la red). */
+export interface CuentaProveedor extends CuentaBancaria {
+  id: string;
+  en: string;
+}
+
 export interface Tabla<T extends { id: string }> {
   todos(): Promise<T[]>;
   guardar(x: T): Promise<void>;
@@ -46,7 +55,7 @@ export function tablaMemoria<T extends { id: string }>(): Tabla<T> {
   return { todos: async () => [...m.values()], guardar: async x => void m.set(x.id, structuredClone(x)) };
 }
 
-export async function tablaPostgres<T extends { id: string }>(db: pg.Pool, nombre: 'pagos_tarjetas' | 'pagos_creditos'): Promise<Tabla<T>> {
+export async function tablaPostgres<T extends { id: string }>(db: pg.Pool, nombre: 'pagos_tarjetas' | 'pagos_creditos' | 'pagos_cuentas'): Promise<Tabla<T>> {
   await db.query(`create table if not exists ${nombre} (n bigserial, id text primary key, datos jsonb not null)`);
   return {
     todos: async () => (await db.query<{ datos: T }>(`select datos from ${nombre} order by n`)).rows.map(r => r.datos),
@@ -78,7 +87,8 @@ export interface NuevoCredito {
 export type AvisoCredito =
   | { tipo: 'credito.otorgado'; credito: Credito }
   | { tipo: 'credito.cobrado'; credito: Credito; ok: boolean; /** El nivel al que subió con este pago, o null. */ subioA: string | null }
-  | { tipo: 'tarjeta.inscrita'; rut: string; tarjeta: Tarjeta };
+  | { tipo: 'tarjeta.inscrita'; rut: string; tarjeta: Tarjeta }
+  | { tipo: 'proveedor.pagado'; credito: Credito };
 
 export interface ResumenComprador {
   linea: LineaCredito;
@@ -125,7 +135,7 @@ export async function crearLibro(o: {
     const { linea, disponible } = resumen(n.rut);
     const plazoDias = n.monto <= disponible ? linea.plazoDias : 0;
     const en = ahora();
-    const c: Credito = { id: randomUUID(), ...n, otorgadoEn: en, plazoDias, venceEn: vencimiento(en, plazoDias), pagadoAlProveedorEn: en, estado: 'vigente' };
+    const c: Credito = { id: randomUUID(), ...n, otorgadoEn: en, plazoDias, venceEn: vencimiento(en, plazoDias), estado: 'vigente' };
     creditos.push(c);
     await guardar(c);
     o.avisar({ tipo: 'credito.otorgado', credito: c });
@@ -157,7 +167,9 @@ export async function crearLibro(o: {
    */
   async function cobrarVencidos(todo = false): Promise<{ cobrados: number; fallidos: number }> {
     const hoy = ahora().slice(0, 10);
-    const pendientes = creditos.filter(c => c.estado !== 'pagado' && (todo || c.venceEn <= hoy) && (todo || c.ultimoError?.en.slice(0, 10) !== hoy));
+    // Al adelantar el tiempo (demo) se cobra solo a quien tiene tarjeta: los demás no reciben un aviso de cobro fallido.
+    const pendientes = creditos.filter(c => c.estado !== 'pagado'
+      && (todo ? tarjetas.has(c.rut) : c.venceEn <= hoy && c.ultimoError?.en.slice(0, 10) !== hoy));
     let cobrados = 0;
     for (const c of pendientes) if (await cobrarUno(c)) cobrados++;
     return { cobrados, fallidos: pendientes.length - cobrados };
@@ -203,17 +215,32 @@ export async function crearLibro(o: {
       o.avisar({ tipo: 'tarjeta.inscrita', rut: quien.rut, tarjeta: t });
       return true;
     },
-    /** Lo que Bando le pagó a un proveedor, factura por factura, sin datos del comprador. */
+    /** Lo que Bando le paga a un proveedor, factura por factura (transferido o por transferir), sin datos del comprador. */
     pagosAlProveedor(proveedorId: string) {
       return creditos.filter(c => c.proveedorId === proveedorId)
-        .map(c => ({ ordenId: c.ordenId, documentoId: c.documentoId, monto: c.monto, en: c.pagadoAlProveedorEn }))
+        .map(c => ({ ordenId: c.ordenId, documentoId: c.documentoId, monto: c.monto, en: c.pagadoAlProveedorEn ?? c.otorgadoEn, transferido: !!c.pagadoAlProveedorEn }))
         .sort((a, b) => b.en.localeCompare(a.en));
+    },
+    /** Lo que el equipo tiene que transferir (y lo último transferido), del más antiguo al más nuevo. */
+    porTransferir: () => creditos.filter(c => !c.pagadoAlProveedorEn).sort((a, b) => a.otorgadoEn.localeCompare(b.otorgadoEn)),
+    transferidos: (n = 10) => creditos.filter(c => c.pagadoAlProveedorEn).sort((a, b) => b.pagadoAlProveedorEn!.localeCompare(a.pagadoAlProveedorEn!)).slice(0, n),
+    /** El equipo transfirió desde el banco: queda pagado y se le avisa al proveedor. Null si no existe o ya estaba. */
+    async marcarTransferido(creditoId: string, comprobante = ''): Promise<Credito | null> {
+      const c = creditos.find(x => x.id === creditoId);
+      if (!c || c.pagadoAlProveedorEn) return null;
+      c.pagadoAlProveedorEn = ahora();
+      if (comprobante.trim()) c.comprobante = comprobante.trim().slice(0, 60);
+      await guardar(c);
+      o.avisar({ tipo: 'proveedor.pagado', credito: c });
+      return c;
     },
     /** Para la pantalla de la sala: totales de los negocios dados (los de la ronda actual), sin nombres ni RUT. */
     totales(negocioIds: ReadonlySet<string>) {
       const deLaRonda = creditos.filter(c => negocioIds.has(c.negocioId));
       return {
-        pagadoAProveedores: deLaRonda.reduce((s, c) => s + c.monto, 0),
+        /** Lo que Bando les debe a los proveedores por la ronda (transferido o no) y lo ya transferido. */
+        aProveedores: deLaRonda.reduce((s, c) => s + c.monto, 0),
+        transferido: deLaRonda.filter(c => c.pagadoAlProveedorEn).reduce((s, c) => s + c.monto, 0),
         creditos: deLaRonda.length,
         negocios: new Set(deLaRonda.map(c => c.negocioId)).size,
         /** Plazos distintos de la ronda, de menor a mayor (sin los que se cobran el mismo día). */

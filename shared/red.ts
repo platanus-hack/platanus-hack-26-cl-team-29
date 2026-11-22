@@ -58,4 +58,6 @@ export type TipoEventoRed =
   // Se cobró (o falló el cobro de) un crédito en la tarjeta inscrita: lo mismo más `{ ok, estado }`.
   | 'credito.cobrado'
   // Un comprador inscribió su tarjeta en Transbank: `{}` (sin datos de la tarjeta ni del negocio).
-  | 'tarjeta.inscrita';
+  | 'tarjeta.inscrita'
+  // El equipo transfirió a un proveedor lo de una factura: `{ proveedorId, ordenId, monto }` (sin datos de la cuenta).
+  | 'proveedor.pagado';
