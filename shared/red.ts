@@ -47,6 +47,8 @@ export type TipoEventoRed =
   | 'licitacion.producto'
   // Un negocio nuevo, o uno que ahora también vende (registro de proveedor por WhatsApp).
   | 'negocio.registrado'
+  // Un negocio que se registró con datos declarados (el SII no respondió) ya tiene los datos del SII.
+  | 'negocio.actualizado'
   | 'red.reiniciada'
   // Folios del SII del proveedor conectado: bajos, reponiéndose o repuestos (`AvisoFolios`, sin secretos).
   | 'sii.folios'

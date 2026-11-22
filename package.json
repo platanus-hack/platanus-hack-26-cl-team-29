@@ -12,7 +12,8 @@
     "test": "node --test",
     "duplicados": "jscpd",
     "marca": "node scripts/revisar-marca.ts",
-    "contraste": "node scripts/contraste.ts"
+    "contraste": "node scripts/contraste.ts",
+    "carga": "node scripts/carga.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1",

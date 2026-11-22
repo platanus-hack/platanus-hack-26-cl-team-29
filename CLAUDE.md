@@ -33,6 +33,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - `npm test` → tests.
 - `npm run duplicados` → busca código copiado (jscpd, config en `.jscpd.json`). Tiene que pasar antes de cada commit.
 - `npm run contraste` → imprime la auditoría de contraste (WCAG) para correr en el navegador sobre la vista abierta, en claro y oscuro (`DESIGN.md`, "Modo oscuro"). Recomendado en toda vista que cambies.
+- `npm run carga` → prueba de carga local: levanta un backend propio en :3200 (memoria, SII y WhatsApp falsos) y suma 60 compradores a la vez; imprime latencias y errores por paso. No toca producción.
 - `npm run marca` → revisa las reglas de la marca (`DESIGN.md`, "Reglas") con trinquete: ningún archivo puede sumar colores escritos a mano, letra bajo 12 px, emojis ni la tipografía anterior. Tiene que pasar antes de cada commit.
 
 ## Cómo escribir código

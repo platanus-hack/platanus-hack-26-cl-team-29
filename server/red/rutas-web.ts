@@ -6,7 +6,7 @@ import { ErrorRed, FALTA_RUT } from './dominio.ts';
 import { cuerpo, nuevoComprador, texto } from './peticion.ts';
 import type { Recepcion, Red } from './dominio.ts';
 import { sinTelefonos } from './publico.ts';
-import { formatearRut } from '../../shared/rut.ts';
+import { formatearRut, validarRut } from '../../shared/rut.ts';
 import { telefonoParaWhatsapp } from '../../shared/telefono.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { crearEnlacesAcceso, mensajeDeCodigo } from './acceso.ts';
@@ -85,7 +85,9 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
   const entradasPorTelefono = limitarPor(30, HORA, telefonoDe);
   const consultasRutPorTelefono = limitarPor(30, HORA, telefonoDe);
   const canjesPorToken = limitarPor(10, HORA, req => texto(cuerpo(req).token) ?? null);
-  const porIp = limitarPor(30, MINUTO, req => req.ip ?? 'sin-ip');
+  // Tope por IP solo contra abusos: una sala entera entra desde el mismo WiFi (una IP pública), así que es alto. El límite
+  // que protege a cada persona es por teléfono (arriba). 30 por minuto bloqueaba a 60 personas sumándose a la vez.
+  const porIp = limitarPor(600, MINUTO, req => req.ip ?? 'sin-ip');
 
   const exigirConfirmado = (req: Request) => {
     if (cuerpo(req).confirmado !== true) {
@@ -193,8 +195,14 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     const telefono = exigirTelefono(req);
     const b = cuerpo(req);
     exigirCodigo(telefono, b);
-    const { rut, ...contribuyente } = await red.consultarRut(texto(b.rut) ?? '', telefono);
-    res.json(datosDeFactura(rut, contribuyente));
+    try {
+      const { rut, ...contribuyente } = await red.consultarRut(texto(b.rut) ?? '', telefono);
+      res.json(datosDeFactura(rut, contribuyente));
+    } catch (error) {
+      // El SII no respondió: no es un error de la persona. Escribe sus datos y el registro sigue (se confirma después).
+      if (!(error instanceof ErrorRed) || error.codigo !== 'sii_no_disponible') throw error;
+      res.json({ rut: formatearRut(validarRut(texto(b.rut))!), razonSocial: '', giro: '', comuna: '', sinConfirmar: true });
+    }
   });
 
   rutas.post('/acceso/salir', (req, res) => {
