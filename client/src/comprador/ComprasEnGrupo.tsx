@@ -5,7 +5,9 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { contar, pluralDe } from '../../../shared/texto.ts';
+import { contar } from '../../../shared/texto.ts';
+import { nombreUnidad, pluralUnidad, type IdUnidad } from '../../../shared/unidades.ts';
+import { CampoProducto, SelectorUnidad } from '../canal/CampoProducto.tsx';
 import {
   aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, desdeItems, faltan, fijar, itemsDe, pistaTramo, productosDe, proyectar, una, type Carrito, type ProductoCanasta,
 } from '../canal/carrito.ts';
@@ -20,6 +22,7 @@ import { ABEJA, ILUSTRACION } from '../marca/recursos.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import { escalera, frasco, localesDelGrupo, rango, siLlegan } from './compra.ts';
+import { Pestanas } from './Pestanas.tsx';
 
 /** Qué muestra la sección: la lista, el formulario para iniciar una o un producto de una compra. */
 export type RutaCompra = { vista: 'lista' } | { vista: 'nueva' } | { vista: 'producto'; licitacionId?: string; productoId: string };
@@ -103,13 +106,8 @@ function ListaCompras({ foto, yo, ahora }: { foto: FotoRed; yo: YoComprador; aho
         <a className="bm-boton bm-mas" href="#compra/nueva" aria-label="Iniciar una compra en grupo"><span aria-hidden="true">+</span></a>
       </header>
 
-      <div className="bm-pestanas" role="tablist" aria-label="Compras en grupo">
-        {([['abiertas', 'Abiertas', abiertas.length], ['cerradas', 'Cerradas', cerradas.length]] as const).map(([id, titulo, n]) => (
-          <button key={id} type="button" role="tab" aria-selected={pestana === id} className={pestana === id ? 'activa' : ''} onClick={() => setPestana(id)}>
-            {titulo} <span>{n}</span>
-          </button>
-        ))}
-      </div>
+      <Pestanas etiqueta="Compras en grupo" activa={pestana} onCambio={setPestana}
+        pestanas={[['abiertas', 'Abiertas', abiertas.length], ['cerradas', 'Cerradas', cerradas.length]]} />
 
       {!lista.length ? (
         <div className="bm-vacio">
@@ -168,19 +166,19 @@ const DURACIONES = [{ minutos: 60, texto: '1 hora' }, { minutos: 24 * 60, texto:
 /** Iniciar una compra en grupo: qué producto, cuánto necesita, lo que paga hoy (opcional) y cuándo cierra. */
 function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
   const [producto, setProducto] = useState('');
-  const [unidad, setUnidad] = useState('');
+  const [unidad, setUnidad] = useState<IdUnidad>('unidad');
   const [cantidad, setCantidad] = useState('');
   const [precioHoy, setPrecioHoy] = useState('');
   const [minutos, setMinutos] = useState(24 * 60);
   const { enviando, error, enviar } = useEnvio();
   const n = Number(cantidad);
   const completo = producto.trim().length >= 3 && n >= 1 && n <= CANTIDAD_MAXIMA;
-  const u = unidad.trim().toLowerCase() || 'unidad';
+  const u = nombreUnidad(unidad);
   const iniciar = (e: FormEvent) => {
     e.preventDefault();
     if (!completo) return;
     void enviar(async () => {
-      const r = await api.abrirSolicitud(token, { producto: producto.trim(), unidad: u, cantidad: n, minutos, ...(Number(precioHoy) > 0 ? { precioHoy: Number(precioHoy) } : {}) });
+      const r = await api.abrirSolicitud(token, { producto: producto.trim(), unidad, cantidad: n, minutos, ...(Number(precioHoy) > 0 ? { precioHoy: Number(precioHoy) } : {}) });
       location.hash = enlaceCompra(r.licitacionId, r.productoId).slice(1);
     }, 'No pudimos iniciar la compra. Inténtalo de nuevo.');
   };
@@ -194,10 +192,11 @@ function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
         </div>
       </header>
       <form className="bm-tarjeta bm-formulario bm-nueva" onSubmit={iniciar}>
-        <Campo etiqueta="¿Qué quieres comprar?"><input value={producto} onChange={e => setProducto(e.target.value)} placeholder="Café molido 1 kg" maxLength={60} autoFocus /></Campo>
+        <CampoProducto api={api} etiqueta="¿Qué quieres comprar?" nombre={producto} placeholder="Café molido 1 kg"
+          onCambio={(nombre, de) => { setProducto(nombre); if (de) setUnidad(de); }} />
         <div className="bm-nueva-fila">
-          <Campo etiqueta="Se vende por"><input value={unidad} onChange={e => setUnidad(e.target.value)} placeholder="bolsa" maxLength={20} /></Campo>
-          <Campo etiqueta={`¿Cuántas ${pluralDe(u)} necesitas?`}>
+          <SelectorUnidad unidad={unidad} onCambio={setUnidad} />
+          <Campo etiqueta={`¿Cuántas ${pluralUnidad(unidad)} necesitas?`}>
             <input inputMode="numeric" value={cantidad} onChange={e => setCantidad(e.target.value.replace(/\D/g, ''))} placeholder="10" />
           </Campo>
         </div>

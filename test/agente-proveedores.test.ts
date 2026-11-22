@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { conectarAgente } from '../server/agente/index.ts';
 import type { ListaDeProductos } from '../server/agente/proveedor.ts';
+import { sugerirProductos, type ProductoConocido } from '../shared/productos.ts';
 import { interpretarConReglas, interpreteDeReglas } from '../server/agente/intencion.ts';
 import { crearRed, crearRepositorioMemoria, crearSiiFalso, LICITACION_SALA } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
@@ -15,7 +16,7 @@ const ANA = '56911110001';
 const BETO = '56911110002';
 const CARO = '56911110003';
 
-async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos) {
+async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos, biblioteca?: { buscar(q: string): ProductoConocido[] }) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), {});
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
@@ -39,6 +40,7 @@ async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos)
     env,
     sala: { ventanaCascadaMs: 10, minimoDifusionMs: 0, vigilarCierreMs: 0 },
     ...(productos ? { productos } : {}),
+    ...(biblioteca ? { biblioteca } : {}),
   });
   let n = 0;
   const escribir = async (from: string, text: string) => {
@@ -171,4 +173,22 @@ test('por WhatsApp: un comprador pide algo que nadie vende a precio fijo y abre 
 
   await escribir(CARO, 'necesito 4 sacos de harina');
   assert.doesNotMatch(ultimo(CARO), /compra en grupo/, 'lo que tiene precio sigue siendo un pedido directo');
+});
+
+test('por WhatsApp: "cocacola" sugiere los productos parecidos de la biblioteca o crear uno nuevo', async t => {
+  const conocidos: ProductoConocido[] = [{ nombre: 'Coca-Cola 3 lts', unidad: 'botella' }, { nombre: 'Coca Cola lata 330 ml', unidad: 'unidad' }];
+  const { red, agente, escribir, ultimo } = await montar({}, undefined, { buscar: q => sugerirProductos(q, conocidos) });
+  t.after(() => agente.desconectar());
+  await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+
+  await escribir(CARO, 'quiero comprar 12 cocacola');
+  assert.match(ultimo(CARO), /parecidos a "cocacola"\. ¿Cuál es\?\n1\. Coca-Cola 3 lts \(por botella\)\n2\. Coca Cola lata 330 ml \(por unidad\)\n3\. Otro: crear "cocacola"/);
+  await escribir(CARO, '1');
+  assert.match(ultimo(CARO), /¿Abro una compra en grupo con tus 12\?/);
+  await escribir(CARO, 'si');
+  const abierta = red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta' && l.producto === 'Coca-Cola 3 lts')!;
+  assert.deepEqual([abierta.unidad, abierta.totalUnidades], ['botella', 12]);
+
+  await escribir(CARO, 'quiero comprar 5 cocacola zero');
+  assert.match(ultimo(CARO), /Ningún proveedor de la red tiene precio fijo para "Cocacola zero"/, 'sin parecidos, va directo como nuevo');
 });

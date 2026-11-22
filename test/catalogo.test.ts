@@ -128,7 +128,7 @@ test('el proveedor ve su catálogo armado solo y suma un producto a la compra co
 test('el proveedor arma su lista a mano con sus tramos, la edita y la quita; sobrevive a una nueva carga de facturas', async () => {
   const catalogos = await iniciarCatalogos({ emitir: () => {} });
   const yo = { id: 'n-proveedor' };
-  const cafe = { nombre: 'Café molido 1 kg', unidad: 'Bolsa', tramos: [{ desde: 10, precioUnitario: 11000 }, { desde: 1, precioUnitario: 12000 }] };
+  const cafe = { nombre: 'Café molido 1 kg', unidad: 'bolsa', tramos: [{ desde: 10, precioUnitario: 11000 }, { desde: 1, precioUnitario: 12000 }] };
   const creado = await catalogos.agregar(yo, cafe);
   assert.deepEqual([creado.unidad, creado.tramosDe, creado.tramos.map(t => t.desde)], ['bolsa', 'propios', [1, 10]]);
   await assert.rejects(catalogos.agregar(yo, { ...cafe, nombre: 'cafe molido 1 KG' }), /ya está en tu lista/);

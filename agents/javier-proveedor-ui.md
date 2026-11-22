@@ -16,6 +16,7 @@ libre (PR del panel del proveedor)
 - (ninguno)
 
 ## Hecho
+- Competencia automática con las listas (mismo nombre y unidad), ofertas con tramos, Compras en grupo del proveedor, unidades fijas y biblioteca de productos (web y bot).
 - Solicitudes de compra en grupo del comprador: web (+, pestañas Abiertas/Cerradas, varias abiertas) y WhatsApp.
 - Lista de productos del proveedor con tramos propios (web y WhatsApp); se deshace que el proveedor abra compras. Decisión: docs/decisiones/20261121-2255-lista-de-productos-y-solicitudes.md
 - Portada común de /app y /proveedor (¿Qué vas a hacer hoy? con Comprar y Vender); el inicio del proveedor pasa a Ventas.
@@ -23,5 +24,4 @@ libre (PR del panel del proveedor)
 - /proveedor con el marco de marca: Inicio (lo vendido hoy, por confirmar, reclamos), Pedidos (estados) y Precios (tramos). Reparto y Facturas siguen por el puente.
 
 ## Pendientes
-- PR 3: los proveedores compiten con su lista y la mejoran por solicitud; ganador automático.
 - Rediseñar Reparto y Facturas (Paper P5 y P2d) y el paso de confirmación con la marca.

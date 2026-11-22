@@ -121,8 +121,15 @@ export function tramosSugeridos(ventas: readonly { cantidad: number; precioUnita
   return tramos;
 }
 
+/** Una oferta con su precio base y, si los trae, sus tramos por cantidad (la lista de precios del proveedor). */
+export type OfertaConTramos = { precioUnitario: number; tramos?: readonly Tramo[] };
+
+/** Lo que cobra una oferta por unidad cuando el grupo junta `unidades`: su tramo alcanzado o, sin tramos, su precio. */
+export const precioDeOferta = (o: OfertaConTramos, unidades: number): number =>
+  o.tramos?.length ? precioPorVolumen({ tramos: o.tramos, precioSolo: o.precioUnitario }, unidades) : o.precioUnitario;
+
 type ConOfertas = ConPrecio & {
-  ofertas?: readonly { proveedorId: string; precioUnitario: number }[];
+  ofertas?: readonly ({ proveedorId: string } & OfertaConTramos)[];
   /** Quien creó el producto: sus tramos son su precio por volumen. */
   proveedorId?: string;
 };
@@ -139,9 +146,9 @@ export function precioDelProducto(p: ConOfertas, unidades: number, proveedorFijo
   if (unidades <= 0) return tramo;
   if (proveedorFijo) {
     const propia = p.ofertas?.find(o => o.proveedorId === proveedorFijo);
-    return propia ? Math.min(tramo, propia.precioUnitario) : tramo;
+    return propia ? Math.min(tramo, precioDeOferta(propia, unidades)) : tramo;
   }
-  const ofertas = (p.ofertas ?? []).map(o => o.precioUnitario);
+  const ofertas = (p.ofertas ?? []).map(o => precioDeOferta(o, unidades));
   if (ofertas.length === 0) return tramo;
   return Math.min(...ofertas, p.proveedorId ? tramo : Infinity);
 }

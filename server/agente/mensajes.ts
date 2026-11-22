@@ -76,6 +76,9 @@ export const noEntendi = (pregunta: string) => `No te entendí.\n\n${pregunta}`;
 export const fallo = (error: unknown) =>
   `No pude completarlo: ${error instanceof Error ? error.message : String(error)}. Si quieres reintentar, responde "sí".`;
 
+export const elegirProducto = (escrito: string, parecidos: readonly { nombre: string; unidad: string }[]) =>
+  `En Bando ya hay productos parecidos a "${escrito}". ¿Cuál es?\n`
+  + opciones(...parecidos.map(p => `${p.nombre} (por ${p.unidad})`), `Otro: crear "${escrito}"`);
 export const proponerSolicitud = (producto: string, cantidad: number) =>
   `Ningún proveedor de la red tiene precio fijo para "${producto}". ¿Abro una compra en grupo con tus ${cantidad}? `
   + 'Otros negocios se suman, los proveedores ofertan y gana el mejor precio para todo el grupo. Cierra en 24 horas.\n'

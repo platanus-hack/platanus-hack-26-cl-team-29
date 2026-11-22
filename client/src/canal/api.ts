@@ -9,6 +9,7 @@ import type { ItemCarrito } from './carrito.ts';
 import type { TipoDocumento } from '../../../shared/documentos.ts';
 import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
 import type { CatalogoProveedor, ProductoEscrito } from '../../../shared/catalogo.ts';
+import type { ProductoConocido } from '../../../shared/productos.ts';
 import type { RutaReparto } from '../../../shared/ruta.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
@@ -45,6 +46,8 @@ export interface CanalApi {
   unirse(token: string, licitacionId: string, cantidad: number): Promise<void>;
   /** Reemplaza el carrito completo de la canasta (cantidad 0 quita; vacío = sale). */
   carrito(token: string, licitacionId: string, items: ItemCarrito[]): Promise<void>;
+  /** Productos que ya existen en la plataforma y se parecen a lo escrito, con su unidad (la biblioteca). */
+  buscarProductos(q: string): Promise<ProductoConocido[]>;
   /** Inicia una compra en grupo de un producto con su cantidad; devuelve dónde quedó para abrirla. */
   abrirSolicitud(token: string, s: NuevaSolicitud): Promise<{ licitacionId: string; productoId: string }>;
   /** Sale de la compra conjunta (vacía el carrito). */
@@ -54,6 +57,8 @@ export interface CanalApi {
   yoProveedor(token: string): Promise<YoProveedor>;
   cerrar(token: string, licitacionId: string): Promise<void>;
   facturar(token: string, licitacionId: string): Promise<void>;
+  /** Su oferta con tramos en una compra en grupo sin proveedor fijo (reemplaza la que entró desde su lista). */
+  ofertar(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
   /** Sus tramos por volumen de un producto de la compra abierta (solo el dueño del producto). */
   fijarTramos(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
   confirmarOrden(token: string, ordenId: string): Promise<void>;
@@ -167,6 +172,7 @@ export function crearApiReal(): CanalApi {
       return { negocio: r.negocio!, facturaA: r.facturaA ?? null, ordenes: lista(r.ordenes), documentos: lista(r.documentos), participaciones: lista(r.participaciones) };
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
+    buscarProductos: async q => (await llamar<{ productos: ProductoConocido[] }>(`/productos?${new URLSearchParams({ q })}`)).productos,
     abrirSolicitud: async (token, solicitud) => {
       const l = await llamar<{ id: string; productos: { id: string }[] }>('/yo/solicitudes', { token, cuerpo: solicitud });
       return { licitacionId: l.id, productoId: l.productos[0].id };
@@ -178,6 +184,9 @@ export function crearApiReal(): CanalApi {
     yoProveedor: async token => normalizarYoProveedor(await llamar('/proveedor/yo', { token })),
     cerrar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },
+    ofertar: async (token, id, productoId, tramos) => {
+      await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/oferta`, { token, cuerpo: { tramos } });
+    },
     fijarTramos: async (token, id, productoId, tramos) => {
       await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/tramos`, { token, cuerpo: { tramos }, metodo: 'PUT' });
     },

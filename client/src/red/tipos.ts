@@ -93,6 +93,10 @@ export interface Oferta {
   /** Canasta: el producto por el que oferta. */
   productoId?: string;
   precioUnitario: number;
+  /** Sus tramos por cantidad: lo que cobra depende de cuánto junte el grupo (`precioDeOferta`). */
+  tramos?: Tramo[];
+  /** Entró sola desde su lista de precios. */
+  automatica?: true;
   plazoDias: number;
   en?: string;
   /** Proveedores que compiten en la sala: el nombre y la nota vienen con la oferta. */

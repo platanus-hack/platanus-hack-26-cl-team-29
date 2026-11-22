@@ -38,6 +38,8 @@ export interface OpcionesRutas {
   conexionSii?: express.Router;
   /** Catálogo del proveedor armado desde sus facturas (server/catalogo): el del panel y la ruta de operación del equipo. */
   catalogo?: { proveedor: express.Router; operacion: express.Router };
+  /** La biblioteca de productos (server/catalogo/biblioteca.ts), para sugerir al escribir uno nuevo. */
+  biblioteca?: { buscar(q: string): readonly { nombre: string; unidad: string }[] };
 }
 
 /** Rutas `/api/red` del contrato. Requiere `express.json()` montado antes. */
@@ -152,6 +154,12 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
   // Respaldo de escenario si WhatsApp falla: el sí del proveedor dado desde la consola.
   rutas.post('/licitaciones/:id/confirmar', exigirTokenDemo, limitarDemo, async (req, res) => {
     res.json(await red.confirmarOrdenesDeLicitacion(id(req)));
+  });
+
+  // Sugerencias al escribir un producto (proveedor en su lista, comprador al iniciar una compra): los que ya existen en
+  // la plataforma, con su unidad. Solo nombres de productos, sin datos de nadie.
+  rutas.get('/productos', (req, res) => {
+    res.json({ productos: opciones.biblioteca?.buscar(String(req.query.q ?? '')) ?? [] });
   });
 
   // Carga de XML de facturas de un proveedor, que hace el equipo (server/catalogo/rutas.ts).

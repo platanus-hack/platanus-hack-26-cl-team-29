@@ -1,0 +1,51 @@
+// La lista de precios de cada proveedor compite sola: en cada compra en grupo sin proveedor fijo, el proveedor que
+// tiene ese mismo producto (mismo nombre y unidad, ver shared/productos.ts) queda ofertando con sus tramos. Pasa al
+// abrirse una compra (`licitacion.abierta`), al cambiar su lista y al arrancar. Si el proveedor mejora su oferta a mano
+// en esa compra, la automática ya no la pisa.
+// Decisión: docs/decisiones/20261121-2255-lista-de-productos-y-solicitudes.md
+import { mismoProducto } from '../../shared/productos.ts';
+import type { Tramo } from '../../shared/precios.ts';
+import type { EventoRed, LicitacionVista, NuevaOferta } from '../red/index.ts';
+import type { Catalogos } from './index.ts';
+
+/** Plazo de entrega con que entra una oferta automática, en días. */
+const PLAZO_DIAS = 1;
+
+interface RedConOfertas {
+  estadoDeLaRed(): { licitaciones: LicitacionVista[] };
+  ofertar(licitacionId: string, oferta: NuevaOferta): Promise<unknown>;
+  escuchar(oyente: (evento: EventoRed) => void): () => void;
+}
+
+const mismosTramos = (a: readonly Tramo[] = [], b: readonly Tramo[] = []) =>
+  a.length === b.length && a.every((t, i) => t.desde === b[i]!.desde && t.precioUnitario === b[i]!.precioUnitario);
+
+export function conectarOfertasDeListas(red: RedConOfertas, catalogos: Pick<Catalogos, 'listas' | 'alCambiarLista'>, log: Pick<Console, 'warn'> = console) {
+  async function ofertarEn(l: LicitacionVista, soloDe?: string) {
+    if (l.estado !== 'abierta' || l.proveedorId) return;
+    for (const { proveedorId, productos } of catalogos.listas()) {
+      if (soloDe && proveedorId !== soloDe) continue;
+      for (const p of l.productos.filter(x => !x.proveedorId)) {
+        const suyo = productos.find(x => mismoProducto(x, p));
+        const actual = p.ofertas.find(o => o.proveedorId === proveedorId);
+        if (!suyo || (actual && !actual.automatica) || (actual && mismosTramos(actual.tramos, suyo.tramos))) continue;
+        try {
+          await red.ofertar(l.id, { proveedorId, productoId: p.id, precioUnitario: suyo.tramos[0]!.precioUnitario, tramos: suyo.tramos, plazoDias: PLAZO_DIAS, automatica: true });
+        } catch (error) {
+          log.warn(`[ofertas] no pude ofertar la lista de ${proveedorId} en ${l.id}:`, error instanceof Error ? error.message : error);
+        }
+      }
+    }
+  }
+  const abiertas = () => red.estadoDeLaRed().licitaciones.filter(l => l.estado === 'abierta');
+  const deLaRed = (id: string) => red.estadoDeLaRed().licitaciones.find(l => l.id === id);
+
+  catalogos.alCambiarLista(proveedorId => { for (const l of abiertas()) void ofertarEn(l, proveedorId); });
+  const dejar = red.escuchar(e => {
+    const id = (e.datos as { licitacionId?: string } | null)?.licitacionId;
+    const l = e.tipo === 'licitacion.abierta' && id ? deLaRed(id) : undefined;
+    if (l) void ofertarEn(l);
+  });
+  for (const l of abiertas()) void ofertarEn(l);
+  return { detener: dejar, ofertarEn };
+}
