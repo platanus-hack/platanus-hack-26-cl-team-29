@@ -12,6 +12,7 @@ import { LogoSii } from './iconos.tsx';
 import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
 import { useDatoEnVivo } from './useCanal.ts';
+import { Modal } from '../marca/Modal.tsx';
 import type { CafSii, EstadoConexionSii, DatosEmpresaSii, FoliosSii, PasoSii } from './tipos.ts';
 
 const POLEO_MS = 1500;
@@ -39,22 +40,43 @@ interface Props {
 const buscandoEnSii = (e: EstadoConexionSii): boolean =>
   !!e.automatico?.activo || e.cafs.some(c => c.escaneando) || e.folios.some(f => f.estado === 'reponiendo');
 
-/** Tarjeta del panel: el estado de la conexión y, al abrirla, los tres pasos. */
-export function ConectarSii({ api, token }: Props) {
-  const [abierta, setAbierta] = useState(false);
-  // Folios repuestos, bajos o en espera llegan en vivo por `red:evento` (`sii.folios`). Mientras la conexión automática
-  // corre, se busca el primer folio libre de algún CAF o se reponen folios, también se consulta el avance.
+/** Lo que dice el botón: conectado, usando la demo o por conectar. */
+const etiquetaSii = (e: EstadoConexionSii) =>
+  (e.demo?.usando ? `Usando ${e.demo.empresa} (Demo)` : e.conectado ? `SII conectado${e.empresa ? ` · ${e.empresa.razonSocial}` : ''}` : 'Conectar mi SII');
+
+/**
+ * El botón del SII en Facturas: dice si está conectado y abre un modal con la conexión (estado, pasos y la opción demo).
+ * Folios repuestos, bajos o en espera llegan en vivo por `red:evento` (`sii.folios`); mientras la conexión automática
+ * corre o se reponen folios, también se consulta el avance.
+ */
+export function BotonSii({ api, token }: Props) {
+  const [abierto, setAbierto] = useState(false);
   const cargar = useCallback(() => api.siiEstado(token), [api, token]);
   const { dato: estado, setDato: setEstado, error } = useDatoEnVivo(api, cargar, 'sii.folios', buscandoEnSii, POLEO_MS);
+  const cerrar = useCallback(() => setAbierto(false), []);
+  if (!estado) return error ? <p className="bm-error">{error}</p> : null;
+  return (
+    <>
+      <button type="button" className={`bm-boton ${estado.conectado ? 'secundario' : 'bm-boton-sii'}`} onClick={() => setAbierto(true)}>
+        <LogoSii tam={16} /> {etiquetaSii(estado)}
+      </button>
+      {abierto && (
+        <Modal titulo="Conexión con el SII" onCerrar={cerrar}>
+          <div className="puente-legado"><ConectarSii api={api} token={token} estado={estado} setEstado={setEstado} /></div>
+        </Modal>
+      )}
+    </>
+  );
+}
 
-  if (!estado) {
-    return error ? <p className="error">{error}</p> : null;
-  }
+/** La conexión: su estado y, al abrirla (de entrada si no está conectado), los pasos. */
+function ConectarSii({ api, token, estado, setEstado }: Props & { estado: EstadoConexionSii; setEstado: (e: EstadoConexionSii) => void }) {
+  const [abierta, setAbierta] = useState(!estado.conectado);
 
   const factura = estado.folios.find(f => f.tipo === 33);
   const usandoDemo = !!estado.demo?.usando;
   return (
-    <section className="tarjeta cn-sii-conexion">
+    <section className="cn-sii-conexion">
       <div className="cn-fila-meta">
         <span className={`cn-chip cn-con-sii ${estado.conectado ? 'conectado' : ''}`}>
           <LogoSii tam={14} />{usandoDemo ? `Usando ${estado.demo!.empresa} (Demo)` : estado.conectado ? 'SII conectado' : 'SII sin conectar'}

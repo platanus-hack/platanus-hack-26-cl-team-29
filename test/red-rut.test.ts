@@ -148,7 +148,7 @@ test('ni la foto pública ni los eventos ni las respuestas de la web llevan el R
 
     // Su dueño sí ve a quién sale su factura.
     const yo = (await pedir('GET', '/yo', undefined, token)).cuerpo;
-    assert.deepEqual(yo.facturaA, { rut: '11.111.111-1', razonSocial: 'Comercial Prueba Limitada', giro: 'Venta al por menor en almacenes', comuna: 'Ñuñoa' });
+    assert.deepEqual(yo.facturaA, { rut: '11.111.111-1', razonSocial: 'Comercial Prueba Limitada', giro: 'Venta al por menor en almacenes', direccion: 'Av. Siempre Viva 742', comuna: 'Ñuñoa' });
     privado({ ...yo, facturaA: null });
 
     await red.cerrarLicitacion('L-1');

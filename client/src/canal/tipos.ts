@@ -48,6 +48,8 @@ export interface Participacion {
 export interface DatosEntrada {
   nombre: string;
   comuna: string;
+  /** Para su factura: la consulta pública del SII no la trae. */
+  direccion: string;
   rubro?: string;
   rut: string;
 }
@@ -57,6 +59,8 @@ export interface FacturaA {
   rut: string;
   razonSocial: string;
   giro: string;
+  /** Sin dirección (la consulta del SII no la trae), su factura no se puede emitir: la completa en Facturas. */
+  direccion?: string;
   comuna: string;
   /** Datos de prueba: el SII todavía no está conectado para consultar RUT. */
   simulado?: boolean;
@@ -80,6 +84,9 @@ export interface YoProveedor {
   notaAnterior?: number;
   licitaciones?: LicitacionCanal[];
 }
+
+/** La recepción que confirma el comprador: llegó todo, o cuántas faltaron (reclamo en el SII). */
+export type Recepcion = { conforme: true; confirmado: true } | { faltante: number; confirmado: true };
 
 export interface FotoRed extends Omit<EstadoRed, 'licitaciones' | 'ordenes'> {
   licitaciones: LicitacionCanal[];

@@ -334,7 +334,8 @@ export function crearApiFalsa(): CanalApi {
         sembrarComprador(negocio);
         porTelefono.set(telefono, negocio.id);
         facturas.set(negocio.id, {
-          rut: formatearRutAlEscribir(datos.rut), razonSocial: 'Contribuyente de prueba', giro: 'Comercio al por menor', comuna: 'Santiago', simulado: true,
+          rut: formatearRutAlEscribir(datos.rut), razonSocial: 'Contribuyente de prueba', giro: 'Comercio al por menor',
+          ...(datos.direccion?.trim() ? { direccion: datos.direccion.trim() } : {}), comuna: datos.comuna?.trim() || 'Santiago', simulado: true,
         });
       }
       const token = `falso-${negocio.id}-${++contador}`;
@@ -387,6 +388,37 @@ export function crearApiFalsa(): CanalApi {
       const deListas = manuales.map(p => ({ nombre: p.nombre, unidad: p.unidad, precioBase: p.tramos[0].precioUnitario, ...(p.minimo ? { minimo: p.minimo } : {}) }));
       const conocidos = [...deListas, ...red.licitaciones.flatMap(l => l.productos ?? [])].flatMap(p => (esUnidad(p.unidad) ? [{ ...p, unidad: p.unidad }] : []));
       return sugerirProductos(q, conocidos);
+    },
+
+    async fijarDireccion(token, { direccion, comuna }) {
+      await espera(300);
+      const negocio = quien(token);
+      const f = facturas.get(negocio.id);
+      exigir(!!f, 'Primero registra el RUT de tu negocio.');
+      exigir(!!direccion.trim() && !!comuna.trim(), 'Escribe la dirección y la comuna.');
+      facturas.set(negocio.id, { ...f!, direccion: direccion.trim(), comuna: comuna.trim() });
+      avisar('negocio.registrado', { negocio });
+    },
+
+    async recepcion(token, ordenId, r) {
+      await espera(400);
+      const negocio = quien(token);
+      const o = orden(ordenId);
+      exigir(r.confirmado === true, 'Esta acción queda registrada en el SII: falta tu confirmación.');
+      exigir(o.compradorId === negocio.id, 'Ese pedido no es tuyo.');
+      exigir(o.estado === 'facturada', 'Este pedido ya no espera tu recepción.');
+      if ('conforme' in r) {
+        o.estado = 'recibida';
+        avisar('recepcion.registrada', { orden: o, conforme: true });
+        cambiarNota(o.proveedorId, 0.1);
+        return;
+      }
+      const item = o.items[0];
+      exigir(Number.isInteger(r.faltante) && r.faltante >= 1 && r.faltante <= item.cantidad, `Indica cuántas faltaron, entre 1 y ${item.cantidad}.`);
+      o.estado = 'reclamada';
+      o.reclamo = { producto: item.producto, faltante: r.faltante, en: ahoraIso(), estadoSii: 'recibido' };
+      avisar('reclamo.registrado', { orden: o, reclamo: o.reclamo, motivo: 'falta parcial' });
+      cambiarNota(o.proveedorId, -0.4);
     },
 
     async cerrarSolicitud(token, licitacionId) {

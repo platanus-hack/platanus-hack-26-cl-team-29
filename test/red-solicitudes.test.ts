@@ -159,3 +159,16 @@ test('una compra abierta antes de guardar quién la inició: la inició el prime
   const despues = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   assert.equal(despues.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.iniciadaPor, ana);
 });
+
+test('la dirección de factura: se da al registrarse, se completa después y no se pierde al registrarse como proveedor', async () => {
+  const { red } = await redDePrueba();
+  const tel = '+56 9 3200 0001';
+  const ana = await red.registrarComprador({ nombre: 'Ana', telefono: tel, rut: '12.345.678-5', direccionFactura: { direccion: 'Alsacia 99', comuna: 'Las Condes' } });
+  const datos = () => red.estadoDeLaRed().negocios.find(n => n.id === ana.id)!.contribuyente!;
+  assert.deepEqual([datos().direccion, datos().comuna], ['Alsacia 99', 'Las Condes']);
+  await red.registrarProveedor({ telefono: tel, rut: '12.345.678-5' });
+  assert.deepEqual([datos().direccion, datos().comuna], ['Alsacia 99', 'Las Condes'], 'registrarse como proveedor no borra la dirección');
+  await red.fijarDireccionFactura(ana.id, { direccion: 'Irarrázaval 1234', comuna: 'Ñuñoa' });
+  assert.deepEqual([datos().direccion, datos().comuna], ['Irarrázaval 1234', 'Ñuñoa']);
+  await assert.rejects(red.fijarDireccionFactura(ana.id, { direccion: ' ', comuna: 'Ñuñoa' }), /dirección y la comuna/);
+});

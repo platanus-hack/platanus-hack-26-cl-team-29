@@ -1,5 +1,5 @@
 // Pedidos del proveedor (DESIGN.md, Paper "P2c"): cuántos hay en cada estado y la lista, el más nuevo primero.
-// Las acciones (confirmar, facturar, nota de crédito) viven en Ventas; aquí se lee el estado de cada uno.
+// Los pedidos por confirmar se confirman aquí mismo (como en Ventas); de los demás se lee su estado.
 
 import { useState } from 'react';
 import { dinero } from '../../../shared/formato.ts';
@@ -9,10 +9,10 @@ import { useAhora } from '../red/useRed.ts';
 import type { Negocio } from '../red/tipos.ts';
 import { Monograma } from '../canal/iconos.tsx';
 import type { ConfigRed, YoProveedor } from '../canal/tipos.ts';
-import { detalleDe } from './Ventas.tsx';
+import { detalleDe, FilaPedido, type PropsAccion } from './Ventas.tsx';
 import { contarPorGrupo, ESTADO_PEDIDO, grupoDe, GRUPOS_PEDIDO, type GrupoPedido } from './pedidos.ts';
 
-export function Pedidos({ yo, config, comprador }: { yo: YoProveedor; config: ConfigRed | null; comprador: (id: string) => Negocio | undefined }) {
+export function Pedidos({ yo, config, comprador, ...acciones }: PropsAccion & { yo: YoProveedor; config: ConfigRed | null; comprador: (id: string) => Negocio | undefined }) {
   const ahora = useAhora();
   const [filtro, setFiltro] = useState<GrupoPedido | null>(null);
   const cuenta = contarPorGrupo(yo.ordenes);
@@ -25,7 +25,7 @@ export function Pedidos({ yo, config, comprador }: { yo: YoProveedor; config: Co
       <header className="bm-cabecera">
         <div>
           <h1 className="bm-titulo">Pedidos</h1>
-          <p className="bm-bajada">Confirmas en Ventas. Cobras apenas el local confirma la recepción.</p>
+          <p className="bm-bajada">Confirma los pedidos nuevos y factura en el SII. Cobras apenas el local confirma la recepción.</p>
         </div>
       </header>
 
@@ -42,6 +42,7 @@ export function Pedidos({ yo, config, comprador }: { yo: YoProveedor; config: Co
       ) : (
         <ul className="bm-tarjeta bp-filas bp-tabla">
           {lista.map(o => {
+            if (o.estado === 'enviada' || o.estado === 'confirmada') return <FilaPedido key={o.id} {...acciones} orden={o} comprador={comprador(o.compradorId)} config={config} />;
             const quien = comprador(o.compradorId)?.nombre ?? 'Un negocio';
             const estado = ESTADO_PEDIDO[o.estado];
             return (

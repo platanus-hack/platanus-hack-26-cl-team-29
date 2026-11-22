@@ -180,9 +180,17 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     // A quién sale su factura: solo a su dueño (nunca en la foto pública ni en eventos).
     const c = negocio.contribuyente;
     const facturaA = negocio.rut && c
-      ? { rut: formatearRut(negocio.rut), razonSocial: c.razonSocial, giro: c.giro, comuna: c.comuna, ...(c.simulado ? { simulado: true } : {}) }
+      ? { rut: formatearRut(negocio.rut), razonSocial: c.razonSocial, giro: c.giro, direccion: c.direccion, comuna: c.comuna, ...(c.simulado ? { simulado: true } : {}) }
       : null;
     res.json({ negocio: sinTelefonos(negocio), facturaA, ordenes, documentos: documentosDe(ordenes), participaciones });
+  });
+
+  // La dirección de su factura: la consulta pública del SII no la trae y sin ella la factura no se emite.
+  rutas.put('/yo/direccion', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
+    const b = cuerpo(req);
+    // Los datos del SII no vuelven en la respuesta: la pantalla los vuelve a pedir en /yo.
+    await red.fijarDireccionFactura(yo(req).id, { direccion: String(b.direccion ?? ''), comuna: String(b.comuna ?? '') });
+    res.json({ ok: true });
   });
 
   rutas.post('/yo/unirse', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
