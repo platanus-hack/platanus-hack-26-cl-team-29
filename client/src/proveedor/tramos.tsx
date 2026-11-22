@@ -29,7 +29,7 @@ export function TablaTramos({ t, unidad, unidades }: { t: ReturnType<typeof useT
   return (
     <div className="bp-tramos" role="table" aria-label="Precio por cantidad">
       <div className="bp-tramo bp-tramo-titulos" role="row">
-        <span role="columnheader">Desde ({unidades})</span><span role="columnheader">Precio por {unidad}</span><span />
+        <span role="columnheader">Desde ({unidades})</span><span role="columnheader">Precio neto por {unidad}</span><span />
       </div>
       {t.filas.map((f, i) => (
         <div key={i} role="row" className="bp-tramo">

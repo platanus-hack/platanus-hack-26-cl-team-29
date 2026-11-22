@@ -12,6 +12,7 @@ import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { contar, segun } from '../../../shared/texto.ts';
 import { Monograma } from '../canal/iconos.tsx';
 import { LogoSii } from '../marca/LogoSii.tsx';
+import { NotaPreciosNetos } from '../marca/componentes.tsx';
 import { useJson } from '../red/useJson.ts';
 import '../canal/canal.css';
 import './buscador-proveedores.css';
@@ -207,6 +208,7 @@ export function FichaProveedor({ clave, evento, volver }: { clave: string; event
             </li>
           ))}
         </ul>
+        {p.productos.length > 0 && <NotaPreciosNetos />}
         {datos.mercadoPublico.fuente === 'ejemplo' && mp && <p className="fuente-falsa">Mercado Público con datos de ejemplo</p>}
       </section>
     </>

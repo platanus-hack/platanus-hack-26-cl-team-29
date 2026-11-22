@@ -70,7 +70,7 @@ function TramosDeProducto({ api, token, alCambiar, lic, producto, estado, editab
       </header>
       <div className="bp-tramos" role="table" aria-label={`Tramos de ${producto.nombre}`}>
         <div className="bp-tramo bp-tramo-titulos" role="row">
-          <span role="columnheader">Desde</span><span role="columnheader">Precio por {producto.unidad}</span><span role="columnheader" className="bp-solo-ancho">Lo que ve el comprador</span>
+          <span role="columnheader">Desde</span><span role="columnheader">Precio neto por {producto.unidad}</span><span role="columnheader" className="bp-solo-ancho">Lo que ve el comprador</span>
         </div>
         {tramos.map((t, i) => {
           const actual = !filas && i === estado.alcanzados - 1;

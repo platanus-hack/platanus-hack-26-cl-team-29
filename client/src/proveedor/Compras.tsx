@@ -6,7 +6,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { errorDeTramos, ofertasQueCompiten, precioDeOferta, type Tramo } from '../../../shared/precios.ts';
+import { dineroMasIva, errorDeTramos, ofertasQueCompiten, precioDeOferta, type Tramo } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { itemsDe, productosDe } from '../canal/carrito.ts';
 import { Campo } from '../canal/Acceso.tsx';
@@ -20,6 +20,7 @@ import { ProgresoCompra } from '../comprador/ProgresoCompra.tsx';
 import { cuentaRegresiva } from '../red/formato.ts';
 import type { Oferta, ProductoCompra } from '../red/tipos.ts';
 import { useAhora } from '../red/useRed.ts';
+import { NotaPreciosNetos } from '../marca/componentes.tsx';
 import { FilaProducto } from './FilaProducto.tsx';
 import { AccionesTramos, aFilas, aTramos, TablaTramos, useTramos } from './tramos.tsx';
 import type { PropsAccion } from './Ventas.tsx';
@@ -34,7 +35,7 @@ function estadoDe({ lic, p, mia }: Fila, ahora: number): { texto: string; tono: 
   const unidades = p.totalUnidades ?? 0;
   if (!estaAbierta(lic, ahora)) {
     if (mia && p.ganadora?.proveedorId === mia.proveedorId) return { texto: 'Ganaste', tono: 'listo' };
-    return { texto: p.ganadora ? `Ganó otro a ${dinero(p.ganadora.precioUnitario)}` : 'Cerró sin ganador', tono: 'neutro' };
+    return { texto: p.ganadora ? `Ganó otro a ${dineroMasIva(p.ganadora.precioUnitario)}` : 'Cerró sin ganador', tono: 'neutro' };
   }
   // Con proveedor fijo (solo llegan aquí las de este proveedor), la compra ya es suya: no compite, la abastece.
   if (lic.proveedorId) return { texto: 'Tú la abasteces', tono: 'listo' };
@@ -92,7 +93,7 @@ export function Compras({ foto, yo, ruta, ...props }: PropsAccion & { foto: Foto
                   {contar(locales, 'local', 'locales')} · {contar(unidades, f.p.unidad, f.p.unidadPlural)}
                   {estaAbierta(f.lic, ahora) ? ` · cierra en ${cuentaRegresiva(Date.parse(f.lic.cierraEn) - ahora)}` : ''}
                 </span>
-                {f.mia && <span>Tu precio a este volumen: <strong>{dinero(precioDeOferta(f.mia, unidades))}</strong>{f.mia.automatica ? ' (desde tu lista)' : ''}</span>}
+                {f.mia && <span>Tu precio a este volumen: <strong>{dineroMasIva(precioDeOferta(f.mia, unidades))}</strong>{f.mia.automatica ? ' (desde tu lista)' : ''}</span>}
               </FilaProducto>
             );
           })}
@@ -136,7 +137,7 @@ function DetalleCompra({ api, token, alCambiar, foto, fila, ahora }: PropsAccion
             <h2>Tu oferta</h2>
             {mia ? (
               <dl className="bm-cuenta">
-                <div><dt>Tu precio con {contar(unidades, p.unidad, p.unidadPlural)}</dt><dd>{dinero(precioDeOferta(mia, unidades))}</dd></div>
+                <div><dt>Tu precio con {contar(unidades, p.unidad, p.unidadPlural)}</dt><dd>{dineroMasIva(precioDeOferta(mia, unidades))}</dd></div>
                 {mia.minimo ? <div><dt>Tu pedido mínimo</dt><dd>{contar(mia.minimo, p.unidad, p.unidadPlural)}</dd></div> : null}
                 <div><dt><span className={`bp-estado ${estado.tono}`}>{estado.texto}</span></dt><dd>{mia.automatica ? 'Desde tu lista' : 'A mano'}</dd></div>
               </dl>
@@ -173,6 +174,7 @@ function DetalleCompra({ api, token, alCambiar, foto, fila, ahora }: PropsAccion
                   );
                 })}
               </ol>
+              <NotaPreciosNetos className="bp-margen" />
             </section>
           )}
 

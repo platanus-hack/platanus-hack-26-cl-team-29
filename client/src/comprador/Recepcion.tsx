@@ -3,11 +3,11 @@
 // crédito. Las dos pasan por un paso de confirmación. Se recalcula con cada `red:evento`.
 
 import { useCallback, useState } from 'react';
-import { dinero } from '../../../shared/formato.ts';
 import { totalOrden } from '../../../shared/precios.ts';
 import type { Negocio } from '../red/tipos.ts';
 import type { CanalApi } from '../canal/api.ts';
 import { Monograma } from '../canal/iconos.tsx';
+import { TotalConIva } from '../marca/componentes.tsx';
 import { Confirmar, useConfirmacion } from '../canal/piezas.tsx';
 import type { OrdenCanal } from '../canal/tipos.ts';
 import '../proveedor/proveedor.css';
@@ -45,8 +45,9 @@ function Recibir({ api, token, orden, proveedor }: { api: CanalApi; token: strin
       <span className="bp-fila-icono"><Monograma nombre={proveedor} tam={32} /></span>
       <div className="bp-fila-texto">
         <strong>{proveedor}</strong>
-        <span>{orden.items.map(i => `${i.producto} × ${i.cantidad}`).join(', ')} · {dinero(totalOrden(orden))}</span>
+        <span>{orden.items.map(i => `${i.producto} × ${i.cantidad}`).join(', ')}</span>
       </div>
+      <TotalConIva neto={totalOrden(orden)} className="bp-monto" />
       {c.estado.fase === 'nada' && faltante === null && (
         <div className="bp-producto-acciones">
           <button type="button" className="bm-boton" onClick={() => c.pedir({ conforme: true })}>Llegó todo</button>

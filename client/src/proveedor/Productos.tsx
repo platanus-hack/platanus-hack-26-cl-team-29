@@ -13,6 +13,7 @@ import { useEnvio } from '../canal/piezas.tsx';
 import type { LicitacionCanal } from '../canal/tipos.ts';
 import { useDatoEnVivo } from '../canal/useCanal.ts';
 import type { PropsAccion } from './Ventas.tsx';
+import { NotaPreciosNetos } from '../marca/componentes.tsx';
 import { FilaProducto } from './FilaProducto.tsx';
 import { aFilas, aTramos, AccionesTramos, TablaTramos, useTramos, type FilaTramo } from './tramos.tsx';
 
@@ -68,6 +69,7 @@ export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { ab
             ))}
           </ul>
         )}
+        {mios.length > 0 && <NotaPreciosNetos className="bp-margen" />}
       </section>
     </div>
   );

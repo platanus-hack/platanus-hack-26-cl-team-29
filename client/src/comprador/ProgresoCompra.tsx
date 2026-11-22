@@ -5,7 +5,8 @@
 import { dinero } from '../../../shared/formato.ts';
 import type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
-import { faltanUnidades } from '../../../shared/precios.ts';
+import { dineroMasIva, faltanUnidades } from '../../../shared/precios.ts';
+import { NotaPreciosNetos } from '../marca/componentes.tsx';
 import { ABEJA } from '../marca/recursos.ts';
 import { escalera, frasco, rango } from './compra.ts';
 
@@ -59,13 +60,14 @@ export function ProgresoCompra({ p, vista, tuyas = 0 }: {
             </li>
           )}
         </ol>
+        <NotaPreciosNetos className="bm-tramos-nota" />
       </section>
     ) : (
       <section className="bm-tarjeta bm-esperando" aria-label="Esperando ofertas">
         <img className="ilustracion" src={ABEJA.celebra} alt="" />
         <h2>Esperando ofertas de proveedores</h2>
         <p>Los proveedores ven esta compra y ofertan su precio por volumen. Al cerrar gana el mejor para todo el grupo.</p>
-        <p>Van <strong>{contar(vista.unidades, p.unidad, p.unidadPlural)}</strong>{p.precioSolo > 0 ? <> · referencia hoy <strong>{dinero(p.precioSolo)}</strong> por {p.unidad}</> : null}.</p>
+        <p>Van <strong>{contar(vista.unidades, p.unidad, p.unidadPlural)}</strong>{p.precioSolo > 0 ? <> · referencia hoy <strong>{dineroMasIva(p.precioSolo)}</strong> por {p.unidad}</> : null}.</p>
       </section>
     );
 }

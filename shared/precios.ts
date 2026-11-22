@@ -210,8 +210,14 @@ export const neto = (items: readonly Linea[]): number => items.reduce((s, i) => 
 
 /** Tasa de IVA en Chile, en %. */
 export const TASA_IVA = 19;
-/** IVA de un neto, redondeado como en el DTE. */
-export const ivaDe = (montoNeto: number): number => Math.round((montoNeto * TASA_IVA) / 100);
+/** IVA de un neto, redondeado como en el DTE. Un neto negativo (lo que resta una nota de crédito) da el mismo IVA, en negativo. */
+export const ivaDe = (montoNeto: number): number => Math.sign(montoNeto) * Math.round((Math.abs(montoNeto) * TASA_IVA) / 100);
+/** Total con IVA de un neto, como el MntTotal del DTE: 351.600 → 418.404. Todo monto guardado es neto. */
+export const totalConIva = (montoNeto: number): number => montoNeto + ivaDe(montoNeto);
+/** El desglose de un total, para ponerlo bajo el monto con IVA: "Neto $351.600 · IVA $66.804". */
+export const desgloseIva = (montoNeto: number): string => `Neto ${dinero(montoNeto)} · IVA ${dinero(ivaDe(montoNeto))}`;
+/** Un precio unitario neto, dicho como se cobra: "$27.900 + IVA". */
+export const dineroMasIva = (montoNeto: number): string => `${dinero(montoNeto)} + IVA`;
 
 /** Monto neto de una orden de compra. */
 export const totalOrden = (orden: { items: readonly Linea[] }): number => neto(orden.items);

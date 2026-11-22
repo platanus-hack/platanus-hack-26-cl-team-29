@@ -119,7 +119,7 @@ export function MiCredito({ api, token, foto, cambio }: { api: CanalApi; token: 
             ? `Con ${contar(linea.siguiente.faltan, 'pago', 'pagos')} a tiempo más subes a ${linea.siguiente.nombre}: ${dinero(linea.siguiente.cupo)} a ${linea.siguiente.plazoDias} días.`
             : 'Tienes el cupo y el plazo más altos.'}
         </p>
-        <p className="mono tenue cn-nota-pie">Bando le paga al proveedor apenas sale la factura.</p>
+        <p className="mono tenue cn-nota-pie">Bando le paga al proveedor apenas sale la factura. Montos con IVA incluido.</p>
       </div>
 
       <div className="tarjeta cn-credito-tarjeta">
@@ -243,7 +243,7 @@ export function BandoTePago({ api, token, documentos, cambio }: { api: CanalApi;
         </ul>
       )}
       {pagos.length > 0 && (
-        <p className="bp-tenue">{porRecibir ? `${dinero(porRecibir)} por recibir. ` : ''}El negocio le paga a Bando a plazo; tú no esperas sus 30 días.</p>
+        <p className="bp-tenue">{porRecibir ? `${dinero(porRecibir)} por recibir. ` : ''}El negocio le paga a Bando a plazo; tú no esperas sus 30 días. Montos con IVA incluido.</p>
       )}
     </div>
   );

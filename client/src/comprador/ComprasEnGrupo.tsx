@@ -26,7 +26,8 @@ import { frasco, localesDelGrupo, siLlegan } from './compra.ts';
 import { puedeCerrarAntes } from '../../../shared/precios.ts';
 import { ProgresoCompra } from './ProgresoCompra.tsx';
 import { Pestanas } from './Pestanas.tsx';
-import { pistaTramo } from '../../../shared/precios.ts';
+import { dineroMasIva, pistaTramo } from '../../../shared/precios.ts';
+import { NotaPreciosNetos, TotalConIva } from '../marca/componentes.tsx';
 
 /** Qué muestra la sección: la lista, el formulario para iniciar una o un producto de una compra. */
 export type RutaCompra = { vista: 'lista' } | { vista: 'nueva' } | { vista: 'producto'; licitacionId?: string; productoId: string };
@@ -125,11 +126,12 @@ function ListaCompras({ foto, yo, ahora }: { foto: FotoRed; yo: YoComprador; aho
           <h1>{pestana === 'abiertas' ? 'No hay compras en grupo abiertas' : 'Todavía no hay compras cerradas'}</h1>
           <p>{pestana === 'abiertas' ? 'Inicia una con + y los negocios de la red se suman.' : 'Cuando una compra cierre, aquí ves a qué precio quedó.'}</p>
         </div>
-      ) : (
+      ) : (<>
         <ul className="bm-tarjeta bm-lista">
           {lista.map(({ lic, p, primero }) => <FilaCompraEnGrupo key={`${lic.id}-${p.id}`} lic={lic} p={p} primero={primero} yo={yo} ahora={ahora} abierta={pestana === 'abiertas'} />)}
         </ul>
-      )}
+        <NotaPreciosNetos />
+      </>)}
     </>
   );
 }
@@ -221,7 +223,7 @@ function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
         {producto && (
           <p className="bm-nota" role="status">
             {producto.precioBase
-              ? <>Precio base desde <strong>{dinero(producto.precioBase)}</strong> por {u} en las listas de los proveedores.{producto.minimo ? <> Ese proveedor pide un mínimo de <strong>{contar(producto.minimo, u, pluralUnidad(unidad))}</strong> entre todo el grupo.</> : null} Con más volumen, baja.</>
+              ? <>Precio base desde <strong>{dineroMasIva(producto.precioBase)}</strong> por {u} en las listas de los proveedores.{producto.minimo ? <> Ese proveedor pide un mínimo de <strong>{contar(producto.minimo, u, pluralUnidad(unidad))}</strong> entre todo el grupo.</> : null} Con más volumen, baja.</>
               : 'Todavía ningún proveedor tiene precio para este producto: lo ponen al ofertar.'}
           </p>
         )}
@@ -291,7 +293,7 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
           <img className="ilustracion" src={ABEJA.celebra} alt="" />
           <div>
             <strong>Te sumaste. Ya van {vista.unidades} de {contar(f.meta, p.unidad, p.unidadPlural)}.</strong>
-            <span>{vista.siguiente ? `${pistaTramo(vista.siguiente, p)}. Te avisamos por WhatsApp.` : 'Ya tienen el mejor precio.'}</span>
+            <span>{vista.siguiente ? `${pistaTramo(vista.siguiente, p)} + IVA. Te avisamos por WhatsApp.` : 'Ya tienen el mejor precio.'}</span>
           </div>
         </div>
       )}
@@ -316,11 +318,11 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
                 </div>
                 {vista.precio > 0 ? (
                   <dl className="bm-cuenta">
-                    <div><dt>{cantidad} × {dinero(vista.precio)}</dt><dd>{dinero(cantidad * vista.precio)}</dd></div>
+                    <div><dt>{cantidad} × {dinero(vista.precio)} neto</dt><dd>{dinero(cantidad * vista.precio)}</dd></div>
                     {p.precioSolo > vista.precio && cantidad > 0 && (
                       <div><dt>Ahorras vs comprar solo</dt><dd className="bm-ahorro">{dinero(cantidad * (p.precioSolo - vista.precio))}</dd></div>
                     )}
-                    <div className="bm-total"><dt>Total neto</dt><dd>{dinero(cantidad * vista.precio)}</dd></div>
+                    <div className="bm-total"><dt>Total con IVA</dt><dd><TotalConIva neto={cantidad * vista.precio} /></dd></div>
                   </dl>
                 ) : (
                   <p className="bm-nota">Todavía no hay ofertas: los proveedores ponen el precio. Al cerrar, pagas el mejor precio que consiga el grupo.</p>
@@ -352,8 +354,8 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
             ) : (
               <p className="bm-bajada">
                 {sinPrecio(p) ? 'Cerró sin ofertas de proveedores.'
-                  : mio ? `Cerró con ${contar(mio, p.unidad, p.unidadPlural)} tuyas a ${dinero(p.precioActual)} cada una. Tu pedido está en Pedidos.`
-                  : `Cerró a ${dinero(p.precioActual)} por ${p.unidad}.`}
+                  : mio ? `Cerró con ${contar(mio, p.unidad, p.unidadPlural)} tuyas a ${dineroMasIva(p.precioActual)} cada una. Tu pedido está en Pedidos.`
+                  : `Cerró a ${dineroMasIva(p.precioActual)} por ${p.unidad}.`}
               </p>
             )}
           </section>
@@ -394,12 +396,12 @@ function CerrarAntes({ api, token, lic, p }: { api: CanalApi; token: string; lic
         </p>
       ) : c.estado.fase === 'nada' ? (
         <>
-          <p className="bm-bajada">Ya llegaron al mínimo. Puedes cerrarla ahora y el grupo paga {dinero(p.precioActual)} por {p.unidad}, sin esperar el cierre.</p>
+          <p className="bm-bajada">Ya llegaron al mínimo. Puedes cerrarla ahora y el grupo paga {dineroMasIva(p.precioActual)} por {p.unidad}, sin esperar el cierre.</p>
           <button type="button" className="bm-boton secundario bm-ancho" onClick={() => c.pedir(undefined)}>Cerrar la compra ahora</button>
         </>
       ) : (
         <Confirmar titulo="¿Cierras la compra en grupo ahora?" si="Sí, cerrarla" {...c.panel}>
-          <p>Nadie más podrá sumarse. Gana la mejor oferta, {dinero(p.precioActual)} por {p.unidad}, y queda una orden por local con su factura del SII.</p>
+          <p>Nadie más podrá sumarse. Gana la mejor oferta, {dineroMasIva(p.precioActual)} por {p.unidad}, y queda una orden por local con su factura del SII.</p>
         </Confirmar>
       )}
     </section>

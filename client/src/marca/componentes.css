@@ -21,7 +21,17 @@
 .bm-cifra-miel strong { color: var(--bando-miel-texto); }
 .bm-cifra-detalle { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
 
-/* ---------- Tarjeta ---------- */
+/* ---------- Total con IVA ---------- */
+.bm-total-iva { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; text-align: right; }
+.bm-total-iva-inicio { align-items: flex-start; text-align: left; }
+.bm-total-iva > strong { font: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bm-total-iva-desglose, .bm-nota-iva {
+  font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 400; letter-spacing: normal;
+  color: var(--color-muted-foreground); font-variant-numeric: tabular-nums;
+}
+.bm-total-iva-desglose { white-space: nowrap; }
+.bm-nota-iva { margin: var(--espacio-2) 0 0; }
+
 .bm-tarjeta { border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-background); box-shadow: var(--sombra-ninguna); }
 .bm-tarjeta-relleno { padding: var(--espacio-4); }
 .bm-tarjeta-calida { background: var(--bando-miel-50); border-color: transparent; }

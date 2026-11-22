@@ -78,7 +78,7 @@ export function Pagos() {
       <header className="bm-cabecera">
         <div>
           <h1 className="bm-titulo">Pagos a proveedores</h1>
-          <p className="bm-bajada">Transfiere desde el banco de Bando y márcalo aquí: al proveedor le llega el aviso.</p>
+          <p className="bm-bajada">Transfiere desde el banco de Bando y márcalo aquí: al proveedor le llega el aviso. Montos con IVA incluido.</p>
         </div>
         {datos.porTransferir.length > 0 && (
           <Cifra etiqueta={`${contar(datos.porTransferir.length, 'pago')} por transferir`} valor={dinero(total)} tamano="grande" />
