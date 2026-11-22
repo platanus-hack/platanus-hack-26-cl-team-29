@@ -87,7 +87,7 @@ test('bienvenida con la canasta numerada, y se suma con varios productos en uno 
     + '¿Cómo se llama tu negocio y qué quieres? Ej: 4 cajas de rollos y 2 de etiquetas');
   await escribir('56911111001', 'Almacén Rosita, 4 cajas de rollos y 2 de etiquetas');
   assert.equal(ultimo('56911111001'),
-    'Listo, Almacén Rosita entra con 4 cajas de rollos, 2 rollos de etiquetas.\nTotal $141.800.\nFaltan 6 cajas de rollos para bajar a $29.900.');
+    'Listo, Almacén Rosita entra con 4 cajas de rollos, 2 rollos de etiquetas.\nTotal $168.742 con IVA (neto $141.800).\nFaltan 6 cajas de rollos para bajar a $29.900.');
   assert.deepEqual(await carrito('Almacén Rosita'), [{ productoId: 'rollos', cantidad: 4 }, { productoId: 'etiquetas', cantidad: 2 }]);
 
   // Dos pasos: primero el nombre, después lo que quiere.
@@ -96,7 +96,7 @@ test('bienvenida con la canasta numerada, y se suma con varios productos en uno 
   assert.equal(ultimo('56911111002'), 'Perfecto, Panadería Sol. ¿Qué quieres? Ej: 4 cajas de rollos y 2 de etiquetas');
   await escribir('56911111002', '6 de rollos');
   assert.equal(ultimo('56911111002'),
-    'Listo, Panadería Sol entra con 6 cajas de rollos.\nTotal $179.400, ahorras $12.600.\nFaltan 15 cajas de rollos para bajar a $27.900.');
+    'Listo, Panadería Sol entra con 6 cajas de rollos.\nTotal $213.486 con IVA (neto $179.400), ahorras $12.600.\nFaltan 15 cajas de rollos para bajar a $27.900.');
 
   // Al revés: primero lo que quiere y un número sin producto se pregunta.
   await escribir('56911111003', '3 paquetes');
@@ -128,7 +128,7 @@ test('agregar, quitar, cambiar, por número de la lista, "mi pedido" y salir con
   await escribir(yo, 'mi pedido');
   assert.equal(ultimo(yo), 'Tu pedido, Minimarket Los Pinos:\n'
     + '4 cajas de rollos a $32.000: $128.000\n5 rollos de etiquetas a $6.900: $34.500\n2 cajas de guantes a $8.900: $17.800\n'
-    + 'Total $180.300. Faltan 5 rollos de etiquetas para bajar a $6.400.\n'
+    + 'Total $214.557 con IVA (neto $180.300). Faltan 5 rollos de etiquetas para bajar a $6.400.\n'
     + 'Para cambiarlo, escribe por ejemplo "agrega 2 de guantes" o "quita guantes".');
 
   await escribir(yo, 'solo rollos, 6');
@@ -221,7 +221,7 @@ test('cierre: factura solo con el sí del proveedor, una vez, y cada comprador r
   await red.cerrarLicitacion(LICITACION.id); // el dominio cierra al llegar cierraEn
   await esperar(10);
   assert.equal(ultimo(PROVEEDOR.telefono),
-    'Cerró la compra conjunta: 2 negocios, 12 cajas de rollos, 2 rollos de etiquetas. Total $372.600. ¿Las facturo todas en el SII?\n'
+    'Cerró la compra conjunta: 2 negocios, 12 cajas de rollos, 2 rollos de etiquetas. Total $443.394 con IVA (neto $372.600). ¿Las facturo todas en el SII?\n'
     + '1. Sí, factura todo\n2. Todavía no');
   assert.ok(!red.llamadas.some(l => l.startsWith('confirmarOrdenesDeLicitacion')), 'sin sí no se factura');
 
@@ -234,12 +234,17 @@ test('cierre: factura solo con el sí del proveedor, una vez, y cada comprador r
   assert.ok(de(PROVEEDOR.telefono).includes('Listo, emití 2 facturas en el SII en un solo envío. Cada negocio recibe su folio por aquí.'));
 
   await esperar(10);
-  assert.equal(ultimo('56966666001'), 'Tu factura folio 5190 fue emitida en el SII: 4 cajas de rollos, 2 rollos de etiquetas. '
-    + 'Total $133.400. Ahorraste $8.400.\nDescárgala: https://demo.invalid/pdf/doc-5190');
-  assert.equal(ultimo('56966666002'), 'Tu factura folio 5191 fue emitida en el SII: 8 cajas de rollos. '
-    + 'Total $239.200. Ahorraste $16.800.\nDescárgala: https://demo.invalid/pdf/doc-5191');
+  assert.ok(de('56966666001').includes('Tu factura folio 5190 fue emitida en el SII: 4 cajas de rollos, 2 rollos de etiquetas. '
+    + 'Total $158.746 con IVA (neto $133.400). Ahorraste $8.400.\nDescárgala: https://demo.invalid/pdf/doc-5190'));
+  assert.ok(de('56966666002').includes('Tu factura folio 5191 fue emitida en el SII: 8 cajas de rollos. '
+    + 'Total $284.648 con IVA (neto $239.200). Ahorraste $16.800.\nDescárgala: https://demo.invalid/pdf/doc-5191'));
   assert.deepEqual(adjuntos.find(a => a.to === '56966666001'),
     { to: '56966666001', link: 'https://demo.invalid/pdf/doc-5190', filename: 'factura-5190.pdf' });
+  // Tras el folio, la pregunta de recepción: con ella puede reclamar un faltante por WhatsApp.
+  assert.ok(de('56966666001').some(t => t.includes('¿recibiste todo?')), 'pregunta de recepción al comprador');
+  assert.equal(de('56966666001').filter(t => t.includes('¿recibiste todo?')).length, 1, 'una sola vez');
+  await escribir('56966666001', 'faltaron 2 cajas');
+  assert.match(ultimo('56966666001'), /^Voy a reclamar la factura en el SII por falta parcial: faltaron 2/);
 
   // Veredicto del SII dentro del plazo: un aviso corto, una sola vez.
   red.emitir('documento.actualizado', { documento: { ...red.documentos[0], estadoSii: 'aceptado' } });
@@ -267,7 +272,7 @@ test('red sin canasta (un solo producto): el flujo de siempre sigue funcionando'
   assert.match(ultimo('56988888001'), /\n1\. Rollos, \$32\.000 por caja\n\n¿Cómo se llama tu negocio y qué quieres\? Ej: 4 cajas$/);
   await escribir('56988888001', 'Almacén Rosita, 4');
   assert.equal(ultimo('56988888001'),
-    'Listo, Almacén Rosita entra con 4 cajas de rollos.\nTotal $128.000.\nFaltan 6 cajas de rollos para bajar a $29.900.');
+    'Listo, Almacén Rosita entra con 4 cajas de rollos.\nTotal $152.320 con IVA (neto $128.000).\nFaltan 6 cajas de rollos para bajar a $29.900.');
   await escribir('56988888001', 'mejor 6');
   assert.match(ultimo('56988888001'), /^Listo, Almacén Rosita ahora va con 6 cajas de rollos\./);
 });
@@ -414,6 +419,13 @@ test('"Quiero comprar guantes" no deja al negocio llamado "comprar"', () => {
   assert.equal(interpretarCanastaConReglas('Almacén Javier, 4 cajas de guantes', cat).nombre, 'Almacén Javier');
 });
 
+test('El mensaje del QR ("Hola Bando, quiero sumarme...") no deja al negocio llamado "Bando"', () => {
+  const cat = catalogoDe({ ...LICITACION, productos: PRODUCTOS } as never, 20);
+  for (const t of ['Hola Bando, quiero sumarme a la compra L-1', 'Quiero sumarme a la compra L-1', 'hola bando!']) {
+    assert.equal(interpretarCanastaConReglas(t, cat).nombre, undefined, t);
+  }
+});
+
 test('si la red pide RUT, primero el registro (RUT válido y dirección) y recién después el pedido', async t => {
   const { agente, escribir, ultimo, carrito, red } = montar({}, {}, { ruts: {
     '11111111-1': 'Comercial Prueba Limitada',
@@ -439,7 +451,7 @@ test('si la red pide RUT, primero el registro (RUT válido y dirección) y reci�
   assert.match(ultimo(ana), /^No entendí la dirección/);
   await escribir(ana, 'Av. Grecia 1234, Ñuñoa');
   assert.equal(ultimo(ana), 'Listo, quedaste registrado ✓ Tu factura sale a nombre de Comercial Prueba Limitada, Av. Grecia 1234, Ñuñoa.\n\n'
-    + 'Listo, Almacén Ana entra con 2 cajas de rollos.\nTotal $64.000.\nFaltan 8 cajas de rollos para bajar a $29.900.');
+    + 'Listo, Almacén Ana entra con 2 cajas de rollos.\nTotal $76.160 con IVA (neto $64.000).\nFaltan 8 cajas de rollos para bajar a $29.900.');
   assert.deepEqual(await carrito('Almacén Ana'), [{ productoId: 'rollos', cantidad: 2 }]);
   assert.equal(red.rutPorTelefono.get(ana), '11111111-1');
   assert.deepEqual(red.direccionPorTelefono.get(ana), { direccion: 'Av. Grecia 1234', comuna: 'Ñuñoa' });

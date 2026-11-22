@@ -297,6 +297,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
       ...(conProveedores ? { alElegirVender: async (telefono: string) => proveedores!.empezar(telefono) } : {}),
       pedirConfirmacion: (proveedor, licitacionId, mensaje) => encolar(proveedor, { tipo: 'facturar_licitacion', licitacionId, mensaje }),
+      preguntarRecepcion: async (ordenId, folio) => avisarFacturaDe(await ordenPorId(ordenId), await negociosPorId(), m.preguntaRecepcion(folio)),
     });
   }
 
@@ -315,11 +316,13 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return orden;
   }
 
-  async function avisarFacturaDe(orden: OrdenCompra, negocios: ReadonlyMap<string, Negocio>) {
+  async function avisarFacturaDe(orden: OrdenCompra, negocios: ReadonlyMap<string, Negocio>, mensaje?: string) {
     const comprador = negocios.get(orden.compradorId);
     const proveedor = negocios.get(orden.proveedorId);
     if (!comprador || !proveedor) return;
-    await encolar(comprador, { tipo: 'recepcion', ordenId: orden.id, facturaEn: ahora(), mensaje: m.llegoFactura(orden, proveedor) });
+    // Una sola pregunta por orden aunque la factura se avise por dos caminos (WhatsApp y la sala).
+    if (colas.get(comprador.id)?.some(p => p.tipo === 'recepcion' && p.ordenId === orden.id)) return;
+    await encolar(comprador, { tipo: 'recepcion', ordenId: orden.id, facturaEn: ahora(), mensaje: mensaje ?? m.llegoFactura(orden, proveedor) });
   }
 
   async function proponerPedido(comprador: Negocio, producto: string, cantidad: number, elegido?: string): Promise<string> {

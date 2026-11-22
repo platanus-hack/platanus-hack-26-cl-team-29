@@ -122,8 +122,20 @@ export function crearRedSalaFalsa(
     },
   };
 
+  const compradoresSala = (conocidos: readonly Negocio[]): Negocio[] => participantes
+    .filter(p => !conocidos.some(x => x.id === p.negocioId))
+    .map(p => ({ id: p.negocioId, nombre: p.nombre, comuna: 'Santiago', rol: 'comprador', telefono: p.telefono }));
+
   return {
     ...base,
+    // Las órdenes de la compra y sus compradores también se ven en el estado de la red, como en el dominio real.
+    estadoDeLaRed: async () => {
+      const { negocios: n, ordenes } = await base.estadoDeLaRed();
+      return { negocios: [...n, ...compradoresSala(n)], ordenes: [...ordenes, ...ordenesSala] };
+    },
+    // Quien se sumó por la sala ya es un negocio de la red una vez que la compra cerró (como en el dominio real).
+    negocioPorTelefono: async (telefono: string) =>
+      (await base.negocioPorTelefono(telefono)) ?? (estado === 'abierta' ? null : compradoresSala(negocios).find(c => c.telefono === telefono) ?? null),
     ...canasta,
     documentos,
     emitir,
@@ -154,6 +166,7 @@ export function crearRedSalaFalsa(
       base.llamadas.push(`confirmarOrdenesDeLicitacion ${id}`);
       if (estado !== 'cerrada') throw new Error('no hay compra cerrada por facturar');
       estado = 'facturada';
+      ordenesSala = ordenesSala.map(o => ({ ...o, estado: 'facturada' })); // como el dominio: facturada al emitir
       const emitidos = ordenesSala.map(o => {
         const doc: Documento = { id: `doc-${folio}`, ordenId: o.id, tipo: 33, folio: folio++, trackId: 'sobre-1', estadoSii: 'enviado' };
         documentos.push(doc);

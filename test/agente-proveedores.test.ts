@@ -130,7 +130,8 @@ test('por WhatsApp: proveedores con certificado, productos, ofertas, aviso al su
   const deAna = red.estadoDeLaRed().ordenes.filter(o => o.proveedorId === red.negocioPorTelefono(ANA)!.id);
   assert.ok(deAna.every(o => o.estado === 'enviada'), 'el sí de Beto no factura lo de Ana');
   await escribir(ANA, 'si');
-  assert.match(ultimo(ANA), /emití 1 factura/);
+  // Ana también compró: tras su folio llega la pregunta de recepción, así que el aviso al proveedor no es el último.
+  assert.ok(de(ANA).some(t => /emití 1 factura/.test(t)));
 });
 
 test('con DEMO_PROVEEDOR_SIN_CERTIFICADO=1 se puede vender sin certificado escribiendo el RUT, sin conectar el SII', async t => {

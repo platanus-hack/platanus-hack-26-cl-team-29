@@ -14,7 +14,7 @@ interface Datos {
 export const textoTarjeta = (t: { marca: string; ultimos4: string } | null): string | null => (t ? `${t.marca} terminada en ${t.ultimos4}` : null);
 
 export const faltaTarjeta = (enlace: string): string =>
-  `Para comprar con Bando inscribe tu tarjeta una vez. Bando le paga al proveedor al tiro y tú pagas a 30 días, sin trámites.\n\nSe inscribe en Transbank (Bando nunca ve el número): ${enlace}\n\nCuando esté lista, vuelve a mandar tu pedido.`;
+  `Para comprar con Bando inscribe tu tarjeta una vez. Bando le paga al proveedor al instante y tú pagas a 30 días, sin trámites.\n\nSe inscribe en Transbank (Bando nunca ve el número): ${enlace}\n\nCuando esté lista, vuelve a mandar tu pedido.`;
 
 export const creditoOtorgado = (d: Datos): string => d.plazoDias
   ? `Bando le paga ${dinero(d.monto)} a ${d.proveedor} por ti. Tú pagas el ${fechaCorta(d.venceEn)}${d.tarjeta ? `, solo, con tu ${d.tarjeta}` : ''}.`

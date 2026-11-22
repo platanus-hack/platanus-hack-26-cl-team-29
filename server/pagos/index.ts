@@ -170,7 +170,7 @@ export async function iniciarPagos(o: {
         res.status(502).send('Transbank no respondió. Intenta de nuevo en un rato.');
       }
     });
-    // La pasarela falsa: sin formulario, inscribe y vuelve al tiro.
+    // La pasarela falsa: sin formulario, inscribe y vuelve de inmediato.
     r.post('/tarjeta/falsa', express.urlencoded({ extended: false }), (req, res) => {
       res.redirect(303, `/api/pagos/tarjeta/vuelta?TBK_TOKEN=${encodeURIComponent(String(req.body?.TBK_TOKEN ?? ''))}`);
     });
