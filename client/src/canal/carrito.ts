@@ -2,8 +2,6 @@
 // totales, ahorro, la pista del próximo tramo y el envío diferido (debounce) del carrito completo.
 // Sin React ni red, para poder probarla con node:test.
 
-import { dinero } from '../../../shared/formato.ts';
-import { contar } from '../../../shared/texto.ts';
 import type { Participante, SiguienteTramo } from '../red/tipos.ts';
 import { mejorOferta, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { normalizarTramos } from './logica.ts';
@@ -123,15 +121,6 @@ export function proyectar(p: ProductoCanasta, delta: number): VistaProducto {
   const oferta = p.precioActual < tramoAntes ? p.precioActual : Infinity;
   const precio = Math.min(precioDelTramo(p.tramos, unidades), oferta);
   return { precio, unidades, siguiente: siguienteTramo(p.tramos, unidades, precio) };
-}
-
-export function faltan(siguiente: SiguienteTramo, p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string {
-  return `${siguiente.faltan === 1 ? 'Falta' : 'Faltan'} ${contar(siguiente.faltan, p.unidad, p.unidadPlural)}`;
-}
-
-/** "Faltan 4 cajas para bajar a $27.900" o "Falta 1 rollo para bajar a $5.900". */
-export function pistaTramo(siguiente: SiguienteTramo | null, p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string {
-  return siguiente ? `${faltan(siguiente, p)} para bajar a ${dinero(siguiente.precioUnitario)}` : '';
 }
 
 /** "Una caja", "Un rollo": el género sale del plural de la unidad (cajas, unidades). */

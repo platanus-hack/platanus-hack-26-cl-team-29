@@ -1,6 +1,7 @@
 // Formatos de las pantallas: tiempos relativos, cuenta regresiva y cómo se cuenta cada producto.
 // Dinero, miles, notas y conteos están en shared/.
 import { contar } from '../../../shared/texto.ts';
+import { unidadDelProducto } from '../../../shared/unidades.ts';
 
 export function haceCuanto(en: string, ahora: number): string {
   const segundos = Math.max(0, Math.round((ahora - Date.parse(en)) / 1000));
@@ -18,13 +19,8 @@ export function cuentaRegresiva(ms: number): string {
   return hh > 0 ? `${hh}:${mmss}` : mmss;
 }
 
-/** Cómo se cuenta el producto en pantalla: la harina va en sacos, el aceite en bidones. */
-export function unidadDe(producto: string): { singular: string; plural: string } {
-  if (/harina|az[uú]car/i.test(producto)) return { singular: 'saco', plural: 'sacos' };
-  if (/aceite/i.test(producto)) return { singular: 'bidón', plural: 'bidones' };
-  if (/^caja/i.test(producto)) return { singular: 'caja', plural: 'cajas' };
-  return { singular: 'unidad', plural: 'unidades' };
-}
+/** Cómo se cuenta el producto en pantalla cuando solo se tiene su nombre (`unidadDelProducto` de shared/unidades.ts). */
+export const unidadDe = (producto: string) => unidadDelProducto(producto);
 
 export function cantidadCon(n: number, producto: string): string {
   const u = unidadDe(producto);

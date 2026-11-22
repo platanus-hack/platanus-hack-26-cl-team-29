@@ -1,6 +1,9 @@
 // Precio de la compra conjunta: tramos por volumen (mientras más unidades junta el grupo, más barato para
 // todos), la oferta del proveedor que lo deja bajo el tramo y el puntaje con que se comparan las ofertas.
 
+import { dinero } from './formato.ts';
+import { contar } from './texto.ts';
+
 /** Desde `desde` unidades del grupo, todos pagan `precioUnitario`. */
 export interface Tramo {
   desde: number;
@@ -33,6 +36,19 @@ export function precioPorVolumen<S extends number | undefined>(p: ConPrecio<S>, 
 export function siguienteTramo(tramos: readonly Tramo[] | undefined, unidades: number, bajoDe = Infinity): SiguienteTramo | null {
   const t = ordenarTramos(tramos).find(x => x.desde > unidades && x.precioUnitario < bajoDe);
   return t ? { desde: t.desde, precioUnitario: t.precioUnitario, faltan: t.desde - unidades } : null;
+}
+
+/** Cómo se cuenta un producto: "caja" y "cajas". */
+type ConUnidad = { unidad: string; unidadPlural: string };
+
+/** "Faltan 4 cajas" o "Falta 1 rollo". */
+export function faltanUnidades(siguiente: Pick<SiguienteTramo, 'faltan'>, p: ConUnidad): string {
+  return `${siguiente.faltan === 1 ? 'Falta' : 'Faltan'} ${contar(siguiente.faltan, p.unidad, p.unidadPlural)}`;
+}
+
+/** "Faltan 4 cajas para bajar a $27.900" o "Falta 1 rollo para bajar a $5.900"; sin próximo tramo, vacío. */
+export function pistaTramo(siguiente: SiguienteTramo | null, p: ConUnidad): string {
+  return siguiente ? `${faltanUnidades(siguiente, p)} para bajar a ${dinero(siguiente.precioUnitario)}` : '';
 }
 
 /** Unidades de un producto de la canasta: la suma de ese ítem en los carritos. */
