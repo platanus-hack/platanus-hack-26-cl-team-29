@@ -61,3 +61,28 @@ test('el reinicio de la demo no existe sin DEMO_TOKEN y exige el token correcto'
     for (const s of servidores) s.close();
   }
 });
+
+test('operación con DEMO_TOKEN: abre una sesión como un negocio y nada sin el token', async () => {
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo);
+  const red = await crearRed({ repo, sii: crearSiiFalso() });
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, { DEMO_TOKEN: 'secreto-de-prueba' }));
+  const server = app.listen(0);
+  const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
+  const sesion = (body: unknown, token?: string) => fetch(`${url}/operacion/sesion`, {
+    method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { 'x-demo-token': token } : {}) }, body: JSON.stringify(body),
+  });
+
+  try {
+    assert.equal((await sesion({ negocioId: PROVEEDOR_DEMO })).status, 403);
+    assert.equal((await sesion({ negocioId: PROVEEDOR_DEMO }, 'otro')).status, 403);
+    assert.equal((await sesion({ negocioId: 'no-existe' }, 'secreto-de-prueba')).status, 404);
+    const r = await sesion({ negocioId: PROVEEDOR_DEMO }, 'secreto-de-prueba');
+    assert.equal(r.status, 201);
+    const { token } = await r.json() as { token: string };
+    const yo = await fetch(`${url}/proveedor/yo`, { headers: { authorization: `Bearer ${token}` } });
+    assert.equal(yo.status, 200, 'la sesión sirve para la API del proveedor');
+  } finally {
+    server.close();
+  }
+});

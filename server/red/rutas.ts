@@ -1,6 +1,7 @@
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { configDemo } from './config-demo.ts';
+import { PROVEEDOR_SALA } from './semilla.ts';
 import { ErrorRed } from './dominio.ts';
 import type { CodigoError, Red } from './dominio.ts';
 import { generarPdf } from '../sii/index.ts';
@@ -110,8 +111,31 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
   // Carga de XML de facturas de un proveedor, que hace el equipo (server/catalogo/rutas.ts).
   if (opciones.catalogo) rutas.use('/operacion/catalogo', exigirTokenDemo, limitarDemo, opciones.catalogo.operacion);
 
+  // Operación del equipo con DEMO_TOKEN, para destrabar la demo sin el teléfono de nadie:
+  // - /operacion/sii?proveedor=<id>: las mismas rutas "Conectar mi SII" (estado, folios por tipo, "Traer más folios")
+  //   con la conexión de ese proveedor; por defecto, el proveedor de la compra conjunta de la demo.
+  // - POST /operacion/sesion { negocioId }: una sesión web como ese negocio, para usar la API como él en una emergencia.
+  const sesiones = opciones.sesiones ?? crearSesiones();
+  const negocioDeOperacion = (id: unknown) => {
+    const n = red.negocioPorId(typeof id === 'string' && id ? id : PROVEEDOR_SALA);
+    if (!n) throw new ErrorRed('no_encontrado', 'No existe ese negocio.');
+    return n;
+  };
+  if (opciones.conexionSii) {
+    rutas.use('/operacion/sii', exigirTokenDemo, limitarDemo, (req: Request, res: Response, next: NextFunction) => {
+      const n = negocioDeOperacion(req.query.proveedor);
+      res.locals.proveedor = { id: n.id, ...(n.rut ? { rut: n.rut } : {}), ...(n.vende ? { vende: true } : {}) };
+      next();
+    }, opciones.conexionSii);
+  }
+  rutas.post('/operacion/sesion', exigirTokenDemo, limitarDemo, (req, res) => {
+    const n = negocioDeOperacion((req.body as { negocioId?: unknown } | undefined)?.negocioId);
+    console.warn(`[operacion] sesión abierta con DEMO_TOKEN como ${n.id}`);
+    res.status(201).json({ token: sesiones.crear({ negocioId: n.id }), negocioId: n.id });
+  });
+
   rutas.use(crearRutasWeb(red, env, {
-    sesiones: opciones.sesiones ?? crearSesiones(), codigos: crearCodigosAcceso(),
+    sesiones, codigos: crearCodigosAcceso(),
     enviarCodigo: opciones.enviarCodigo ?? (async () => 'fallido'),
     conexionSii: opciones.conexionSii, catalogo: opciones.catalogo?.proveedor,
   }));
