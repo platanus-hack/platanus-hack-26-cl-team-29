@@ -1,7 +1,7 @@
 // El marco de la app del comprador con la marca Bando (DESIGN.md, Paper "C2"): en escritorio, lateral crema con el
 // logo, las secciones y el negocio abajo; en el teléfono, una barra arriba con el negocio y las secciones fijas abajo.
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Icono, Monograma, type NombreIcono } from '../canal/iconos.tsx';
 import { Logo } from '../marca/Logo.tsx';
 import { BotonTema } from '../marca/BotonTema.tsx';
@@ -70,4 +70,15 @@ export function Marco<S extends string>({ secciones, activa, negocio, aviso, onS
       <main className="bm-lienzo">{children}</main>
     </div>
   );
+}
+
+/** La sección (y lo que sigue) según el `#hash`, al día con cada cambio; al cambiar, vuelve arriba. La usan /app y /proveedor. */
+export function useRutaDelHash<R>(leer: () => R): R {
+  const [ruta, setRuta] = useState(leer);
+  useEffect(() => {
+    const alCambiar = () => { setRuta(leer()); scrollTo(0, 0); };
+    addEventListener('hashchange', alCambiar);
+    return () => removeEventListener('hashchange', alCambiar);
+  }, [leer]);
+  return ruta;
 }

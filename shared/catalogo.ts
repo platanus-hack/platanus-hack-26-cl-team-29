@@ -41,6 +41,8 @@ export interface ProductoCatalogo {
   tramosDe: 'historial' | 'automaticos' | 'propios';
   /** Está en su lista de productos (lo agregó o lo editó él), no es una sugerencia sacada de sus facturas. */
   manual?: true;
+  /** Pedido mínimo del grupo (MOQ) para este producto: si gana y el grupo no llega, puede cancelar el pedido. */
+  minimo?: number;
 }
 
 /**
@@ -51,6 +53,8 @@ export interface ProductoEscrito {
   nombre: string;
   unidad: string;
   tramos: Tramo[];
+  /** Pedido mínimo del grupo (MOQ), opcional. */
+  minimo?: number;
 }
 
 const limpio = (nombre: string) => nombre.replace(/\s+/g, ' ').trim();
@@ -62,6 +66,7 @@ export function errorDeProductoEscrito(p: ProductoEscrito, ya: readonly Pick<Pro
   if (!esUnidad(p.unidad)) return 'Elige la unidad de venta de la lista (caja, bolsa, kilo...)';
   const tramos = errorDeTramos(p.tramos);
   if (tramos) return tramos;
+  if (p.minimo !== undefined && (!Number.isInteger(p.minimo) || p.minimo < 1)) return 'El pedido mínimo es una cantidad entera';
   if (ya.some(x => sinTildes(x.nombre) === sinTildes(nombre))) return `"${nombre}" ya está en tu lista`;
   return null;
 }
@@ -73,7 +78,7 @@ export function productoManual(p: ProductoEscrito, hoy: string, clave = `m-${cla
   return {
     clave, nombre: limpio(p.nombre), unidad: p.unidad, ultimoPrecio: tramos[0].precioUnitario,
     precioMinimo: Math.min(...precios), precioMaximo: Math.max(...precios), unidadesVendidas: 0, ventas: 0, ultimaVenta: hoy,
-    tramos, tramosDe: 'propios', manual: true,
+    tramos, tramosDe: 'propios', manual: true, ...(p.minimo ? { minimo: p.minimo } : {}),
   };
 }
 

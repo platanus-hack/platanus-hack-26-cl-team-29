@@ -99,3 +99,16 @@ for (const aSiMismo of [true, false]) {
     assert.deepEqual(ordenes.map(o => o.proveedorId), aSiMismo ? [yo] : []);
   });
 }
+
+test('el pedido mínimo de la lista viaja con la oferta automática y no impide sumarse', async () => {
+  const { red, comprador } = await redDePrueba();
+  const catalogos = await iniciarCatalogos({ emitir: () => {} });
+  conectarOfertasDeListas(red, catalogos, { warn: () => {} });
+  const prov = (await red.registrarProveedor({ telefono: '+56 9 7000 0004', rut: '44.444.444-4' })).id;
+  await catalogos.agregar({ id: prov }, { nombre: 'Azúcar flor', unidad: 'kilo', tramos: [{ desde: 1, precioUnitario: 2000 }], minimo: 50 });
+  const l = await red.abrirSolicitud({ compradorId: await comprador('Ana'), producto: 'Azúcar flor', unidad: 'kilo', cantidad: 5 });
+  await new Promise(r => setTimeout(r, 20));
+  const oferta = red.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.productos[0].ofertas[0];
+  assert.deepEqual([oferta.proveedorId, oferta.minimo], [prov, 50]);
+  await assert.rejects(catalogos.agregar({ id: prov }, { nombre: 'Sal fina', unidad: 'kilo', tramos: [{ desde: 1, precioUnitario: 900 }], minimo: 2.5 }), /cantidad entera/);
+});

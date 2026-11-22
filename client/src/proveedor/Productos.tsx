@@ -9,6 +9,7 @@ import { errorDeProductoEscrito, type CatalogoProveedor, type ProductoCatalogo }
 import { contar, sinTildes } from '../../../shared/texto.ts';
 import { esUnidad, nombreUnidad, pluralUnidad, unidadDeTexto } from '../../../shared/unidades.ts';
 import { CampoProducto, SelectorUnidad } from '../canal/CampoProducto.tsx';
+import { Campo } from '../canal/Acceso.tsx';
 import { LogoSii } from '../canal/iconos.tsx';
 import { useEnvio } from '../canal/piezas.tsx';
 import type { LicitacionCanal } from '../canal/tipos.ts';
@@ -22,13 +23,13 @@ const POLEO_MS = 2000;
 const VISIBLES_SUGERIDOS = 4;
 const armando = (c: CatalogoProveedor) => c.estado === 'armando';
 
-interface Borrador { clave?: string; nombre: string; unidad: string; filas: FilaTramo[] }
+interface Borrador { clave?: string; nombre: string; unidad: string; filas: FilaTramo[]; minimo?: number }
 
 const NUEVO: Borrador = { nombre: '', unidad: '', filas: [{ desde: '1', precio: '' }] };
 // Lo que sale de las facturas trae la unidad como la escribe el facturador ("KG", "CJ"): pasa a una de la lista.
 const aBorrador = (p: ProductoCatalogo, clave?: string): Borrador => ({
   ...(clave ? { clave } : {}), nombre: p.nombre, unidad: unidadDeTexto(p.unidad) ?? '',
-  filas: aFilas(p.tramos),
+  filas: aFilas(p.tramos), ...(p.minimo ? { minimo: p.minimo } : {}),
 });
 
 export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { abierta?: LicitacionCanal }) {
@@ -115,7 +116,7 @@ function ProductoDeLista({ api, token, producto: p, abierta, yaEsta, onEditar }:
       <button type="button" className="bm-boton-texto" onClick={onEditar}>Editar</button>
       <button type="button" className="bm-boton-texto" disabled={enviando} onClick={() => enviar(() => api.quitarProducto(token, p.clave))}>Quitar</button>
     </>}>
-      <span>{dinero(base.precioUnitario)} por {p.unidad}</span>
+      <span>{dinero(base.precioUnitario)} por {p.unidad}{p.minimo ? ` · pedido mínimo ${contar(p.minimo, p.unidad)}` : ''}</span>
       {porCantidad.length > 0 && (
         <ul className="bp-tramos-chicos" aria-label="Precio por cantidad">
           {porCantidad.map(t => <li key={t.desde}>desde {t.desde}: <strong>{dinero(t.precioUnitario)}</strong></li>)}
@@ -133,9 +134,10 @@ function Editor({ api, token, inicial, otros, onListo, onCancelar }: {
   const [nombre, setNombre] = useState(inicial.nombre);
   const [unidadElegida, setUnidad] = useState(inicial.unidad);
   const t = useTramos(inicial.filas);
+  const [minimo, setMinimo] = useState(inicial.minimo ? String(inicial.minimo) : '');
   const [tocado, setTocado] = useState(false);
   const { enviando, error, enviar } = useEnvio();
-  const escrito = { nombre, unidad: unidadElegida, tramos: aTramos(t.filas) };
+  const escrito = { nombre, unidad: unidadElegida, tramos: aTramos(t.filas), ...(Number(minimo) ? { minimo: Number(minimo) } : {}) };
   const problema = errorDeProductoEscrito(escrito, otros);
   const guardar = (e: FormEvent) => {
     e.preventDefault();
@@ -156,6 +158,12 @@ function Editor({ api, token, inicial, otros, onListo, onCancelar }: {
         <SelectorUnidad unidad={unidadElegida} onCambio={setUnidad} />
       </div>
       <TablaTramos t={t} unidad={esUnidad(unidadElegida) ? nombreUnidad(unidadElegida) : 'unidad'} unidades={esUnidad(unidadElegida) ? pluralUnidad(unidadElegida) : 'unidades'} />
+      <div className="bp-sumar">
+        <Campo etiqueta="Pedido mínimo del grupo (opcional)">
+          <input inputMode="numeric" value={minimo} onChange={e => setMinimo(e.target.value.replace(/\D/g, ''))} placeholder="Sin mínimo" />
+        </Campo>
+        <p className="bm-ayuda">No impide la compra en grupo: si ganas y no llegan a este mínimo, puedes cancelar el pedido. Se lo avisamos a los compradores.</p>
+      </div>
       {((tocado && problema) || error) && <p className="bm-error bp-margen" role="alert">{error || `${problema}.`}</p>}
       <div className="bp-acciones">
         <button className="bm-boton" disabled={enviando}>{enviando ? 'Guardando...' : 'Guardar'}</button>

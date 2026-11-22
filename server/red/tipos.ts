@@ -114,6 +114,11 @@ export interface Oferta {
   tramos?: Tramo[];
   /** La puso Bando desde la lista de precios del proveedor; si él oferta a mano, la reemplaza. */
   automatica?: true;
+  /**
+   * Pedido mínimo del grupo (MOQ) que pide el proveedor. No impide la compra: si gana y el grupo no llega, puede
+   * cancelar el pedido, y el comprador lo ve antes de sumarse.
+   */
+  minimo?: number;
   plazoDias: number;
   /** Cuándo llegó (ISO). */
   en: string;

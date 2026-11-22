@@ -1,7 +1,7 @@
 // /app: "Mi negocio", el canal web del comprador. Las mismas acciones que por WhatsApp:
 // sumarse a la compra conjunta, pedir a un proveedor, recibir o reclamar en el SII, ver las facturas y su crédito Bando.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { totalOrden } from '../../../shared/precios.ts';
@@ -21,7 +21,7 @@ import { MiCredito } from './MiCredito.tsx';
 import { BotonWhatsapp, Cantidad, Confirmar, ListaDocumentos, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
 import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
-import { Marco, type SeccionMarco } from '../comprador/Marco.tsx';
+import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
 import { Inicio } from '../comprador/Inicio.tsx';
 import { ComprasEnGrupo, rutaDeCompra, type RutaCompra } from '../comprador/ComprasEnGrupo.tsx';
 import './canal.css';
@@ -47,13 +47,7 @@ const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 export function MiNegocio() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const { token, entrar, vencer, salir } = useSesion(api);
-  const [{ seccion, compra }, setRuta] = useState(rutaDelHash);
-
-  useEffect(() => {
-    const alCambiar = () => { setRuta(rutaDelHash()); scrollTo(0, 0); };
-    addEventListener('hashchange', alCambiar);
-    return () => removeEventListener('hashchange', alCambiar);
-  }, []);
+  const { seccion, compra } = useRutaDelHash(rutaDelHash);
 
   const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
 

@@ -97,6 +97,8 @@ export interface Oferta {
   tramos?: Tramo[];
   /** Entró sola desde su lista de precios. */
   automatica?: true;
+  /** Pedido mínimo del grupo (MOQ): si gana y no llegan, el proveedor puede cancelar. */
+  minimo?: number;
   plazoDias: number;
   en?: string;
   /** Proveedores que compiten en la sala: el nombre y la nota vienen con la oferta. */

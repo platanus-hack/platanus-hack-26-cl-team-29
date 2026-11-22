@@ -5,7 +5,7 @@
 import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { Participante, SiguienteTramo } from '../red/tipos.ts';
-import { siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
+import { mejorOferta, siguienteTramo, tramoAlcanzado } from '../../../shared/precios.ts';
 import { normalizarTramos } from './logica.ts';
 import type { LicitacionCanal, Tramo } from './tipos.ts';
 
@@ -32,6 +32,8 @@ export interface ProductoCanasta {
   tramos: Tramo[];
   /** Unidades de este producto en todo el grupo, incluidas las mías ya guardadas. */
   totalUnidades: number;
+  /** Pedido mínimo (MOQ) del proveedor que hoy gana: si el grupo no llega, puede cancelar. */
+  minimo?: number;
   precioActual: number;
   siguienteTramo: SiguienteTramo | null;
 }
@@ -56,15 +58,18 @@ export function productosDe(lic: LicitacionCanal): ProductoCanasta[] {
     }];
   const primero = crudos[0].id;
   return crudos.map(p => {
-    const tramos = normalizarTramos(p.tramos);
     const total = numero(p.totalUnidades) ?? lic.participantes.reduce(
       (s, x) => s + itemsDe(x, primero).filter(i => i.productoId === p.id).reduce((a, i) => a + i.cantidad, 0), 0);
+    // Una compra que inició un comprador no trae tramos propios: se ven los de la oferta que hoy gana.
+    const propios = normalizarTramos(p.tramos);
+    const gana = propios.length ? undefined : mejorOferta('ofertas' in p ? p.ofertas : undefined, total);
+    const tramos = propios.length ? propios : normalizarTramos(gana?.tramos);
     const precioTramo = tramos.length ? precioDelTramo(tramos, total) : undefined;
     const precioActual = numero(p.precioActual) ?? precioTramo ?? p.precioSolo;
     const precioSolo = numero(p.precioSolo) || tramos[0]?.precioUnitario || precioActual;
     return {
       id: p.id, nombre: p.nombre, unidad: p.unidad || 'unidad', unidadPlural: p.unidadPlural || 'unidades', precioSolo, tramos,
-      totalUnidades: total, precioActual,
+      totalUnidades: total, precioActual, ...(gana?.minimo ? { minimo: gana.minimo } : {}),
       // Solo cuenta un tramo que de verdad baja el precio (con 0 unidades, el primero cuesta lo mismo que comprar solo).
       siguienteTramo: p.siguienteTramo && p.siguienteTramo.precioUnitario < precioActual ? p.siguienteTramo : siguienteTramo(tramos, total, precioActual),
     };
