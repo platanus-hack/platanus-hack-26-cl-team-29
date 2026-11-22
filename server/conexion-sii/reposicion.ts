@@ -21,7 +21,7 @@ import { ErrorPortal, ESPERA_LIMITE_MS, esErrorPortal, type CertificadoPortal, t
 import type { Log } from '../sii/index.ts';
 import { decidirReposicion, esperaTrasFallo, minimoDeFolios, POLITICA_FOLIOS } from '../../shared/folios.ts';
 import type { PortalConexion } from './portal.ts';
-import { buscarPrimerLibre, FOLIO_USADO, FolioIlegible, type RespuestaFolio } from './primer-libre.ts';
+import { buscarPrimerLibre, FolioIlegible, type RespuestaFolio } from './primer-libre.ts';
 
 /** Lo que se recuerda por tipo entre corridas (va en la conexión guardada, sin secretos). */
 export interface GestionFolios {
@@ -185,14 +185,6 @@ export function crearReposicion({
       if (presupuesto.reobtenciones <= 0) return { folios, quedan: true, agotado: true };
       let primer: number | null;
       try {
-        // Los folios se usan en orden: si el último del rango ya está usado, el rango se gastó entero. Una consulta en
-        // vez de recorrerlo folio a folio (un rango viejo de cientos de folios agotaba el presupuesto de la corrida).
-        const ultimo = await (presupuesto.consultas-- <= 0 ? Promise.reject(new SinPresupuesto()) : fuente.consultarFolio(tipo, rango.hasta));
-        if (FOLIO_USADO.has(ultimo.codigo)) {
-          g.barridos.push(claveRango(rango));
-          log.info(`[folios] tipo ${tipo} rango ${claveRango(rango)} del ${rango.fecha}: su último folio ya se usó, no se vuelve a revisar`);
-          continue;
-        }
         primer = await buscarPrimerLibre({
           desde: rango.desde, hasta: rango.hasta,
           consultar: folio => {
