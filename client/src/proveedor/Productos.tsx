@@ -1,7 +1,6 @@
 // "Tus productos" del proveedor (DESIGN.md, Paper "P4"): su lista de lo que vende, cada producto con su unidad, su
-// precio base por unidad y cuánto baja por cantidad. Los tramos los escribe él (con una sugerencia a un toque). Debajo,
-// lo que sale de sus facturas en el SII como sugerencia para agregar a la lista. Se actualiza en vivo con
-// `catalogo.actualizado`.
+// precio base por unidad y cuánto baja por cantidad. Los tramos los escribe él (con una sugerencia a un toque).
+// Se actualiza en vivo con `catalogo.actualizado`.
 
 import { useCallback, useState, type FormEvent } from 'react';
 import { dinero } from '../../../shared/formato.ts';
@@ -10,7 +9,6 @@ import { contar, sinTildes } from '../../../shared/texto.ts';
 import { esUnidad, nombreUnidad, pluralUnidad, unidadDeTexto } from '../../../shared/unidades.ts';
 import { CampoProducto, SelectorUnidad } from '../canal/CampoProducto.tsx';
 import { Campo } from '../canal/Acceso.tsx';
-import { LogoSii } from '../canal/iconos.tsx';
 import { useEnvio } from '../canal/piezas.tsx';
 import type { LicitacionCanal } from '../canal/tipos.ts';
 import { useDatoEnVivo } from '../canal/useCanal.ts';
@@ -18,15 +16,14 @@ import type { PropsAccion } from './Ventas.tsx';
 import { FilaProducto } from './FilaProducto.tsx';
 import { aFilas, aTramos, AccionesTramos, TablaTramos, useTramos, type FilaTramo } from './tramos.tsx';
 
-/** Respaldo del evento mientras se arma desde las facturas (y lo único que tiene la red falsa del navegador). */
+/** Respaldo del evento mientras se arma el catálogo (y lo único que tiene la red falsa del navegador). */
 const POLEO_MS = 2000;
-const VISIBLES_SUGERIDOS = 4;
 const armando = (c: CatalogoProveedor) => c.estado === 'armando';
 
 interface Borrador { clave?: string; nombre: string; unidad: string; filas: FilaTramo[]; minimo?: number }
 
 const NUEVO: Borrador = { nombre: '', unidad: '', filas: [{ desde: '1', precio: '' }] };
-// Lo que sale de las facturas trae la unidad como la escribe el facturador ("KG", "CJ"): pasa a una de la lista.
+// La unidad guardada pasa a una de la lista (los productos antiguos pueden traerla como "KG" o "CJ").
 const aBorrador = (p: ProductoCatalogo, clave?: string): Borrador => ({
   ...(clave ? { clave } : {}), nombre: p.nombre, unidad: unidadDeTexto(p.unidad) ?? '',
   filas: aFilas(p.tramos), ...(p.minimo ? { minimo: p.minimo } : {}),
@@ -36,10 +33,8 @@ export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { ab
   const cargar = useCallback(() => api.catalogo(token), [api, token]);
   const { dato: catalogo, error } = useDatoEnVivo(api, cargar, 'catalogo.actualizado', armando, POLEO_MS);
   const [borrador, setBorrador] = useState<Borrador | null>(null);
-  const [todos, setTodos] = useState(false);
 
   const mios = catalogo?.productos.filter(p => p.manual) ?? [];
-  const sugeridos = catalogo?.productos.filter(p => !p.manual) ?? [];
   const enLaCompra = new Set((abierta?.productos ?? []).map(p => sinTildes(p.nombre)));
   const editar = (b: Borrador) => { setBorrador(b); scrollTo({ top: 0 }); };
 
@@ -64,7 +59,7 @@ export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { ab
         <header className="bp-bloque-cabecera"><h2>Tu lista</h2>{mios.length > 0 && <span>{contar(mios.length, 'producto')}</span>}</header>
         {error && <p className="bm-error bp-margen">{error}</p>}
         {!catalogo ? <p className="bp-nada">Cargando tus productos...</p> : !mios.length ? (
-          <p className="bp-nada">Todavía no tienes productos. Agrega el primero con + o desde las sugerencias de tus facturas.</p>
+          <p className="bp-nada">Todavía no tienes productos. Agrega el primero con +.</p>
         ) : (
           <ul className="bp-filas">
             {mios.map(p => (
@@ -74,29 +69,6 @@ export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { ab
           </ul>
         )}
       </section>
-
-      {catalogo && (sugeridos.length > 0 || armando(catalogo)) && (
-        <section className="bm-tarjeta bp-bloque" aria-busy={armando(catalogo)}>
-          <header className="bp-bloque-cabecera">
-            <h2 className="bp-con-sii"><LogoSii tam={16} />Sugeridos desde tus facturas</h2>
-            {catalogo.origen === 'ejemplo' && <span>Historial de ejemplo</span>}
-          </header>
-          {armando(catalogo) ? <p className="bp-nada">Leyendo tus facturas en el SII...</p> : (
-            <ul className="bp-filas">
-              {(todos ? sugeridos : sugeridos.slice(0, VISIBLES_SUGERIDOS)).map(p => (
-                <FilaProducto key={p.clave} nombre={p.nombre} acciones={<button type="button" className="bm-boton secundario" onClick={() => editar(aBorrador(p))}>Agregar</button>}>
-                  <span>{dinero(p.ultimoPrecio)} por {p.unidad} la última vez · {contar(p.ventas, 'venta')}</span>
-                </FilaProducto>
-              ))}
-            </ul>
-          )}
-          {sugeridos.length > VISIBLES_SUGERIDOS && (
-            <div className="bp-acciones">
-              <button type="button" className="bm-boton-texto" onClick={() => setTodos(t => !t)}>{todos ? 'Ver menos' : `Ver las ${sugeridos.length} sugerencias`}</button>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }
