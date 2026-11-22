@@ -8,7 +8,7 @@ import { kilometros } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import { POR_ENTREGAR, type ParadaReparto, type RutaReparto as Ruta } from '../../../shared/ruta.ts';
 import type { CanalApi } from './api.ts';
-import { LogoSii } from './iconos.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { ILUSTRACION } from '../marca/recursos.ts';
 import { Boton, BotonEnlace, Estado, EstadoVacio, type TonoEstado } from '../marca/componentes.tsx';
 import { textoEstadoSii } from '../red/formato.ts';
@@ -89,11 +89,9 @@ export function RutaReparto({ api, token, yo, config, alCambiar }: Props) {
               )}
             </div>
             {enCurso && (
-              <div className="puente-legado">
-                <Confirmar sii titulo={`¿Emites ${contar(sinGuia, 'guía de despacho', 'guías de despacho')} en el SII?`} si="Sí, emitir" {...c.panel}>
-                  <p>Una guía por pedido, con lo que llevas a cada negocio. Acompaña la mercadería en el reparto.</p>
-                </Confirmar>
-              </div>
+              <Confirmar sii titulo={`¿Emites ${contar(sinGuia, 'guía de despacho', 'guías de despacho')} en el SII?`} si="Sí, emitir" {...c.panel}>
+                <p>Una guía por pedido, con lo que llevas a cada negocio. Acompaña la mercadería en el reparto.</p>
+              </Confirmar>
             )}
             {ruta.googleMaps && ruta.googleMaps.paradas < ruta.paradas.length && (
               <p className="bp-tenue">Google Maps abre las primeras {ruta.googleMaps.paradas} paradas.</p>

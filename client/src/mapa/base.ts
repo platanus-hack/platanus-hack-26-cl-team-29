@@ -40,7 +40,7 @@ const TOKENS = {
   miel600: '--bando-miel-600',
   oliva: '--bando-oliva',
   olivaTexto: '--bando-oliva-texto',
-  sii: '--color-sii',
+  sii: '--bando-sii',
   error: '--color-destructive',
   fondo: '--color-background',
 } as const;

@@ -1,13 +1,11 @@
 /* Las piezas del canal (/app y /proveedor) dentro de la marca Bando (DESIGN.md): confirmación, documentos y estado en
    el SII, crédito, aviso de compra abierta, "trae a tu vecino", cantidad, vacío y WhatsApp. Se estilan dentro de
-   `.bando-ui`, así no necesitan `.puente-legado`; fuera de ella (vistas aún sin migrar) siguen las de canal.css.
-   Solo tokens: se ven bien en modo claro y oscuro. El azul del SII es `--color-sii` (estilos.css). */
+   `.bando-ui`, que hoy envuelve todas las vistas.
+   Solo tokens: se ven bien en modo claro y oscuro. El azul del SII es `--bando-sii` (marca/tokens.css). */
 
 /* ---------- Texto y controles comunes ---------- */
 .bando-ui .cn-seccion { gap: 16px; }
-.bando-ui .cn-titulo { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
-.bando-ui .cn-texto { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
-.bando-ui .cn-seccion .tarjeta, .bando-ui .cn-confirmar .tarjeta, .bando-ui .cn-pedir-tarjeta, .bando-ui .cn-cuenta, .bando-ui .tarjeta.cn-documentos {
+.bando-ui .cn-seccion .tarjeta, .bando-ui .cn-confirmar .tarjeta, .bando-ui .cn-pedir-tarjeta, .bando-ui .tarjeta.cn-documentos {
   background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); padding: 16px;
 }
 .bando-ui .cn-seccion .etiqueta, .bando-ui .cn-confirmar .etiqueta {
@@ -18,7 +16,7 @@
 .bando-ui .cn-seccion .tenue, .bando-ui .cn-pedir-tarjeta .tenue, .bando-ui .cn-documentos .tenue { color: var(--color-faint-fg); }
 .bando-ui .cn-seccion .vacio { font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-faint-fg); }
 .bando-ui .cn-seccion .nota-demo, .bando-ui .nota-demo { font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); }
-.bando-ui .cn-seccion .error, .bando-ui .cn-confirmar .error, .bando-ui .cn-pedir-tarjeta .error, .bando-ui .cn-cuenta .error {
+.bando-ui .cn-seccion .error, .bando-ui .cn-confirmar .error, .bando-ui .cn-pedir-tarjeta .error {
   font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-destructive);
 }
 .bando-ui .cn-ok {
@@ -27,7 +25,7 @@
 }
 
 /* Botones: primario negro (crema en oscuro), 36 px de alto mínimo y radio 12; acciones de pantalla a 44 px. */
-.bando-ui .cn-seccion .boton, .bando-ui .cn-confirmar .boton, .bando-ui .cn-pedir-tarjeta .boton, .bando-ui .cn-cuenta .boton,
+.bando-ui .cn-seccion .boton, .bando-ui .cn-confirmar .boton, .bando-ui .cn-pedir-tarjeta .boton,
 .bando-ui .cn-aviso-compra .boton, .bando-ui .cn-invitar .boton {
   min-height: 44px; padding: 0 18px; border: 0; border-radius: var(--radius-xl); font-family: var(--font-sans);
   font-size: var(--text-sm); font-weight: 600; background: var(--color-primary); color: var(--color-primary-foreground); box-shadow: none;
@@ -56,9 +54,9 @@
 .bando-ui .cn-confirmar .cn-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
 .bando-ui .cn-confirmar .cn-acciones .boton { min-height: 44px; }
 /* Acción con efecto en el SII: borde y botón en azul SII, sin teñir todo el panel. */
-.bando-ui .cn-confirmar.sii { border-color: var(--color-sii); background: var(--color-background); color: var(--color-foreground); }
-.bando-ui .cn-confirmar.sii .etiqueta { color: var(--color-sii); display: inline-flex; align-items: center; gap: 6px; }
-.bando-ui .cn-confirmar.sii .boton { background: var(--color-sii); color: white; }
+.bando-ui .cn-confirmar.sii { border-color: var(--bando-sii); background: var(--color-background); color: var(--color-foreground); }
+.bando-ui .cn-confirmar.sii .etiqueta { color: var(--bando-sii); display: inline-flex; align-items: center; gap: 6px; }
+.bando-ui .cn-confirmar.sii .boton { background: var(--bando-sii); color: var(--bando-sobre-sii); }
 .bando-ui .cn-confirmar.sii .error { background: none; padding: 0; color: var(--color-destructive); }
 [data-tema='oscuro'] .bando-ui .cn-confirmar.sii .etiqueta { color: var(--color-foreground); }
 
@@ -70,13 +68,13 @@
 .bando-ui .cn-doc-izq strong { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; }
 .bando-ui .cn-doc-izq .mono { font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); }
 .bando-ui .cn-doc-der strong { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
-.bando-ui .cn-doc-pdf { font-size: var(--text-xs); color: var(--color-sii); }
+.bando-ui .cn-doc-pdf { font-size: var(--text-xs); color: var(--bando-sii); }
 .bando-ui .cn-sii {
   font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; padding: 2px 8px 2px 4px;
   border-radius: var(--radius-full);
 }
-.bando-ui .cn-sii.ok { background: var(--color-sii); color: white; }
-.bando-ui .cn-sii.en-curso { border: var(--border-width) solid var(--color-sii); color: var(--color-sii); background: none; }
+.bando-ui .cn-sii.ok { background: var(--bando-sii); color: var(--bando-sobre-sii); }
+.bando-ui .cn-sii.en-curso { border: var(--border-width) solid var(--bando-sii); color: var(--bando-sii); background: none; }
 .bando-ui .cn-sii.simulado { border: var(--border-width) dashed var(--color-border); color: var(--color-faint-fg); }
 .bando-ui .cn-sii.mal { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }
 [data-tema='oscuro'] .bando-ui .cn-sii.en-curso, [data-tema='oscuro'] .bando-ui .cn-doc-pdf { color: var(--color-foreground); }
@@ -107,16 +105,6 @@
 .bando-ui .cn-pedir-tarjeta { gap: 8px; }
 .bando-ui .cn-pedir-tarjeta h3 { font-size: var(--text-base); line-height: var(--leading-base); font-weight: 700; }
 .bando-ui .cn-pedir-tarjeta p { font-size: var(--text-sm); line-height: var(--leading-sm); }
-
-/* Cuenta para recibir (formulario del proveedor). */
-.bando-ui .cn-cuenta .campo span { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 500; color: var(--color-foreground); }
-.bando-ui .cn-cuenta .campo input, .bando-ui .cn-cuenta select {
-  min-height: 44px; padding: 0 12px; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-border);
-  background: var(--color-background); color: var(--color-foreground); font-family: var(--font-sans); font-size: var(--text-base);
-}
-/* El botón de guardar no flota con sombra negra como en la interfaz anterior. */
-.bando-ui .cn-cuenta .boton:not(.secundario) { position: static; box-shadow: none; }
-.bando-ui .cn-cuenta .campo input:focus, .bando-ui .cn-cuenta select:focus { outline: none; border-color: var(--color-foreground); box-shadow: 0 0 0 3px var(--color-secondary); }
 
 /* ---------- Avisos: compra abierta y trae a tu vecino ---------- */
 .bando-ui .cn-aviso-compra, .bando-ui .cn-invitar {

@@ -12,10 +12,8 @@ test('un enlace con # no es un color', () => {
   assert.deepEqual(revisarArchivo('client/src/x.tsx', '<a href="#compra/nueva">Ir</a> <a href="#add">'), {});
 });
 
-test('Oxanium solo cuenta en vistas migradas a la marca', () => {
-  const vieja = '.t { font-family: Oxanium; }';
-  assert.deepEqual(revisarArchivo('client/src/vistas/sala.css', vieja), {});
-  assert.deepEqual(revisarArchivo('client/src/vistas/x.css', `.bando-ui ${vieja}`), { 'tipografia-anterior': 1 });
+test('la tipografía anterior cuenta en cualquier archivo: toda la app es de la marca', () => {
+  assert.deepEqual(revisarArchivo('client/src/vistas/x.css', '.t { font-family: Oxanium; }'), { 'tipografia-anterior': 1 });
 });
 
 test('letra bajo 12 px, toLocaleString y emojis', () => {

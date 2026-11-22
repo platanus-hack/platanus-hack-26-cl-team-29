@@ -59,14 +59,14 @@
   animation: mapa-pulso 1.2s ease-out 2 both;
 }
 .mapa-pulso.pedido { color: var(--bando-miel); }
-.mapa-pulso.venta { color: var(--color-sii); }
+.mapa-pulso.venta { color: var(--bando-sii); }
 .mapa-pulso.reclamo, .mapa-pulso.baja { color: var(--color-destructive); }
 @keyframes mapa-pulso {
   from { transform: scale(0.6); opacity: 1; }
   to { transform: scale(4.5); opacity: 0; }
 }
 
-.mapa-caja .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--color-background) 80%, transparent); color: var(--color-faint-fg); font-size: 10px; }
+.mapa-caja .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--color-background) 80%, transparent); color: var(--color-faint-fg); font-size: var(--text-xs); }
 .mapa-caja .maplibregl-ctrl-attrib a { color: inherit; }
 .mapa-caja .mapa-ficha { top: 12px; right: 12px; max-height: calc(100% - 24px); overflow-y: auto; }
 

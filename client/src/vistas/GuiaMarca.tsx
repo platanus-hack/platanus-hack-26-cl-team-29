@@ -138,6 +138,7 @@ export function GuiaMarca() {
                 <li>Más de un botón miel por pantalla.</li>
                 <li>Texto de menos de 12 px, emojis o sombras en tarjetas.</li>
                 <li>El nombre de otro comprador.</li>
+                <li>Un fondo o baldosa detrás de un ícono o un logo: sobre azul, el logo del SII va en blanco.</li>
               </ul>
             </Tarjeta>
           </div>

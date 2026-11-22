@@ -6,7 +6,7 @@ export type Regla = 'color-escrito' | 'tipografia-anterior' | 'formato-suelto' |
 
 export const REGLAS: Record<Regla, string> = {
   'color-escrito': 'Color escrito a mano: usa un token de client/src/marca/tokens.css.',
-  'tipografia-anterior': 'Oxanium o JetBrains Mono en una vista con la marca nueva: la marca usa solo Inter.',
+  'tipografia-anterior': 'Oxanium o JetBrains Mono: la marca usa solo Inter.',
   'formato-suelto': 'toLocaleString suelto: los montos van con dinero() y las fechas con los formatos de shared/.',
   'letra-chica': 'Texto de menos de 12 px.',
   'emoji': 'Emoji en el código: la marca usa íconos de línea o de flujo, nunca emojis.',
@@ -23,8 +23,6 @@ const TAMANO_CSS = /font-size\s*:\s*(\d+(?:\.\d+)?)px/g;
 const TAMANO_JSX = /fontSize\s*:\s*['"]?(\d+(?:\.\d+)?)(?:px)?['"]?/g;
 /** Pictogramas, sin los signos legales (©, ®, ™) que también entran en esa categoría. */
 const EMOJI = /(?![\u00A9\u00AE\u2122])\p{Extended_Pictographic}/gu;
-/** Una vista migrada usa la marca nueva: lleva `.bando-ui`, `.bando-proyeccion` o piezas `bm-`. */
-const MIGRADA = /bando-ui|bando-proyeccion|\bbm-[a-z]/;
 
 const contar = (texto: string, patron: RegExp) => texto.match(patron)?.length ?? 0;
 const chicos = (texto: string, patron: RegExp) => [...texto.matchAll(patron)].filter(m => Number(m[1]) < 12).length;
@@ -36,7 +34,7 @@ export function revisarArchivo(ruta: string, texto: string): Partial<Record<Regl
   const codigo = sinComentarios(texto);
   const cuenta: Partial<Record<Regla, number>> = {
     'color-escrito': ruta === ARCHIVO_DE_TOKENS ? 0 : contar(codigo, COLOR),
-    'tipografia-anterior': MIGRADA.test(codigo) ? contar(codigo, TIPOGRAFIA_ANTERIOR) : 0,
+    'tipografia-anterior': contar(codigo, TIPOGRAFIA_ANTERIOR),
     'formato-suelto': contar(codigo, TO_LOCALE),
     'letra-chica': chicos(codigo, TAMANO_CSS) + chicos(codigo, TAMANO_JSX),
     'emoji': contar(codigo, EMOJI),

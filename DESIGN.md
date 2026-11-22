@@ -20,13 +20,13 @@ El sistema tiene tres piezas, y cada una tiene un único lugar en el código:
 
 **Siempre:**
 
-1. Envolver la vista en `.bando-ui` (uso personal) o `.bando-proyeccion` (pantallas que se proyectan).
+1. Envolver la vista en `.bando-ui` (uso personal, claro u oscuro) o `.bando-proyeccion` (pantallas que se proyectan).
 2. Armar la pantalla con las primitivas: `Boton`, `Tarjeta`, `Etiqueta`, `Cifra`, `Estado`, `ProgresoGrupo`, `EstadoVacio`, `Modal`.
 3. Tomar todo valor de un token: color, espacio (`--espacio-*`), radio, sombra, duración, capa (`--z-*`).
 4. Separar bloques con `gap`, no con márgenes sueltos.
 5. Un número grande y una acción principal por pantalla.
 6. Montos con `dinero()` y cantidades con `contar()`, de `shared/`.
-7. El logo del SII en toda acción o estado que queda en el SII (`Boton variante="sii"`, `Estado tono="sii"`).
+7. El logo del SII en toda acción o estado que queda en el SII, siempre con `<LogoSii />` de `marca/LogoSii.tsx` (ya va en `Boton variante="sii"` y `Estado tono="sii"`).
 8. Correr `npm run marca` antes de commitear, junto a `build`, `test` y `duplicados`.
 
 **Nunca:**
@@ -35,15 +35,16 @@ El sistema tiene tres piezas, y cada una tiene un único lugar en el código:
 2. Miel como color de texto sobre blanco: para texto, `--bando-miel-texto`.
 3. Más de un botón miel por pantalla, ni un botón miel junto a uno primario.
 4. Sombra en una tarjeta: se separa con borde. La sombra es solo para lo que flota.
-5. Texto de menos de 12 px (18 px en proyección), emojis, Oxanium o JetBrains Mono en una vista con la marca.
+5. Texto de menos de 12 px (18 px en proyección), emojis, Oxanium o JetBrains Mono.
 6. Un botón, una tarjeta o un estado dibujado de nuevo en el CSS de una vista: si falta una variante, se agrega a la primitiva.
 7. El nombre de otro comprador.
 8. Subir la línea base de `npm run marca` para que pase un cambio.
+9. Un fondo, baldosa o cuadro detrás de un ícono o un logo (el del SII, el de un proveedor, ilustraciones). Sobre un fondo de color (el azul del SII) el logo va en su versión blanca, nunca sobre una placa.
 
 ### Cómo se hace cumplir
 
 `npm run marca` (`scripts/revisar-marca.ts`) lee `client/src` y cuenta, por archivo, los colores escritos a mano, la
-tipografía anterior en vistas migradas, `toLocaleString` sueltos, textos bajo 12 px y emojis. Funciona como trinquete:
+tipografía anterior, `toLocaleString` sueltos, textos bajo 12 px y emojis. Funciona como trinquete:
 la deuda que ya existía está en `scripts/marca-linea-base.json` y no bloquea, pero ningún archivo puede empeorar. Al
 migrar una vista la deuda baja, y `npm run marca -- --actualizar` guarda la línea base nueva en el mismo PR.
 Lo que no se puede leer en el código (jerarquía, una acción por pantalla, voz) lo revisa la skill `revision-ui`.
@@ -62,24 +63,24 @@ de delivery: nada de tono corporativo ni fotos de stock.
 
 El panal es la metáfora: cada celda es un local, la miel es el ahorro que se acumula y las abejas son la red.
 
-## Cómo migrar (regla del refactor)
+## Una sola interfaz
 
-La interfaz actual (oscura, neón, Oxanium y JetBrains Mono) es la anterior. Se migra **vista por vista**:
+Toda la app usa la marca: no queda capa anterior (oscura, neón, Oxanium, JetBrains Mono) ni puentes entre sistemas.
 
-1. La vista rediseñada se envuelve en `.bando-ui` (o `.bando-proyeccion` si se proyecta) y se arma con las primitivas. Ahí los tokens de producto (`--color-primary`, `--color-border`,
-   radios, tipografía) toman los valores de Bando; fuera de `.bando-ui` siguen los anteriores, así nada se rompe a medias.
-2. Los colores de marca (`--bando-*`) son globales y sirven en cualquier vista.
-3. No se mezclan los dos sistemas en una misma pantalla. Una sección anterior que tiene que vivir dentro de una vista
-   migrada (mientras le llega su turno) va envuelta en `.puente-legado`, que les da a sus tokens viejos los valores de la marca.
-4. Cuando todas estén migradas, los tokens de `.bando-ui` pasan a `:root` y se borra la capa anterior de `estilos.css`.
+- Los tokens de producto viven en `:root` (claro) y en `[data-tema='oscuro']`, en `tokens.css`. `.bando-ui` es la
+  superficie de producto (fondo, texto e Inter) y `.bando-proyeccion`, la de pantalla grande.
+- Las piezas de las vistas en vivo (`estilos.css`, `canal/canal.css`, `vistas/canasta.css`) usan los mismos tokens que
+  las primitivas. Una pieza nueva se arma con las primitivas; una vieja que se toca, se pasa a ellas.
 
 Tokens en [`client/src/marca/tokens.css`](client/src/marca/tokens.css) y primitivas en `client/src/marca/componentes.css`,
-los dos importados en `estilos.css`. Lo que falta migrar está en el [mapa de migración](#mapa-de-migración).
+los dos importados en `estilos.css`.
 
 ## Modo proyección
 
-Para las pantallas que se ven en un proyector desde el fondo de una sala: `/red`, `/licitacion` y `/mapa`. Se usa
-`.bando-proyeccion` en lugar de `.bando-ui`: mismos nombres de tokens, otros valores.
+Para la pantalla que se ve en un proyector desde el fondo de una sala: `/licitacion`. Se usa `.bando-proyeccion` en
+lugar de `.bando-ui`: mismos nombres de tokens, otros valores. `/red` y `/mapa` también son vistas en vivo, pero son la
+portada y el mapa que se abren desde cualquier pantalla: siguen el modo claro u oscuro de `.bando-ui` y, para
+proyectarlas, se fija el modo oscuro con el botón sol/luna.
 
 - **Siempre oscuro.** Un proyector lava los blancos y un fondo claro encandila la sala. Lienzo carbón profundo, texto
   crema (16,9:1) y tarjetas un tono más claro. No sigue al botón sol/luna.
@@ -259,7 +260,7 @@ Dos familias que **no se mezclan en una misma fila**:
 | 6 · Más paradas | `masParadas` | Camión con ruta |
 | 7 · Sumar proveedores | `sumarProveedores` | Lupa, contacto y + |
 
-Logos de terceros: el del SII en cada acción del SII; proveedores y comercios con su logo o un monograma.
+Logos de terceros: el del SII en cada acción del SII (`<LogoSii />`); proveedores y comercios con su logo o un monograma. Ninguno lleva fondo ni baldosa: el del SII es azul sobre claro y blanco sobre su azul, en oscuro y en proyección.
 
 ## Ilustración y abejas
 
@@ -296,29 +297,12 @@ Corto, claro y cercano, en español neutro (sin modismos de ningún país). Trat
 - Evitar: transacción, usuario, sinergia, plataforma, «estimado cliente».
 - **Privacidad**: nunca mostrar el nombre de otro comprador. «11 locales de Providencia», no «Café Kant y otros».
 
-## Mapa de migración
+## Estado de las vistas
 
-Qué vista ya usa la marca y qué falta, en el orden recomendado. «Parcial» quiere decir que el marco es nuevo pero
-quedan secciones anteriores dentro de `.puente-legado`. El dueño sale de `agents/*.md`: quien migra una vista lo
-coordina con su dueño en `Pedidos a otros`.
-
-| Orden | Ruta | Archivo principal | Estado | Dueño | Qué falta |
-|---|---|---|---|---|---|
-| | `/marca` | `vistas/GuiaMarca.tsx` | Migrada | marca-sistema | |
-| | entrada de `/app` y `/proveedor` | `canal/Acceso.tsx` | Migrada | javier-acceso | |
-| | `/red` | `vistas/RedEnVivo.tsx` | Migrada a `.bando-ui` | jorge-red3d | Pasar a `.bando-proyeccion` |
-| | `/mapa` | `vistas/Mapa.tsx` | Migrada a `.bando-ui` | jorge-mapa | Pasar a `.bando-proyeccion` |
-| | `/red-3d` | `vistas/Red3D.tsx` | Migrada | jorge-red3d | |
-| 1 | `/app` | `canal/MiNegocio.tsx` y `comprador/` | Parcial | javier-comprador | Secciones en `.puente-legado` (pedir, carrito, crédito) y `canal.css` |
-| 2 | `/proveedor` | `canal/Proveedor.tsx` y `proveedor/` | Parcial | javier-proveedor-ui | `ConectarSii`, ruta de reparto, catálogo; pasar `bp-estado` y `bp-boton-sii` a `Estado` y `Boton` |
-| | `/licitacion` | `vistas/Licitacion.tsx` | Parcial: `.bando-proyeccion` | ui-proyeccion | Las piezas de proyección (`tarjeta`, `numero-grande`, escalera, curva, ofertas) siguen en `estilos.css` con tokens remapeados en `licitacion.css` |
-| | `/unirse` | `vistas/Unirse.tsx` | Parcial | carrito-movil | El carrito y el botón de WhatsApp (`canal/Carrito.tsx`, `piezas.tsx`) en `.puente-legado` |
-| | `/pagos` | `vistas/Pagos.tsx` | Migrada | credito-pantallas | |
-
-`/proveedores` ya no existe como vista: redirige a la sección Proveedores de `/app`.
-
-Cuando no quede ninguna vista anterior: los tokens de `.bando-ui` pasan a `:root`, se borra la capa anterior de
-`estilos.css` y `.puente-legado`, y `npm run marca` deja de aceptar deuda (línea base vacía).
+Todas las vistas usan la marca (`/app`, `/proveedor`, `/unirse`, `/pagos`, `/red`, `/mapa`, `/red-3d`, `/marca` en
+`.bando-ui`; `/licitacion` en `.bando-proyeccion`), y también el menú "Vistas". `npm run marca` queda con un solo caso
+aceptado: la fórmula del color estable de los monogramas (`colorDeMonograma` en `components/Iconos.tsx`), que se
+calcula por nombre y no puede ser un token.
 
 ## Archivos
 

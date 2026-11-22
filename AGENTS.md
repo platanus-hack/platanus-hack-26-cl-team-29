@@ -40,7 +40,7 @@ Para avanzar rápido, cada persona corre tantos agentes en paralelo como pueda. 
 
 ## Interfaz (regla fija)
 
-Cómo se ve y cómo habla Bando (logo, color, tipografía, íconos, ilustraciones, voz) está en `DESIGN.md`: léelo antes de tocar una vista. Las vistas se migran al diseño nuevo de a una, envueltas en `.bando-ui`.
+Cómo se ve y cómo habla Bando (logo, color, tipografía, íconos, ilustraciones, voz) está en `DESIGN.md`: léelo antes de tocar una vista. Toda la app usa ya esa marca: una vista nueva va en `.bando-ui` (o `.bando-proyeccion` si se proyecta) y se arma con las primitivas de `client/src/marca/`.
 
 Toda vista nueva o cambiada en `client/` pasa por la skill `revision-ui` (`.claude/skills/revision-ui/SKILL.md`) antes de mergear: nada encimado, cortado ni desalineado en los tamaños obligatorios, la acción principal a la vista con el mínimo de clics, y textos naturales y concisos, iconografía clara (logo del SII en cada acción del SII, logos o monogramas de proveedores y comercios, un solo set de íconos) y el aviso discreto de modo demo donde corresponde. El PR incluye la tabla de vistas y tamaños revisados.
 

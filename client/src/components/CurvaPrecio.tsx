@@ -45,7 +45,7 @@ function Trazo({ puntos, precioSolo, ancho, alto }: { puntos: PuntoCurva[]; prec
       )}
       <path d={d} fill="none" stroke="var(--color-primary)" strokeWidth={3} strokeLinejoin="round" />
       {bajadas.map((p, i) => (
-        <circle key={i} cx={x(p.compradores)} cy={y(p.precio)} r={5} fill="var(--color-magenta)" />
+        <circle key={i} cx={x(p.compradores)} cy={y(p.precio)} r={5} fill="var(--bando-miel-600)" />
       ))}
       <circle cx={x(ultimo.compradores)} cy={y(ultimo.precio)} r={7} fill="var(--color-primary)" />
       <text x={MARGEN.izq} y={base}>{contar(puntos[0].compradores, 'negocio')}</text>

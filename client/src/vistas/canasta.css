@@ -23,21 +23,21 @@
 }
 .prod-icono .icono { width: 60%; height: 60%; }
 .prod-info { display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); min-width: 0; }
-.prod-nombre { font-size: calc(var(--u) * 2.3); font-weight: 800; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-nombre { font-size: calc(var(--u) * 2.3); font-weight: 700; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prod-avance { display: block; height: calc(var(--u) * 0.7); border-radius: 999px; }
-.prod-faltan { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--color-green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-faltan { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.5)); color: var(--bando-oliva-texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prod-precio { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
 .prod-precio strong {
-  font-size: calc(var(--u) * 4.8); font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: var(--color-primary);
+  font-size: calc(var(--u) * 4.8); font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--color-primary);
   font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-block;
   animation: voltear 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 /* Bajada por una oferta: el precio cae en su fila con un destello verde. */
 .prod-precio strong.por-oferta { animation: bajar 1.2s cubic-bezier(0.2, 0.9, 0.2, 1); }
-.prod-por { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.4)); color: var(--color-tenue); white-space: nowrap; }
+.prod-por { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.4)); color: var(--color-faint-fg); white-space: nowrap; }
 .prod-solo {
   display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * 0.3);
-  font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.8)); white-space: nowrap; color: var(--color-muted);
+  font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.8)); white-space: nowrap; color: var(--color-muted-foreground);
 }
 .prod-solo .verde { font-weight: 700; font-size: max(13px, calc(var(--u) * 2.2)); }
 .prod-lider {
@@ -49,7 +49,7 @@
 .prod-lider-texto { display: flex; flex-direction: column; min-width: 0; }
 .prod-lider .nombre { font-size: calc(var(--u) * 1.9); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prod-lider-pie { font-family: var(--font-mono); font-size: max(11px, calc(var(--u) * 1.4)); color: var(--color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prod-lider.vacio .prod-lider-pie { color: var(--color-tenue); }
+.prod-lider.vacio .prod-lider-pie { color: var(--color-faint-fg); }
 .prod-lider-corto { display: none; font-family: var(--font-mono); font-size: max(10px, calc(var(--u) * 1.2)); color: var(--color-primary); }
 
 /* Tablero angosto (4:3 o la columna de /licitacion): sin "por caja" ni unidades, y el proveedor solo con su monograma. */
@@ -84,35 +84,15 @@
   .prod-nombre { white-space: normal; font-size: calc(var(--u) * 1.9); }
 }
 
-/* ---------- Totales por producto al cerrar ---------- */
-.cierre-canasta {
-  list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 1.2);
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--u) * 30), 1fr));
-}
-.cierre-canasta li {
-  display: flex; align-items: center; gap: calc(var(--u) * 1.2); min-width: 0;
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; padding: calc(var(--u) * 1) calc(var(--u) * 1.4);
-}
-.cierre-texto { display: flex; flex-direction: column; gap: calc(var(--u) * 0.3); min-width: 0; }
-.cierre-pie { font-family: var(--font-mono); font-size: max(12px, calc(var(--u) * 1.7)); color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cierre-pie strong { color: var(--color-primary); }
-@media (max-aspect-ratio: 3/2) { .cierre-canasta:not(.compacta) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-/* Versión compacta, en la columna de resumen de las facturas: una fila por producto. */
-.cierre-canasta.compacta { grid-template-columns: minmax(0, 1fr); gap: calc(var(--u) * 0.6); }
-.cierre-canasta.compacta li { padding: calc(var(--u) * 0.4) 0; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: none; }
-.cierre-canasta.compacta .prod-icono { width: calc(var(--u) * 3.6); height: calc(var(--u) * 3.6); border-radius: 8px; }
-.cierre-canasta.compacta .prod-nombre { font-size: calc(var(--u) * 1.8); }
-.cierre-canasta.compacta .cierre-pie { font-size: max(11px, calc(var(--u) * 1.5)); }
-
 @media (prefers-reduced-motion: reduce) {
-  .tablero-canasta *, .cierre-canasta * { animation: none !important; transition: none !important; }
+  .tablero-canasta * { animation: none !important; transition: none !important; }
 }
 
 /* ---------- /licitacion: la canasta en la columna central ---------- */
 .lic-canasta .tablero-canasta { margin-top: 1.6vh; }
-.lic-canasta .mejor-oferta .numero-grande.verde { color: var(--color-green); }
+.lic-canasta .mejor-oferta .numero-grande.verde { color: var(--bando-oliva-texto); }
 .lic-foco { display: flex; align-items: center; gap: 0.5em; min-width: 0; white-space: nowrap; }
-.del-producto { display: flex; align-items: center; gap: 0.5em; min-width: 0; overflow: hidden; color: var(--color-text); }
+.del-producto { display: flex; align-items: center; gap: 0.5em; min-width: 0; overflow: hidden; color: var(--color-foreground); }
 .del-producto .icono { width: 1.2em; height: 1.2em; flex-shrink: 0; }
 .del-producto-nombre { overflow: hidden; text-overflow: ellipsis; }
 .lic-canasta { container-type: inline-size; }

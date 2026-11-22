@@ -1,17 +1,8 @@
-// Iconografía del canal web: logo del SII, monogramas de negocios y un solo set de íconos de línea
+// Iconografía del canal web: monogramas de negocios y un solo set de íconos de línea
 // (24x24, trazo 1,75, color del texto). Todo en contenedores de tamaño fijo para que las filas queden alineadas.
 
 import type { ReactNode } from 'react';
-import { iniciales, tonoDe } from '../components/Iconos.tsx';
-
-/** Logo del SII sobre una placa blanca: indica que algo quedó registrado en el SII (no es una pantalla oficial). */
-export function LogoSii({ tam = 18 }: { tam?: number }) {
-  return (
-    <span className="cn-logo-sii" style={{ width: tam, height: tam }} aria-hidden="true">
-      <img src="/logos/sii.svg" alt="" />
-    </span>
-  );
-}
+import { colorDeMonograma, iniciales } from '../components/Iconos.tsx';
 
 const TRAZOS: Record<string, ReactNode> = {
   // Pestañas
@@ -80,7 +71,7 @@ export function Monograma({ nombre, tam = 40, logoUrl, rubro = true }: { nombre:
   // Bajo 32 px el ícono del rubro taparía las iniciales.
   const icono = rubro && tam >= 32 ? rubroDe(nombre, typeof rubro === 'string' ? rubro : undefined) : undefined;
   return (
-    <span className="cn-monograma" style={{ width: tam, height: tam, fontSize: Math.round(tam * 0.38), background: logoUrl ? '#fff' : `hsl(${tonoDe(nombre)} 55% 62%)` }} aria-hidden="true">
+    <span className={`cn-monograma${logoUrl ? ' con-logo' : ''}`} style={{ width: tam, height: tam, fontSize: Math.round(tam * 0.38), background: logoUrl ? undefined : colorDeMonograma(nombre) }} aria-hidden="true">
       {logoUrl ? <img src={logoUrl} alt="" /> : iniciales(nombre)}
       {icono && !logoUrl && <span className="cn-rubro"><Icono nombre={icono} tam={12} /></span>}
     </span>

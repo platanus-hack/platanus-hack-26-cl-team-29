@@ -4,12 +4,11 @@
 .cn-pagina { max-width: 520px; margin: 0 auto; padding: 24px 16px calc(32px + env(safe-area-inset-bottom)); display: grid; gap: 16px; }
 .cn-pagina .etiqueta { font-size: 12px; }
 
-.cn-marca { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; flex-wrap: wrap; }
+.cn-marca { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; flex-wrap: wrap; }
 .cn-marca .cn-logo { width: 120px; height: auto; } /* 120 px: el mínimo del logo horizontal */
 
 /* ---------- Estructura ---------- */
 /* A la derecha queda libre el lugar del botón "Vistas" (fijo arriba a la derecha) para que no tape "Salir". */
-.cn-contenido { max-width: 640px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
 .cn-seccion { display: grid; gap: 16px; min-width: 0; }
 .cn-seccion > * { min-width: 0; }
 
@@ -21,52 +20,41 @@
 .cn-acciones { display: grid; gap: 8px; margin-top: 16px; }
 .cn-acciones .boton { min-height: 56px; }
 .cn-boton-texto {
-  font: inherit; font-family: var(--font-mono); font-size: 14px; background: none; border: 0; color: var(--color-muted);
+  font: inherit; font-family: var(--font-mono); font-size: 14px; background: none; border: 0; color: var(--color-muted-foreground);
   text-decoration: underline; padding: 12px 8px; cursor: pointer; min-height: 44px;
 }
-.cn-ok { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: rgb(8 255 0 / 0.1); color: var(--color-green); font-family: var(--font-mono); font-size: 14px; line-height: 1.45; }
+.cn-ok { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--bando-oliva) 14%, transparent); color: var(--bando-oliva-texto); font-family: var(--font-mono); font-size: 14px; line-height: 1.45; }
 .cn-chip {
   display: inline-block; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--color-border); white-space: nowrap;
-  font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--color-muted);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--color-muted-foreground);
 }
 .cn-chip.facturada { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-foreground); }
-.cn-chip.reclamada { background: var(--color-sii); border-color: var(--color-sii); color: #fff; }
-.cn-chip.recibida, .cn-chip.corregida { border-color: var(--color-green); color: var(--color-green); }
+.cn-chip.reclamada { background: var(--bando-sii); border-color: var(--bando-sii); color: var(--bando-sobre-sii); }
+.cn-chip.recibida, .cn-chip.corregida { border-color: var(--bando-oliva-texto); color: var(--bando-oliva-texto); }
 .cn-nota-pie { font-size: 12px; margin: 0; }
 .cn-stepper { grid-template-columns: 56px 1fr 56px; margin-top: 10px; }
 .cn-stepper .boton.secundario { min-height: 56px; }
 .cn-stepper input {
-  font: inherit; font-size: 24px; font-weight: 700; text-align: center; color: var(--color-text); background: var(--color-surface);
+  font: inherit; font-size: 24px; font-weight: 700; text-align: center; color: var(--color-foreground); background: var(--color-surface);
   border: 1px solid var(--color-border); border-radius: 12px; width: 100%;
 }
 
 /* ---------- Compra conjunta ---------- */
-.cn-fila-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--color-muted); }
 
 /* ---------- Pedir ---------- */
-.cn-nota { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--color-primary); flex-shrink: 0; }
-.cn-resumen-pedido .cn-ancho { margin-top: 12px; }
-/* En el teléfono el resumen y "Enviar" quedan fijos sobre las pestañas: se pide sin bajar hasta el final. */
-@media (max-width: 899px) {
-  .cn-resumen-pedido {
-    position: sticky; bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 1; padding: 14px 16px !important;
-    box-shadow: 0 -8px 24px 8px rgb(0 0 0 / 0.7);
-  }
-}
 
 /* ---------- Pedidos ---------- */
-.cn-punto { grid-row: span 2; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--color-border); background: var(--color-surface); }
 
 /* Paso de confirmación: dentro de la página, nunca un diálogo del navegador. */
 .cn-confirmar { scroll-margin: 96px 0 96px; margin-top: 16px; padding: 16px; border-radius: 14px; border: 2px solid var(--color-primary); background: var(--color-background); animation: aparecer 0.25s ease-out; }
-.cn-confirmar.sii { border-color: #3fa9f5; background: var(--color-sii); color: #fff; }
-.cn-confirmar.sii .etiqueta { color: #cfe8ff; }
+.cn-confirmar.sii { border-color: var(--bando-sii); background: var(--bando-sii); color: var(--bando-sobre-sii); }
+.cn-confirmar.sii .etiqueta { color: var(--bando-sobre-sii); }
 .cn-confirmar h3 { margin: 6px 0 0; font-size: 21px; line-height: 1.2; }
 .cn-confirmar-texto p { margin: 10px 0 0; font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
-.cn-confirmar .cn-cifra-confirmar { font-family: var(--font-display); font-size: 24px; font-weight: 800; }
+.cn-confirmar .cn-cifra-confirmar { font-family: var(--font-display); font-size: 24px; font-weight: 700; }
 .cn-confirmar .cn-boton-texto { color: inherit; }
-.cn-confirmar.sii .boton { background: #fff; color: var(--color-sii); }
-.cn-confirmar.sii .error { color: #fff; background: rgb(255 26 179 / 0.5); padding: 8px 10px; border-radius: 8px; margin-top: 10px; }
+.cn-confirmar.sii .boton { background: var(--bando-sobre-sii); color: var(--bando-sii); }
+.cn-confirmar.sii .error { color: var(--bando-sobre-sii); background: color-mix(in srgb, var(--color-destructive) 60%, transparent); padding: 8px 10px; border-radius: 8px; margin-top: 10px; }
 
 /* ---------- Facturas y documentos ---------- */
 .cn-documentos { list-style: none; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -74,16 +62,16 @@
 .cn-documentos li:last-child { border-bottom: 0; }
 .cn-doc-izq, .cn-doc-der { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cn-doc-izq { flex: 1; }
-.cn-documentos .cn-icono { margin-top: 1px; color: var(--color-muted); }
+.cn-documentos .cn-icono { margin-top: 1px; color: var(--color-muted-foreground); }
 .cn-doc-der { align-items: flex-end; flex-shrink: 0; }
-.cn-doc-pdf { font-size: 12px; font-weight: 600; color: var(--sii, #0061A0); text-decoration: underline; }
+.cn-doc-pdf { font-size: 12px; font-weight: 600; color: var(--bando-sii); text-decoration: underline; }
 .cn-doc-izq strong { font-size: 16px; }
 .cn-doc-izq .mono { font-size: 12px; }
-.cn-sii { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 3px 8px 3px 4px; border-radius: 6px; white-space: nowrap; }
-.cn-sii.ok { background: var(--color-sii); color: #fff; }
-.cn-sii.en-curso { border: 1px solid #3fa9f5; color: #9fd3ff; }
-.cn-sii.simulado { border: 1px dashed var(--color-tenue); color: var(--color-muted); }
-.cn-sii.mal { background: var(--color-magenta); color: #fff; }
+.cn-sii { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 700; padding: 3px 8px 3px 4px; border-radius: 6px; white-space: nowrap; }
+.cn-sii.ok { background: var(--bando-sii); color: var(--bando-sobre-sii); }
+.cn-sii.en-curso { border: 1px solid var(--bando-sii); color: var(--bando-sii); }
+.cn-sii.simulado { border: 1px dashed var(--color-faint-fg); color: var(--color-muted-foreground); }
+.cn-sii.mal { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }
 
 .cn-vacio h3 { margin: 0; font-size: 20px; }
 .cn-vacio .mono { margin: 8px 0 0; font-size: 14px; line-height: 1.5; }
@@ -92,9 +80,8 @@
 
 /* ---------- Escritorio ---------- */
 @media (min-width: 900px) {
-                  .cn-contenido { padding: 24px 16px; }
-      .cn-acciones { grid-template-columns: 1fr 1fr; }
-    .cn-stepper { max-width: 360px; }
+  .cn-acciones { grid-template-columns: 1fr 1fr; }
+  .cn-stepper { max-width: 360px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .cn-confirmar { transition: none; animation: none; }
@@ -102,38 +89,25 @@
 
 /* ---------- Iconografía ---------- */
 .cn-icono { flex-shrink: 0; display: block; }
-.cn-logo-sii {
-  display: inline-grid; place-items: center; flex-shrink: 0; box-sizing: border-box; padding: 2px; border-radius: 4px;
-  background: #fff; vertical-align: middle;
-}
-.cn-logo-sii img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .cn-monograma {
   position: relative; display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 10px;
-  color: #0b0b0b; font-family: var(--font-display); font-weight: 800; letter-spacing: 0.02em; line-height: 1;
+  color: var(--bando-tinta); font-family: var(--font-sans); font-weight: 600; letter-spacing: 0.02em; line-height: 1;
 }
 .cn-monograma img { width: 82%; height: 82%; object-fit: contain; }
+.cn-monograma.con-logo { border: var(--border-width) solid var(--color-border); }
 .cn-rubro {
   position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--color-foreground); border: 1px solid var(--color-border);
 }
 .cn-con-sii { display: flex; align-items: center; gap: 8px; }
 .cn-chip.cn-con-sii { display: inline-flex; gap: 6px; padding-left: 5px; }
 .cn-ok.cn-con-sii { align-items: flex-start; }
-.cn-ok.cn-con-sii .cn-logo-sii { margin-top: 1px; }
-.boton .cn-logo-sii { margin-right: 4px; }
+.cn-ok.cn-con-sii .logo-sii { margin-top: 1px; }
+.boton .logo-sii { margin-right: 4px; }
 /* En las listas de documentos el nombre del negocio se lee entero: baja de línea en vez de cortarse. */
 .cn-documentos .nombre { white-space: normal; overflow-wrap: anywhere; }
 
 /* ---------- Carrito de la canasta (/unirse y /app) ---------- */
-.cn-unirse { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
-.cn-unirse-cabecera { display: grid; gap: 10px; }
-.cn-unirse-cabecera h1 { margin: 4px 0 0; font-size: 30px; line-height: 1.05; font-weight: 800; letter-spacing: var(--tracking-tight); }
-.cn-se-sumo {
-  margin: 0; justify-self: start; padding: 6px 10px; border-radius: 8px; background: rgb(8 255 0 / 0.12); color: var(--color-green);
-  font-family: var(--font-mono); font-size: 13px; animation: aparecer 0.35s ease-out;
-}
-.cn-hola { margin: 0; font-size: 13px; color: var(--color-muted); overflow-wrap: anywhere; }
-.cn-enlace-app { font-family: var(--font-mono); font-size: 14px; color: var(--color-muted); text-align: center; padding: 12px; }
 
 .cn-carrito { display: grid; gap: 12px; min-width: 0; }
 .cn-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -142,25 +116,25 @@
   background: var(--color-surface); border: 1px solid var(--color-border); transition: border-color 0.2s;
 }
 .cn-item.en-carrito { border-color: var(--color-primary); }
-.cn-item-icono { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--color-background); color: var(--color-text); }
+.cn-item-icono { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--color-background); color: var(--color-foreground); }
 .cn-item-cuerpo { min-width: 0; display: grid; gap: 8px; }
 .cn-item-nombre { margin: 0; font-size: 16px; line-height: 1.25; font-weight: 700; overflow-wrap: anywhere; }
 .cn-item-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
 .cn-item-precio { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 2px; min-width: 0; }
-.cn-item-valor { font-family: var(--font-display); font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--color-primary); border-radius: 6px; }
+.cn-item-valor { font-family: var(--font-display); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-primary); border-radius: 6px; }
 .cn-item-valor.bajo { animation: cn-bajo 1.6s ease-out; }
 @keyframes cn-bajo {
-  0%, 45% { background: var(--color-green); color: #000; box-shadow: 0 0 0 4px var(--color-green); }
+  0%, 45% { background: color-mix(in srgb, var(--bando-oliva) 22%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bando-oliva) 22%, transparent); }
   100% { background: transparent; box-shadow: 0 0 0 4px transparent; }
 }
-.cn-item-por { font-family: var(--font-mono); font-size: 13px; color: var(--color-muted); }
+.cn-item-por { font-family: var(--font-mono); font-size: 13px; color: var(--color-muted-foreground); }
 .cn-item-solo { font-family: var(--font-mono); font-size: 13px; }
-.cn-item-pista { margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.4; color: var(--color-green); }
-.cn-item-pista.bajo { justify-self: start; padding: 2px 8px; border-radius: 6px; background: var(--color-green); color: #000; font-weight: 700; animation: aparecer 0.3s ease-out; }
-.cn-item-pista.tope { color: var(--color-muted); }
+.cn-item-pista { margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.4; color: var(--bando-oliva-texto); }
+.cn-item-pista.bajo { justify-self: start; padding: 2px 8px; border-radius: 6px; background: color-mix(in srgb, var(--bando-oliva) 18%, transparent); color: var(--bando-oliva-texto); font-weight: 700; animation: aparecer 0.3s ease-out; }
+.cn-item-pista.tope { color: var(--color-muted-foreground); }
 
 .cn-agregar {
-  font: inherit; font-weight: 800; font-size: 15px; flex-shrink: 0; min-width: 120px; min-height: 44px; padding: 0 16px; border-radius: 22px;
+  font: inherit; font-weight: 700; font-size: 15px; flex-shrink: 0; min-width: 120px; min-height: 44px; padding: 0 16px; border-radius: 22px;
   border: 0; background: var(--color-primary); color: var(--color-primary-foreground); cursor: pointer;
 }
 .cn-selector {
@@ -172,8 +146,8 @@
 }
 .cn-selector button:disabled { opacity: 0.35; cursor: default; }
 .cn-selector svg { stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; fill: none; }
-.cn-selector output { text-align: center; font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; }
-.cn-agregar:focus-visible, .cn-selector button:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
+.cn-selector output { text-align: center; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.cn-agregar:focus-visible, .cn-selector button:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
 
 .cn-salir { justify-self: center; font-size: 13px; }
 
@@ -181,60 +155,60 @@
 .cn-barra-carrito {
   position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 2;
   display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; min-height: 64px; box-sizing: border-box;
-  border-radius: 16px; background: var(--color-text); color: #0b0b0b; box-shadow: 0 -6px 24px 6px rgb(0 0 0 / 0.6);
+  border-radius: var(--radius-2xl); background: var(--color-background); color: var(--color-foreground);
+  border: var(--border-width) solid var(--color-border); box-shadow: var(--sombra-flotante);
 }
 .cn-barra-izq, .cn-barra-der { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cn-barra-der { align-items: flex-end; flex-shrink: 0; text-align: right; }
-.cn-barra-estado { font-weight: 800; font-size: 15px; line-height: 1.25; display: inline-flex; align-items: center; gap: 6px; }
-.cn-barra-estado.ok { color: #067a00; }
-.cn-barra-estado.guardando { color: #555; }
-.cn-barra-estado.error { color: #b8007f; font-size: 13px; }
-.cn-punto-vivo { width: 8px; height: 8px; border-radius: 50%; background: #0aa800; flex-shrink: 0; }
-.cn-barra-detalle { font-family: var(--font-mono); font-size: 12px; color: #444; }
-.cn-barra-total { font-family: var(--font-display); font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cn-barra-ahorro { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #067a00; white-space: nowrap; }
-.cn-barra-neto { font-family: var(--font-mono); font-size: 12px; color: #444; }
+.cn-barra-estado { font-weight: 700; font-size: 15px; line-height: 1.25; display: inline-flex; align-items: center; gap: 6px; }
+.cn-barra-estado.ok { color: var(--bando-oliva-texto); }
+.cn-barra-estado.guardando { color: var(--color-faint-fg); }
+.cn-barra-estado.error { color: var(--color-destructive); font-size: 13px; }
+.cn-punto-vivo { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); flex-shrink: 0; }
+.cn-barra-detalle { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted-foreground); }
+.cn-barra-total { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cn-barra-ahorro { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--bando-oliva-texto); white-space: nowrap; }
+.cn-barra-neto { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted-foreground); }
 
 /* En el teléfono y la tablet, fija abajo como en una app de delivery; la lista deja espacio para verse entera al final. */
 @media (max-width: 899px) {
-  .cn-unirse:has(.cn-barra-carrito) { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
   .cn-barra-carrito {
     position: fixed; left: 50%; transform: translateX(-50%); width: min(calc(100% - 24px), 496px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cn-item-valor.bajo, .cn-item-pista.bajo, .cn-se-sumo { animation: none; }
+  .cn-item-valor.bajo, .cn-item-pista.bajo { animation: none; }
 }
 
 /* Pedir por WhatsApp: alternativa visible al carrito, en el verde de WhatsApp y más baja que la acción principal. */
 .cn-boton-whatsapp {
   display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 8px 16px; border-radius: 12px;
-  background: #25d366; color: #0b0b0b; text-decoration: none;
+  background: var(--whatsapp); color: var(--bando-tinta); text-decoration: none;
 }
-.cn-boton-whatsapp:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
+.cn-boton-whatsapp:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
 .cn-wa-textos { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
-.cn-wa-textos strong { font-size: 16px; font-weight: 800; }
+.cn-wa-textos strong { font-size: 16px; font-weight: 700; }
 .cn-wa-textos span { font-family: var(--font-mono); font-size: 12px; }
 
 /* RUT del comprador: ayuda bajo el campo y a quién sale su factura (solo vistas personales). */
-.campo input[aria-invalid="true"] { border-color: var(--color-magenta); }
-.cn-factura-a { margin: 0; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--color-muted); overflow-wrap: anywhere; }
-.cn-factura-a .cn-logo-sii { margin-top: 1px; flex: none; }
-.cn-factura-a strong { color: var(--color-text); }
+.campo input[aria-invalid="true"] { border-color: var(--color-destructive); }
+.cn-factura-a { margin: 0; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+.cn-factura-a .logo-sii { margin-top: 1px; flex: none; }
+.cn-factura-a strong { color: var(--color-foreground); }
 
 /* Folios de factura en la tarjeta del SII: conteo, estado de la reposición y "Traer más folios". */
 
 /* ---------- Aviso de compra abierta (/app) ---------- */
 .cn-aviso-compra {
   display: grid; grid-template-columns: 24px 1fr 44px; gap: 12px; align-items: start; padding: 14px 8px 14px 14px;
-  border-radius: 12px; border: 2px solid var(--color-primary); background: rgb(242 255 0 / 0.08); animation: aparecer 0.4s ease-out;
+  border-radius: 12px; border: 2px solid var(--bando-miel); background: var(--bando-miel-50); animation: aparecer 0.4s ease-out;
 }
 .cn-aviso-compra > svg { color: var(--color-primary); margin-top: 2px; }
 .cn-aviso-compra strong { display: block; font-size: 17px; line-height: 1.25; }
-.cn-aviso-compra p { margin: 6px 0 12px; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: var(--color-muted); overflow-wrap: anywhere; }
+.cn-aviso-compra p { margin: 6px 0 12px; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
 .cn-aviso-compra .boton { min-height: 44px; padding: 0 18px; }
 .cn-aviso-cerrar {
-  width: 44px; height: 44px; margin: -10px 0 0; border: 0; background: none; color: var(--color-muted); font-size: 24px; line-height: 1; cursor: pointer;
+  width: 44px; height: 44px; margin: -10px 0 0; border: 0; background: none; color: var(--color-muted-foreground); font-size: 24px; line-height: 1; cursor: pointer;
 }
 
 /* ---------- Trae a tu vecino (/app) ---------- */
@@ -244,9 +218,9 @@
 }
 .cn-invitar > svg { color: var(--color-primary); margin-top: 2px; }
 .cn-invitar strong { display: block; font-size: 17px; line-height: 1.25; }
-.cn-invitar p { margin: 6px 0 12px; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: var(--color-muted); }
+.cn-invitar p { margin: 6px 0 12px; font-family: var(--font-mono); font-size: 14px; line-height: 1.45; color: var(--color-muted-foreground); }
 .cn-invitar .boton { min-height: 48px; padding: 0 18px; font-size: 18px; }
-.cn-invitar .cn-invitar-estado { margin: 10px 0 0; color: var(--color-green); overflow-wrap: anywhere; }
+.cn-invitar .cn-invitar-estado { margin: 10px 0 0; color: var(--bando-oliva-texto); overflow-wrap: anywhere; }
 
 /* ---------- Tramos por volumen del proveedor ---------- */
 
@@ -255,7 +229,7 @@
 /* Crédito Bando (/app#credito) */
 .cn-credito { display: grid; gap: 6px; }
 .cn-credito p { margin: 0; }
-.cn-credito-cupo { font-family: var(--font-display, inherit); font-size: 40px; font-weight: 800; line-height: 1.1; }
+.cn-credito-cupo { font-family: var(--font-display, inherit); font-size: 40px; font-weight: 700; line-height: 1.1; }
 .cn-credito-barra { height: 8px; border-radius: 999px; background: var(--color-border); overflow: hidden; margin: 8px 0 4px; }
 .cn-credito-barra span { display: block; height: 100%; background: var(--color-primary); }
 .cn-credito-sube { font-size: 14px; line-height: 1.45; }
