@@ -56,6 +56,8 @@ export interface OpcionesIniciarRed {
   consultarContribuyente?: ConsultarContribuyente;
   /** Ver `OpcionesRed.antesDeEntrar` (crédito Bando: tarjeta inscrita antes de comprar). */
   antesDeEntrar?: (n: Negocio) => void | Promise<void>;
+  /** Ver `OpcionesRed.precioDeReferencia` (listas de los proveedores y Mercado Público). */
+  precioDeReferencia?: (producto: string) => number | undefined;
 }
 
 /**
@@ -78,7 +80,7 @@ export async function iniciarRed(
   await aplicarDatosDemo(repo);
   const falso = crearSiiFalso((await repo.cargar()).documentos);
   const consultarContribuyente = conCacheYFila(opciones.consultarContribuyente ?? crearConsultaContribuyenteFalsa());
-  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar });
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }

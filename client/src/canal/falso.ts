@@ -10,8 +10,8 @@ import {
   armarCatalogo, errorDeProductoEscrito, historialDeEjemplo, juntarCatalogo, lineasDeEjemplo, productoManual, resumenDeFacturas,
   type CatalogoProveedor, type ProductoCatalogo, type ProductoEscrito,
 } from '../../../shared/catalogo.ts';
-import { pluralDe } from '../../../shared/texto.ts';
-import { duenoDeTramos, errorDeTramos, ordenarTramos, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
+import { pluralDe, sinTildes } from '../../../shared/texto.ts';
+import { duenoDeTramos, errorDeTramos, ordenarTramos, precioPorVolumen, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
 import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
@@ -71,7 +71,8 @@ const tramoEn = (p: ProductoCompra, unidades: number) => [...p.tramos].reverse()
 function conDerivados(lic: LicitacionCanal): LicitacionCanal {
   const productos = (lic.productos ?? []).map(p => {
     const totalUnidades = lic.participantes.reduce((s, x) => s + (x.items ?? []).filter(i => i.productoId === p.id).reduce((a, i) => a + i.cantidad, 0), 0);
-    const precioActual = tramoEn(p, totalUnidades).precioUnitario;
+    // Como el backend: el tramo alcanzado o, sin tramos (una solicitud sin ofertas), el precio de referencia.
+    const precioActual = precioPorVolumen(p, totalUnidades);
     const sig = p.tramos.find(t => t.desde > totalUnidades && t.precioUnitario < precioActual);
     return { ...p, totalUnidades, precioActual, siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null };
   });
@@ -345,12 +346,32 @@ export function crearApiFalsa(): CanalApi {
       await espera(250);
       const negocio = quien(token);
       const lic = abierta(licitacionId);
-      exigir(items.every(i => PRODUCTOS.some(p => p.id === i.productoId) && Number.isInteger(i.cantidad) && i.cantidad >= 0 && i.cantidad <= 20), 'Puedes pedir entre 0 y 20 de cada producto.');
+      // Cada compra tiene su canasta: la de la sala o el producto de una solicitud.
+      const orden = (lic.productos ?? PRODUCTOS).map(p => p.id);
+      exigir(items.every(i => orden.includes(i.productoId) && Number.isInteger(i.cantidad) && i.cantidad >= 0 && i.cantidad <= 20), 'Puedes pedir entre 0 y 20 de cada producto.');
       const previo = lic.participantes.find(p => p.negocioId === negocio.id);
-      const orden = PRODUCTOS.map(p => p.id);
       const limpios = items.filter(i => i.cantidad > 0).sort((a, b) => orden.indexOf(a.productoId) - orden.indexOf(b.productoId));
       const participante = conCantidad({ negocioId: negocio.id, nombre: negocio.nombre, comuna: negocio.comuna, cantidad: 0, items: limpios, en: previo?.en ?? ahoraIso() });
       cambiarCarrito(lic, participante, !limpios.length ? 'sale' : previo ? 'cambia' : 'entra');
+    },
+
+    async abrirSolicitud(token, { producto, unidad, cantidad, precioHoy, minutos }) {
+      await espera(400);
+      quien(token);
+      const nombre = producto.replace(/\s+/g, ' ').trim();
+      exigir(nombre.length >= 3, 'Escribe qué producto quieres comprar.');
+      exigir(Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 20, 'La cantidad va de 1 a 20.');
+      exigir(!red.licitaciones.some(l => l.estado === 'abierta' && l.productos?.some(p => sinTildes(p.nombre) === sinTildes(nombre))), `Ya hay una compra en grupo abierta de "${nombre}": súmate a ella.`);
+      const u = unidad.trim().toLowerCase() || 'unidad';
+      const p = { id: sinTildes(nombre).replace(/[^a-z0-9]+/g, '-'), nombre, unidad: u, unidadPlural: pluralDe(u), precioSolo: precioHoy ?? 0, tramos: [], ofertas: [] };
+      const lic = {
+        id: `L-${red.licitaciones.length + 1}`, productos: [p], producto: nombre, unidad: u, unidadPlural: p.unidadPlural, comuna: quien(token).comuna,
+        cierraEn: new Date(Date.now() + minutos * 60_000).toISOString(), precioSolo: p.precioSolo, tramos: [], participantes: [], ofertas: [], estado: 'abierta' as const,
+      };
+      red.licitaciones.push(lic);
+      avisar('licitacion.abierta', { licitacionId: lic.id });
+      await this.carrito(token, lic.id, [{ productoId: p.id, cantidad }]);
+      return { licitacionId: lic.id, productoId: p.id };
     },
 
     async salir(token, licitacionId) {

@@ -69,6 +69,10 @@ export interface Red {
   registrarRecepcion(ordenId: string, recepcion: Recepcion): Talvez<OrdenCompra>;
   /** Nota de crédito (61) por lo faltante, amarrada a la factura original. */
   emitirNotaCredito(ordenId: string): Talvez<Documento>;
+  /** El producto del catálogo con precio que nombra el texto ("sacos de harina" → "Harina 25 kg"), o undefined. */
+  productoConPrecio?(texto: string): string | undefined;
+  /** Un comprador abre una compra en grupo de un producto que nadie le vende a precio fijo. */
+  abrirSolicitud?(s: { readonly compradorId: string; readonly producto: string; readonly unidad: string; readonly cantidad: number }): Talvez<{ readonly id: string; readonly cierraEn: string }>;
 }
 
 // Compra conjunta de la sala ("la sala compra junta"). El público se suma por WhatsApp,
@@ -187,6 +191,8 @@ export interface RedSala {
   salirDeLicitacion?(licitacionId: string, datos: { readonly telefono: string }): Talvez<unknown>;
   /** Emite `licitacion.cerrada` con las órdenes; el agente usa el evento, no el valor devuelto. */
   cerrarLicitacion(licitacionId: string): Talvez<unknown>;
+  /** Cierra todas las compras abiertas que ya vencieron (puede haber varias). */
+  cerrarVencidas?(): Talvez<unknown>;
   /** Emite las facturas (33) de las órdenes de un proveedor (sin él, de todos) en un envío al SII por proveedor. */
   confirmarOrdenesDeLicitacion(licitacionId: string, proveedorId?: string): Talvez<readonly Documento[]>;
   telefonoDeNegocio(negocioId: string): Talvez<string | null>;

@@ -664,8 +664,12 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     if (revisando) return;
     revisando = true;
     try {
-      const l = await abierta();
-      if (l && Date.parse(l.cierraEn) <= Date.now()) await red.cerrarLicitacion(l.id);
+      // Con varias abiertas (solicitudes de compradores), las cierra todas al vencer.
+      if (red.cerrarVencidas) await red.cerrarVencidas();
+      else {
+        const l = await abierta();
+        if (l && Date.parse(l.cierraEn) <= Date.now()) await red.cerrarLicitacion(l.id);
+      }
     } catch (e) {
       o.log.warn('[sala] no pude cerrar la compra conjunta:', mensajeDe(e));
     } finally {

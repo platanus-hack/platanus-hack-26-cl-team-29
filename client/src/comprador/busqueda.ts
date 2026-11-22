@@ -15,7 +15,8 @@ export interface Resultado {
 }
 
 export interface FuentesBusqueda {
-  productos: readonly { id: string; nombre: string }[];
+  /** Lo que está en una compra en grupo abierta (puede haber varias). */
+  productos: readonly { id: string; nombre: string; licitacionId: string }[];
   ordenes: readonly { id: string; proveedorId: string; compradorId: string; items: readonly { producto: string }[] }[];
   documentos: readonly { tipo: number; folio: number | null; ordenId: string }[];
   negocios: readonly { id: string; nombre: string }[];
@@ -44,7 +45,7 @@ export function buscarEnApp(q: string, f: FuentesBusqueda): Resultado[] {
   const limite = <T,>(xs: T[]) => xs.slice(0, MAXIMO_POR_TIPO);
 
   const compras = f.productos.filter(p => coincide(q, p.nombre))
-    .map(p => ({ tipo: 'compra' as const, titulo: p.nombre, detalle: 'Compra en grupo abierta', href: `${f.rutaCompra ?? '#compra'}/${encodeURIComponent(p.id)}` }));
+    .map(p => ({ tipo: 'compra' as const, titulo: p.nombre, detalle: 'Compra en grupo abierta', href: `${f.rutaCompra ?? '#compra'}/${encodeURIComponent(p.licitacionId)}/${encodeURIComponent(p.id)}` }));
   const pedidos = f.ordenes.filter(o => coincide(q, otro(o), ...o.items.map(i => i.producto)))
     .map(o => ({ tipo: 'pedido' as const, titulo: o.items.map(i => i.producto).join(', ') || 'Pedido', detalle: otro(o), href: '#pedidos' }));
   const facturas = f.documentos.filter(d => d.folio !== null && NOMBRE_DOCUMENTO[d.tipo] && coincide(q, `${NOMBRE_DOCUMENTO[d.tipo]} ${d.folio}`))

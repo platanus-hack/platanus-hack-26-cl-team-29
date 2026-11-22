@@ -3,11 +3,11 @@
 // camino lleve a su sección sin recargar si ya está ahí. Los proveedores se buscan en el servidor (red + Mercado
 // Público); lo demás, en lo que ya está cargado.
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { contar } from '../../../shared/texto.ts';
 import { puedeVender } from '../../../shared/red.ts';
 import { enlaceWhatsapp } from '../../../shared/telefono.ts';
-import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
+import { estaAbierta } from '../canal/logica.ts';
 import { productosDe } from '../canal/carrito.ts';
 import type { ConfigRed, FotoRed, OrdenCanal } from '../canal/tipos.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
@@ -37,9 +37,10 @@ export function Inicio({ foto, negocio, ordenes, documentos, config, secciones, 
   const lado = LADOS[desde];
   const ahora = useAhora();
   const [q, setQ] = useState('');
-  const lic = licitacionVigente(foto.licitaciones);
-  const abierta = lic && estaAbierta(lic, ahora) ? lic : null;
-  const productos = useMemo(() => (abierta ? productosDe(abierta) : []), [abierta]);
+  // Puede haber varias abiertas: la portada busca en todas y muestra la que cierra primero.
+  const abiertas = foto.licitaciones.filter(l => estaAbierta(l, ahora)).sort((a, b) => Date.parse(a.cierraEn) - Date.parse(b.cierraEn));
+  const abierta = abiertas[0];
+  const productos = abiertas.flatMap(l => productosDe(l).map(p => ({ ...p, licitacionId: l.id })));
 
   const buscando = q.trim().length >= LARGO_MINIMO;
   const locales = buscarEnApp(q, { productos, ordenes, documentos, negocios: foto.negocios, secciones, contraparte: lado.contraparte, rutaCompra: lado.comprar });
@@ -86,8 +87,8 @@ export function Inicio({ foto, negocio, ordenes, documentos, config, secciones, 
               <span className="bm-camino-titulo">Comprar</span>
               <span className="bm-camino-texto">
                 {abierta
-                  ? `${contar(productos.length, 'producto')} en compra en grupo · cierra en ${cuentaRegresiva(Date.parse(abierta.cierraEn) - ahora)}`
-                  : 'Pide a un proveedor o súmate a la próxima compra en grupo.'}
+                  ? `${contar(productos.length, 'producto')} en compra en grupo · la próxima cierra en ${cuentaRegresiva(Date.parse(abierta.cierraEn) - ahora)}`
+                  : 'Inicia una compra en grupo o pide a un proveedor.'}
               </span>
             </a>
             <a className="bm-camino" href={vende ? lado.vender : quieroVender || lado.vender} {...(!vende && quieroVender ? { target: '_blank', rel: 'noreferrer' } : {})}>

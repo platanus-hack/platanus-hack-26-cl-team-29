@@ -194,6 +194,17 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
   });
 
   // El carrito completo de la compra conjunta: cantidad 0 quita un ítem y un carrito vacío sale.
+  // El comprador inicia una compra en grupo de un producto (una solicitud): otros se suman y los proveedores ofertan.
+  rutas.post('/yo/solicitudes', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
+    exigirRut(yo(req));
+    const { producto, unidad, cantidad, precioHoy, minutos } = cuerpo(req);
+    const l = await red.abrirSolicitud({
+      compradorId: yo(req).id, producto: String(producto ?? ''), unidad: String(unidad ?? ''), cantidad: Number(cantidad),
+      ...(precioHoy ? { precioHoy: Number(precioHoy) } : {}), ...(minutos ? { minutos: Number(minutos) } : {}),
+    });
+    res.status(201).json(l);
+  });
+
   rutas.put('/yo/carrito', exigir('comprador'), limitarCarrito, async (req: ConSesion, res) => {
     exigirRut(yo(req));
     const b = cuerpo(req);

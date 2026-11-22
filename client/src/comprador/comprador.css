@@ -342,3 +342,26 @@
 .bm-acceso-pie a { white-space: nowrap; }
 .bm-rubros legend { margin-bottom: 8px; }
 .bm-acceso-notas { width: 100%; max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: var(--text-xs); color: var(--color-faint-fg); }
+
+/* ---------- Compras en grupo: + , pestañas e iniciar una ---------- */
+.bm-mas { width: 44px; padding: 0; font-size: 24px; font-weight: 400; line-height: 1; }
+.bm-pestanas { display: flex; gap: 4px; padding: 4px; border-radius: var(--radius-xl); background: var(--color-secondary); align-self: flex-start; }
+.bm-pestanas button {
+  appearance: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 0; border-radius: var(--radius-lg);
+  background: none; color: var(--color-muted-foreground); font: inherit; font-size: var(--text-sm); font-weight: 500; cursor: pointer;
+}
+.bm-pestanas button span { font-variant-numeric: tabular-nums; color: var(--color-faint-fg); }
+.bm-pestanas button.activa { background: var(--color-background); color: var(--color-foreground); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+.bm-pestanas button:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
+.bm-nueva { padding: 20px; max-width: 640px; }
+.bm-nueva-fila { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 640px) { .bm-nueva-fila { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bm-campo select {
+  width: 100%; height: 44px; padding: 0 12px; font: inherit; font-size: var(--text-base); color: var(--color-foreground);
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg);
+}
+.bm-esperando { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 24px; }
+.bm-esperando img { width: 72px; height: 72px; }
+.bm-esperando h2 { font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: 700; }
+.bm-esperando p { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.bm-esperando strong { color: var(--color-foreground); font-weight: 600; }

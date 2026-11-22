@@ -1,5 +1,5 @@
 // Avisos de compra conjunta: cuando abre una compra, un WhatsApp a los compradores registrados que no están en ella.
-//   abre la compra (`red.reiniciada` siembra una nueva) --> un aviso por negocio y por compra, priorizando a quien
+//   abre la compra (`red.reiniciada` o la solicitud de un comprador) --> un aviso por negocio y por compra, priorizando a quien
 //                                                           ya compró esos productos, participó, es de la comuna o del rubro
 //   responde SÍ --> el agente lo suma con el flujo de siempre de la sala
 //   responde BASTA o "no más avisos" --> no recibe más avisos, nunca (queda guardado aparte de la red)
@@ -200,7 +200,7 @@ export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
   const dejarDeEscuchar = o.red.escuchar(evento => {
     void enFila(async () => {
       await sincronizar();
-      if (evento.tipo === 'red.reiniciada') await avisarCompraAbierta();
+      if (evento.tipo === 'red.reiniciada' || evento.tipo === 'licitacion.abierta') await avisarCompraAbierta();
       const datos = evento.datos as { accion?: string; licitacionId?: string; participante?: { negocioId?: string } } | null;
       if (evento.tipo === 'licitacion.participante' && datos?.accion === 'entra') await alEntrar(datos.participante?.negocioId, datos.licitacionId);
     });
