@@ -169,6 +169,8 @@ test('trae a tu vecino: el invitado se suma por WhatsApp, a quien invitó le lle
   t.after(fin);
   await red.actualizarCarrito(LICITACION_SALA, { ...UNO, items: [{ productoId: 'rollos', cantidad: 2 }] });
   await avisos.alDia();
+  assert.ok(!enviados.some(e => e.to === UNO.telefono && e.body.startsWith('Trae a tu vecino')), 'sumarse no manda la invitación: sin spam');
+  await escribir(UNO.telefono, 'invitar');
   const codigo = codigoEnviadoA(enviados, UNO.telefono);
   assert.match(codigo, /^[A-HJ-NP-Z]{8}$/, 'código al azar, sin dígitos del teléfono ni del RUT');
   const oferta = enviados.find(e => e.to === UNO.telefono && e.body.startsWith('Trae a tu vecino'))!.body;
@@ -207,8 +209,8 @@ test('trae a tu vecino por la web (?ref=), "invitar" por WhatsApp y su propio c�
   t.after(fin);
   await red.actualizarCarrito(LICITACION_SALA, { ...UNO, items: [{ productoId: 'guantes', cantidad: 1 }] });
   await avisos.alDia();
+  await escribir(UNO.telefono, 'invitar');
   const codigo = codigoEnviadoA(enviados, UNO.telefono);
-
   await escribir(UNO.telefono, 'invitar');
   assert.match(ultimo(UNO.telefono), new RegExp(`^Trae a tu vecino[\\s\\S]*ref=${codigo}`), 'el mismo código de siempre');
   assert.equal(await avisos.invitadoWeb((await red.registrarComprador(UNO))!, codigo), false, 'su propio código no lo invita');

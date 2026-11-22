@@ -51,6 +51,8 @@ export interface Documento {
   /** Monto neto. */
   monto?: number;
   emitidoEn?: string;
+  /** Enlace privado a su PDF: solo en las respuestas a su dueño (/yo, /proveedor/yo). */
+  pdfUrl?: string;
 }
 
 export interface NotaProveedor {
