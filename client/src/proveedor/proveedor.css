@@ -1,0 +1,114 @@
+/* Panel del proveedor con la marca Bando (DESIGN.md, Paper página 2). Usa el marco y las piezas `bm-*` del
+   comprador; aquí solo lo propio del proveedor: la cifra grande, las filas con acción, los estados y los tramos. */
+
+.bp-pagina { display: flex; flex-direction: column; gap: 24px; width: 100%; max-width: 1120px; margin: 0 auto; }
+.bp-nada { padding: 20px 16px; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.bp-miel { color: var(--bando-miel-texto); font-weight: 600; }
+.bp-con-sii { display: flex; align-items: center; gap: 8px; }
+.bp-margen { padding: 0 16px 12px; }
+
+/* ---------- Inicio ---------- */
+.bp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.bp-hero > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bp-cifra {
+  font-size: 44px; line-height: 48px; font-weight: 700; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+@media (min-width: 1024px) { .bp-cifra { font-size: 64px; line-height: 68px; } }
+
+.bp-columnas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1024px) { .bp-columnas { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); } }
+.bp-columna { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.bp-bloque { display: flex; flex-direction: column; min-width: 0; }
+.bp-bloque-cabecera {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+.bp-bloque-cabecera h2 { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; }
+.bp-bloque-cabecera span { font-size: var(--text-sm); color: var(--color-muted-foreground); font-variant-numeric: tabular-nums; }
+.bp-bloque.reclamo .bp-bloque-cabecera span { color: var(--color-destructive); font-weight: 600; }
+
+/* Fila: ícono, qué es, monto y acción. En el teléfono el monto y la acción bajan bajo el texto. */
+.bp-filas { list-style: none; margin: 0; padding: 0; }
+.bp-fila {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 12px 16px;
+}
+.bp-fila + .bp-fila { border-top: var(--border-width) solid var(--color-border); }
+.bp-fila-icono { display: grid; place-items: center; width: 32px; height: 32px; color: var(--bando-miel-texto); }
+.bp-fila-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bp-fila-texto strong { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; overflow-wrap: anywhere; }
+.bp-fila-texto span { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+.bp-monto { font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.bp-monto em { font-style: normal; font-weight: 500; color: var(--bando-miel-texto); }
+.bp-fila > .bm-boton { grid-column: 2 / -1; justify-self: start; }
+.bp-fila-confirmar { grid-column: 1 / -1; }
+.bp-fila-confirmar .cn-confirmar { margin-top: 8px; }
+@media (min-width: 640px) {
+  .bp-fila { grid-template-columns: 32px minmax(0, 1fr) auto auto; }
+  .bp-fila > .bm-boton { grid-column: auto; min-width: 112px; }
+}
+.bp-boton-sii { background: var(--color-sii, #0061A0); color: #fff; }
+
+.bp-dato { display: flex; flex-direction: column; gap: 8px; padding: 16px; text-decoration: none; }
+.bp-dato h2 { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; }
+.bp-dato p { display: flex; align-items: baseline; gap: 10px; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.bp-cifra-chica { font-size: var(--text-4xl); line-height: var(--leading-4xl); font-weight: 700; letter-spacing: -0.03em; color: var(--color-foreground); }
+.bp-enlace:hover { background: var(--color-secondary); }
+.bp-enlace p span { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-border); }
+
+/* ---------- Pedidos ---------- */
+.bp-contadores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
+@media (min-width: 768px) { .bp-contadores { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.bp-contador {
+  appearance: none; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px 16px; min-height: 44px;
+  border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  box-shadow: inset -1px -1px 0 var(--color-border);
+}
+.bp-contador span { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 500; }
+.bp-contador strong { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.bp-contador.confirmar span { color: var(--bando-miel-texto); }
+.bp-contador.camino span { color: var(--color-chart-2, #3C83F6); }
+.bp-contador.recibidos span { color: var(--bando-oliva-texto); }
+.bp-contador.reclamos span { color: var(--color-destructive); }
+.bp-contador:hover, .bp-contador[aria-pressed='true'] { background: var(--color-secondary); }
+.bp-contador:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: -2px; }
+
+.bp-estado {
+  grid-column: 2 / -1; justify-self: start; padding: 2px 10px; border-radius: var(--radius-full);
+  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; white-space: nowrap; background: var(--color-secondary);
+}
+@media (min-width: 640px) { .bp-estado { grid-column: auto; justify-self: end; min-width: 128px; text-align: center; } }
+.bp-estado.accion { background: color-mix(in srgb, var(--bando-miel) 22%, transparent); color: var(--bando-miel-texto); }
+.bp-estado.camino { background: color-mix(in srgb, var(--color-chart-2, #3C83F6) 14%, transparent); color: var(--color-chart-2, #3C83F6); }
+.bp-estado.listo { background: color-mix(in srgb, var(--bando-oliva) 18%, transparent); color: var(--bando-oliva-texto); }
+.bp-estado.reclamo { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }
+.bp-estado.neutro { color: var(--color-muted-foreground); }
+
+/* ---------- Precios ---------- */
+.bp-tramos { display: flex; flex-direction: column; padding: 4px 16px 8px; }
+.bp-tramo {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: 8px 16px;
+  min-height: 52px; padding: 6px 0; font-size: var(--text-sm);
+}
+.bp-tramo + .bp-tramo { border-top: var(--border-width) solid var(--color-border); }
+.bp-tramo .bp-monto { text-align: left; }
+.bp-tramo-titulos { min-height: 36px; font-size: var(--text-xs); color: var(--color-faint-fg); }
+.bp-tramo input {
+  width: 100%; min-width: 0; height: 40px; padding: 0 12px; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-background); color: var(--color-foreground); font: inherit; font-variant-numeric: tabular-nums;
+}
+.bp-tramo input:disabled { background: var(--color-secondary); color: var(--color-muted-foreground); }
+.bp-barra { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-full); background: var(--color-secondary); overflow: hidden; }
+.bp-barra i { display: block; height: 100%; border-radius: inherit; background: var(--bando-crema); transition: width 0.3s ease-out; }
+.bp-tramo.actual .bp-barra i { background: var(--bando-miel); }
+.bp-tramo .bm-boton-texto { grid-row: 1; grid-column: 3; min-height: 40px; }
+.bp-solo-ancho { display: none; }
+@media (min-width: 640px) {
+  .bp-tramo { grid-template-columns: 160px 180px minmax(0, 1fr) 72px; }
+  .bp-barra { grid-column: auto; }
+  .bp-tramo .bm-boton-texto { grid-row: auto; grid-column: auto; }
+  .bp-solo-ancho { display: block; }
+}
+.bp-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px 16px; border-top: var(--border-width) solid var(--color-border); }
+
+@media (prefers-reduced-motion: reduce) { .bp-barra i { transition: none; } }

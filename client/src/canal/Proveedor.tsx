@@ -1,348 +1,89 @@
-// /proveedor: panel web del proveedor. Las mismas acciones que el proveedor hace por WhatsApp:
-// cerrar y facturar la compra conjunta, confirmar y facturar pedidos y emitir notas de crédito.
-// Toda acción en el SII pasa por un paso de confirmación en la página y recién ahí envía `confirmado: true`.
+// /proveedor: panel web del proveedor con la marca Bando (DESIGN.md, Paper "2 · Proveedor"). Las mismas acciones
+// que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
+// cambiar sus precios por volumen. Inicio, Pedidos y Precios están rediseñados; Reparto y Facturas van por el puente.
 
-import { Fragment, useCallback, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { dinero, nota } from '../../../shared/formato.ts';
-import { duenoDeTramos, errorDeTramos, MAX_TRAMOS, precioPorVolumen, totalOrden } from '../../../shared/precios.ts';
-import { Escalera } from '../components/Escalera.tsx';
-import { estadoTramos, licitacionDeProducto, nombreCorto, type EstadoTramos } from '../red/derivar.ts';
-import { contar } from '../../../shared/texto.ts';
-import { cuentaRegresiva } from '../red/formato.ts';
-import { useAhora } from '../red/useRed.ts';
-import type { Documento, Licitacion, Negocio, ProductoCompra } from '../red/tipos.ts';
-import type { CanalApi } from './api.ts';
+import { nota } from '../../../shared/formato.ts';
+import type { Documento, Negocio } from '../red/tipos.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import { MiCatalogo } from './MiCatalogo.tsx';
 import { BandoTePago } from './MiCredito.tsx';
 import { RutaReparto } from './RutaReparto.tsx';
-import {
-  estaAbierta, estaFacturada, licitacionVigente, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad,
-} from './logica.ts';
-import { Icono, iconoDeProducto, LogoSii, Monograma } from './iconos.tsx';
-import { Confirmar, ListaDocumentos, Marca, useConfirmacion, useEnvio, Vacio } from './piezas.tsx';
-import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo, YoProveedor } from './tipos.ts';
+import { estaAbierta, licitacionVigente } from './logica.ts';
+import { LogoSii } from './iconos.tsx';
+import { ListaDocumentos, Vacio } from './piezas.tsx';
+import type { YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
+import { Marco, type SeccionMarco } from '../comprador/Marco.tsx';
+import { InicioProveedor } from '../proveedor/Inicio.tsx';
+import { Pedidos } from '../proveedor/Pedidos.tsx';
+import { Precios } from '../proveedor/Precios.tsx';
+import { contarPorGrupo } from '../proveedor/pedidos.ts';
+import '../proveedor/proveedor.css';
 import './canal.css';
 
-const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
+type Seccion = 'inicio' | 'pedidos' | 'precios' | 'reparto' | 'facturas';
+const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
+  { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
+  { id: 'precios', titulo: 'Precios', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
+  { id: 'facturas', titulo: 'Facturas', icono: 'documento' },
+];
+
+const seccionDelHash = (): Seccion => SECCIONES.find(x => x.id === location.hash.slice(1))?.id ?? 'inicio';
 
 export function Proveedor() {
   const { api, config, foto, cambio, fuente } = useCanal();
-  const { token: tokenValido, entrar, vencer, salir } = useSesion(api);
-  const { datos: yo, error, recargar } = useDatosConSesion(api, tokenValido, cambio, (a, t) => a.yoProveedor(t), vencer);
+  const { token, entrar, vencer, salir } = useSesion(api);
+  const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yoProveedor(t), vencer);
+  const [seccion, setSeccion] = useState(seccionDelHash);
+
+  useEffect(() => {
+    const alCambiar = () => { setSeccion(seccionDelHash()); scrollTo(0, 0); };
+    addEventListener('hashchange', alCambiar);
+    return () => removeEventListener('hashchange', alCambiar);
+  }, []);
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
-  if (!tokenValido) {
-    return <Acceso api={api} config={config} fuente={fuente} titulo="Panel del proveedor" onEntrar={entrar}
-      bajada="Confirma pedidos, factura en el SII y resuelve reclamos, igual que por WhatsApp. Entra con el WhatsApp de tu empresa." />;
+  if (!token) {
+    return <Acceso api={api} config={config} fuente={fuente} titulo="Vende a muchos negocios a la vez" onEntrar={entrar}
+      bajada="Confirma pedidos, pon tus precios por volumen y factura en el SII. Entra con el WhatsApp de tu empresa." />;
   }
   if (!yo) return <main className="cn-pagina"><CargandoCuenta error={error} texto="Cargando tu panel..." onSalir={salir} /></main>;
 
-  const lics = yo.licitaciones ?? foto.licitaciones;
-  const lic = licitacionVigente(lics);
-  // Las órdenes de la compra conjunta se facturan juntas desde su tarjeta, no una por una.
-  const deCompras = new Set(lics.flatMap(l => ordenesDeLaCompra(l, yo.ordenes)).map(o => o.id));
-  const nuevos = yo.ordenes.filter(o => o.estado === 'enviada' && !deCompras.has(o.id)).sort((a, b) => Date.parse(a.creadaEn) - Date.parse(b.creadaEn));
-  const reclamos = yo.ordenes.filter(o => o.estado === 'reclamada');
+  const lic = licitacionVigente(yo.licitaciones ?? foto.licitaciones);
   const comprador = (id: string) => foto.negocios.find(n => n.id === id);
-  const props = { api, token: tokenValido, alCambiar: recargar };
+  const props = { api, token, alCambiar: recargar };
+  const cuenta = contarPorGrupo(yo.ordenes);
+  const secciones = SECCIONES.map(s => (s.id === 'pedidos' ? { ...s, globo: cuenta.confirmar + cuenta.reclamos } : s));
 
   return (
-    <div className="cn-app cn-panel">
-      <header className="cn-cabecera">
-        <Marca />
-        <Monograma nombre={yo.proveedor?.nombre ?? 'Proveedor'} rubro={false} logoUrl={lic?.proveedorId === yo.proveedor?.id ? config?.proveedorLogoUrl : undefined} />
-        <div className="cn-quien">
-          <strong className="nombre">{yo.proveedor?.nombre ?? 'Proveedor'}</strong>
-          <span className="mono tenue">Panel del proveedor <AvisoFuente fuente={fuente} /></span>
-        </div>
-        <button type="button" className="cn-boton-texto" onClick={salir}>Salir</button>
-      </header>
-
-      <main className="cn-contenido cn-rejilla">
-        {error && <p className="error">{error}</p>}
-        <div className="cn-columna">
-          {lic ? <CompraDelProveedor {...props} lic={lic} yo={yo} config={config} /> : (
-            <Vacio titulo="No hay una compra conjunta abierta" texto="Cuando parta una, aquí ves cuántos negocios se suman y la cierras y facturas con un toque." />
-          )}
-          {lic && <TramosDeLaCompra {...props} lic={lic} yo={yo} />}
-          <RutaReparto {...props} yo={yo} config={config} />
-
-          <section className="cn-seccion">
-            <h2 className="cn-titulo">Pedidos nuevos {nuevos.length > 0 && <span className="cn-globo">{nuevos.length}</span>}</h2>
-            {nuevos.length ? nuevos.map(o => (
-              <PedidoNuevo key={o.id} {...props} orden={o} comprador={comprador(o.compradorId)} config={config} />
-            )) : <p className="mono tenue cn-texto">No tienes pedidos nuevos por ahora. Cuando un negocio te pida, aparece aquí para confirmarlo y facturarlo.</p>}
-          </section>
-
-          {reclamos.length > 0 && (
-            <section className="cn-seccion">
-              <h2 className="cn-titulo">Reclamos <span className="cn-globo magenta">{reclamos.length}</span></h2>
-              {reclamos.map(o => (
-                <Reclamo key={o.id} {...props} orden={o} comprador={comprador(o.compradorId)} documentos={yo.documentos} config={config} />
-              ))}
-            </section>
-          )}
-        </div>
-
-        <div className="cn-columna">
-          <ConectarSii api={api} token={tokenValido} />
-          <MiCatalogo api={api} token={tokenValido} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />
-          <MiNota yo={yo} />
-          <BandoTePago api={api} token={tokenValido} documentos={yo.documentos} cambio={cambio} />
-          <MisDocumentos yo={yo} comprador={comprador} />
-        </div>
-      </main>
-    </div>
-  );
-}
-
-// ---------- Compra conjunta ----------
-
-type AccionCompra = { tipo: 'cerrar' } | { tipo: 'facturar'; facturas: number; total: number };
-
-interface PropsAccion {
-  api: CanalApi;
-  token: string;
-  alCambiar: () => void;
-}
-
-function CompraDelProveedor({ api, token, alCambiar, lic, yo, config }: PropsAccion & { lic: LicitacionCanal; yo: YoProveedor; config: ConfigRed | null }) {
-  const ahora = useAhora();
-  const u = unidadPara(lic.producto, config);
-  const g = precioDelGrupo(lic);
-  const total = g.unidades * (g.precio ?? 0);
-  const abierta = estaAbierta(lic, ahora);
-  const facturada = estaFacturada(lic, yo.ordenes);
-  const ejecutar = useCallback(async (a: AccionCompra) => {
-    if (a.tipo === 'cerrar') await api.cerrar(token, lic.id);
-    else await api.facturar(token, lic.id);
-    alCambiar();
-  }, [api, token, lic.id, alCambiar]);
-  const c = useConfirmacion(ejecutar);
-  const f = resumenFacturacion(lic, yo.ordenes);
-
-  return (
-    <section className="tarjeta cn-compra">
-      <div className="cn-fila-meta">
-        {abierta ? <span className="en-vivo">En vivo</span> : <span className="cn-chip">{facturada ? 'Facturada' : 'Cerrada'}</span>}
-        {abierta && <span className="mono">cierra en {cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}</span>}
-      </div>
-      <p className="etiqueta cn-sub">Compra conjunta</p>
-      <h2 className="cn-producto cn-con-icono"><Icono nombre={iconoDeProducto(lic.producto)} tam={28} /><span>{lic.producto}</span></h2>
-      <dl className="cn-cifras">
-        <div><dt>Negocios</dt><dd>{lic.participantes.length}</dd></div>
-        <div><dt>{u.plural}</dt><dd>{g.unidades}</dd></div>
-        <div><dt>Precio por {u.singular}</dt><dd>{g.precio !== undefined ? dinero(g.precio) : '-'}</dd></div>
-        <div><dt>Total neto</dt><dd className="amarillo">{dinero(total)}</dd></div>
-      </dl>
-      {abierta && g.siguiente && (
-        <p className="mono tenue cn-texto">Con {cantidadEn(g.siguiente.faltan, u)} más, el precio baja a {dinero(g.siguiente.precio)}.</p>
-      )}
-
-      {c.estado.fase === 'nada' && !facturada && (
-        lic.estado === 'abierta' ? (
-          <button type="button" className="boton cn-ancho" onClick={() => c.pedir({ tipo: 'cerrar' })}>Cerrar compra</button>
-        ) : (
-          <button type="button" className="boton cn-ancho cn-boton-sii" onClick={() => c.pedir({ tipo: 'facturar', ...f })}><LogoSii /> Facturar todo en el SII</button>
-        )
-      )}
-      {facturada && <p className="cn-ok cn-con-sii"><LogoSii />Facturada en el SII. Cada negocio ya recibió su factura.</p>}
-
-      {c.estado.fase !== 'nada' && c.estado.accion.tipo === 'cerrar' && (
-        <Confirmar
-          titulo="¿Cierras la compra conjunta?"
-          si="Sí, cerrar"
-          {...c.panel}
-        >
-          <p>Nadie más podrá sumarse. Queda una orden por negocio: {contar(lic.participantes.length, 'negocio')}, {cantidadEn(g.unidades, u)} a {g.precio !== undefined ? dinero(g.precio) : '-'} por {u.singular}.</p>
-        </Confirmar>
-      )}
-      {c.estado.fase !== 'nada' && c.estado.accion.tipo === 'facturar' && (
-        <Confirmar
-          sii
-          titulo={`¿Emites ${contar(c.estado.accion.facturas, 'factura')} en el SII?`}
-          si="Sí, factura todo"
-          {...c.panel}
-        >
-          <p className="cn-cifra-confirmar">{dinero(c.estado.accion.total)} neto en total</p>
-          <p>Una factura por negocio, con la orden de compra como referencia, en un solo envío al SII. Le avisamos a cada negocio con su folio.</p>
-        </Confirmar>
-      )}
-    </section>
-  );
-}
-
-// ---------- Tramos por volumen ----------
-
-/** Cada producto de la canasta con su escalera de precios. El dueño de un producto la cambia mientras la compra está abierta. */
-function TramosDeLaCompra({ lic, yo, ...props }: PropsAccion & { lic: LicitacionCanal; yo: YoProveedor }) {
-  const ahora = useAhora();
-  const red = lic as unknown as Licitacion;
-  const productos = red.productos ?? [];
-  if (!productos.some(p => p.tramos.length)) return null;
-  const abierta = estaAbierta(lic, ahora);
-  return (
-    <section className="cn-seccion">
-      <h2 className="cn-titulo">Precios por volumen</h2>
-      <p className="mono tenue cn-texto">Mientras más junta el grupo, menos paga cada negocio. {abierta ? 'Cambia los tramos de lo que vendes; quien ya se sumó nunca paga más.' : ''}</p>
-      {productos.map(p => (
-        <TramosDeProducto key={p.id} {...props} lic={lic} producto={p} estado={estadoTramos(licitacionDeProducto(red, p.id))}
-          editable={abierta && duenoDeTramos(p, lic) === yo.proveedor?.id} />
-      ))}
-    </section>
-  );
-}
-
-type FilaTramo = { desde: string; precio: string };
-const aFilas = (tramos: readonly Tramo[]): FilaTramo[] => tramos.map(t => ({ desde: String(t.desde), precio: String(t.precioUnitario) }));
-const aTramos = (filas: readonly FilaTramo[]): Tramo[] => filas.map(f => ({ desde: Number(f.desde), precioUnitario: Number(f.precio.replace(/\D/g, '')) }));
-
-function TramosDeProducto({ api, token, alCambiar, lic, producto, estado, editable }: PropsAccion & {
-  lic: LicitacionCanal; producto: ProductoCompra; estado: EstadoTramos; editable: boolean;
-}) {
-  const u = { singular: producto.unidad, plural: producto.unidadPlural };
-  const [filas, setFilas] = useState<FilaTramo[] | null>(null);
-  const { enviando, error, enviar } = useEnvio();
-  const tramos = filas && aTramos(filas);
-  const problema = tramos && errorDeTramos(tramos, { unidades: estado.totalUnidades, precio: precioPorVolumen(producto, estado.totalUnidades) });
-  const cambiar = (i: number, campo: keyof FilaTramo, valor: string) => setFilas(f => f!.map((x, k) => (k === i ? { ...x, [campo]: valor.replace(/\D/g, '') } : x)));
-  const guardar = (e: FormEvent) => {
-    e.preventDefault();
-    if (!tramos || problema) return;
-    void enviar(async () => {
-      await api.fijarTramos(token, lic.id, producto.id, tramos);
-      setFilas(null);
-      alCambiar();
-    }, 'No pudimos guardar los tramos. Inténtalo de nuevo.');
-  };
-
-  return (
-    <div className="tarjeta cn-tramos">
-      <h3 className="cn-con-icono"><Icono nombre={iconoDeProducto(producto.nombre)} tam={22} /><span>{nombreCorto(producto.nombre, producto.unidad)}</span></h3>
-      {!filas ? (
+    <Marco secciones={secciones} activa={seccion} negocio={yo.proveedor} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
+      {error && <p className="bm-error">{error}</p>}
+      {seccion === 'inicio' && <InicioProveedor {...props} yo={yo} lic={lic} config={config} comprador={comprador} irA={s => { location.hash = s; }} />}
+      {seccion === 'pedidos' && <Pedidos yo={yo} config={config} comprador={comprador} />}
+      {seccion === 'precios' && (
         <>
-          <Escalera tramos={estado} unidad={u} />
-          {editable && <button type="button" className="boton secundario cn-ancho cn-secundario" onClick={() => setFilas(aFilas(estado.tramos))}>Cambiar tramos</button>}
+          <Precios {...props} lic={lic} yo={yo} />
+          <div className="puente-legado"><MiCatalogo api={api} token={token} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} /></div>
         </>
-      ) : (
-        <form onSubmit={guardar}>
-          <div className="cn-tramos-filas">
-            <span className="etiqueta">Desde ({u.plural})</span><span className="etiqueta">Precio por {u.singular}</span><span />
-            {filas.map((f, i) => (
-              <Fragment key={i}>
-                <input aria-label={`Tramo ${i + 1}: desde cuántas ${u.plural}`} inputMode="numeric" value={f.desde} disabled={i === 0} onChange={e => cambiar(i, 'desde', e.target.value)} />
-                <input aria-label={`Tramo ${i + 1}: precio por ${u.singular}`} inputMode="numeric" value={f.precio ? dinero(Number(f.precio)) : ''} onChange={e => cambiar(i, 'precio', e.target.value)} />
-                {i === 0 ? <span /> : (
-                  <button type="button" className="cn-boton-texto" aria-label={`Quitar el tramo ${i + 1}`} onClick={() => setFilas(filas.filter((_, k) => k !== i))}>Quitar</button>
-                )}
-              </Fragment>
-            ))}
-          </div>
-          {filas.length < MAX_TRAMOS && (
-            <button type="button" className="cn-boton-texto" onClick={() => {
-              const ultimo = tramos!.at(-1)!;
-              setFilas([...filas, { desde: String(ultimo.desde * 2), precio: String(ultimo.precioUnitario) }]);
-            }}>Agregar tramo</button>
+      )}
+      {(seccion === 'reparto' || seccion === 'facturas') && (
+        // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).
+        <div className="puente-legado cn-contenido">
+          {seccion === 'reparto' && <RutaReparto {...props} yo={yo} config={config} />}
+          {seccion === 'facturas' && (
+            <>
+              <ConectarSii api={api} token={token} />
+              <BandoTePago api={api} token={token} documentos={yo.documentos} cambio={cambio} />
+              <MiNota yo={yo} />
+              <MisDocumentos yo={yo} comprador={comprador} />
+            </>
           )}
-          {(problema || error) && <p className="error">{problema ? `${problema}.` : error}</p>}
-          <div className="cn-acciones">
-            <button className="boton" disabled={!!problema || enviando}>{enviando ? 'Guardando...' : 'Guardar tramos'}</button>
-            <button type="button" className="cn-boton-texto" onClick={() => setFilas(null)}>Cancelar</button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
-
-// ---------- Pedidos nuevos ----------
-
-function detalleDe(orden: OrdenCanal, config: ConfigRed | null): string {
-  return orden.items.map(i => `${i.producto}, ${cantidadEn(i.cantidad, unidadPara(i.producto, config))}`).join('; ');
-}
-
-function PedidoNuevo({ api, token, alCambiar, orden, comprador, config }: PropsAccion & { orden: OrdenCanal; comprador?: Negocio; config: ConfigRed | null }) {
-  const ejecutar = useCallback(async () => {
-    await api.confirmarOrden(token, orden.id);
-    alCambiar();
-  }, [api, token, orden.id, alCambiar]);
-  const c = useConfirmacion(ejecutar);
-  const total = totalOrden(orden);
-  const quien = comprador?.nombre ?? 'Un negocio';
-  return (
-    <article className="tarjeta cn-pedido">
-      <header className="cn-pedido-cabecera">
-        <div>
-          <p className="etiqueta cn-con-sii"><Monograma nombre={quien} tam={24} />{quien}{comprador?.comuna ? ` · ${comprador.comuna}` : ''}</p>
-          <h3>{detalleDe(orden, config)}</h3>
-          <p className="mono tenue">{dinero(total)} neto</p>
         </div>
-        <span className="cn-chip enviada">Nuevo</span>
-      </header>
-      {c.estado.fase === 'nada' ? (
-        <button type="button" className="boton cn-ancho" onClick={() => c.pedir(undefined)}><LogoSii /> Confirmar y facturar</button>
-      ) : (
-        <Confirmar
-          sii
-          titulo="¿Confirmas y facturas?"
-          si="Sí, factura"
-          {...c.panel}
-        >
-          <p className="cn-cifra-confirmar">1 factura · {dinero(total)} neto</p>
-          <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Le avisamos a {quien}.</p>
-        </Confirmar>
       )}
-    </article>
-  );
-}
-
-// ---------- Reclamos ----------
-
-function Reclamo({ api, token, alCambiar, orden, comprador, documentos, config }: PropsAccion & {
-  orden: OrdenCanal; comprador?: Negocio; documentos: Documento[]; config: ConfigRed | null;
-}) {
-  const ejecutar = useCallback(async () => {
-    await api.notaCredito(token, orden.id);
-    alCambiar();
-  }, [api, token, orden.id, alCambiar]);
-  const c = useConfirmacion(ejecutar);
-  const monto = montoNotaCredito(orden, documentos);
-  const factura = documentos.find(d => d.ordenId === orden.id && d.tipo === 33);
-  const item = orden.items[0];
-  const u = unidadPara(item?.producto ?? '', config);
-  const quien = comprador?.nombre ?? 'Un negocio';
-  return (
-    <article className="tarjeta cn-pedido reclamada">
-      <header className="cn-pedido-cabecera">
-        <div>
-          <p className="etiqueta magenta cn-con-sii"><LogoSii tam={16} /> Reclamo en el SII</p>
-          <h3>{quien} reclamó la factura{factura?.folio ? ` folio ${factura.folio}` : ''}</h3>
-          <p className="mono tenue">
-            {detalleDe(orden, config)}: {orden.reclamo?.faltante === 1 ? 'faltó' : 'faltaron'} {cantidadEn(orden.reclamo?.faltante ?? 0, u)}.
-          </p>
-        </div>
-      </header>
-      {c.estado.fase === 'nada' ? (
-        <>
-          <p className="mono tenue cn-texto">Si emites la nota de crédito hoy, tu nota sube.</p>
-          <button type="button" className="boton cn-ancho" onClick={() => c.pedir(undefined)}><LogoSii /> Emitir nota de crédito por {dinero(monto)}</button>
-        </>
-      ) : (
-        <Confirmar
-          sii
-          titulo="¿Emites la nota de crédito?"
-          si="Sí, emítela"
-          {...c.panel}
-        >
-          <p className="cn-cifra-confirmar">Nota de crédito · {dinero(monto)} neto</p>
-          <p>Queda amarrada a la factura{factura?.folio ? ` folio ${factura.folio}` : ''} en el SII. Le avisamos a {quien}.</p>
-        </Confirmar>
-      )}
-    </article>
+    </Marco>
   );
 }
 
