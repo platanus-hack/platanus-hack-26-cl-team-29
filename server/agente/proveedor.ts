@@ -8,7 +8,7 @@ import { validarRut } from '../../shared/rut.ts';
 import { dinero } from '../../shared/formato.ts';
 import type { ProductoEscrito } from '../../shared/catalogo.ts';
 import { unidadDeTexto } from '../../shared/unidades.ts';
-import { precioDelProducto, tramosAutomaticos } from '../../shared/precios.ts';
+import { ofertasQueCompiten, precioDelProducto, tramosAutomaticos } from '../../shared/precios.ts';
 import { normalizar } from './intencion.ts';
 import { productoNombrado, productosDe } from './canasta.ts';
 import { claveTelefono, enmascarar } from './envios.ts';
@@ -22,7 +22,10 @@ import * as m from './mensajes.ts';
 export interface EstadoSiiProveedor {
   readonly listo: boolean;
   readonly enCurso: boolean;
+  /** Para la persona: un rechazo conocido del SII va explicado (shared/sii-rechazos.ts). */
   readonly detalle: string | null;
+  /** El texto completo del SII, para el log. */
+  readonly detalleSii?: string | null;
 }
 
 export interface OpcionesProveedores {
@@ -135,6 +138,7 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
         const e = await o.estadoSii!(rutEmpresa);
         if (e.enCurso && ++vueltas < (o.revisionesSii ?? 40)) return;
         terminar();
+        if (!e.listo) o.log.warn(`[proveedor] el SII de ${enmascarar(telefono)} no quedó conectado: ${e.detalleSii ?? e.detalle ?? 'sin detalle'}`);
         await o.avisar(telefono, e.listo ? m.SII_LISTO : m.siiNoConectado(e.detalle));
       } catch (error) {
         terminar();
@@ -218,12 +222,14 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
     const l = await red.ofertar(p.licitacionId, { proveedorId: proveedor.id, productoId: p.productoId, precioUnitario: p.precio, plazoDias: PLAZO_DIAS });
     const producto = productosDe(l).find(x => x.id === p.productoId)!;
     o.log.info(`[proveedor] ${proveedor.id} ofertó en ${p.licitacionId}/${p.productoId}`);
+    const suya = producto.ofertas?.find(x => x.proveedorId === proveedor.id);
+    if (suya?.pendienteSii) return m.ofertaPendienteSii(producto, p.precio);
     return m.ofertaHecha(producto, p.precio, lider(producto) === proveedor.id);
   }
 
   /** Quién va ganando un producto: la oferta más barata, o el creador si su tramo es menor. */
   function lider(p: ProductoCompra): string | undefined {
-    const mejor = [...(p.ofertas ?? [])].sort((a, b) => a.precioUnitario - b.precioUnitario)[0];
+    const mejor = ofertasQueCompiten(p.ofertas).sort((a, b) => a.precioUnitario - b.precioUnitario)[0];
     if (p.proveedorId && (!mejor || precioDelProducto({ ...p, ofertas: [] }, Math.max(p.totalUnidades, 1)) < mejor.precioUnitario)) return p.proveedorId;
     return mejor?.proveedorId;
   }

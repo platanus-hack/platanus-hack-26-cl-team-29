@@ -36,6 +36,11 @@ export interface PuertoSii {
   emitirNotaCredito(datos: DatosEmision & { factura: Documento; items: Item[] }): Promise<ResultadoSii>;
   /** Reclamo del receptor sobre la factura (contenido o falta parcial de mercaderías). */
   registrarReclamo(datos: { factura: Documento; receptor: Negocio; motivo: string; emisor?: Negocio }): Promise<{ estadoSii: string }>;
+  /**
+   * Opcional: si ese proveedor puede emitir facturas reales hoy (SII conectado con su configuración y folios). Sin este
+   * método, todos pueden (SII falso de los tests).
+   */
+  puedeFacturar?(emisor: Negocio): Promise<boolean>;
   /** Opcional: avisa cuando el SII cambia el estado de un documento ya emitido (p. ej. su veredicto). */
   alCambiarEstado?(oyente: (cambio: CambioEstadoSii) => void): void;
 }

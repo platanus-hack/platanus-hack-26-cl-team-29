@@ -99,6 +99,8 @@ export interface Oferta {
   tramos?: Tramo[];
   /** Entró sola desde su lista de precios. */
   automatica?: true;
+  /** Su proveedor todavía no puede facturar en el SII: se ve, pero no compite hasta que conecte. */
+  pendienteSii?: true;
   /** Pedido mínimo del grupo (MOQ): si gana y no llegan, el proveedor puede cancelar. */
   minimo?: number;
   plazoDias: number;

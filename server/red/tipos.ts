@@ -115,6 +115,11 @@ export interface Oferta {
   /** La puso Bando desde la lista de precios del proveedor; si él oferta a mano, la reemplaza. */
   automatica?: true;
   /**
+   * Su proveedor todavía no puede emitir facturas en el SII (sin SII conectado o sin folios): la oferta se ve, pero no
+   * compite ni baja el precio hasta que conecte. La fija el dominio con `puedeFacturar`.
+   */
+  pendienteSii?: true;
+  /**
    * Pedido mínimo del grupo (MOQ) que pide el proveedor. No impide la compra: si gana y el grupo no llega, puede
    * cancelar el pedido, y el comprador lo ve antes de sumarse.
    */
@@ -146,6 +151,8 @@ export interface ProductoCompra {
   ofertas: Oferta[];
   /** Quien creó el producto por WhatsApp: sus `tramos` son su precio por volumen. Los de la canasta de la demo no tienen. */
   proveedorId?: string;
+  /** Quien lo creó todavía no puede facturar en el SII: sus tramos quedan como referencia y no compiten. */
+  creadorPendienteSii?: true;
   /** Al cerrar, la mejor oferta por precio ajustado (sin la compra propia de cada participante, ver `cerrarLicitacion`). */
   ganadora?: Ganadora;
 }

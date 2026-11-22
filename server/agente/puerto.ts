@@ -105,7 +105,7 @@ export interface ProductoCompra {
   readonly tramos: readonly Tramo[];
   /** Ofertas de proveedores por este producto. */
   readonly ofertas?: readonly {
-    readonly proveedorId: string; readonly precioUnitario: number; readonly tramos?: readonly Tramo[]; readonly minimo?: number;
+    readonly proveedorId: string; readonly precioUnitario: number; readonly tramos?: readonly Tramo[]; readonly minimo?: number; readonly pendienteSii?: true;
   }[];
   /** Quien creó el producto (sus tramos son su precio por volumen). */
   readonly proveedorId?: string;

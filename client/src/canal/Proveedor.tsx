@@ -4,6 +4,7 @@
 import { useCallback, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { BotonSii } from './ConectarSii.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { Modal } from '../marca/Modal.tsx';
 import { BandoTePago } from './MiCredito.tsx';
 import { RutaReparto } from './RutaReparto.tsx';
@@ -60,6 +61,7 @@ export function Proveedor() {
   return (
     <Marco secciones={secciones} activa={seccion} negocio={yo.proveedor} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
       {error && <p className="bm-error">{error}</p>}
+      {yo.puedeFacturar === false && seccion !== 'facturas' && <AvisoSinFacturacion api={api} token={token} />}
       {seccion === 'inicio' && (
         <Inicio foto={foto} negocio={yo.proveedor} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="vender" />
       )}
@@ -82,6 +84,17 @@ export function Proveedor() {
       )}
       {seccion === 'reparto' && <RutaReparto {...props} yo={yo} config={config} />}
     </Marco>
+  );
+}
+
+/** Sin SII conectado no se compite: el proveedor ve por qué y conecta desde ahí mismo. */
+function AvisoSinFacturacion({ api, token }: { api: Parameters<typeof BotonSii>[0]['api']; token: string }) {
+  return (
+    <section className="bp-aviso-sii" role="status">
+      <LogoSii tam={20} />
+      <p><strong>Tus ofertas todavía no compiten.</strong> Conecta tu SII para poder facturar lo que vendas; mientras, tus productos se ven pero no ganan compras.</p>
+      <BotonSii api={api} token={token} />
+    </section>
   );
 }
 

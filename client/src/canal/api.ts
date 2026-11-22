@@ -157,6 +157,7 @@ export function normalizarYoProveedor(raw: unknown): YoProveedor {
     nota: typeof nota.nota === 'number' ? nota.nota : null,
     ...(typeof nota.anterior === 'number' ? { notaAnterior: nota.anterior } : {}),
     ...(Array.isArray(r.licitaciones) ? { licitaciones: r.licitaciones } : {}),
+    ...(typeof r.puedeFacturar === 'boolean' ? { puedeFacturar: r.puedeFacturar } : {}),
   };
 }
 

@@ -194,3 +194,11 @@
   .bp-barra i { transition: none; }
   .bp-carga span { animation: none; }
 }
+
+/* Aviso de que sin SII conectado las ofertas no compiten (Proveedor.tsx). */
+.bp-aviso-sii {
+  display: flex; align-items: center; gap: var(--espacio-3); flex-wrap: wrap;
+  padding: var(--espacio-3) var(--espacio-4); border-radius: var(--radius-xl);
+  border: var(--border-width) solid var(--color-border); background: var(--color-secondary); color: var(--color-foreground);
+}
+.bp-aviso-sii p { margin: 0; flex: 1 1 260px; font-size: var(--text-sm); line-height: var(--leading-sm); }

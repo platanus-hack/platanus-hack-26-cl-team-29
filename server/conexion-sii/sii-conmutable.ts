@@ -65,6 +65,8 @@ export function crearSiiConmutable({ falso, conexionDe, crearReal }: OpcionesCon
 
   return {
     alCambiarEstado: oyente => { oyentes.add(oyente); },
+    // Con SII real completo (certificado, resolución y folios) factura de verdad; sin él solo tendría el falso.
+    puedeFacturar: async emisor => (await actual(emisor)) !== null,
     emitirFactura: d => emitir(33, d.emisor, sii => sii.emitirFactura(d)),
     // Antes del lote, en este orden y sin tocar el SII si algo falla: cada comprador con RUT verificado, y folios
     // para todos (se reponen primero; si aun así no alcanzan, falla con el texto del SII).

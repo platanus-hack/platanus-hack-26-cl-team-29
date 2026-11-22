@@ -83,6 +83,8 @@ export interface YoProveedor {
   nota: number | null;
   notaAnterior?: number;
   licitaciones?: LicitacionCanal[];
+  /** false: todavía no puede emitir facturas en el SII, así que sus ofertas no compiten. */
+  puedeFacturar?: boolean;
 }
 
 /** La recepción que confirma el comprador: llegó todo, o cuántas faltaron (reclamo en el SII). */

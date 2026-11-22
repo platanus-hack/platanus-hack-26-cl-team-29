@@ -137,8 +137,14 @@ export function tramosSugeridos(ventas: readonly { cantidad: number; precioUnita
   return tramos;
 }
 
-/** Una oferta con su precio base y, si los trae, sus tramos por cantidad (la lista de precios del proveedor). */
-export type OfertaConTramos = { precioUnitario: number; tramos?: readonly Tramo[] };
+/**
+ * Una oferta con su precio base y, si los trae, sus tramos por cantidad (la lista de precios del proveedor).
+ * `pendienteSii`: su proveedor todavía no puede emitir facturas en el SII; la oferta se ve pero no compite.
+ */
+export type OfertaConTramos = { precioUnitario: number; tramos?: readonly Tramo[]; pendienteSii?: true };
+
+/** Solo compite quien puede facturar en el SII: una oferta `pendienteSii` no baja el precio, no gana ni cierra. */
+export const ofertasQueCompiten = <O extends OfertaConTramos>(ofertas: readonly O[] | undefined): O[] => (ofertas ?? []).filter(o => !o.pendienteSii);
 
 /** Lo que cobra una oferta por unidad cuando el grupo junta `unidades`: su tramo alcanzado o, sin tramos, su precio. */
 export const precioDeOferta = (o: OfertaConTramos, unidades: number): number =>
@@ -146,7 +152,7 @@ export const precioDeOferta = (o: OfertaConTramos, unidades: number): number =>
 
 /** La oferta más barata para `unidades` (la que hoy ganaría), o undefined si no hay ofertas. */
 export function mejorOferta<O extends OfertaConTramos>(ofertas: readonly O[] | undefined, unidades: number): O | undefined {
-  return [...(ofertas ?? [])].sort((a, b) => precioDeOferta(a, unidades) - precioDeOferta(b, unidades))[0];
+  return ofertasQueCompiten(ofertas).sort((a, b) => precioDeOferta(a, unidades) - precioDeOferta(b, unidades))[0];
 }
 
 /**
@@ -162,6 +168,8 @@ type ConOfertas = ConPrecio & {
   ofertas?: readonly ({ proveedorId: string } & OfertaConTramos)[];
   /** Quien creó el producto: sus tramos son su precio por volumen. */
   proveedorId?: string;
+  /** Quien lo creó todavía no puede facturar en el SII: sus tramos quedan solo como referencia. */
+  creadorPendienteSii?: true;
 };
 
 /**
@@ -175,12 +183,12 @@ export function precioDelProducto(p: ConOfertas, unidades: number, proveedorFijo
   const tramo = precioPorVolumen(p, unidades);
   if (unidades <= 0) return tramo;
   if (proveedorFijo) {
-    const propia = p.ofertas?.find(o => o.proveedorId === proveedorFijo);
+    const propia = ofertasQueCompiten(p.ofertas).find(o => o.proveedorId === proveedorFijo);
     return propia ? Math.min(tramo, precioDeOferta(propia, unidades)) : tramo;
   }
-  const ofertas = (p.ofertas ?? []).map(o => precioDeOferta(o, unidades));
+  const ofertas = ofertasQueCompiten(p.ofertas).map(o => precioDeOferta(o, unidades));
   if (ofertas.length === 0) return tramo;
-  return Math.min(...ofertas, p.proveedorId ? tramo : Infinity);
+  return Math.min(...ofertas, p.proveedorId && !p.creadorPendienteSii ? tramo : Infinity);
 }
 
 type Linea = { cantidad: number; precioUnitario: number };
