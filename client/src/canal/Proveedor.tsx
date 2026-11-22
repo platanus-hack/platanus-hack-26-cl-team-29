@@ -2,15 +2,13 @@
 // que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
 // mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Productos
 // están rediseñados; Reparto y Facturas van por el puente.
-import { useRef } from 'react';
+import { useCallback, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import { nota } from '../../../shared/formato.ts';
-import { ConectarSii } from './ConectarSii.tsx';
+import { BotonSii } from './ConectarSii.tsx';
+import { Modal } from '../marca/Modal.tsx';
 import { BandoTePago } from './MiCredito.tsx';
 import { RutaReparto } from './RutaReparto.tsx';
 import { estaAbierta, licitacionVigente } from './logica.ts';
-import { Vacio } from './piezas.tsx';
-import type { YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
@@ -76,52 +74,32 @@ export function Proveedor() {
         </>
       )}
       {seccion === 'facturas' && (
-        <Facturas api={api} token={token} cambio={cambio} negocios={foto.negocios} vende compra={puedeComprar(yo.proveedor)} vencer={vencer} />
+        <Facturas api={api} token={token} cambio={cambio} negocios={foto.negocios} vende compra={puedeComprar(yo.proveedor)} vencer={vencer}
+          acciones={<>
+            <BotonSii api={api} token={token} />
+            <BotonPagos api={api} token={token} documentos={yo.documentos} cambio={cambio} />
+          </>} />
       )}
-      {(seccion === 'reparto' || seccion === 'facturas') && (
-        // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).
-        <div className="puente-legado cn-contenido">
-          {seccion === 'reparto' && <RutaReparto {...props} yo={yo} config={config} />}
-          {seccion === 'facturas' && (
-            <>
-              <ConectarSii api={api} token={token} />
-              <BandoTePago api={api} token={token} documentos={yo.documentos} cambio={cambio} />
-              <MiNota yo={yo} />
-            </>
-          )}
-        </div>
+      {seccion === 'reparto' && (
+        // Sección aún sin rediseñar: el puente le da la paleta y la tipografía de la marca (DESIGN.md).
+        <div className="puente-legado cn-contenido"><RutaReparto {...props} yo={yo} config={config} /></div>
       )}
     </Marco>
   );
 }
 
-// ---------- Nota y documentos ----------
-
-/** La nota anterior: la que manda el backend o, si no la manda, la última distinta que vio esta pestaña. */
-function useNotaAnterior(actual: number | null, delBackend?: number): number | undefined {
-  const vista = useRef<{ actual: number | null; anterior?: number }>({ actual });
-  if (vista.current.actual !== actual) vista.current = { actual, anterior: vista.current.actual ?? undefined };
-  return delBackend ?? vista.current.anterior;
-}
-
-function MiNota({ yo }: { yo: YoProveedor }) {
-  const anterior = useNotaAnterior(yo.nota, yo.notaAnterior);
-  if (yo.nota === null) {
-    return <Vacio titulo="Todavía no tienes nota" texto="Tu nota se calcula con tus entregas: cada entrega conforme suma y cada reclamo resta." />;
-  }
-  const cambio = anterior !== undefined ? Math.round((yo.nota - anterior) * 10) / 10 : 0;
+/** "Pagos de Bando" en un modal, como el del SII: dónde te transferimos y lo que Bando ya te pagó. */
+function BotonPagos(props: Parameters<typeof BandoTePago>[0]) {
+  const [abierto, setAbierto] = useState(false);
+  const cerrar = useCallback(() => setAbierto(false), []);
   return (
-    <section className="tarjeta cn-mi-nota">
-      <p className="etiqueta">Mi nota en la red</p>
-      <div className="cn-precio">
-        <span className={`numero-grande ${cambio < 0 ? 'magenta' : cambio > 0 ? 'verde' : 'amarillo'}`}>{nota(yo.nota)}</span>
-        {anterior !== undefined && cambio !== 0 && <span className="mono tachado">{nota(anterior)}</span>}
-      </div>
-      <p className="mono tenue cn-texto">
-        {cambio < 0 ? `Bajó ${nota(-cambio)} con el último cambio. ` : cambio > 0 ? `Subió ${nota(cambio)} con el último cambio. ` : ''}
-        Entrega conforme suma 0,1, reclamo resta 0,4 y nota de crédito el mismo día suma 0,2.
-      </p>
-    </section>
+    <>
+      <button type="button" className="bm-boton secundario" onClick={() => setAbierto(true)}>Pagos de Bando</button>
+      {abierto && (
+        <Modal titulo="Pagos de Bando" onCerrar={cerrar}>
+          <div className="puente-legado"><BandoTePago {...props} /></div>
+        </Modal>
+      )}
+    </>
   );
 }
-

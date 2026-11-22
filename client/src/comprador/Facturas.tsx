@@ -2,7 +2,7 @@
 // "Recibidas" (lo que le facturaron como comprador), con su folio, la contraparte, el monto y su estado en el SII.
 // Un negocio que compra y vende ve los dos lados. Se vuelve a pedir con cada `red:evento`.
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from '../canal/api.ts';
 import { ListaDocumentos } from '../canal/piezas.tsx';
@@ -17,10 +17,12 @@ const NADA: Lado = { documentos: [], ordenes: [] };
 /** Facturas, notas de crédito y guías: lo que queda registrado en el SII. */
 const delSii = (docs: readonly Documento[]) => docs.filter(d => d.tipo === 33 || d.tipo === 61 || d.tipo === 52);
 
-export function Facturas({ api, token, cambio, negocios, vende, compra, vencer }: {
+export function Facturas({ api, token, cambio, negocios, vende, compra, vencer, acciones }: {
   api: CanalApi; token: string; cambio: number; negocios: readonly Negocio[];
   /** Puede vender (ve Emitidas) y comprar (ve Recibidas). */
   vende: boolean; compra: boolean; vencer: () => void;
+  /** Arriba a la derecha (en el panel del proveedor, el botón del SII). */
+  acciones?: ReactNode;
 }) {
   const emitidas = useDatosConSesion(api, token, cambio, (a, t) => (vende ? a.yoProveedor(t) : Promise.resolve(NADA)), vencer).datos ?? NADA;
   const recibidas = useDatosConSesion(api, token, cambio, (a, t) => (compra ? a.yo(t) : Promise.resolve(NADA)), vencer).datos ?? NADA;
@@ -40,6 +42,7 @@ export function Facturas({ api, token, cambio, negocios, vende, compra, vencer }
           <h1 className="bm-titulo">Facturas</h1>
           <p className="bm-bajada">Tus documentos en el SII: lo que facturaste como proveedor y lo que te facturaron como comprador.</p>
         </div>
+        {acciones}
       </header>
       <Pestanas etiqueta="Facturas" activa={pestana} onCambio={setPestana}
         pestanas={[['emitidas', 'Emitidas', delSii(emitidas.documentos).length], ['recibidas', 'Recibidas', delSii(recibidas.documentos).length]]} />
