@@ -143,8 +143,9 @@ test('una factura 33 por comprador con una línea por producto, todas en un sobr
   const silencioso = { info() {}, warn() {}, error() {} };
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   const sobres: EntradaFactura[][] = [];
-  const sii = { ...base, emitirFacturas: (e: readonly EntradaFactura[]) => { sobres.push([...e]); return base.emitirFacturas(e); } };
-  const { red, eventos } = await redDePrueba(crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), rangos: () => [{ desde: 40, hasta: 99 }], log: silencioso, seguirEnvios: false }));
+  const sii = { ...base, prepararFacturas: (e: readonly EntradaFactura[]) => { sobres.push([...e]); return base.prepararFacturas(e); } };
+  const real = crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), rangos: () => [{ desde: 40, hasta: 99 }], log: silencioso, seguirEnvios: false });
+  const { red, eventos } = await redDePrueba(real);
 
   await red.actualizarCarrito('L-1', { telefono: ANA, nombre: 'Ana', rut: '11111111-1', items: [{ productoId: 'rollos', cantidad: 2 }, { productoId: 'etiquetas', cantidad: 3 }, { productoId: 'guantes', cantidad: 1 }] });
   await red.actualizarCarrito('L-1', { telefono: BETO, nombre: 'Beto', rut: '33333333-3', items: [{ productoId: 'bolsas', cantidad: 5 }] });
@@ -156,7 +157,9 @@ test('una factura 33 por comprador con una línea por producto, todas en un sobr
   assert.deepEqual(sobres[0]![0]!.items.map(i => [i.nombre, i.cantidad, i.precioUnitario]), [
     ['Caja de rollos térmicos 80 mm (50 un.)', 2, 32000], ['Rollo de etiquetas adhesivas 50x30 (1.000 un.)', 3, 6900], ['Caja de guantes de nitrilo (100 un.)', 1, 8900],
   ]);
-  assert.deepEqual(facturas.map(f => [f.folio, f.estadoSii, f.monto]), [[40, 'recibido', 2 * 32000 + 3 * 6900 + 8900], [41, 'recibido', 5 * 14900]]);
+  assert.deepEqual(facturas.map(f => [f.folio, f.monto]), [[40, 2 * 32000 + 3 * 6900 + 8900], [41, 5 * 14900]]);
+  await real.subidasTerminadas();
+  assert.deepEqual(red.estadoDeLaRed().documentos.filter(d => d.tipo === 33).map(d => d.estadoSii), ['recibido', 'recibido']);
   const facturada = datos<{ documentos: number; total: number; ahorroTotal: number }>(eventos, 'licitacion.facturada')[0]!;
   assert.deepEqual(facturada, { licitacionId: 'L-1', documentos: 2, total: 2 * 32000 + 3 * 6900 + 8900 + 5 * 14900, ahorroTotal: 0 });
 

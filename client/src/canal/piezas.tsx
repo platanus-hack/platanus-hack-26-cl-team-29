@@ -114,7 +114,7 @@ export function Confirmar({ titulo, children, si, no = 'No, volver', sii, envian
   );
 }
 
-const CLASE_SII: Record<string, string> = { aceptado: 'ok', recibido: 'en-curso', simulado: 'simulado', reparo: 'en-curso', rechazado: 'mal', fallido: 'mal' };
+const CLASE_SII: Record<string, string> = { aceptado: 'ok', enviando: 'en-curso', recibido: 'en-curso', simulado: 'simulado', reparo: 'en-curso', rechazado: 'mal', fallido: 'mal' };
 
 export function EstadoSii({ estado }: { estado: string | null | undefined }) {
   const texto = textoEstadoSii(estado);

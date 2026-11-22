@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { crearSii } from '../server/sii/index.ts';
-import type { EntradaFactura, EntradaGuia, EntradaNotaCredito, Sii } from '../server/sii/index.ts';
+import type { EntradaFactura, EntradaGuia, EntradaNotaCredito, ResultadoEnvio, Sii } from '../server/sii/index.ts';
 import { aDte, calcularTotales } from '../server/sii/dte.ts';
-import { crearAlmacenFoliosMemoria, crearSiiReal, foliosLibres, siguienteFolio } from '../server/red/index.ts';
+import { crearAlmacenFoliosMemoria, crearRed, crearRepositorioMemoria, crearSiiReal, foliosLibres, siguienteFolio } from '../server/red/index.ts';
 import { veredictoDelSobre } from '../server/red/sii-real.ts';
-import type { AlmacenFolios, DatosEmision, Documento, Negocio, OrdenCompra } from '../server/red/index.ts';
+import type { AlmacenFolios, CambioEstadoSii, DatosEmision, Documento, Negocio, OrdenCompra } from '../server/red/index.ts';
 import { RUT_EMPRESA } from './sii-apoyo.ts';
 
 const silencioso = { info() {}, warn() {}, error() {} };
@@ -32,8 +32,8 @@ function siiEspia(sobrescribir: Partial<Sii> = {}) {
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   const sii: Sii = {
     ...base,
-    emitirFactura: e => { facturas.push(e); return base.emitirFactura(e); },
-    emitirNotaCredito: e => { notas.push(e); return base.emitirNotaCredito(e); },
+    prepararFactura: e => { facturas.push(e); return base.prepararFactura(e); },
+    prepararNotaCredito: e => { notas.push(e); return base.prepararNotaCredito(e); },
     ...sobrescribir,
   };
   return { sii, facturas, notas };
@@ -55,8 +55,8 @@ test('los folios avanzan por tipo desde el CAF, no se reusan tras un reinicio y 
 
 test('un folio que falla antes de subir queda usado: el reintento toma el siguiente', async () => {
   const folios = crearAlmacenFoliosMemoria();
-  const falla = adaptador(siiEspia({ emitirFactura: async () => { throw new Error('token rechazado'); } }).sii, folios);
-  await assert.rejects(falla.emitirFactura(datos('OC-1')), /token rechazado/);
+  const falla = adaptador(siiEspia({ prepararFactura: async () => { throw new Error('CAF ilegible'); } }).sii, folios);
+  await assert.rejects(falla.emitirFactura(datos('OC-1')), /CAF ilegible/);
   assert.equal((await folios.buscar(33, 10))?.estado, 'fallido');
   assert.equal((await adaptador(siiEspia().sii, folios).emitirFactura(datos('OC-1'))).folio, 11);
 });
@@ -66,31 +66,108 @@ test('un envío incierto no se reenvía ni toma otro folio, y se revisa con Quer
   const { sii, facturas } = siiEspia();
   const conCorte = adaptador({
     ...sii,
-    emitirFactura: async e => ({ ...(await sii.emitirFactura(e)), envio: { estado: 'incierto', error: 'ECONNRESET' } }),
+    prepararFactura: async e => ({ ...(await sii.prepararFactura(e)), subir: async () => ({ estado: 'incierto', error: 'ECONNRESET' }) }),
   }, folios);
+  const cambios: CambioEstadoSii[] = [];
+  conCorte.alCambiarEstado?.(c => cambios.push(c));
   const { impreso, ...r } = await conCorte.emitirFactura(datos('OC-1'));
-  assert.deepEqual(r, { folio: 10, trackId: '', estadoSii: 'incierto' });
+  assert.deepEqual(r, { folio: 10, trackId: '', estadoSii: 'enviando' });
   assert.equal(impreso?.folio, 10, 'el documento se armó: trae su representación impresa');
+  await conCorte.subidasTerminadas();
+  assert.deepEqual(cambios, [{ tipo: 33, folio: 10, ordenId: 'OC-1', estadoSii: 'incierto', detalle: 'ECONNRESET' }]);
 
   // Otro intento para la misma orden (por ejemplo tras un reinicio) no sube nada ni gasta un folio.
-  assert.deepEqual(await adaptador(sii, folios).emitirFactura(datos('OC-1')), r);
+  assert.deepEqual(await adaptador(sii, folios).emitirFactura(datos('OC-1')), { folio: 10, trackId: '', estadoSii: 'incierto' });
   assert.equal(facturas.length, 1);
   assert.equal(await folios.buscar(33, 11), undefined);
 
-  // En el SII falso el sobre sí llegó: QueryEstDte responde DOK, el folio pasa a recibido y se avisa a la red.
-  const cambios: unknown[] = [];
-  conCorte.alCambiarEstado?.(c => cambios.push(c));
+  // El SII falso nunca recibió el sobre (la subida se cortó): QueryEstDte responde FAU y queda para una persona.
+  cambios.length = 0;
   const { estado, registro } = await conCorte.consultarDocumento(33, 10);
-  assert.equal(estado.codigo, 'DOK');
-  assert.equal(registro.estado, 'recibido');
-  assert.deepEqual(cambios, [{ tipo: 33, folio: 10, ordenId: 'OC-1', estadoSii: 'recibido' }]);
+  assert.equal(estado.codigo, 'FAU');
+  assert.equal(registro.estado, 'no_recibido');
+  assert.deepEqual(cambios.map(c => c.estadoSii), ['no_recibido']);
+});
+
+/** Un SII cuya subida tarda `ms` (como maullin lento) y responde `envio`; cuenta las subidas. */
+function siiConSubida(ms: number, envio?: ResultadoEnvio | Error) {
+  const { sii } = siiEspia();
+  let subidas = 0;
+  const demorar = <T,>(subir: () => Promise<T>) => async () => {
+    subidas++;
+    await new Promise(r => setTimeout(r, ms));
+    if (envio instanceof Error) throw envio;
+    return envio ?? subir();
+  };
+  const lento: Sii = {
+    ...sii,
+    prepararFacturas: async e => { const l = await sii.prepararFacturas(e); return { ...l, subir: demorar(l.subir) as typeof l.subir }; },
+    prepararGuia: async e => { const d = await sii.prepararGuia(e); return { ...d, subir: demorar(d.subir) as typeof d.subir }; },
+  };
+  return { sii: lento, subidas: () => subidas };
+}
+
+test('facturar no espera al SII: el lote vuelve firmado y con PDF al instante, y la subida lo pasa a recibido en vivo', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const { sii, subidas } = siiConSubida(300);
+  const adapt = crearSiiReal({ sii, folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false });
+  const cambios: CambioEstadoSii[] = [];
+  adapt.alCambiarEstado?.(c => cambios.push(c));
+
+  const inicio = Date.now();
+  const r = await adapt.emitirFacturas(['OC-1', 'OC-2'].map(datos));
+  const ms = Date.now() - inicio;
+  assert.ok(ms < 150, `volvió en ${ms} ms, sin esperar los 300 ms de la subida`);
+  assert.deepEqual(r.map(x => [x.folio, x.estadoSii, x.impreso?.folio]), [[100, 'enviando', 100], [101, 'enviando', 101]]);
+  assert.equal((await folios.buscar(33, 100))?.estado, 'enviando');
+
+  await adapt.subidasTerminadas();
+  assert.equal(subidas(), 1, 'una sola subida para el sobre');
+  const recibidos = await Promise.all([100, 101].map(f => folios.buscar(33, f)));
+  assert.deepEqual(recibidos.map(x => x?.estado), ['recibido', 'recibido']);
+  assert.equal(new Set(recibidos.map(x => x?.trackId)).size, 1, 'mismo track id para el sobre');
+  assert.deepEqual(cambios.map(c => [c.folio, c.estadoSii, !!c.trackId]), [[100, 'recibido', true], [101, 'recibido', true]]);
+});
+
+test('una subida rechazada o que falla queda así en cada folio, se avisa y no se reintenta sola', async () => {
+  const rechazo: ResultadoEnvio = { estado: 'rechazado', status: '3', respuesta: '<STATUS>3</STATUS>' };
+  for (const [envio, estado] of [[rechazo, 'rechazado'], [new Error('token rechazado'), 'fallido']] as const) {
+    const folios = crearAlmacenFoliosMemoria();
+    const { sii, subidas } = siiConSubida(20, envio);
+    const adapt = crearSiiReal({ sii, folios, rangos: rangosDe(RANGOS), log: silencioso, seguirEnvios: false });
+    const cambios: CambioEstadoSii[] = [];
+    adapt.alCambiarEstado?.(c => cambios.push(c));
+    assert.equal((await adapt.emitirGuia(datos('OC-1'))).estadoSii, 'enviando');
+    await adapt.subidasTerminadas();
+    await new Promise(r => setTimeout(r, 60));
+    assert.equal(subidas(), 1, `${estado}: una sola subida, sin reintento`);
+    assert.equal((await folios.buscar(52, 1))?.estado, estado);
+    assert.deepEqual(cambios.map(c => [c.tipo, c.folio, c.estadoSii]), [[52, 1, estado]]);
+  }
+});
+
+test('un folio que quedó enviándose al reiniciar queda incierto: ni se reenvía ni toma otro', async () => {
+  const folios = crearAlmacenFoliosMemoria();
+  const registro = await folios.reservar(33, RANGOS[33]!, 'OC-1');
+  await folios.guardar({ ...registro, estado: 'enviando', fechaEmision: '2026-11-21', montoTotal: 95200, rutReceptor: '11111111-1' });
+  const { sii, facturas } = siiEspia();
+  const r = await adaptador(sii, folios).emitirFactura(datos('OC-1'));
+  assert.deepEqual(r, { folio: 10, trackId: '', estadoSii: 'incierto' });
+  assert.equal(facturas.length, 0, 'no se armó ni se subió nada');
+  assert.equal((await folios.buscar(33, 10))?.estado, 'incierto');
+
+  // La red, al arrancar, deja en revisión el documento que quedó "enviando al SII".
+  const repo = crearRepositorioMemoria();
+  await repo.guardar('documentos', { id: 'd', ordenId: 'OC-1', tipo: 33, folio: 10, trackId: '', estadoSii: 'enviando', monto: 80000, emitidoEn: '' });
+  const red = await crearRed({ repo, sii: adaptador(sii, folios), env: {} });
+  assert.equal(red.estadoDeLaRed().documentos[0]?.estadoSii, 'incierto');
 });
 
 test('la factura lleva la OC como referencia 801, la guía lo despachado y la nota de crédito corrige la 33 por lo que faltó', async () => {
   const { sii, facturas, notas } = siiEspia();
   const guias: EntradaGuia[] = [];
   const folios = crearAlmacenFoliosMemoria();
-  const adapt = adaptador({ ...sii, emitirGuia: e => { guias.push(e); return sii.emitirGuia(e); } }, folios);
+  const adapt = adaptador({ ...sii, prepararGuia: e => { guias.push(e); return sii.prepararGuia(e); } }, folios);
 
   const factura = await adapt.emitirFactura(datos('OC-1001'));
   const referencias33 = aDte.factura(facturas[0]!).referencias;
@@ -130,7 +207,7 @@ test('el lote de facturas va en una sola subida, con folios consecutivos y sin r
   const folios = crearAlmacenFoliosMemoria();
   const { sii } = siiEspia();
   const lotes: EntradaFactura[][] = [];
-  const espia: Sii = { ...sii, emitirFacturas: e => { lotes.push([...e]); return sii.emitirFacturas(e); } };
+  const espia: Sii = { ...sii, prepararFacturas: e => { lotes.push([...e]); return sii.prepararFacturas(e); } };
   const adapt = crearSiiReal({ sii: espia, folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false });
 
   const suelta = await adapt.emitirFactura(datos('OC-2'));
@@ -139,17 +216,19 @@ test('el lote de facturas va en una sola subida, con folios consecutivos y sin r
   assert.deepEqual(lotes[0]!.map(e => e.folio), [101, 102, 103], 'OC-2 ya tenía su factura y no va en el sobre');
   assert.ok(lotes[0]!.every(e => e.receptor.rut === '11111111-1'), 'cada factura va al RUT de su comprador');
   assert.deepEqual(r.map(x => x.folio), [101, suelta.folio, 102, 103]);
-  assert.equal(new Set([r[0]!.trackId, r[2]!.trackId, r[3]!.trackId]).size, 1, 'mismo track id para el sobre');
-  assert.equal((await folios.buscar(33, 103))?.estado, 'recibido');
+  await adapt.subidasTerminadas();
+  const sobre = await Promise.all([101, 102, 103].map(f => folios.buscar(33, f)));
+  assert.equal(new Set(sobre.map(x => x?.trackId)).size, 1, 'mismo track id para el sobre');
+  assert.equal(sobre[2]?.estado, 'recibido');
 });
 
 test('un lote que falla antes de subir deja todos sus folios usados y el reintento toma folios nuevos', async () => {
   const folios = crearAlmacenFoliosMemoria();
   const falla = crearSiiReal({
-    sii: siiEspia({ emitirFacturas: async () => { throw new Error('token rechazado'); } }).sii,
+    sii: siiEspia({ prepararFacturas: async () => { throw new Error('CAF ilegible'); } }).sii,
     folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false,
   });
-  await assert.rejects(falla.emitirFacturas([datos('OC-1'), datos('OC-2')]), /token rechazado/);
+  await assert.rejects(falla.emitirFacturas([datos('OC-1'), datos('OC-2')]), /CAF ilegible/);
   assert.equal((await folios.buscar(33, 100))?.estado, 'fallido');
   assert.equal((await folios.buscar(33, 101))?.estado, 'fallido');
   const ok = crearSiiReal({ sii: siiEspia().sii, folios, rangos: rangosDe(LOTE), log: silencioso, seguirEnvios: false });
@@ -179,7 +258,7 @@ test('si los folios no alcanzan para todo el lote no se reserva ninguno ni se su
   const folios = crearAlmacenFoliosMemoria();
   const { sii } = siiEspia();
   let subidas = 0;
-  const espia: Sii = { ...sii, emitirFacturas: e => { subidas++; return sii.emitirFacturas(e); } };
+  const espia: Sii = { ...sii, prepararFacturas: e => { subidas++; return sii.prepararFacturas(e); } };
   const adapt = crearSiiReal({ sii: espia, folios, rangos: () => [{ desde: 10, hasta: 11 }], log: silencioso, seguirEnvios: false });
   await assert.rejects(adapt.emitirFacturas(['OC-1', 'OC-2', 'OC-3'].map(datos)), (e: Error & { codigo?: string }) =>
     e.codigo === 'sin_folios' && /se necesitan 3 folios y quedan 2/.test(e.message));

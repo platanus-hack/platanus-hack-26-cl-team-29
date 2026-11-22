@@ -6,7 +6,9 @@ import type pg from 'pg';
 // Aquí también queda lo que respondió el SII, para consultarlo después.
 
 /**
- * - `reservado`: tomado, el documento se está armando o subiendo (si queda así tras un reinicio, es incierto).
+ * - `reservado`: tomado, el documento se está armando (si queda así tras un reinicio, es incierto).
+ * - `enviando`: armado, firmado y timbrado (ya tiene PDF); su sobre se está subiendo en segundo plano. Si queda así
+ *   tras un reinicio, es incierto: pudo llegar o no.
  * - `fallido`: falló antes de subir (armado o autenticación); nada llegó al SII.
  * - `rechazado`: el SII rechazó el sobre al subirlo o al procesarlo.
  * - `incierto`: corte de red al subir; pudo llegar o no. Se consulta con QueryEstDte, nunca se reenvía solo.
@@ -15,7 +17,7 @@ import type pg from 'pg';
  * - `no_recibido` (FAU), `no_coincide` (DNK): respuesta de QueryEstDte a un documento consultado.
  */
 export type EstadoFolio =
-  | 'reservado' | 'fallido' | 'rechazado' | 'incierto' | 'recibido' | 'aceptado' | 'reparo' | 'no_recibido' | 'no_coincide';
+  | 'reservado' | 'enviando' | 'fallido' | 'rechazado' | 'incierto' | 'recibido' | 'aceptado' | 'reparo' | 'no_recibido' | 'no_coincide';
 
 export interface RegistroFolio {
   tipo: number;

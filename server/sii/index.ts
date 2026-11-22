@@ -12,6 +12,7 @@ import { crearHttp, type Http } from './soap.ts';
 import type {
   AccionReceptor,
   ConsultaDocumento,
+  DocumentoPreparado,
   DocumentoRecibido,
   Emisor,
   EntradaFactura,
@@ -21,6 +22,7 @@ import type {
   EstadoEnvio,
   EventosDocumento,
   Log,
+  LotePreparado,
   RespuestaReclamo,
   ResultadoEmision,
   ResultadoLote,
@@ -63,6 +65,15 @@ export interface Sii {
   emitirGuia(entrada: EntradaGuia): Promise<ResultadoEmision>;
   /** Nota de crédito (61) que corrige montos de una factura 33. */
   emitirNotaCredito(entrada: EntradaNotaCredito): Promise<ResultadoEmision>;
+  /**
+   * Lo mismo que cada `emitir*`, pero sin subir: el documento queda armado, firmado y timbrado (con su PDF posible)
+   * y la única subida al SII queda en `subir()`. Así quien emite muestra el documento al instante y sube en segundo
+   * plano. Llamar `subir()` dos veces sería reenviar: no se hace.
+   */
+  prepararFactura(entrada: EntradaFactura): Promise<DocumentoPreparado>;
+  prepararFacturas(entradas: readonly EntradaFactura[]): Promise<LotePreparado>;
+  prepararGuia(entrada: EntradaGuia): Promise<DocumentoPreparado>;
+  prepararNotaCredito(entrada: EntradaNotaCredito): Promise<DocumentoPreparado>;
   estadoEnvio(trackId: string): Promise<EstadoEnvio>;
   /** Estado de un documento emitido por `rutEmisor`. Es la consulta obligada tras un envío `incierto`. */
   estadoDocumento(consulta: ConsultaDocumento): Promise<EstadoDocumento>;
@@ -147,8 +158,8 @@ export function crearSiiConectado(config: ConfigSii, http: Http = crearHttp()): 
     return delTipo.find(c => folio >= c.folioDesde && folio <= c.folioHasta) ?? delTipo[0]!;
   };
 
-  /** Arma, firma y sube un sobre con los documentos dados. Una sola subida, nunca se reintenta. */
-  async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]): Promise<ResultadoLote> {
+  /** Arma y firma un sobre con los documentos dados; `subir` es su única subida, que nunca se reintenta. */
+  async function prepararLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]): Promise<LotePreparado> {
     const ahora = new Date();
     const dtes = entradas.map(entrada => armarDte({ ...entrada, emisor }, caf(entrada.tipo, entrada.folio), certificado, ahora));
     const sobreXml = armarSobre({
@@ -158,20 +169,19 @@ export function crearSiiConectado(config: ConfigSii, http: Http = crearHttp()): 
       certificado,
       ahora,
     });
-    const envio = await subirSobre(http, autenticador, { sobreXml, rutEmisor: emisor.rut, rutEnvia: certificado.rut });
     const resolucion = { numero: 0, fecha: config.fchResol };
     const oficinaSii = config.oficinaSii;
     const documentos = dtes.map((dte, i) => ({
       ...dte.documento,
       impreso: datosImpresos({ ...entradas[i]!, emisor }, { ted: dte.ted, resolucion, simulado: false, oficinaSii }),
     }));
-    return { documentos, envio, sobreXml };
+    return { documentos, sobreXml, subir: () => subirSobre(http, autenticador, { sobreXml, rutEmisor: emisor.rut, rutEnvia: certificado.rut }) };
   }
 
   return {
     modo: 'certificacion',
     rutEmisor: emisor.rut,
-    ...emisiones(emitirLote),
+    ...emisiones(prepararLote),
     estadoEnvio: trackId => estadoEnvio(http, autenticador, emisor.rut, trackId),
     estadoDocumento: consulta => estadoDocumento(http, autenticador, emisor.rut, consulta),
     registrarAccionReceptor: (documento, accion) => registrarAccion(http, autenticador, documento, accion),

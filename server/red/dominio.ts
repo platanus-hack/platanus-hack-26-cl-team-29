@@ -293,7 +293,7 @@ export interface Red {
   negocioPorTelefono(telefono: string): Negocio | null;
   negocioPorId(id: string): Negocio | null;
   /** Nuevo estado en el SII de un documento ya emitido (veredicto del envío). Emite `documento.actualizado`. */
-  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string): Promise<Documento | null>;
+  actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string, trackId?: string): Promise<Documento | null>;
   /**
    * Solo interno: el documento y su representación impresa (con RUT y TED) para dibujar el PDF, o null si no
    * existe o se emitió sin ella. Nunca va en respuestas JSON ni eventos.
@@ -389,6 +389,14 @@ export async function crearRed({
   const aSiMismo = env.DEMO_COMPRA_A_SI_MISMO === '1';
   const sinCertificado = env.DEMO_PROVEEDOR_SIN_CERTIFICADO === '1';
   for (const l of datos.licitaciones) migrarLicitacion(l);
+  // La subida al SII va en segundo plano dentro del proceso: un documento que arranca `enviando` quedó a medias por
+  // un reinicio. Pudo llegar o no, así que queda en revisión (se consulta, nunca se reenvía).
+  for (const d of datos.documentos) {
+    if (d.estadoSii !== 'enviando') continue;
+    d.estadoSii = 'incierto';
+    await repo.guardar('documentos', d);
+    console.warn(`[red] ${d.tipo} folio ${d.folio}: quedó enviándose al SII al reiniciar, queda en revisión`);
+  }
   const oyentes = new Set<(evento: EventoRed) => void>();
   const enCurso = new Set<string>();
   const ahora = () => reloj().toISOString();
@@ -468,10 +476,19 @@ export async function crearRed({
     if (nota !== anterior) emitir('nota.cambiada', { proveedorId, anterior, nota });
   }
 
+  // La subida al SII va en segundo plano y puede responder antes de que el documento se guarde: su estado espera aquí.
+  const estadosAdelantados = new Map<string, { estadoSii: string; trackId?: string }>();
+  const claveDocumento = (tipo: number, folio: number, ordenId: string) => `${tipo}:${folio}:${ordenId}`;
+
   async function guardarDocumento(ordenId: string, tipo: TipoDocumento, monto: number, r: ResultadoSii) {
     const doc: Documento = { id: randomUUID(), ordenId, tipo, folio: r.folio, trackId: r.trackId, estadoSii: r.estadoSii, monto, emitidoEn: ahora() };
     // Antes que el documento: quien reciba `documento.emitido` ya puede pedir su PDF.
     if (r.impreso) await guardar('impresos', { id: doc.id, impreso: r.impreso });
+    // Justo antes de que el documento exista (sin await entre medio): lo que el SII ya respondió en segundo plano.
+    const clave = claveDocumento(tipo, r.folio, ordenId);
+    const adelantado = estadosAdelantados.get(clave);
+    estadosAdelantados.delete(clave);
+    if (adelantado) Object.assign(doc, adelantado);
     await guardar('documentos', doc);
     emitir('documento.emitido', { documento: doc });
     return doc;
@@ -1284,12 +1301,13 @@ export async function crearRed({
     });
   }
 
-  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string) {
+  async function actualizarEstadoDocumento(tipo: TipoDocumento, folio: number, estadoSii: string, ordenId?: string, trackId?: string) {
     const doc = datos.documentos.find(d => d.tipo === tipo && d.folio === folio && (!ordenId || d.ordenId === ordenId));
     // Tras reiniciar la demo el documento ya no está en la red, pero su folio sigue usado en el SII.
     if (!doc) return null;
-    if (doc.estadoSii !== estadoSii) {
+    if (doc.estadoSii !== estadoSii || (trackId && doc.trackId !== trackId)) {
       doc.estadoSii = estadoSii;
+      if (trackId) doc.trackId = trackId;
       await guardar('documentos', doc);
       emitir('documento.actualizado', { documento: doc });
     }
@@ -1305,8 +1323,13 @@ export async function crearRed({
     return estado;
   }
 
-  sii.alCambiarEstado?.(({ tipo, folio, estadoSii, ordenId }) => {
-    actualizarEstadoDocumento(tipo, folio, estadoSii, ordenId).catch(error => console.error('[red] no se pudo actualizar el documento', error));
+  sii.alCambiarEstado?.(({ tipo, folio, estadoSii, ordenId, trackId }) => {
+    // Sin el documento todavía (la emisión aún no lo guarda), el estado espera a `guardarDocumento`.
+    if (ordenId && !datos.documentos.some(d => d.tipo === tipo && d.folio === folio && d.ordenId === ordenId)) {
+      estadosAdelantados.set(claveDocumento(tipo, folio, ordenId), { estadoSii, ...(trackId ? { trackId } : {}) });
+      return;
+    }
+    actualizarEstadoDocumento(tipo, folio, estadoSii, ordenId, trackId).catch(error => console.error('[red] no se pudo actualizar el documento', error));
   });
 
   function estadoDeLaRed(): EstadoRed {

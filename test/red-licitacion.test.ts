@@ -121,9 +121,13 @@ test('con el SII real: folios consecutivos del CAF en un sobre y un reinicio de 
   const silencioso = { info() {}, warn() {}, error() {} };
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   let subidas = 0;
-  const sii = { ...base, emitirFacturas: (e: Parameters<typeof base.emitirFacturas>[0]) => { subidas++; return base.emitirFacturas(e); } };
+  const sii = { ...base, prepararFacturas: async (e: Parameters<typeof base.prepararFacturas>[0]) => {
+    const lote = await base.prepararFacturas(e);
+    return { ...lote, subir: () => { subidas++; return lote.subir(); } };
+  } };
   const folios = crearAlmacenFoliosMemoria();
-  const { red } = await redDePrueba(crearSiiReal({ sii, folios, rangos: () => [{ desde: 10, hasta: 99 }], log: silencioso, seguirEnvios: false }));
+  const real = crearSiiReal({ sii, folios, rangos: () => [{ desde: 10, hasta: 99 }], log: silencioso, seguirEnvios: false });
+  const { red } = await redDePrueba(real);
 
   // Con el SII real cada comprador factura a su RUT verificado.
   const unir = (nombre: string, n: number) => red.actualizarCarrito('L-1', {
@@ -132,14 +136,18 @@ test('con el SII real: folios consecutivos del CAF en un sobre y un reinicio de 
   for (const [i, nombre] of ['Ana', 'Beto', 'Carla'].entries()) await unir(nombre, i + 1);
   await red.cerrarLicitacion('L-1');
   const primeras = await red.confirmarOrdenesDeLicitacion('L-1');
+  assert.deepEqual(primeras.map(f => f.folio), [10, 11, 12]);
+  await real.subidasTerminadas();
   assert.equal(subidas, 1);
-  assert.deepEqual(primeras.map(f => [f.folio, f.estadoSii]), [[10, 'recibido'], [11, 'recibido'], [12, 'recibido']]);
-  assert.equal(new Set(primeras.map(f => f.trackId)).size, 1);
+  const subidasYa = red.estadoDeLaRed().documentos.filter(d => d.tipo === 33);
+  assert.deepEqual(subidasYa.map(d => [d.folio, d.estadoSii]), [[10, 'recibido'], [11, 'recibido'], [12, 'recibido']]);
+  assert.equal(new Set(subidasYa.map(d => d.trackId)).size, 1, 'un solo sobre: el mismo track id para todas');
 
   await red.reiniciarDemo();
   await unir('Dani', 4);
   await red.cerrarLicitacion('L-1');
   assert.deepEqual((await red.confirmarOrdenesDeLicitacion('L-1')).map(f => f.folio), [13]);
+  await real.subidasTerminadas();
   assert.equal((await folios.buscar(33, 10))?.estado, 'recibido', 'el reinicio no toca los folios');
 });
 

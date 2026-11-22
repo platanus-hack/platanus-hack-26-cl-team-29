@@ -121,7 +121,7 @@ function Cabecera() {
   );
 }
 
-const TONO_SII: Record<string, TonoEstado> = { aceptado: 'exito', recibido: 'info', reparo: 'aviso', rechazado: 'error', fallido: 'error' };
+const TONO_SII: Record<string, TonoEstado> = { aceptado: 'exito', enviando: 'info', recibido: 'info', reparo: 'aviso', rechazado: 'error', fallido: 'error' };
 
 function Parada({ parada: p, config }: { parada: ParadaReparto; config: ConfigRed | null }) {
   const lleva = p.items.map(i => {

@@ -6,11 +6,13 @@ import { timbrar } from './timbre.ts';
 import type {
   DocumentoEmitido,
   DocumentoImpreso,
+  DocumentoPreparado,
   Emisor,
   EntradaFactura,
   EntradaGuia,
   EntradaNotaCredito,
   Item,
+  LotePreparado,
   OrdenCompra,
   Receptor,
   ResultadoEmision,
@@ -263,16 +265,32 @@ const base = (tipo: 33 | 52 | 61, e: EntradaFactura | EntradaGuia | EntradaNotaC
  * Las cuatro formas de emitir sobre un emisor de lotes (real o falso). Un documento suelto va solo en su sobre:
  * así un rechazo o un corte afecta a un solo folio.
  */
-export function emisiones(emitirLote: (entradas: readonly Omit<EntradaDte, 'emisor'>[]) => Promise<ResultadoLote>) {
+/**
+ * Los métodos de emisión del SII a partir de uno que arma y firma un sobre sin subirlo (`prepararLote`). Cada tipo
+ * tiene su `preparar*` (armado y firmado, la subida queda en `subir()`) y su `emitir*` (prepara y sube de una vez).
+ */
+export function emisiones(prepararLote: (entradas: readonly Omit<EntradaDte, 'emisor'>[]) => Promise<LotePreparado>) {
+  async function preparar(entrada: Omit<EntradaDte, 'emisor'>): Promise<DocumentoPreparado> {
+    const { documentos, sobreXml, subir } = await prepararLote([entrada]);
+    return { documento: documentos[0]!, sobreXml, subir };
+  }
+  async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]): Promise<ResultadoLote> {
+    const { documentos, sobreXml, subir } = await prepararLote(entradas);
+    return { documentos, sobreXml, envio: await subir() };
+  }
   async function emitir(entrada: Omit<EntradaDte, 'emisor'>): Promise<ResultadoEmision> {
-    const { documentos, envio, sobreXml } = await emitirLote([entrada]);
-    return { documento: documentos[0]!, envio, sobreXml };
+    const { documento, sobreXml, subir } = await preparar(entrada);
+    return { documento, sobreXml, envio: await subir() };
   }
   return {
     emitirFactura: (e: EntradaFactura) => emitir(aDte.factura(e)),
     emitirFacturas: (entradas: readonly EntradaFactura[]) => emitirLote(entradas.map(aDte.factura)),
     emitirGuia: (e: EntradaGuia) => emitir(aDte.guia(e)),
     emitirNotaCredito: (e: EntradaNotaCredito) => emitir(aDte.notaCredito(e)),
+    prepararFactura: (e: EntradaFactura) => preparar(aDte.factura(e)),
+    prepararFacturas: (entradas: readonly EntradaFactura[]) => prepararLote(entradas.map(aDte.factura)),
+    prepararGuia: (e: EntradaGuia) => preparar(aDte.guia(e)),
+    prepararNotaCredito: (e: EntradaNotaCredito) => preparar(aDte.notaCredito(e)),
   };
 }
 
