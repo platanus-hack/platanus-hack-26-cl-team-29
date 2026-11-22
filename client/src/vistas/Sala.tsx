@@ -219,7 +219,8 @@ function Factura({ f }: { f: FacturaSala }) {
 
 /** `GET /api/pagos/resumen`: la plata de la ronda, sin nombres. */
 interface ResumenPagos {
-  pagadoAProveedores: number;
+  aProveedores: number;
+  transferido: number;
   creditos: number;
   negocios: number;
   plazos: number[];
@@ -227,14 +228,14 @@ interface ResumenPagos {
   ambiente: 'falsa' | 'integracion' | 'produccion';
 }
 
-/** El cierre del flujo de plata: Bando paga al proveedor al facturar y los negocios pagan a plazo. Se recarga con cada `credito.*`. */
+/** El cierre del flujo de plata: Bando le paga al proveedor (el equipo transfiere) y los negocios pagan a plazo. Se recarga con cada `credito.*`. */
 function PlataDeLaCompra({ eventos, fuente }: { eventos: EventoVisto[]; fuente: Fuente }) {
   const clave = eventos.find(e => e.tipo.startsWith('credito.'))?.clave;
   const { datos: p } = useJson<ResumenPagos>(fuente === 'real' ? '/api/pagos/resumen' : null, clave);
   if (!p?.creditos) return null;
   return (
     <div className="sala-plata" role="status">
-      <p>Bando le pagó <strong className="amarillo">{dinero(p.pagadoAProveedores)}</strong> a los proveedores al instante</p>
+      <p>Bando le paga <strong className="amarillo">{dinero(p.aProveedores)}</strong> a los proveedores{p.transferido > 0 ? `, ${p.transferido >= p.aProveedores ? 'ya transferido' : `${dinero(p.transferido)} ya transferido`}` : ' hoy'}</p>
       <p>{contar(p.negocios, 'negocio')} {p.negocios === 1 ? 'paga' : 'pagan'} {p.plazos.length ? `a ${enumerar(p.plazos.map(String))} días` : 'con su tarjeta'}</p>
       {p.cobrado > 0 && <p className="verde">Ya cobrado en sus tarjetas: {dinero(p.cobrado)}</p>}
       {p.ambiente !== 'produccion' && <p className="sala-demo">Pagos de prueba: no se mueve plata real.</p>}

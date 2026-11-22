@@ -471,3 +471,9 @@
 .cn-pedir-tarjeta h3 { margin: 0; font-size: 22px; }
 .cn-pedir-tarjeta p { margin: 0; font-size: 14px; line-height: 1.5; }
 .cn-pedir-tarjeta .boton { width: 100%; }
+/* Cuenta del proveedor para recibir los pagos de Bando */
+.cn-cuenta { padding: 20px; }
+.cn-cuenta select {
+  font: inherit; font-size: 18px; color: var(--color-text); background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: 12px; padding: 12px 16px; width: 100%;
+}

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import type { LineaCredito } from '../../../shared/credito.ts';
 import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero } from '../../../shared/formato.ts';
+import { BANCOS, TIPOS_CUENTA, validarCuenta } from '../../../shared/cuenta-bancaria.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
 import { Icono } from './iconos.tsx';
@@ -33,8 +34,10 @@ interface ResumenCredito {
   exigeTarjeta: boolean;
 }
 
-const pedir = async <T,>(url: string, token: string, metodo = 'GET'): Promise<T> => {
-  const res = await fetch(url, { method: metodo, headers: { authorization: `Bearer ${token}` } });
+const pedir = async <T,>(url: string, token: string, metodo = 'GET', cuerpo?: unknown): Promise<T> => {
+  const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+  if (cuerpo !== undefined) headers['content-type'] = 'application/json';
+  const res = await fetch(url, { method: metodo, headers, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
   const datos = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(datos.mensaje ?? 'No pudimos traer tu crédito.');
   return datos as T;
@@ -180,35 +183,88 @@ export function PedirTarjeta({ token }: { token: string }) {
 const PAGOS_A_LA_VISTA = 5;
 
 /** /proveedor: lo que Bando le pagó al proveedor por cada factura, al instante. Sin datos del comprador. */
+interface PagoDeBando { documentoId: string; monto: number; en: string; transferido: boolean }
+
+/**
+ * Panel del proveedor: lo que Bando le paga por cada factura (por recibir o transferido) y la cuenta donde lo recibe.
+ * Bando transfiere desde el banco y lo marca; recién ahí cuenta como recibido.
+ */
 export function BandoTePago({ api, token, documentos, cambio }: { api: CanalApi; token: string; documentos: Documento[]; cambio: number }) {
-  const [pagos, setPagos] = useState<{ documentoId: string; monto: number; en: string }[]>([]);
+  const [datos, setDatos] = useState<{ pagos: PagoDeBando[]; cuenta: string | null } | null>(null);
+  const [editando, setEditando] = useState(false);
   useEffect(() => {
     if (api.modo !== 'real') return;
     let activo = true;
-    pedir<{ pagos: typeof pagos }>('/api/pagos/proveedor', token)
-      .then(d => { if (activo) setPagos(d.pagos); })
+    pedir<{ pagos: PagoDeBando[]; cuenta: string | null }>('/api/pagos/proveedor', token)
+      .then(d => { if (activo) setDatos(d); })
       .catch(() => {});
     return () => { activo = false; };
   }, [api.modo, token, cambio]);
 
-  if (!pagos.length) return null;
+  if (!datos) return null;
+  const { pagos, cuenta } = datos;
   const folio = (documentoId: string) => documentos.find(d => d.id === documentoId)?.folio;
-  const total = pagos.reduce((s, p) => s + p.monto, 0);
+  const porRecibir = pagos.filter(p => !p.transferido).reduce((s, p) => s + p.monto, 0);
   return (
     <section className="cn-seccion">
       <h2 className="cn-titulo"><Icono nombre="tarjeta" /> Pagos de Bando</h2>
-      <ul className="tarjeta cn-documentos">
-        {pagos.slice(0, PAGOS_A_LA_VISTA).map(p => (
-          <li key={p.documentoId}>
-            <Icono nombre="documento" />
-            <div className="cn-doc-izq">
-              <strong>Bando te pagó {dinero(p.monto)} al instante</strong>
-              <span className="mono tenue nombre">{folio(p.documentoId) ? `Factura ${folio(p.documentoId)} · ` : ''}{fechaCorta(p.en)}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <p className="mono tenue cn-texto">{contar(pagos.length, 'pago')} por {dinero(total)} en total. El negocio le paga a Bando a plazo; tú no esperas.</p>
+      {cuenta && !editando
+        ? <p className="mono cn-texto">Recibes en tu {cuenta}. <button type="button" className="cn-boton-texto" onClick={() => setEditando(true)}>Cambiar</button></p>
+        : <CuentaParaRecibir token={token} alGuardar={c => { setDatos({ ...datos, cuenta: c }); setEditando(false); }} />}
+      {pagos.length > 0 && (
+        <ul className="tarjeta cn-documentos">
+          {pagos.slice(0, PAGOS_A_LA_VISTA).map(p => (
+            <li key={p.documentoId}>
+              <Icono nombre="documento" />
+              <div className="cn-doc-izq">
+                <strong>{p.transferido ? `Bando te transfirió ${dinero(p.monto)}` : `Por recibir ${dinero(p.monto)}`}</strong>
+                <span className="mono tenue nombre">{folio(p.documentoId) ? `Factura ${folio(p.documentoId)} · ` : ''}{fechaCorta(p.en)}</span>
+              </div>
+              <div className="cn-doc-der"><span className={`cn-chip ${p.transferido ? 'recibida' : ''}`}>{p.transferido ? 'transferido' : 'por transferir'}</span></div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {pagos.length > 0 && (
+        <p className="mono tenue cn-texto">{porRecibir ? `${dinero(porRecibir)} por recibir. ` : ''}El negocio le paga a Bando a plazo; tú no esperas sus 30 días.</p>
+      )}
     </section>
+  );
+}
+
+/** Formulario de la cuenta bancaria del proveedor. Se valida aquí y otra vez en el servidor, con la misma función. */
+function CuentaParaRecibir({ token, alGuardar }: { token: string; alGuardar: (cuentaCorta: string) => void }) {
+  const [c, setC] = useState({ banco: '', tipo: '', numero: '', rutTitular: '', titular: '' });
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const campo = (k: keyof typeof c) => (e: { target: { value: string } }) => setC({ ...c, [k]: e.target.value });
+  const guardar = async (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+    const valida = validarCuenta(c);
+    if (typeof valida === 'string') return setError(valida);
+    setGuardando(true);
+    try {
+      alGuardar((await pedir<{ cuenta: string }>('/api/pagos/proveedor/cuenta', token, 'PUT', valida)).cuenta);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+  return (
+    <form className="tarjeta formulario cn-cuenta" onSubmit={guardar}>
+      <p className="mono cn-texto">¿Dónde te transferimos? Bando te paga cada factura sin esperar el plazo del comprador.</p>
+      <label className="campo"><span>Banco</span>
+        <select value={c.banco} onChange={campo('banco')}><option value="">Elige tu banco</option>{BANCOS.map(b => <option key={b}>{b}</option>)}</select>
+      </label>
+      <label className="campo"><span>Tipo de cuenta</span>
+        <select value={c.tipo} onChange={campo('tipo')}><option value="">Elige el tipo</option>{Object.entries(TIPOS_CUENTA).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select>
+      </label>
+      <label className="campo"><span>Número de cuenta</span><input inputMode="numeric" autoComplete="off" value={c.numero} onChange={campo('numero')} /></label>
+      <label className="campo"><span>RUT del titular</span><input autoComplete="off" value={c.rutTitular} onChange={campo('rutTitular')} placeholder="12.345.678-5" /></label>
+      <label className="campo"><span>Nombre del titular</span><input autoComplete="off" value={c.titular} onChange={campo('titular')} /></label>
+      {error && <p className="error">{error}</p>}
+      <button type="submit" className="boton" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar cuenta'}</button>
+    </form>
   );
 }

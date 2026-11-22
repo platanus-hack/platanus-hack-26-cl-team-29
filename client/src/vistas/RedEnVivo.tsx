@@ -95,6 +95,7 @@ const ICONO_EVENTO: Partial<Record<TipoEventoRed, NombreIcono>> = {
   'licitacion.participante': 'tienda',
   'credito.otorgado': 'caja',
   'credito.cobrado': 'check',
+  'proveedor.pagado': 'check',
 };
 const EVENTO_SII = new Set<TipoEventoRed>(['documento.emitido', 'documento.actualizado', 'reclamo.registrado', 'nota_credito.emitida', 'licitacion.facturada', 'sii.folios']);
 

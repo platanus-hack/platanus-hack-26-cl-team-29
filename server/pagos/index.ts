@@ -7,6 +7,9 @@
 // ALL  /api/pagos/tarjeta/vuelta     → vuelta de Transbank (TBK_TOKEN) → /app#compra (web) o una página de listo (WhatsApp).
 // GET  /api/pagos/proveedor         → (sesión de proveedor) { pagos: { ordenId, documentoId, monto, en }[] }, sin datos del comprador.
 // GET  /api/pagos/resumen            → totales de la ronda para las pantallas, sin nombres ni RUT.
+// GET  /api/pagos/proveedor          → (sesión de proveedor) sus pagos de Bando y su cuenta (corta). PUT /proveedor/cuenta la guarda.
+// GET  /api/pagos/operacion/pagos    → (x-demo-token) lo que el equipo tiene que transferir a cada proveedor, con su cuenta.
+// POST /api/pagos/operacion/pagos/:id/transferido → (x-demo-token) { comprobante? }: se transfirió desde el banco.
 // POST /api/pagos/demo/cobrar        → (x-demo-token) cobra ya todo lo pendiente: adelanta el tiempo en la demo.
 // `red:evento`: credito.otorgado, credito.cobrado, tarjeta.inscrita. Por WhatsApp: al comprador (crédito, recordatorio 3 días
 // antes, cobro) y al proveedor (Bando te pagó). `exigirTarjeta` va en `antesDeEntrar` de la red: sin tarjeta no se entra a una
@@ -16,7 +19,8 @@ import type { Request, Response } from 'express';
 import type pg from 'pg';
 import { ivaDe } from '../../shared/precios.ts';
 import { puedeVender } from '../../shared/red.ts';
-import { crearLibro, tablaMemoria, tablaPostgres, type AvisoCredito, type Credito, type Libro, type Tabla, type Tarjeta } from './credito.ts';
+import { cuentaCorta, validarCuenta } from '../../shared/cuenta-bancaria.ts';
+import { crearLibro, tablaMemoria, tablaPostgres, type AvisoCredito, type Credito, type CuentaProveedor, type Libro, type Tabla, type Tarjeta } from './credito.ts';
 import { pasarelaDesdeEnv, type PasarelaTarjetas } from './oneclick.ts';
 import { ErrorRed, mismoSecreto, tokenPdf, tokenPdfValido, type Documento, type EventoRed, type Negocio, type Red, type Sesiones } from '../red/index.ts';
 import * as avisos from './avisos.ts';
@@ -32,6 +36,7 @@ const evento = (a: AvisoCredito): EventoRed => {
   const en = new Date().toISOString();
   if (a.tipo === 'tarjeta.inscrita') return { tipo: a.tipo, datos: {}, en };
   const c = a.credito;
+  if (a.tipo === 'proveedor.pagado') return { tipo: a.tipo, datos: { proveedorId: c.proveedorId, ordenId: c.ordenId, monto: c.monto }, en };
   const datos = { negocioId: c.negocioId, proveedorId: c.proveedorId, ordenId: c.ordenId, monto: c.monto, plazoDias: c.plazoDias, venceEn: c.venceEn };
   return { tipo: a.tipo, datos: a.tipo === 'credito.cobrado' ? { ...datos, ok: a.ok, estado: c.estado } : datos, en };
 };
@@ -47,14 +52,17 @@ export async function iniciarPagos(o: {
 }) {
   const env = o.env ?? process.env;
   let tablas: { tarjetas: Tabla<Tarjeta>; creditos: Tabla<Credito> } = { tarjetas: tablaMemoria(), creditos: tablaMemoria() };
+  let tablaCuentas: Tabla<CuentaProveedor> = tablaMemoria();
   if (o.db) {
     try {
       tablas = { tarjetas: await tablaPostgres(o.db, 'pagos_tarjetas'), creditos: await tablaPostgres(o.db, 'pagos_creditos') };
+      tablaCuentas = await tablaPostgres(o.db, 'pagos_cuentas');
     } catch (error) {
       console.error('[pagos] no se pudo usar Postgres, el crédito queda en memoria', error);
     }
   }
   const pasarela = o.pasarela ?? pasarelaDesdeEnv(env);
+  const cuentas = new Map((await tablaCuentas.todos()).map(c => [c.id, c]));
   const libro: Libro = await crearLibro({
     ...tablas, pasarela,
     avisar: a => {
@@ -81,10 +89,16 @@ export async function iniciarPagos(o: {
     }
     const c = a.credito;
     const comprador = o.red.negocioPorId(c.negocioId)?.telefono;
+    const folio = () => o.red.estadoDeLaRed().documentos.find(d => d.id === c.documentoId)?.folio ?? null;
+    const proveedor = o.red.negocioPorId(c.proveedorId)?.telefono;
     if (a.tipo === 'credito.otorgado') {
       enviar(comprador, avisos.creditoOtorgado(datosDe(c)));
-      const folio = o.red.estadoDeLaRed().documentos.find(d => d.id === c.documentoId)?.folio ?? null;
-      return enviar(o.red.negocioPorId(c.proveedorId)?.telefono, avisos.pagoAlProveedor({ monto: c.monto, folio }));
+      const panel = `${(env.PUBLIC_URL ?? '').replace(/\/+$/, '')}/proveedor`;
+      return enviar(proveedor, avisos.pagoPorTransferir({ monto: c.monto, folio: folio(), conCuenta: cuentas.has(c.proveedorId), panel }));
+    }
+    if (a.tipo === 'proveedor.pagado') {
+      const cuenta = cuentas.get(c.proveedorId);
+      return enviar(proveedor, avisos.pagoTransferido({ monto: c.monto, folio: folio(), cuenta: cuenta ? cuentaCorta(cuenta) : null }));
     }
     enviar(comprador, a.ok
       ? avisos.cobrado({ ...datosDe(c), disponible: libro.resumen(c.rut).disponible, subioA: a.subioA })
@@ -166,18 +180,53 @@ export async function iniciarPagos(o: {
       if (desdeWhatsapp.delete(token)) return void res.type('html').send(paginaListo(ok));
       res.redirect(303, `/app?tarjeta=${ok ? 'ok' : 'error'}#${ok ? 'compra' : 'credito'}`);
     });
-    r.get('/proveedor', (req, res) => {
+    /** El proveedor con sesión, o responde 401. */
+    const proveedor = (req: Request, res: Response) => {
       const n = deSesion(req);
-      if (!n || !puedeVender(n)) return void res.status(401).json({ error: 'no_autorizado', mensaje: 'Necesitas iniciar sesión como proveedor' });
-      res.json({ pagos: libro.pagosAlProveedor(n.id) });
+      if (!n || !puedeVender(n)) res.status(401).json({ error: 'no_autorizado', mensaje: 'Necesitas iniciar sesión como proveedor' });
+      return n && puedeVender(n) ? n : null;
+    };
+    r.get('/proveedor', (req, res) => {
+      const n = proveedor(req, res);
+      const cuenta = n && cuentas.get(n.id);
+      if (n) res.json({ pagos: libro.pagosAlProveedor(n.id), cuenta: cuenta ? cuentaCorta(cuenta) : null });
+    });
+    r.put('/proveedor/cuenta', (req, res) => {
+      const n = proveedor(req, res);
+      if (!n) return;
+      const cuenta = validarCuenta(req.body ?? {});
+      if (typeof cuenta === 'string') return void res.status(400).json({ error: 'datos_invalidos', mensaje: cuenta });
+      const guardada: CuentaProveedor = { id: n.id, ...cuenta, en: new Date().toISOString() };
+      cuentas.set(n.id, guardada);
+      tablaCuentas.guardar(guardada).catch(error => console.error('[pagos] no se pudo guardar la cuenta', error));
+      res.json({ cuenta: cuentaCorta(guardada) });
+    });
+    /** Las rutas del equipo y del presentador: con x-demo-token. */
+    const exigirToken = (req: Request, res: Response): boolean => {
+      if (!env.DEMO_TOKEN) return void res.status(404).json({ error: 'no_encontrado', mensaje: 'Ruta no disponible' }), false;
+      if (!mismoSecreto(req.get('x-demo-token'), env.DEMO_TOKEN)) return void res.status(403).json({ error: 'token_invalido', mensaje: 'El token no coincide' }), false;
+      return true;
+    };
+    const filaDePago = (c: Credito) => ({
+      id: c.id, proveedorId: c.proveedorId, proveedor: o.red.negocioPorId(c.proveedorId)?.nombre ?? 'Proveedor', monto: c.monto,
+      folio: o.red.estadoDeLaRed().documentos.find(d => d.id === c.documentoId)?.folio ?? null,
+      otorgadoEn: c.otorgadoEn, pagadoAlProveedorEn: c.pagadoAlProveedorEn ?? null, comprobante: c.comprobante ?? null,
+      cuenta: cuentas.get(c.proveedorId) ?? null,
+    });
+    r.get('/operacion/pagos', (req, res) => {
+      if (exigirToken(req, res)) res.json({ porTransferir: libro.porTransferir().map(filaDePago), transferidos: libro.transferidos().map(filaDePago) });
+    });
+    r.post('/operacion/pagos/:id/transferido', async (req, res) => {
+      if (!exigirToken(req, res)) return;
+      const c = await libro.marcarTransferido(String(req.params.id), String(req.body?.comprobante ?? ''));
+      if (!c) return void res.status(409).json({ error: 'transicion_invalida', mensaje: 'Ese pago no existe o ya estaba transferido.' });
+      res.json(filaDePago(c));
     });
     r.get('/resumen', (_req, res) => {
       res.json({ ...libro.totales(new Set(o.red.estadoDeLaRed().negocios.map(n => n.id))), ambiente: pasarela.ambiente });
     });
     r.post('/demo/cobrar', async (req, res) => {
-      if (!env.DEMO_TOKEN) return void res.status(404).json({ error: 'no_encontrado', mensaje: 'Ruta no disponible' });
-      if (!mismoSecreto(req.get('x-demo-token'), env.DEMO_TOKEN)) return void res.status(403).json({ error: 'token_invalido', mensaje: 'x-demo-token no coincide' });
-      res.json(await libro.cobrarVencidos(true));
+      if (exigirToken(req, res)) res.json(await libro.cobrarVencidos(true));
     });
     return r;
   }

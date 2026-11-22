@@ -10,6 +10,7 @@ const ENLACES = [
   { ruta: '/app', nombre: 'Mi negocio', detalle: 'Comprador por web' },
   { ruta: '/proveedor', nombre: 'Proveedor', detalle: 'Panel del proveedor' },
   { ruta: '/proveedores', nombre: 'Proveedores', detalle: 'Buscador: red y Mercado Público' },
+  { ruta: '/pagos', nombre: 'Pagos a proveedores', detalle: 'Equipo: transferir y marcar' },
   { ruta: '/unirse', nombre: 'Sumarse', detalle: 'Página del QR en el celular' },
 ] as const;
 
