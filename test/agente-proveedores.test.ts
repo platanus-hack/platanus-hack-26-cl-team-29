@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { conectarAgente, type OpcionesAgente } from '../server/agente/index.ts';
 import { crearAlmacenBorradoresMemoria } from '../server/agente/borradores.ts';
+import { NADA_PENDIENTE } from '../server/agente/mensajes.ts';
 import type { ListaDeProductos } from '../server/agente/proveedor.ts';
 import { sugerirProductos, type ProductoConocido } from '../shared/productos.ts';
 import { interpretarConReglas, interpreteDeReglas } from '../server/agente/intencion.ts';
@@ -340,4 +341,26 @@ test('una pregunta pendiente sobrevive a un reinicio (deploy): el "sí" de despu
   t.after(() => despues.agente.desconectar());
   await despues.escribir(CARO, 'si');
   assert.match(despues.ultimo(CARO), /abriste una compra en grupo de "Servilletas de papel" con tus 10/);
+});
+
+test('"¿Las facturo todas?" no se vuelve a preguntar si la compra ya se facturó desde el panel', async t => {
+  const { red, agente, escribir, de, ultimo } = await montar();
+  t.after(() => agente.desconectar());
+  const caro = await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+  await red.cerrarLicitacion(red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta')!.id);
+  const ana = await red.registrarProveedor({ telefono: ANA, rut: '76.086.428-5' });
+  const l = await red.abrirSolicitud({ compradorId: caro.id, producto: 'Servilletas de papel', unidad: 'paquete', cantidad: 10 });
+  await red.ofertar(l.id, { proveedorId: ana.id, productoId: l.productos[0]!.id, precioUnitario: 900, plazoDias: 1 });
+  await escribir(CARO, 'cerrar la compra');
+  await escribir(CARO, 'si');
+  await esperar(30);
+  const preguntas = () => de(ANA).filter(x => /¿Las facturo todas en el SII\?/.test(x)).length;
+  assert.equal(preguntas(), 1, 'al cerrar, el proveedor recibe la pregunta');
+
+  // La factura desde el panel: la pregunta ya no está, ni para un "sí" ni detrás de otra cosa que escriba.
+  await red.confirmarOrdenesDeLicitacion(l.id);
+  await escribir(ANA, 'si');
+  assert.equal(ultimo(ANA), NADA_PENDIENTE);
+  await escribir(ANA, 'hola');
+  assert.equal(preguntas(), 1, 'ya facturada: no se repite');
 });
