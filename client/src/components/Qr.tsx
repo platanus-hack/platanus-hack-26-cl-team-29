@@ -14,7 +14,7 @@ export function Qr({ texto, className }: { texto: string; className?: string }) 
   }, [texto]);
   return (
     <svg className={className} viewBox={`0 0 ${tam} ${tam}`} shapeRendering="crispEdges" role="img" aria-label={`Código QR: ${texto}`}>
-      <path d={camino} fill="#000" />
+      <path d={camino} style={{ fill: 'var(--bando-tinta)' }} />
     </svg>
   );
 }

@@ -1,6 +1,7 @@
 import { Fragment, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
-import { Icono, LogoSii, Monograma, type NombreIcono } from '../components/Iconos.tsx';
+import { Icono, Monograma, type NombreIcono } from '../components/Iconos.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import {
   cicloDeOrden, contadores, describirEvento, detalleEvento, licitacionActual, negocioPorId, ordenActual, ranking, totalesCanasta, unidadDeLicitacion,

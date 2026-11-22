@@ -76,7 +76,7 @@
   animation: r3d-evento 3.2s ease-out both;
 }
 .r3d-evento.pedido { --franja: var(--bando-miel); }
-.r3d-evento.venta { --franja: var(--color-sii); }
+.r3d-evento.venta { --franja: var(--bando-sii); }
 .r3d-evento.reclamo, .r3d-evento.baja { --franja: var(--color-destructive); }
 .r3d-evento .feed-icono > .icono { color: var(--color-muted-foreground); }
 @keyframes r3d-evento {
@@ -85,7 +85,7 @@
   to { opacity: 0; transform: translateY(-6px); }
 }
 
-.r3d .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--color-background) 80%, transparent); color: var(--color-faint-fg); font-size: 10px; }
+.r3d .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--color-background) 80%, transparent); color: var(--color-faint-fg); font-size: var(--text-xs); }
 .r3d .maplibregl-ctrl-attrib a { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -101,7 +101,7 @@
 }
 .r3d-marca .monograma { width: 32px; height: 32px; font-size: 13px; }
 .r3d-marca.izquierda { left: auto; right: 14px; }
-.r3d-logo { width: 84px; height: 32px; flex-shrink: 0; display: grid; place-items: center; background: #fff; border-radius: var(--radius-md); }
+.r3d-logo { width: 84px; height: 32px; flex-shrink: 0; display: grid; place-items: center; border-radius: var(--radius-md); }
 .r3d-logo img { max-width: 72px; max-height: 24px; object-fit: contain; }
 .r3d-video .r3d-evento { font-size: 16px; }
 .r3d-video .r3d-evento .monograma { width: 1.9em; height: 1.9em; }

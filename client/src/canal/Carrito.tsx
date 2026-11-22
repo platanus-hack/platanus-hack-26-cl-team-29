@@ -10,7 +10,8 @@ import {
   aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, crearEnvio, desdeItems, fijar, mismoCarrito, pistaTramo, productosDe, proyectar,
   resumirCarrito, textoCantidades, una, type Carrito, type Envio, type ProductoCanasta,
 } from './carrito.ts';
-import { Icono, iconoDeProducto, LogoSii } from './iconos.tsx';
+import { Icono, iconoDeProducto } from './iconos.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { Confirmar, useEnvio } from './piezas.tsx';
 import type { FacturaA, LicitacionCanal, Participacion } from './tipos.ts';
 

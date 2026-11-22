@@ -33,10 +33,6 @@ export function Icono({ nombre, className = '' }: { nombre: NombreIcono; classNa
 }
 
 /** Logo del SII: marca lo que quedó registrado oficialmente. Indica la conexión, no es una pantalla del SII. */
-export function LogoSii({ className = '' }: { className?: string }) {
-  return <img className={`logo-sii ${className}`} src="/logos/sii.svg" alt="SII" />;
-}
-
 const RUBROS: Array<[RegExp, NombreIcono]> = [
   [/^(panader[ií]a|amasander[ií]a)/i, 'pan'],
   [/^cafeter[ií]a/i, 'taza'],
@@ -83,7 +79,8 @@ export function tonoDe(nombre: string): number {
   return h % 360;
 }
 
-const colorDe = (nombre: string): string => `hsl(${tonoDe(nombre)} 70% 62%)`;
+/** Color estable del monograma de un negocio (una sola fórmula para toda la app). */
+export const colorDeMonograma = (nombre: string): string => `hsl(${tonoDe(nombre)} 55% 62%)`;
 
 /**
  * Avatar de tamaño fijo: el logo si lo hay; si no, el ícono del rubro o las iniciales, sobre un color estable.
@@ -92,7 +89,7 @@ const colorDe = (nombre: string): string => `hsl(${tonoDe(nombre)} 70% 62%)`;
 export function Monograma({ nombre, logoUrl, rubro = false, className = '' }: { nombre: string; logoUrl?: string; rubro?: boolean | string; className?: string }) {
   if (logoUrl) return <span className={`monograma con-logo ${className}`}><img src={logoUrl} alt="" /></span>;
   const icono = typeof rubro === 'string' ? ICONO_RUBRO[rubro] ?? rubroDe(nombre) : rubro ? rubroDe(nombre) : undefined;
-  const estilo: CSSProperties = { background: colorDe(nombre) };
+  const estilo: CSSProperties = { background: colorDeMonograma(nombre) };
   return (
     <span className={`monograma ${className}`} style={estilo} aria-hidden="true">
       {icono ? <Icono nombre={icono} /> : iniciales(nombre)}

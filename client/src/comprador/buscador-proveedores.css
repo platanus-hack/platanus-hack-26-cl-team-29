@@ -45,7 +45,7 @@
 .pv-cifras { display: grid; gap: 20px; margin-top: 8px; }
 .pv-cifra { min-width: 0; padding-top: 12px; border-top: 3px solid var(--color-border); }
 .pv-cifra-volt { border-top-color: var(--bando-miel); }
-.pv-cifra-sii { border-top-color: var(--color-sii); }
+.pv-cifra-sii { border-top-color: var(--bando-sii); }
 .pv-cifra-magenta { border-top-color: var(--bando-oliva); }
 .pv-cifra-valor {
   margin: 6px 0 0; font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; letter-spacing: var(--tracking-tight);

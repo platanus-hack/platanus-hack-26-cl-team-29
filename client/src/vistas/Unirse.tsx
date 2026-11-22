@@ -1,6 +1,6 @@
 // /unirse: la página del QR. La primera vez se entra con el número de WhatsApp y un código (y, si el número es nuevo,
 // el nombre y el RUT del negocio); después muestra el carrito de la canasta. Quien vuelve ve su carrito de inmediato.
-// Con la marca Bando (DESIGN.md): el carrito y el botón de WhatsApp aún son piezas anteriores, en `.puente-legado`.
+// Con la marca Bando (DESIGN.md).
 
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
@@ -85,11 +85,11 @@ export function Unirse() {
         <EstadoVacio ilustracion={ICONO_FLUJO.comprarEnGrupo} titulo="Esta compra en grupo ya cerró"
           texto="Te avisamos cuando parta la próxima." />
       ) : !yo ? (
-        <div className="puente-legado"><CargandoCuenta error={error} texto="Cargando tu carrito..." onSalir={salir} /></div>
+        <CargandoCuenta error={error} texto="Cargando tu carrito..." onSalir={salir} />
       ) : (
         <>
           <p className="bm-bajada">Comprando como <strong>{yo.negocio.nombre}</strong></p>
-          <div className="puente-legado bm-unirse-carrito">
+          <div className="bm-unirse-carrito">
             <FacturaANombre factura={yo.facturaA} />
             <CarritoCompra api={api} token={token} lic={lic} negocioId={yo.negocio.id} participacion={mia} abierta={abierta} />
             <BotonWhatsapp numero={config?.whatsappNumero} />

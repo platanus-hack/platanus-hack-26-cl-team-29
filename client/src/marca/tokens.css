@@ -1,10 +1,9 @@
 /* Bando: tokens del kit de marca v1. Reglas de uso en DESIGN.md.
 
-   Dos capas, para migrar vista por vista sin romper las que aún no se rediseñan:
-   - Marca (`--bando-*`): globales. Ningún estilo anterior usa estos nombres.
-   - Producto (neutros, tipografía, forma): solo dentro de `.bando-ui`. Usan los mismos nombres que la interfaz
-     oscura actual (`--color-primary`, `--color-border`...), así que una vista rediseñada se envuelve en `.bando-ui`
-     y hereda la paleta nueva sin tocar las demás. */
+   Una sola interfaz, la de la marca, en toda la app:
+   - Marca (`--bando-*`) y fundamentos (espacio, sombra, movimiento, capas): globales.
+   - Producto (neutros, estados, tipografía, forma): en `:root`, en claro por defecto y en oscuro con `data-tema`.
+     `.bando-ui` es la superficie de producto (fondo, texto e Inter); `.bando-proyeccion`, la de pantalla grande. */
 
 :root {
   --bando-miel: #E2B031;          /* rellenos, progreso, ícono. Nunca texto sobre blanco */
@@ -20,7 +19,8 @@
   --bando-tinta: #1D1D1F;         /* texto sobre miel */
   --bando-fondo-ilustracion: #FCF4DC; /* contorno de ilustraciones en modo oscuro */
   --bando-sii: #0061A0;           /* azul del SII: solo lo que queda registrado en el SII */
-  --bando-sobre-sii: #FFFFFF;     /* texto y fondo del logo sobre el azul del SII */
+  --bando-sobre-sii: #FFFFFF;     /* texto sobre el azul del SII (y sobre el rojo de "en vivo") */
+  --whatsapp: #25D366;            /* marca de tercero: solo el botón "Pedir por WhatsApp" */
 
   /* Fundamentos (DESIGN.md, "Fundamentos"). Globales y neutros: valen en claro, oscuro y proyección. */
 
@@ -68,9 +68,10 @@
   }
 }
 
-.bando-ui {
+:root, .bando-ui {
   /* Neutros */
   --color-background: #FFFFFF;
+  --color-surface: #FFFFFF;        /* tarjetas sobre el lienzo */
   --color-foreground: #000000;
   --color-muted: #F4F1E7;          /* lateral */
   --color-secondary: #F6F4EF;      /* bloques de apoyo */
@@ -111,34 +112,28 @@
   --control-height: 36px;
   --border-width: 0.8px;
 
+  /* Escala en pantalla de las vistas en vivo (/red, /mapa, /licitacion): crece con el alto de la ventana. */
+  --hueco: clamp(12px, 2vh, 28px);
+  --relleno: clamp(16px, 2.6vh, 32px);
+  --t-etiqueta: clamp(12px, 1.45vh, 16px);
+  --t-cuerpo: clamp(14px, 2vh, 22px);
+  --t-fila: clamp(15px, min(2.5vh, 1.7vw), 28px);
+}
+body, .bando-ui {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-base);
-}
-
-/* Puente temporal: una sección de la interfaz anterior dentro de una vista ya migrada. Les da a sus tokens viejos
-   valores de la marca (sobre todo `--color-muted`, que antes era un color de texto) para que no quede una isla oscura.
-   Se borra cuando la última sección anterior se rediseñe (DESIGN.md, "Cómo migrar"). */
-.bando-ui .puente-legado {
-  --color-background: #FFFFFF;
-  --color-surface: #FFFFFF;
-  --color-text: #000000;
-  --color-muted: #404040;
-  --color-tenue: #6E6A5E;
-  --color-green: var(--bando-oliva-texto);
-  --color-magenta: #EF4343;
-  --font-display: var(--font-sans);
-  --font-mono: var(--font-sans);
-  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Modo oscuro (DESIGN.md): carbón y crema, como el logo sobre oscuro. `data-tema` lo pone marca/tema.ts en <html>
    (sigue al sistema o lo que eligió la persona). La miel no cambia; los textos de marca se aclaran para leerse. */
-[data-tema='oscuro'] .bando-ui {
+[data-tema='oscuro'], [data-tema='oscuro'] .bando-ui {
   color-scheme: dark;
   --color-background: #1F201D;
+  --color-surface: #1F201D;
   --color-foreground: #F3EEE0;
   --color-muted: #161714;
   --color-secondary: #2A2B27;
@@ -154,13 +149,6 @@
   --bando-miel-50: #3A311C;
   --bando-crema: #2E2C25;
   --bando-fondo-crema: #2A2822;
-}
-[data-tema='oscuro'] .bando-ui .puente-legado {
-  --color-background: #1F201D;
-  --color-surface: #1F201D;
-  --color-text: #F3EEE0;
-  --color-muted: #CFC9B8;
-  --color-tenue: #A39D8C;
 }
 
 /* El logo sigue al modo (<Logo fondo="tema" />): cada modo solo esconde la versión que no usa, así el `display`
@@ -187,6 +175,7 @@
   --color-border: #34352E;
   --color-muted-foreground: #D6CFBC;
   --color-faint-fg: #A9A28F;       /* etiquetas: nunca más tenue que esto a distancia */
+  --color-surface: #23241F;        /* tarjetas: un tono sobre el lienzo */
   --color-primary: #E2B031;        /* en proyección la acción y el destacado son miel */
   --color-primary-foreground: #1D1D1F;
   --color-success: #4ADE80;
@@ -207,6 +196,9 @@
   --proy-etiqueta: clamp(14px, 1.7vh, 20px); /* MAYÚSCULAS con aire */
   --proy-margen: clamp(24px, 4vh, 64px);     /* borde de la pantalla */
   --proy-hueco: clamp(12px, 2vh, 32px);      /* entre bloques */
+  --hueco: var(--proy-hueco);
+  --t-etiqueta: var(--proy-etiqueta);
+  --t-cuerpo: var(--proy-cuerpo);
 
   --radius-xl: 16px;
   --radius-2xl: 24px;

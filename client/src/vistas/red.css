@@ -56,7 +56,7 @@
 .bando-ui .contador { padding: clamp(12px, 2vh, 28px); }
 .bando-ui .contador .numero-grande { font-size: clamp(28px, 4vh, 44px); line-height: 1.1; }
 .bando-ui .contador .etiqueta { margin-top: 0.8vh; font-size: var(--t-etiqueta); }
-.bando-ui .contador-fila .logo-sii { font-size: clamp(14px, 1.8vh, 20px); border: var(--border-width) solid var(--color-border); }
+.bando-ui .contador-fila .logo-sii { font-size: clamp(14px, 1.8vh, 20px); }
 
 /* ---------- Ranking de proveedores ---------- */
 .bando-ui .fila-ranking { line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; border-radius: var(--radius-lg); }
@@ -77,7 +77,7 @@
   border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-background);
 }
 .red-bando .paso.proveedor { --carril: var(--bando-oliva); }
-.red-bando .paso.sii { --carril: var(--color-sii); }
+.red-bando .paso.sii { --carril: var(--bando-sii); }
 .red-bando .paso .num { display: flex; align-items: center; gap: 6px; color: var(--color-faint-fg); }
 .red-bando .paso:not(.sii) .num::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--carril); flex-shrink: 0; }
 .red-bando .paso h3 { font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
@@ -86,7 +86,7 @@
 .red-bando .paso.omitido { opacity: 0.35; border-style: dashed; }
 .red-bando .paso.hecho { border-color: var(--carril); }
 .red-bando .paso.ultimo { border: 2px solid var(--carril); box-shadow: none; background: color-mix(in srgb, var(--carril) 10%, var(--color-background)); }
-.red-bando .paso.sii.hecho, .red-bando .paso.sii.ultimo { background: color-mix(in srgb, var(--color-sii) 12%, var(--color-background)); }
+.red-bando .paso.sii.hecho, .red-bando .paso.sii.ultimo { background: color-mix(in srgb, var(--bando-sii) 12%, var(--color-background)); }
 .red-bando .paso.sii.hecho p, .red-bando .paso.sii.ultimo p { color: var(--color-muted-foreground); }
 .red-bando .paso.sii .num { color: var(--color-faint-fg); }
 

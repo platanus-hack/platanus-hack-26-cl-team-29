@@ -3,12 +3,11 @@
 // Los estilos viven en marca/componentes.css y salen de tokens.css: funcionan en claro, oscuro y proyección.
 
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
-import { LOGO_SII } from './recursos.ts';
+import { LogoSii } from './LogoSii.tsx';
 
 const clases = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(' ');
 
 /** El logo del SII junto a toda acción o estado que queda registrado en el SII. */
-export const LogoSiiMarca = () => <img className="bm-logo-sii" src={LOGO_SII} alt="" />;
 
 /**
  * - `primario` (negro; crema en oscuro): la acción principal. Una por pantalla.
@@ -25,7 +24,7 @@ const claseBoton = (variante: VarianteBoton, ancho: boolean | undefined, extra?:
   ? clases('bm-boton-texto', extra)
   : clases('bm-boton', variante !== 'primario' && variante, ancho && 'bm-ancho', extra);
 
-const contenidoBoton = (variante: VarianteBoton, children: ReactNode) => <>{variante === 'sii' && <LogoSiiMarca />}{children}</>;
+const contenidoBoton = (variante: VarianteBoton, children: ReactNode) => <>{variante === 'sii' && <LogoSii />}{children}</>;
 
 export function Boton({ variante = 'primario', ancho, className, children, type = 'button', ...resto }: PropsBoton & ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button type={type} className={claseBoton(variante, ancho, className)} {...resto}>{contenidoBoton(variante, children)}</button>;
@@ -67,7 +66,7 @@ export type TonoEstado = 'neutro' | 'aviso' | 'info' | 'exito' | 'error' | 'sii'
 
 /** Una píldora que dice en qué va algo ("Por confirmar", "Aceptado por el SII"). No es un botón: no se toca. */
 export function Estado({ tono = 'neutro', children }: { tono?: TonoEstado; children: ReactNode }) {
-  return <span className={clases('bm-estado', tono !== 'neutro' && `bm-estado-${tono}`)}>{tono === 'sii' && <LogoSiiMarca />}{children}</span>;
+  return <span className={clases('bm-estado', tono !== 'neutro' && `bm-estado-${tono}`)}>{tono === 'sii' && <LogoSii />}{children}</span>;
 }
 
 /** La barra miel del grupo. `etiqueta` es lo que lee un lector de pantalla ("37 de 50 cajas"). */

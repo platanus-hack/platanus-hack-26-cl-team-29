@@ -41,7 +41,13 @@
 .bm-boton:disabled, .bm-boton[aria-disabled='true'] { opacity: 0.45; cursor: default; }
 .bm-boton.bm-ancho { width: 100%; font-size: 15px; }
 @media (min-width: 1024px) { .bm-boton { min-height: 36px; } .bm-boton.bm-ancho { min-height: 44px; } }
-.bm-logo-sii { width: 18px; height: 18px; flex-shrink: 0; border-radius: 3px; background: var(--bando-sobre-sii); padding: 1px; }
+.bm-boton .logo-sii { height: 16px; }
+
+/* ---------- Logo del SII (marca/LogoSii.tsx) ----------
+   Sin fondo ni baldosa (DESIGN.md, "Reglas"). Azul sobre claro; en blanco sobre el azul del SII, en oscuro y en proyección. */
+.logo-sii { height: 1.15em; width: auto; flex-shrink: 0; vertical-align: -0.22em; display: inline-block; }
+.bm-boton.sii .logo-sii, .bm-boton-sii .logo-sii, .bp-boton-sii .logo-sii, .paso.sii.hecho .logo-sii, .paso.sii.ultimo .logo-sii,
+[data-tema='oscuro'] .logo-sii, .bando-proyeccion .logo-sii { filter: brightness(0) invert(1); }
 
 .bm-boton-texto {
   appearance: none; border: 0; background: none; padding: var(--espacio-2) var(--espacio-1); min-height: 44px; font: inherit; font-size: var(--text-sm);
@@ -75,7 +81,7 @@
 .bm-estado-error, .bp-estado.reclamo { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }
 .bm-estado-sii { background: color-mix(in srgb, var(--bando-sii) 12%, transparent); color: var(--bando-sii); }
 [data-tema='oscuro'] .bm-estado-sii, .bando-proyeccion .bm-estado-sii { background: var(--bando-sii); color: var(--bando-sobre-sii); }
-.bm-estado .bm-logo-sii { width: 14px; height: 14px; }
+.bm-estado .logo-sii { height: 13px; }
 
 /* ---------- Progreso del grupo ---------- */
 .bm-barra { height: 8px; border-radius: var(--radius-full); background: var(--color-secondary); overflow: hidden; }

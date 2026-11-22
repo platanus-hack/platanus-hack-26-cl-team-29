@@ -11,7 +11,7 @@ import { ICONO_FLUJO } from '../marca/recursos.ts';
 import { BotonTema } from '../marca/BotonTema.tsx';
 import type { CanalApi } from './api.ts';
 import { TELEFONO_PROVEEDOR_FALSO } from './falso.ts';
-import { LogoSii } from './iconos.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
 import type { ConfigRed, DatosEntrada } from './tipos.ts';

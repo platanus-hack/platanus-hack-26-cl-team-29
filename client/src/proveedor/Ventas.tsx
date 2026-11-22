@@ -9,7 +9,8 @@ import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from '../canal/api.ts';
-import { Icono, iconoDeProducto, LogoSii, Monograma } from '../canal/iconos.tsx';
+import { Icono, iconoDeProducto, Monograma } from '../canal/iconos.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { estaAbierta, estaFacturada, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad } from '../canal/logica.ts';
 import { Confirmar, useConfirmacion } from '../canal/piezas.tsx';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, YoProveedor } from '../canal/tipos.ts';
@@ -104,7 +105,7 @@ function Fila({ icono, titulo, detalle, monto, accion, confirmacion }: {
       <div className="bp-fila-texto"><strong>{titulo}</strong><span>{detalle}</span></div>
       {monto !== undefined && <span className="bp-monto">{dinero(monto)}</span>}
       {accion}
-      {confirmacion && <div className="puente-legado bp-fila-confirmar">{confirmacion}</div>}
+      {confirmacion && <div className="bp-fila-confirmar">{confirmacion}</div>}
     </li>
   );
 }

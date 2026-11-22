@@ -8,7 +8,7 @@ import { fechaCorta, horaEnChile } from '../../../shared/fecha.ts';
 import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../shared/documentos.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { CanalApi } from './api.ts';
-import { LogoSii } from './iconos.tsx';
+import { LogoSii } from '../marca/LogoSii.tsx';
 import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
 import { useDatoEnVivo } from './useCanal.ts';

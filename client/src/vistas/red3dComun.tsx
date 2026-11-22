@@ -5,12 +5,12 @@ import type { Map as MapaLibre } from 'maplibre-gl';
 import { paleta, useMapaConTema, type Paleta } from '../mapa/base.ts';
 
 export type Color = [number, number, number, number];
-const rgb = (hex: string): Color => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).concat(255) as Color;
+const aColorDeck = (hex: string): Color => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).concat(255) as Color;
 export const conAlfa = (c: Color, a: number): Color => [c[0], c[1], c[2], Math.round(255 * Math.min(1, Math.max(0, a)))];
 
 /** La paleta de mapa/base.ts (tokens de marca) en RGB para deck.gl. */
 export type ColoresDeck = Record<keyof Paleta, Color>;
-const coloresDeck = (el: Element): ColoresDeck => Object.fromEntries(Object.entries(paleta(el)).map(([k, hex]) => [k, rgb(hex)])) as ColoresDeck;
+const coloresDeck = (el: Element): ColoresDeck => Object.fromEntries(Object.entries(paleta(el)).map(([k, hex]) => [k, aColorDeck(hex)])) as ColoresDeck;
 
 /**
  * Colores de deck.gl del modo actual, leídos del contenedor del mapa. Cuando cambia el modo claro u oscuro se vuelve a
