@@ -2,17 +2,14 @@
 // que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
 // mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Productos
 // están rediseñados; Reparto y Facturas van por el puente.
-
 import { useRef } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { nota } from '../../../shared/formato.ts';
-import type { Documento, Negocio } from '../red/tipos.ts';
 import { ConectarSii } from './ConectarSii.tsx';
 import { BandoTePago } from './MiCredito.tsx';
 import { RutaReparto } from './RutaReparto.tsx';
 import { estaAbierta, licitacionVigente } from './logica.ts';
-import { LogoSii } from './iconos.tsx';
-import { ListaDocumentos, Vacio } from './piezas.tsx';
+import { Vacio } from './piezas.tsx';
 import type { YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
@@ -23,6 +20,8 @@ import { Pedidos } from '../proveedor/Pedidos.tsx';
 import { Precios } from '../proveedor/Precios.tsx';
 import { Productos } from '../proveedor/Productos.tsx';
 import { Compras } from '../proveedor/Compras.tsx';
+import { Facturas } from '../comprador/Facturas.tsx';
+import { puedeComprar } from '../../../shared/red.ts';
 import { contarPorGrupo } from '../proveedor/pedidos.ts';
 import '../proveedor/proveedor.css';
 import './canal.css';
@@ -76,6 +75,9 @@ export function Proveedor() {
           {lic && <Precios {...props} lic={lic} yo={yo} />}
         </>
       )}
+      {seccion === 'facturas' && (
+        <Facturas api={api} token={token} cambio={cambio} negocios={foto.negocios} vende compra={puedeComprar(yo.proveedor)} vencer={vencer} />
+      )}
       {(seccion === 'reparto' || seccion === 'facturas') && (
         // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).
         <div className="puente-legado cn-contenido">
@@ -85,7 +87,6 @@ export function Proveedor() {
               <ConectarSii api={api} token={token} />
               <BandoTePago api={api} token={token} documentos={yo.documentos} cambio={cambio} />
               <MiNota yo={yo} />
-              <MisDocumentos yo={yo} comprador={comprador} />
             </>
           )}
         </div>
@@ -124,14 +125,3 @@ function MiNota({ yo }: { yo: YoProveedor }) {
   );
 }
 
-function MisDocumentos({ yo, comprador }: { yo: YoProveedor; comprador: (id: string) => Negocio | undefined }) {
-  const compradorDe = (d: Documento) => comprador(yo.ordenes.find(o => o.id === d.ordenId)?.compradorId ?? '')?.nombre ?? 'Cliente';
-  return (
-    <section className="cn-seccion">
-      <h2 className="cn-titulo"><LogoSii tam={22} /> Mis documentos en el SII</h2>
-      {yo.documentos.length
-        ? <ListaDocumentos documentos={yo.documentos} contraparte={compradorDe} />
-        : <p className="mono tenue cn-texto">Aquí aparecen tus facturas, guías y notas de crédito con su estado en el SII.</p>}
-    </section>
-  );
-}
