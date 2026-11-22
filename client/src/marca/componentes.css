@@ -75,7 +75,7 @@
   font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; white-space: nowrap;
   background: var(--color-secondary); color: var(--color-muted-foreground);
 }
-.bm-estado-aviso, .bp-estado.accion { background: color-mix(in srgb, var(--bando-miel) 22%, transparent); color: var(--bando-miel-texto); }
+.bm-estado-aviso, .bp-estado.accion { background: color-mix(in srgb, var(--bando-miel) 14%, transparent); color: var(--bando-miel-texto); }
 .bm-estado-info, .bp-estado.camino { background: color-mix(in srgb, var(--color-info) 14%, transparent); color: var(--color-info); }
 .bm-estado-exito, .bp-estado.listo { background: color-mix(in srgb, var(--bando-oliva) 18%, transparent); color: var(--bando-oliva-texto); }
 .bm-estado-error, .bp-estado.reclamo { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }

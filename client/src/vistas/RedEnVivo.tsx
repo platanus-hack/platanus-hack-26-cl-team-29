@@ -209,7 +209,7 @@ export function MiniLicitacion({ estado }: { estado: EstadoRed }) {
         <span className="numero-grande">{dinero(c.monto)}</span>
         <span className="tenue">neto</span>
       </div>
-      {c.ahorro > 0 && <p className="mini-lic-ahorro verde">la sala ahorra {dinero(c.ahorro)}</p>}
+      {c.ahorro > 0 && <p className="mini-lic-ahorro verde">el grupo ahorra {dinero(c.ahorro)}</p>}
       <p>{contar(c.negocios, 'negocio')} · {contar(c.unidades, unidad.singular, unidad.plural)}</p>
     </a>
   );
