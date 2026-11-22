@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CurvaPrecio } from '../components/CurvaPrecio.tsx';
 import { TableroCanasta, useProductoDestacado } from '../components/Canasta.tsx';
@@ -14,6 +15,8 @@ import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import type { EstadoRed, Fuente, Licitacion as LicitacionRed } from '../red/tipos.ts';
 import { useAhora, useRed } from '../red/useRed.ts';
+import { Logo } from '../marca/Logo.tsx';
+import './licitacion.css';
 
 function detalleOferta(o: OfertaVista): string {
   return `nota ${nota(o.nota)} · entrega en ${contar(o.plazoDias, 'día')}`;
@@ -23,6 +26,19 @@ function detalleOferta(o: OfertaVista): string {
 function motivoRiesgo(o: OfertaVista, mejor?: OfertaVista): string {
   if (!mejor || o.nota < mejor.nota) return `Más barato, pero nota ${nota(o.nota)}: pierde`;
   return `Más barato, pero entrega en ${contar(o.plazoDias, 'día')}: pierde`;
+}
+
+/**
+ * La marca en pantalla grande (DESIGN.md, "Modo proyección"): `.bando-proyeccion`, siempre oscura. Las piezas de
+ * proyección (tarjeta, numero-grande, escalera, curva, ofertas) viven en estilos.css con los tokens anteriores;
+ * licitacion.css se los da con los valores de la marca.
+ */
+function Proyeccion({ className = '', children }: { className?: string; children: ReactNode }) {
+  return (
+    <div className="bando-proyeccion lic-fondo">
+      <main className={`pagina lic-marca ${className}`}>{children}</main>
+    </div>
+  );
 }
 
 type Unidad = { singular: string; plural: string };
@@ -124,10 +140,10 @@ export function Licitacion() {
   const lic = licitacionActual(estado);
   if (!lic) {
     return (
-      <main className="pagina">
-        <span className="en-vivo">Licitación en vivo</span> <AvisoFuente fuente={fuente} />
-        <p className="vacio">No hay una compra conjunta abierta.</p>
-      </main>
+      <Proyeccion>
+        <div className="lic-meta"><Logo fondo="oscuro" className="lic-logo" /><AvisoFuente fuente={fuente} /></div>
+        <p className="vacio">No hay una compra en grupo abierta.</p>
+      </Proyeccion>
     );
   }
 
@@ -149,10 +165,11 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
   const unidad = unidadDeLicitacion(lic);
 
   return (
-    <main className="pagina proyeccion">
+    <Proyeccion className="proyeccion">
       <header className="lic-cabecera">
         <div>
           <div className="lic-meta">
+            <Logo fondo="oscuro" className="lic-logo" />
             <span className="en-vivo">Licitación en vivo</span>
             <span>{conCanasta ? `Canasta de ${productos.length} productos` : lic.producto} · {lic.comuna}</span>
             <AvisoFuente fuente={fuente} />
@@ -201,6 +218,6 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
           <Ofertas r={rFoco} cerrada={cerrada} producto={foco} />
         )}
       </div>
-    </main>
+    </Proyeccion>
   );
 }

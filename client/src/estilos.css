@@ -309,6 +309,7 @@ body {
 .curva { position: absolute; inset: 0; display: block; }
 .curva text { font-family: var(--font-mono); font-size: 12px; fill: var(--color-tenue); }
 .curva text.ahora { fill: var(--color-text); }
+.curva .curva-solo { stroke: var(--color-tenue); }
 .leyenda { display: flex; align-items: center; gap: 12px; font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted); margin-top: 1vh; }
 .leyenda i { width: 10px; height: 10px; border-radius: 50%; background: var(--color-magenta); flex-shrink: 0; }
 
@@ -399,14 +400,6 @@ body {
   .precio-solo, .ahorro { text-align: left; }
 }
 
-/* ---------- Unirse (móvil) ---------- */
-.unirse { max-width: 480px; margin: 0 auto; padding: 20px 16px calc(24px + env(safe-area-inset-bottom)); display: grid; gap: 16px; }
-.unirse .lic-meta { font-size: 13px; }
-.unirse h1 { margin: 10px 0 0; font-size: 30px; line-height: 1.05; font-weight: 800; letter-spacing: var(--tracking-tight); }
-.unirse .resumen { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; }
-.unirse .numero-grande { font-size: 44px; color: var(--color-primary); }
-.unirse .etiqueta { font-size: 12px; }
-.unirse .tarjeta { padding: 20px; }
 .formulario { display: grid; gap: 14px; }
 .campo { display: grid; gap: 6px; }
 .campo input {

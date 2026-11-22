@@ -6,9 +6,6 @@
   "client/src/canal/iconos.tsx": {
     "color-escrito": 2
   },
-  "client/src/components/CurvaPrecio.tsx": {
-    "color-escrito": 1
-  },
   "client/src/components/Iconos.tsx": {
     "color-escrito": 1
   },

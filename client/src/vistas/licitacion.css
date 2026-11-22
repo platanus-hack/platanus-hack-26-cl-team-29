@@ -1,0 +1,43 @@
+/* /licitacion en modo proyección (DESIGN.md): `.bando-proyeccion` pone el carbón, la crema y la miel; aquí las piezas
+   de proyección de estilos.css (tarjeta, numero-grande, escalera, curva, ofertas) reciben esos valores en sus nombres
+   de token anteriores y la escala en pantalla de la marca. Solo tokens. */
+
+.bando-proyeccion.lic-fondo { min-height: 100vh; min-height: 100dvh; }
+
+.lic-marca {
+  --color-surface: var(--color-secondary);        /* tarjetas un tono sobre el lienzo */
+  --color-text: var(--color-foreground);
+  --color-muted: var(--color-muted-foreground);
+  --color-tenue: var(--color-faint-fg);
+  --color-green: var(--bando-oliva-texto);        /* ahorro */
+  --color-magenta: var(--bando-miel-600);         /* cada bajada de la curva */
+  --tracking-wide: var(--tracking-caps);
+  --hueco: var(--proy-hueco);
+  --t-etiqueta: var(--proy-etiqueta);
+  --t-cuerpo: var(--proy-cuerpo);
+  font-variant-numeric: tabular-nums;
+}
+
+.lic-logo { width: clamp(120px, 9vw, 180px); height: auto; display: block; }
+.lic-marca .lic-meta { gap: clamp(12px, 1.2vw, 20px); }
+
+/* Titulares y números en Inter: bold y apretados (no el 800 de la tipografía anterior). */
+.lic-marca .lic-titulo, .lic-marca .peldano .precio, .lic-marca .sumate h3 { font-weight: 700; letter-spacing: -0.035em; }
+.lic-marca .numero-grande { font-weight: 600; letter-spacing: -0.035em; }
+.lic-marca .etiqueta { font-weight: 600; }
+/* La miel es la protagonista del precio: la cuenta regresiva va en crema para no competir con él. */
+.lic-marca .cuenta .numero-grande { color: var(--color-text); }
+.lic-marca .cuenta.cerrada .numero-grande { color: var(--color-destructive); }
+.lic-marca .sumate { border-radius: var(--radius-xl); }
+
+/* En el tablero, solo el producto en foco lleva su precio en miel; la oferta que gana se marca con borde miel. */
+.lic-marca .prod-precio strong { color: var(--color-text); }
+.lic-marca .prod.destacado .prod-precio strong { color: var(--color-primary); }
+.lic-marca .oferta.gana { background: color-mix(in srgb, var(--bando-miel) 16%, var(--color-secondary)); border-color: var(--bando-miel); color: var(--color-text); }
+.lic-marca .oferta.gana .detalle { color: var(--color-muted); }
+.lic-marca .oferta.gana .aviso { color: var(--bando-miel-texto); font-weight: 600; }
+
+/* El negocio que acaba de sumarse destella en miel suave (el destello anterior era amarillo neón). */
+.lic-marca .lista-grupo li:first-child { animation: aparecer 0.4s ease-out, destello-marca 2.5s ease-out; }
+@keyframes destello-marca { 0% { background: color-mix(in srgb, var(--bando-miel) 16%, var(--color-secondary)); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .lic-marca .lista-grupo li:first-child { animation: none; } }

@@ -1,20 +1,36 @@
-/* /pagos: pagos a proveedores (equipo de Bando) */
-.pg-pagina { max-width: 720px; margin: 0 auto; padding: 72px 16px 64px; display: grid; gap: 16px; }
-.pg-titulo { margin: 0; font-size: 32px; }
-.pg-token { max-width: 360px; }
-.pg-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-.pg-pago { padding: 20px; display: grid; gap: 10px; }
-.pg-pago p { margin: 0; }
-.pg-cabeza { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-.pg-monto { font-size: 22px; color: var(--color-primary); }
-.pg-cuenta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; font-size: 15px; }
-.pg-cuenta dt { color: var(--color-muted); }
-.pg-cuenta dd { margin: 0; overflow-wrap: anywhere; }
-.pg-marcar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-.pg-marcar input {
-  font: inherit; font-size: 16px; color: var(--color-text); background: var(--color-surface);
-  border: 1px solid var(--color-border); border-radius: 12px; padding: 12px 14px; min-width: 0;
+/* /pagos: pagos a proveedores (equipo de Bando), con la marca (DESIGN.md). Solo tokens; las piezas bm-* vienen de
+   comprador/comprador.css. */
+.pg-pagina { min-height: 100vh; min-height: 100dvh; background: var(--color-muted); padding: 16px 16px 64px; }
+.pg-superior { max-width: 720px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pg-logo { width: 120px; height: auto; display: block; }
+.pg-cuerpo {
+  max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;
+  padding: 24px 16px; border-radius: var(--radius-2xl); background: var(--color-background);
+  border: var(--border-width) solid var(--color-border);
 }
-.pg-marcar .boton { padding: 12px 18px; font-size: 16px; }
-.pg-sub { margin: 16px 0 0; }
+.pg-cuerpo p, .pg-cuerpo h1, .pg-cuerpo h2 { margin: 0; }
+.pg-token { max-width: 360px; }
+.pg-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.pg-pago { display: flex; flex-direction: column; gap: 12px; }
+.pg-cabeza { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.pg-proveedor { font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
+.pg-monto { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; letter-spacing: var(--tracking-tight); font-variant-numeric: tabular-nums; }
+.pg-detalle { font-size: var(--text-sm); color: var(--color-faint-fg); }
+.pg-cuenta {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; padding: 12px;
+  border-radius: var(--radius-lg); background: var(--color-secondary); font-size: var(--text-sm); font-variant-numeric: tabular-nums;
+}
+.pg-cuenta dt { color: var(--color-faint-fg); }
+.pg-cuenta dd { margin: 0; overflow-wrap: anywhere; }
+.pg-marcar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+.pg-marcar .bm-boton { min-height: 44px; }
+.pg-seccion { display: flex; flex-direction: column; gap: 8px; }
+.pg-transferidos { list-style: none; margin: 0; padding: 0 16px; }
+.pg-transferidos li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; }
+.pg-transferidos li + li { border-top: var(--border-width) solid var(--color-border); }
+.pg-izq, .pg-der { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pg-izq span { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); overflow-wrap: anywhere; }
+.pg-der { align-items: flex-end; flex-shrink: 0; }
+.pg-der strong { font-variant-numeric: tabular-nums; }
+@media (min-width: 768px) { .pg-cuerpo { padding: 32px; } .pg-pagina { padding-top: 24px; } }
 @media (max-width: 480px) { .pg-marcar { grid-template-columns: 1fr; } }

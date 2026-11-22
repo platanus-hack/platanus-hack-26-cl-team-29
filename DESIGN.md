@@ -309,9 +309,9 @@ coordina con su dueño en `Pedidos a otros`.
 | | `/red-3d` | `vistas/Red3D.tsx` | Migrada | jorge-red3d | |
 | 1 | `/app` | `canal/MiNegocio.tsx` y `comprador/` | Parcial | javier-comprador | Secciones en `.puente-legado` (pedir, carrito, crédito) y `canal.css` |
 | 2 | `/proveedor` | `canal/Proveedor.tsx` y `proveedor/` | Parcial | javier-proveedor-ui | `ConectarSii`, ruta de reparto, catálogo; pasar `bp-estado` y `bp-boton-sii` a `Estado` y `Boton` |
-| 3 | `/licitacion` | `vistas/Licitacion.tsx` | Anterior | ui-proyeccion | `.bando-proyeccion` |
-| 4 | `/unirse` | `vistas/Unirse.tsx` | Anterior | carrito-movil | `.bando-ui` |
-| 5 | `/pagos` | `vistas/Pagos.tsx` | Anterior | credito-pantallas | `.bando-ui` |
+| | `/licitacion` | `vistas/Licitacion.tsx` | Parcial: `.bando-proyeccion` | ui-proyeccion | Las piezas de proyección (`tarjeta`, `numero-grande`, escalera, curva, ofertas) siguen en `estilos.css` con tokens remapeados en `licitacion.css` |
+| | `/unirse` | `vistas/Unirse.tsx` | Parcial | carrito-movil | El carrito y el botón de WhatsApp (`canal/Carrito.tsx`, `piezas.tsx`) en `.puente-legado` |
+| | `/pagos` | `vistas/Pagos.tsx` | Migrada | credito-pantallas | |
 
 `/proveedores` ya no existe como vista: redirige a la sección Proveedores de `/app`.
 
