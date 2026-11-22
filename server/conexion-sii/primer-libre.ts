@@ -41,7 +41,10 @@ export class FolioIlegible extends Error {
  * El primero de la primera racha de `racha` folios `FAU` seguidos desde `desde`. Si el rango termina en medio de
  * una racha, vale el primero de esa racha. `null` si no queda ningún folio libre o si se canceló.
  */
-export async function buscarPrimerLibre({ desde, hasta, consultar, racha = 3, alProgreso, cancelada }: OpcionesBusqueda): Promise<number | null> {
+/** Folios libres seguidos con que se da por encontrado el primero libre de un rango. */
+export const RACHA_LIBRES = 3;
+
+export async function buscarPrimerLibre({ desde, hasta, consultar, racha = RACHA_LIBRES, alProgreso, cancelada }: OpcionesBusqueda): Promise<number | null> {
   let inicioRacha: number | null = null;
   let largo = 0;
   for (let folio = desde, revisados = 1; folio <= hasta; folio++, revisados++) {

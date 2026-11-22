@@ -166,3 +166,17 @@ test('el objetivo de la operación deja exactamente esos folios libres como mín
   assert.equal(minimoDeFolios(61, demandaParaTener(61, 50)), 50);
   assert.equal(minimoDeFolios(33, demandaParaTener(33, 3)), 10, 'nunca bajo el piso');
 });
+
+test('un rango largo que agota las consultas guarda su avance y la corrida siguiente continúa ahí', async () => {
+  const largo = rango(1000, 1159);
+  const usados = new Set(Array.from({ length: 150 }, (_, k) => 1000 + k));
+  const { reposicion, llamadas, consultados, cafs } = montar({ rangos: [largo], tope: null }, usados);
+  await reposicion.reponer(33);
+  assert.equal(consultados.length, 60, 'la primera corrida gasta su presupuesto');
+  assert.ok(!llamadas.some(x => x.startsWith('reobtener')));
+  await reposicion.reponer(33);
+  assert.ok(consultados[60]! >= 1057, 'la segunda sigue donde quedó (con dos de margen), no desde el principio');
+  for (let i = 0; i < 3 && !cafs.length; i++) await reposicion.reponer(33);
+  assert.deepEqual(cafs.map(c => [c.desde, c.primerLibre]), [[1000, 1150]], 'termina reobteniendo desde el primer libre');
+  assert.ok(new Set(consultados).size >= consultados.length - 10, 'casi sin consultas repetidas');
+});
