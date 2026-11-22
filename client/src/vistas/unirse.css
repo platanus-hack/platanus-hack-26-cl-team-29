@@ -1,0 +1,28 @@
+/* /unirse con la marca Bando (DESIGN.md): una columna de teléfono sobre el lienzo, solo con tokens. Las piezas comunes
+   (bm-titulo, bm-cabecera, bm-cierre, bm-vacio, bm-nota, bm-boton) vienen de comprador/comprador.css. */
+
+.bm-unirse {
+  min-height: 100vh; min-height: 100dvh; max-width: 520px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 20px;
+  padding: max(16px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+}
+.bm-unirse-logo { width: 120px; height: auto; display: block; }
+/* La esquina derecha queda libre para el botón flotante "Vistas". */
+.bm-unirse-superior { display: flex; align-items: center; gap: 12px; padding-right: 96px; }
+.bm-unirse > .bm-cabecera :is(p, h1), .bm-unirse > .bm-bajada, .bm-unirse > .bm-nota, .bm-unirse-pie p { margin: 0; }
+
+/* "En vivo": un punto rojo que late, sin pastilla (la miel queda para el progreso). */
+.bm-en-vivo { display: inline-flex; align-items: center; gap: 6px; color: var(--color-destructive); font-weight: 600; }
+.bm-en-vivo::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: latido 1.2s ease-in-out infinite; }
+
+.bm-unirse-sumo { animation: aparecer 0.4s ease-out; }
+.bm-unirse-carrito { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.bm-unirse-pie { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+/* El carrito fija su barra abajo en el teléfono: la página deja espacio para verse entera al final. */
+@media (max-width: 899px) {
+  .bm-unirse:has(.cn-barra-carrito) { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bm-en-vivo::before, .bm-unirse-sumo { animation: none; }
+}

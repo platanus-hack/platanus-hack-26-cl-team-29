@@ -39,7 +39,7 @@ function Trazo({ puntos, precioSolo, ancho, alto }: { puntos: PuntoCurva[]; prec
     <svg className="curva" width={ancho} height={alto} role="img" aria-label={`El precio bajó de ${dinero(puntos[0].precio)} a ${dinero(ultimo.precio)}`}>
       {precioSolo !== undefined && (
         <>
-          <line x1={MARGEN.izq} x2={ancho - MARGEN.der} y1={y(precioSolo)} y2={y(precioSolo)} stroke="#555" strokeDasharray="4 6" />
+          <line x1={MARGEN.izq} x2={ancho - MARGEN.der} y1={y(precioSolo)} y2={y(precioSolo)} className="curva-solo" strokeDasharray="4 6" />
           <text x={MARGEN.izq} y={y(precioSolo) - 8}>{dinero(precioSolo)} precio que paga cada uno solo</text>
         </>
       )}

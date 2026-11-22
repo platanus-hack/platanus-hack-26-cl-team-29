@@ -1,8 +1,9 @@
 // /pagos: pagos a proveedores, para el equipo de Bando. Cada factura de una compra deja un pago por transferir con la cuenta
 // del proveedor; alguien transfiere desde el banco y toca "Marcar transferido" (el proveedor recibe el aviso por WhatsApp).
 // Pide el mismo token que el panel del presentador. Se actualiza sola con cada `red:evento` (useRed).
-// Decisión: docs/decisiones/*-credito-bando.md
+// Con la marca Bando (DESIGN.md). Decisión: docs/decisiones/*-credito-bando.md
 
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { TIPOS_CUENTA, type CuentaBancaria } from '../../../shared/cuenta-bancaria.ts';
 import { fechaCorta } from '../../../shared/fecha.ts';
@@ -10,8 +11,11 @@ import { dinero } from '../../../shared/formato.ts';
 import { formatearRut } from '../../../shared/rut.ts';
 import { contar } from '../../../shared/texto.ts';
 import { guardarToken, leerToken } from '../components/PanelPresentador.tsx';
+import { BotonTema } from '../marca/BotonTema.tsx';
+import { Boton, Cifra, Estado, Tarjeta } from '../marca/componentes.tsx';
+import { Logo } from '../marca/Logo.tsx';
 import { useRed } from '../red/useRed.ts';
-import '../canal/canal.css';
+import '../comprador/comprador.css';
 import './pagos.css';
 
 interface Pago {
@@ -23,6 +27,18 @@ interface Pago {
   pagadoAlProveedorEn: string | null;
   comprobante: string | null;
   cuenta: CuentaBancaria | null;
+}
+
+function MarcoPagos({ children }: { children: ReactNode }) {
+  return (
+    <main className="bando-ui pg-pagina">
+      <header className="pg-superior">
+        <Logo className="pg-logo" />
+        <BotonTema className="bm-boton-icono" />
+      </header>
+      <div className="pg-cuerpo">{children}</div>
+    </main>
+  );
 }
 
 export function Pagos() {
@@ -44,41 +60,55 @@ export function Pagos() {
 
   if (!token || (error && !datos)) {
     return (
-      <main className="pg-pagina">
-        <h1 className="pg-titulo">Pagos a proveedores</h1>
-        <form className="formulario pg-token" onSubmit={e => { e.preventDefault(); const t = String(new FormData(e.currentTarget).get('t') ?? ''); guardarToken(t); setToken(t); }}>
-          <label className="campo"><span>Token de la demo</span><input name="t" type="password" autoComplete="off" defaultValue={token} /></label>
-          {error && <p className="error">{error}</p>}
-          <button className="boton" type="submit">Entrar</button>
+      <MarcoPagos>
+        <h1 className="bm-titulo">Pagos a proveedores</h1>
+        <form className="bm-formulario pg-token" onSubmit={e => { e.preventDefault(); const t = String(new FormData(e.currentTarget).get('t') ?? ''); guardarToken(t); setToken(t); }}>
+          <label className="bm-campo"><span className="bm-campo-etiqueta">Token de la demo</span><input name="t" type="password" autoComplete="off" defaultValue={token} /></label>
+          {error && <p className="bm-error" role="alert">{error}</p>}
+          <Boton type="submit" ancho>Entrar</Boton>
         </form>
-      </main>
+      </MarcoPagos>
     );
   }
-  if (!datos) return <main className="pg-pagina"><p className="vacio">Cargando...</p></main>;
+  if (!datos) return <MarcoPagos><p className="bm-bajada">Cargando…</p></MarcoPagos>;
 
   const total = datos.porTransferir.reduce((s, p) => s + p.monto, 0);
   return (
-    <main className="pg-pagina">
-      <h1 className="pg-titulo">Pagos a proveedores</h1>
-      <p className="mono tenue">{datos.porTransferir.length ? `${contar(datos.porTransferir.length, 'pago')} por transferir: ${dinero(total)}.` : 'No hay pagos por transferir.'} Transfiere desde el banco de Bando y márcalo aquí: al proveedor le llega el aviso.</p>
-      {error && <p className="error">{error}</p>}
+    <MarcoPagos>
+      <header className="bm-cabecera">
+        <div>
+          <h1 className="bm-titulo">Pagos a proveedores</h1>
+          <p className="bm-bajada">Transfiere desde el banco de Bando y márcalo aquí: al proveedor le llega el aviso.</p>
+        </div>
+        {datos.porTransferir.length > 0 && (
+          <Cifra etiqueta={`${contar(datos.porTransferir.length, 'pago')} por transferir`} valor={dinero(total)} tamano="grande" />
+        )}
+      </header>
+      {error && <p className="bm-error" role="alert">{error}</p>}
+      {datos.porTransferir.length === 0 && <p className="bm-nota">No hay pagos por transferir.</p>}
       <ul className="pg-lista">
         {datos.porTransferir.map(p => <PorTransferir key={p.id} p={p} token={token} alMarcar={cargar} />)}
       </ul>
       {datos.transferidos.length > 0 && (
-        <>
-          <h2 className="etiqueta pg-sub">Últimos transferidos</h2>
-          <ul className="tarjeta cn-documentos">
+        <section className="pg-seccion">
+          <h2 className="bm-etiqueta">Últimos transferidos</h2>
+          <ul className="bm-tarjeta pg-transferidos">
             {datos.transferidos.map(p => (
               <li key={p.id}>
-                <div className="cn-doc-izq"><strong>{p.proveedor}</strong><span className="mono tenue nombre">{p.folio ? `Factura ${p.folio} · ` : ''}{fechaCorta(p.pagadoAlProveedorEn!)}{p.comprobante ? ` · op. ${p.comprobante}` : ''}</span></div>
-                <div className="cn-doc-der"><strong className="mono">{dinero(p.monto)}</strong><span className="cn-chip recibida">transferido</span></div>
+                <div className="pg-izq">
+                  <strong>{p.proveedor}</strong>
+                  <span>{p.folio ? `Factura ${p.folio} · ` : ''}{fechaCorta(p.pagadoAlProveedorEn!)}{p.comprobante ? ` · op. ${p.comprobante}` : ''}</span>
+                </div>
+                <div className="pg-der">
+                  <strong>{dinero(p.monto)}</strong>
+                  <Estado tono="exito">Transferido</Estado>
+                </div>
               </li>
             ))}
           </ul>
-        </>
+        </section>
       )}
-    </main>
+    </MarcoPagos>
   );
 }
 
@@ -97,20 +127,23 @@ function PorTransferir({ p, token, alMarcar }: { p: Pago; token: string; alMarca
   };
   const c = p.cuenta;
   return (
-    <li className="tarjeta pg-pago">
+    <li><Tarjeta className="pg-pago">
       <div className="pg-cabeza">
-        <strong>{p.proveedor}</strong>
-        <strong className="mono pg-monto">{dinero(p.monto)}</strong>
+        <strong className="pg-proveedor">{p.proveedor}</strong>
+        <strong className="pg-monto">{dinero(p.monto)}</strong>
       </div>
-      <p className="mono tenue">{p.folio ? `Factura ${p.folio} · ` : ''}desde el {fechaCorta(p.otorgadoEn)}</p>
+      <p className="pg-detalle">{p.folio ? `Factura ${p.folio} · ` : ''}desde el {fechaCorta(p.otorgadoEn)}</p>
       {c
-        ? <dl className="pg-cuenta mono"><dt>Banco</dt><dd>{c.banco}</dd><dt>Tipo</dt><dd>{TIPOS_CUENTA[c.tipo]}</dd><dt>Número</dt><dd>{c.numero}</dd><dt>Titular</dt><dd>{c.titular} · {formatearRut(c.rutTitular)}</dd></dl>
-        : <p className="error">Sin cuenta: pídele que la deje en su panel (/proveedor).</p>}
+        ? <dl className="pg-cuenta"><dt>Banco</dt><dd>{c.banco}</dd><dt>Tipo</dt><dd>{TIPOS_CUENTA[c.tipo]}</dd><dt>Número</dt><dd>{c.numero}</dd><dt>Titular</dt><dd>{c.titular} · {formatearRut(c.rutTitular)}</dd></dl>
+        : <p className="bm-error">Sin cuenta: pídele que la deje en su panel (/proveedor).</p>}
       <div className="pg-marcar">
-        <input aria-label="Número de operación (opcional)" placeholder="N° de operación (opcional)" value={comprobante} onChange={e => setComprobante(e.target.value)} />
-        <button type="button" className="boton" disabled={enviando || !c} onClick={marcar}>{enviando ? 'Marcando...' : 'Marcar transferido'}</button>
+        <label className="bm-campo">
+          <span className="bm-campo-etiqueta">N° de operación (opcional)</span>
+          <input value={comprobante} onChange={e => setComprobante(e.target.value)} />
+        </label>
+        <Boton disabled={enviando || !c} onClick={marcar}>{enviando ? 'Marcando…' : 'Marcar transferido'}</Boton>
       </div>
-      {error && <p className="error">{error}</p>}
-    </li>
+      {error && <p className="bm-error" role="alert">{error}</p>}
+    </Tarjeta></li>
   );
 }
