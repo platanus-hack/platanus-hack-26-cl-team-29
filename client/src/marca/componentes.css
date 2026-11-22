@@ -111,3 +111,17 @@
 .bm-modal-cabecera h2 { font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: 700; }
 .bm-modal-cuerpo { padding: var(--espacio-2) 20px 20px; }
 @keyframes bm-aparecer { from { opacity: 0; } to { opacity: 1; } }
+
+/* El autocompletado del navegador pinta los campos de gris azulado: dentro de la marca conservan su fondo y su texto,
+   en claro y en oscuro. El fondo va como sombra interior porque el navegador no deja cambiar el suyo. */
+.bando-ui input:-webkit-autofill,
+.bando-ui input:-webkit-autofill:hover {
+  -webkit-text-fill-color: var(--color-foreground);
+  caret-color: var(--color-foreground);
+  box-shadow: 0 0 0 1000px var(--color-background) inset;
+  transition: background-color 9999s;
+}
+.bando-ui input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-foreground);
+  box-shadow: 0 0 0 1000px var(--color-background) inset, 0 0 0 3px var(--color-secondary);
+}

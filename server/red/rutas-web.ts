@@ -13,6 +13,7 @@ import { mensajeDeCodigo } from './acceso.ts';
 import type { CodigosAcceso } from './acceso.ts';
 import type { Sesion, Sesiones } from './sesiones.ts';
 import type { Negocio, OrdenCompra, Tramo } from './tipos.ts';
+import type { DatosContribuyente } from './contribuyente.ts';
 
 // Canal web, paralelo a WhatsApp: las mismas acciones y las mismas funciones del dominio.
 // Se entra con el teléfono y un código por WhatsApp (`/acceso/*`): la sesión es del negocio de ese teléfono, que puede
@@ -80,6 +81,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
   const telefonoDe = (req: Request) => telefonoParaWhatsapp(texto(cuerpo(req).telefono) ?? '');
   const codigosPorTelefono = limitarPor(5, HORA, telefonoDe);
   const entradasPorTelefono = limitarPor(30, HORA, telefonoDe);
+  const consultasRutPorTelefono = limitarPor(30, HORA, telefonoDe);
   const porIp = limitarPor(30, MINUTO, req => req.ip ?? 'sin-ip');
 
   const exigirConfirmado = (req: Request) => {
@@ -106,12 +108,25 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
       });
   };
 
+  /** A quién sale una factura, como lo ve su dueño: sin actividades ni teléfonos. */
+  const datosDeFactura = (rut: string, c: DatosContribuyente) => ({
+    rut: formatearRut(rut), razonSocial: c.razonSocial, giro: c.giro, direccion: c.direccion, comuna: c.comuna, ...(c.simulado ? { simulado: true } : {}),
+  });
+
   // ---- Acceso: el teléfono y un código por WhatsApp ----
 
   const exigirTelefono = (req: Request) => {
     const telefono = telefonoDe(req);
     if (!telefono) throw new ErrorRed('datos_invalidos', 'Escribe tu número de WhatsApp, por ejemplo 9 1234 5678.');
     return telefono;
+  };
+
+  /** El código vigente de ese teléfono, sin gastarlo: lo gasta solo `/acceso/entrar` al crear la sesión. */
+  const exigirCodigo = (telefono: string, b: Record<string, unknown>) => {
+    const verificacion = codigos.verificar(telefono, (texto(b.codigo) ?? '').replace(/\D/g, ''));
+    if (verificacion !== 'ok') {
+      throw new ErrorRed('no_autorizado', verificacion === 'vencido' ? 'El código venció. Pide uno nuevo.' : 'El código no coincide. Revisa el último que te llegó.');
+    }
   };
 
   // Se manda a cualquier teléfono válido, registrado o no: la respuesta no dice si el número es de la red.
@@ -130,10 +145,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
   rutas.post('/acceso/entrar', porIp, entradasPorTelefono, async (req, res) => {
     const telefono = exigirTelefono(req);
     const b = cuerpo(req);
-    const verificacion = codigos.verificar(telefono, (texto(b.codigo) ?? '').replace(/\D/g, ''));
-    if (verificacion !== 'ok') {
-      throw new ErrorRed('no_autorizado', verificacion === 'vencido' ? 'El código venció. Pide uno nuevo.' : 'El código no coincide. Revisa el último que te llegó.');
-    }
+    exigirCodigo(telefono, b);
     let negocio = red.negocioPorTelefono(telefono);
     if (!negocio) {
       const rut = texto(b.rut)?.trim();
@@ -145,6 +157,16 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     }
     codigos.consumir(telefono);
     res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id }), negocio: sinTelefonos(negocio) });
+  });
+
+  // Antes de registrarse: los datos del SII de un RUT para prellenar el formulario. Pide el código ya verificado (sin
+  // gastarlo) y respeta el RUT atado a su teléfono; limita por teléfono, nunca por IP (el público comparte el wifi).
+  rutas.post('/acceso/rut', consultasRutPorTelefono, async (req, res) => {
+    const telefono = exigirTelefono(req);
+    const b = cuerpo(req);
+    exigirCodigo(telefono, b);
+    const { rut, ...contribuyente } = await red.consultarRut(texto(b.rut) ?? '', telefono);
+    res.json(datosDeFactura(rut, contribuyente));
   });
 
   rutas.post('/acceso/salir', (req, res) => {
@@ -179,9 +201,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
       })));
     // A quién sale su factura: solo a su dueño (nunca en la foto pública ni en eventos).
     const c = negocio.contribuyente;
-    const facturaA = negocio.rut && c
-      ? { rut: formatearRut(negocio.rut), razonSocial: c.razonSocial, giro: c.giro, direccion: c.direccion, comuna: c.comuna, ...(c.simulado ? { simulado: true } : {}) }
-      : null;
+    const facturaA = negocio.rut && c ? datosDeFactura(negocio.rut, c) : null;
     res.json({ negocio: sinTelefonos(negocio), facturaA, ordenes, documentos: documentosDe(ordenes), participaciones });
   });
 

@@ -320,6 +320,13 @@ export function crearApiFalsa(): CanalApi {
       return { retenido: false };
     },
 
+    async consultarRut(_telefono, codigo, rut) {
+      await espera(500);
+      if (!/^\d{6}$/.test(codigo)) throw new ErrorCanal('El código no coincide. Revisa el último que te llegó.');
+      exigir(!!validarRut(rut), RUT_INVALIDO);
+      return { rut: formatearRutAlEscribir(rut), razonSocial: 'Comercial de Prueba SpA', giro: 'Venta al por menor en almacenes', comuna: 'Ñuñoa', simulado: true };
+    },
+
     async entrar(texto, codigo, datos) {
       await espera(300);
       const telefono = telefonoParaWhatsapp(texto) ?? '';

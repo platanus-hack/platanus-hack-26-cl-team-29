@@ -2,7 +2,7 @@
 // y, solo si el número es nuevo en la red, el nombre y el RUT del negocio. Una sola pantalla para /unirse, /app y
 // /proveedor: una tarjeta blanca centrada sobre crema, como "Conecta tu SII" en Paper.
 
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { enlaceWhatsapp, formatearTelefono, telefonoParaWhatsapp } from '../../../shared/telefono.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
@@ -14,7 +14,7 @@ import { TELEFONO_PROVEEDOR_FALSO } from './falso.ts';
 import { LogoSii } from '../marca/LogoSii.tsx';
 import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
-import type { ConfigRed, DatosEntrada } from './tipos.ts';
+import type { ConfigRed, DatosEntrada, FacturaA } from './tipos.ts';
 import type { useCanal } from './useCanal.ts';
 import '../comprador/comprador.css';
 
@@ -42,6 +42,8 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
       setPaso('codigo');
     }, 'No pudimos mandarte el código. Inténtalo de nuevo.');
   };
+
+  const consultarRut = useCallback((rut: string) => api.consultarRut(telefono, codigo, rut), [api, telefono, codigo]);
 
   const entrarCon = async (datos?: DatosEntrada) => {
     const r = await api.entrar(telefono, codigo, datos);
@@ -109,7 +111,7 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
 
         {paso === 'registro' && (
           <>
-            <FormularioNegocio onEntrar={entrarCon} />
+            <FormularioNegocio onEntrar={entrarCon} consultarRut={consultarRut} />
             <button type="button" className="bm-boton-texto bm-acceso-volver" onClick={volver}>Cambiar número</button>
           </>
         )}
@@ -177,11 +179,53 @@ const RUBROS: Array<[string, string]> = [
   ['cafe', 'Café'], ['botilleria', 'Botillería'], ['farmacia', 'Farmacia'], ['otro', 'Otro'],
 ];
 
+/** El rubro de la lista que sugiere el giro del SII ("Venta al por menor en almacenes" → almacén); si no se reconoce, ninguno. */
+const RUBRO_DEL_GIRO: Array<[RegExp, string]> = [
+  [/panader|amasander/i, 'panaderia'], [/minimarket|supermercado/i, 'minimarket'], [/almac[eé]n|abarrote/i, 'almacen'],
+  [/cafeter|caf[eé]\b/i, 'cafe'], [/restaur|fuente de soda|comida/i, 'restaurante'], [/botiller|licor|bebidas alcoh/i, 'botilleria'],
+  [/farmac/i, 'farmacia'],
+];
+const AYUDA_RUT: Record<'nada' | 'buscando' | 'listo' | 'simulado' | 'error', string> = {
+  nada: 'Con tu RUT traemos tus datos del SII. Tu factura sale a ese RUT (ambiente de certificación).',
+  buscando: 'Buscando en el SII...',
+  listo: 'Datos del SII: revísalos y corrige lo que haga falta.',
+  simulado: 'Datos de prueba del SII: revísalos y corrige lo que haga falta.',
+  error: '',
+};
+const rubroDelGiro = (giro: string) => RUBRO_DEL_GIRO.find(([re]) => re.test(giro))?.[1];
+
+type DatosDelRut = { estado: 'nada' } | { estado: 'buscando' } | { estado: 'listo'; datos: FacturaA } | { estado: 'error'; mensaje: string };
+
 /**
- * Lo que se pide a un número nuevo: el nombre del negocio y el RUT (su factura sale a ese RUT en el SII, ambiente de
- * certificación). Comuna y rubro son opcionales. Al enviar, el servidor consulta el RUT en el SII.
+ * Con un RUT válido y una pausa al escribir (400 ms), sus datos del SII. Solo manda la última consulta: si la persona
+ * sigue escribiendo, la respuesta anterior se descarta.
  */
-function FormularioNegocio({ onEntrar }: { onEntrar: (datos: DatosEntrada) => Promise<void> }) {
+function useDatosDelRut(rut: string, consultar: (rut: string) => Promise<FacturaA>): DatosDelRut {
+  const [r, setR] = useState<DatosDelRut>({ estado: 'nada' });
+  useEffect(() => {
+    setR({ estado: 'nada' });
+    if (!validarRut(rut)) return;
+    let vigente = true;
+    const espera = window.setTimeout(() => {
+      setR({ estado: 'buscando' });
+      consultar(rut).then(
+        datos => { if (vigente) setR({ estado: 'listo', datos }); },
+        e => { if (vigente) setR({ estado: 'error', mensaje: mensajeDeError(e, 'No pudimos consultar el SII: escribe tus datos.') }); },
+      );
+    }, 400);
+    return () => { vigente = false; window.clearTimeout(espera); };
+  }, [rut, consultar]);
+  return r;
+}
+
+/**
+ * Lo que se pide a un número nuevo. Primero el RUT (su factura sale a ese RUT en el SII, ambiente de certificación): con
+ * un RUT válido se consultan sus datos y se completan los campos vacíos, sin pisar lo que la persona ya escribió. Si el
+ * SII no responde, se escribe a mano. Rubro opcional.
+ */
+function FormularioNegocio({ onEntrar, consultarRut }: {
+  onEntrar: (datos: DatosEntrada) => Promise<void>; consultarRut: (rut: string) => Promise<FacturaA>;
+}) {
   const [nombre, setNombre] = useState('');
   const [rut, setRut] = useState('');
   const [rutRevisado, setRutRevisado] = useState(false);
@@ -194,7 +238,19 @@ function FormularioNegocio({ onEntrar }: { onEntrar: (datos: DatosEntrada) => Pr
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const rutMalo = rutRevisado && rut.length > 0 && !validarRut(rut);
-  const avisoRut = errorRut || (rutMalo ? RUT_INVALIDO : '');
+  const delSii = useDatosDelRut(rut, consultarRut);
+  const avisoRut = errorRut || (delSii.estado === 'error' ? delSii.mensaje : '') || (rutMalo ? RUT_INVALIDO : '');
+
+  // Lo que trae el SII completa solo los campos vacíos.
+  useEffect(() => {
+    if (delSii.estado !== 'listo') return;
+    const d = delSii.datos;
+    const siVacio = (nuevo?: string) => (actual: string) => (actual.trim() || !nuevo ? actual : nuevo);
+    setNombre(siVacio(d.razonSocial));
+    setDireccion(siVacio(d.direccion));
+    setComuna(siVacio(d.comuna));
+    setRubro(r => r ?? rubroDelGiro(d.giro));
+  }, [delSii]);
   const marcarRut = (mensaje: string) => {
     setErrorRut(mensaje);
     campoRut.current?.focus();
@@ -221,17 +277,17 @@ function FormularioNegocio({ onEntrar }: { onEntrar: (datos: DatosEntrada) => Pr
 
   return (
     <form className="bm-formulario" onSubmit={enviar}>
-      <Campo etiqueta="Nombre de tu negocio">
-        <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Almacén Las Rosas" autoComplete="organization" maxLength={60} required />
-      </Campo>
       <Campo etiqueta="RUT de tu negocio o persona" ayuda={
-        <span id="bm-rut-ayuda" className={avisoRut ? 'bm-ayuda bm-error' : 'bm-ayuda'} role={avisoRut ? 'alert' : undefined}>
-          {avisoRut || <><LogoSii tam={14} />Tu factura sale a tu nombre en el SII (ambiente de certificación).</>}
+        <span id="bm-rut-ayuda" className={avisoRut ? 'bm-ayuda bm-error' : 'bm-ayuda'} role={avisoRut ? 'alert' : 'status'}>
+          {avisoRut || <><LogoSii tam={14} />{AYUDA_RUT[delSii.estado === 'listo' && delSii.datos.simulado ? 'simulado' : delSii.estado]}</>}
         </span>
       }>
         <input ref={campoRut} value={rut} onChange={e => { setRut(formatearRutAlEscribir(e.target.value)); setRutRevisado(false); setErrorRut(''); }} onBlur={() => setRutRevisado(true)}
-          placeholder="12.345.678-5" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={12} required
+          placeholder="12.345.678-5" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={12} required autoFocus
           aria-invalid={!!avisoRut} aria-describedby="bm-rut-ayuda" />
+      </Campo>
+      <Campo etiqueta="Nombre de tu negocio">
+        <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Almacén Las Rosas" autoComplete="organization" maxLength={60} required />
       </Campo>
       <CamposDireccion direccion={direccion} comuna={comuna} onDireccion={setDireccion} onComuna={setComuna} />
       <fieldset className="bm-campo bm-rubros">
