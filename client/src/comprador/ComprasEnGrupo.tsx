@@ -10,7 +10,7 @@ import { nombreUnidad, pluralUnidad } from '../../../shared/unidades.ts';
 import type { ProductoConocido } from '../../../shared/productos.ts';
 import { SelectorProducto } from '../canal/CampoProducto.tsx';
 import {
-  aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, desdeItems, faltan, fijar, itemsDe, pistaTramo, productosDe, proyectar, una, type Carrito, type ProductoCanasta,
+  aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, desdeItems, fijar, itemsDe, productosDe, proyectar, una, type Carrito, type ProductoCanasta,
 } from '../canal/carrito.ts';
 import { Campo } from '../canal/Acceso.tsx';
 import { Icono, iconoDeProducto } from '../canal/iconos.tsx';
@@ -26,6 +26,7 @@ import { frasco, localesDelGrupo, siLlegan } from './compra.ts';
 import { puedeCerrarAntes } from '../../../shared/precios.ts';
 import { ProgresoCompra } from './ProgresoCompra.tsx';
 import { Pestanas } from './Pestanas.tsx';
+import { pistaTramo } from '../../../shared/precios.ts';
 
 /** Qué muestra la sección: la lista, el formulario para iniciar una o un producto de una compra. */
 export type RutaCompra = { vista: 'lista' } | { vista: 'nueva' } | { vista: 'producto'; licitacionId?: string; productoId: string };

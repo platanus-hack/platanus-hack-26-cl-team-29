@@ -1,6 +1,7 @@
 import type { EstadoTramos } from '../red/derivar.ts';
 import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
+import { pistaTramo } from '../../../shared/precios.ts';
 
 interface Props {
   tramos: EstadoTramos;
@@ -22,8 +23,7 @@ export function textoFaltan(t: EstadoTramos, unidad: Props['unidad']): string {
     // Sin nadie, el primer tramo es el precio de comprar solo. Con gente, un proveedor ya ofrece menos que el próximo tramo.
     return t.totalUnidades === 0 ? 'Sé el primero en sumarte' : 'Los proveedores ya bajaron más que el próximo tramo';
   }
-  const n = t.siguiente.faltan;
-  return `${n === 1 ? 'Falta' : 'Faltan'} ${contar(n, unidad.singular, unidad.plural)} para bajar a ${dinero(t.siguiente.precioUnitario)}`;
+  return pistaTramo(t.siguiente, { unidad: unidad.singular, unidadPlural: unidad.plural });
 }
 
 /** Escalera de precios por volumen: los tramos alcanzados, el actual y el siguiente con su barra de avance. */

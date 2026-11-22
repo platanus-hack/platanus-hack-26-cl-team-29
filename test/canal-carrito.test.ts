@@ -1,9 +1,10 @@
 import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  aItems, carritoEnLaFoto, fijar, pistaTramo, productosDe, proyectar, una, type Carrito,
+  aItems, carritoEnLaFoto, fijar, productosDe, proyectar, una, type Carrito,
 } from '../client/src/canal/carrito.ts';
 import type { LicitacionCanal } from '../client/src/canal/tipos.ts';
+import { pistaTramo } from '../shared/precios.ts';
 
 const tramos = (l: Array<[number, number]>) => l.map(([desde, precioUnitario]) => ({ desde, precioUnitario }));
 

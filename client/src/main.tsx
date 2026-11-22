@@ -19,6 +19,7 @@ const GuiaMarca = lazy(() => import('./vistas/GuiaMarca.tsx').then(m => ({ defau
 
 // Rutas por path, sin librería: la pantalla de la demo, la licitación y la página del QR.
 const VISTAS: Record<string, ComponentType> = {
+  '/red': RedEnVivo,
   '/mapa': Mapa,
   '/red-3d': Red3D,
   '/licitacion': Licitacion,
@@ -37,6 +38,7 @@ if (location.pathname.replace(/\/+$/, '') === '/proveedores') {
   location.replace(`/app#proveedores${p ? `/${encodeURIComponent(p)}` : ''}`);
 }
 
+// Cualquier otra ruta (también `/`) muestra la red en vivo.
 const Vista = VISTAS[location.pathname.replace(/\/+$/, '')] ?? RedEnVivo;
 
 createRoot(document.getElementById('root')!).render(

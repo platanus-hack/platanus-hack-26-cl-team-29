@@ -5,7 +5,7 @@
 import { dinero } from '../../../shared/formato.ts';
 import type { SiguienteTramo, Tramo } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
-import { faltan } from '../canal/carrito.ts';
+import { faltanUnidades } from '../../../shared/precios.ts';
 import { ABEJA } from '../marca/recursos.ts';
 import { escalera, frasco, rango } from './compra.ts';
 
@@ -34,7 +34,7 @@ export function ProgresoCompra({ p, vista }: { p: ProductoProgreso; vista: { uni
                 <span className="bm-peldano-rango">
                   {rango(t, p)}{t.estado === 'siguiente' ? ' · siguiente tramo' : t.estado === 'actual' ? ' · precio de hoy' : ''}
                 </span>
-                {t.estado === 'siguiente' && vista.siguiente && <strong>{faltan(vista.siguiente, p)}</strong>}
+                {t.estado === 'siguiente' && vista.siguiente && <strong>{faltanUnidades(vista.siguiente, p)}</strong>}
                 {t.estado === 'actual' && <strong>Todos pagan esto</strong>}
               </div>
               <span className="bm-peldano-precio">{dinero(t.estado === 'actual' ? vista.precio : t.precio)}</span>

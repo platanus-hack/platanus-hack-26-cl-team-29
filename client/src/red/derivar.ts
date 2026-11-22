@@ -5,8 +5,9 @@ import { esTipoDocumento, nombreDocumento } from '../../../shared/documentos.ts'
 import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { ordenarTramos, precioAjustado, totalOrden, precioPorVolumen, siguienteTramo } from '../../../shared/precios.ts';
-import { contar, mayuscula, pluralDe, segun } from '../../../shared/texto.ts';
-import { cantidadCon, pedidoDe, textoEstadoSii, unidadDe } from './formato.ts';
+import { contar, mayuscula, segun } from '../../../shared/texto.ts';
+import { cantidadCon, pedidoDe, textoEstadoSii } from './formato.ts';
+import { unidadDelProducto } from '../../../shared/unidades.ts';
 
 /** Nota que se asume si el backend todavía no tiene nota para un proveedor. */
 const NOTA_SIN_DATOS = 4;
@@ -366,7 +367,7 @@ export function productoQueCambio(antes: Record<string, string>, ahora: Record<s
 
 /** Unidad de la licitación, en singular y plural: la del backend o la que se deduce del producto. */
 export function unidadDeLicitacion(lic: Licitacion): { singular: string; plural: string } {
-  return lic.unidad ? { singular: lic.unidad, plural: lic.unidadPlural ?? pluralDe(lic.unidad) } : unidadDe(lic.producto);
+  return unidadDelProducto(lic.producto, lic);
 }
 
 /** Participantes en el orden en que se sumaron (si todos traen hora). */

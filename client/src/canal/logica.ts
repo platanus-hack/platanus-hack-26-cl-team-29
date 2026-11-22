@@ -4,6 +4,7 @@
 import type { Documento } from '../red/tipos.ts';
 import { siguienteTramo, totalOrden, tramoAlcanzado } from '../../../shared/precios.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
+import { SIN_UNIDAD, unidadDelProducto, type NombresUnidad } from '../../../shared/unidades.ts';
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
@@ -83,17 +84,14 @@ export function licitacionVigente(lics: readonly LicitacionCanal[]): LicitacionC
 
 // ---------- Unidades ----------
 
-export interface Unidad {
-  singular: string;
-  plural: string;
-}
+export type Unidad = NombresUnidad;
 
 /** Unidad del producto: la de la config si es el producto de la compra conjunta; si no, "unidad". */
 export function unidadPara(producto: string, config: ConfigRed | null): Unidad {
   const deLaCanasta = config?.productos?.find(p => p.nombre === producto);
-  if (deLaCanasta) return { singular: deLaCanasta.unidad, plural: deLaCanasta.unidadPlural };
-  if (config && producto === config.producto) return { singular: config.unidad, plural: config.unidadPlural };
-  return { singular: 'unidad', plural: 'unidades' };
+  if (deLaCanasta) return unidadDelProducto(producto, deLaCanasta);
+  if (config && producto === config.producto) return unidadDelProducto(producto, config);
+  return SIN_UNIDAD;
 }
 
 // ---------- Pedidos ----------
