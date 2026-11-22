@@ -226,3 +226,16 @@ test('trae a tu vecino por la web (?ref=), "invitar" por WhatsApp y su propio c�
   const suya = await avisos.invitacionWeb(web);
   assert.ok(suya && suya.codigo !== codigo && suya.ruta === `/unirse?ref=${suya.codigo}`);
 });
+
+test('quien abre una compra en grupo no recibe el aviso de su propia compra', async t => {
+  const { red, avisos, avisosA, fin } = await montar();
+  t.after(fin);
+  // Uno ya compró rollos (lo haría candidato al aviso) y abre una compra de rollos.
+  await red.actualizarCarrito(LICITACION_SALA, { ...UNO, items: [{ productoId: 'rollos', cantidad: 2 }] });
+  await avisos.alDia();
+  await red.cerrarLicitacion(LICITACION_SALA);
+  const uno = red.negocioPorTelefono(UNO.telefono)!;
+  await red.abrirSolicitud!({ compradorId: uno.id, producto: 'Caja de rollos térmicos', unidad: 'caja', cantidad: 5 });
+  await avisos.alDia();
+  assert.deepEqual(avisosA(UNO.telefono), []);
+});

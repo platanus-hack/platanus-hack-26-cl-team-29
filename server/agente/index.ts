@@ -13,6 +13,8 @@ import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
 import { CANTIDAD_MAXIMA, puedeComprar, puedeVender } from '../../shared/red.ts';
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
+import { mejorOferta, puedeCerrarAntes } from '../../shared/precios.ts';
+import type { Biblioteca } from '../catalogo/biblioteca.ts';
 import { productosDe } from './canasta.ts';
 import { crearProveedores } from './proveedor.ts';
 import type { EstadoSiiProveedor, ListaDeProductos, PropuestaProveedor, Proveedores } from './proveedor.ts';
@@ -33,12 +35,16 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 /** Para qué se eligió el producto: comprarlo en grupo o agregarlo a la lista del proveedor. */
 type ParaProducto = { readonly tipo: 'comprar'; readonly cantidad: number } | { readonly tipo: 'vender'; readonly unidad: string; readonly precio: number };
 
+/** "cerrar la compra", "cierra la compra en grupo ya", "cerrar compra de coca cola". */
+const CERRAR_COMPRA = /\b(cerrar|cierra|cierrala|cerrarla|cierre)\b.*\b(compra|grupo|pedido)\b|^(cerrar|cierra|cerrarla|cierrala)( ya| ahora)?$/;
+
 /** Las sugerencias de la biblioteca que se ofrecen como máximo. */
 const MAXIMO_OPCIONES = 5;
 
 type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'crear_orden'; readonly proveedor: Negocio; readonly producto: string; readonly cantidad: number }
   | { readonly tipo: 'abrir_solicitud'; readonly producto: string; readonly unidad: string; readonly cantidad: number }
+  | { readonly tipo: 'cerrar_antes'; readonly licitacionId: string; readonly producto: string }
   // Ya hay una compra en grupo abierta de ese producto: se suma a ella con su cantidad (además de lo que ya lleva).
   | { readonly tipo: 'sumarse'; readonly licitacionId: string; readonly productoId: string; readonly producto: string; readonly cantidad: number }
   // Lo escrito se parece a productos de la biblioteca: se pregunta cuál es (o si es uno nuevo) antes de seguir.
@@ -58,7 +64,7 @@ const DE_PROVEEDOR = new Set<Intencion['tipo']>(['ofertar', 'crear_producto', 's
 export interface OpcionesAgente {
   readonly interprete?: Interprete;
   /** La biblioteca de productos (server/catalogo/biblioteca.ts): sugiere uno existente antes de crear otro. */
-  readonly biblioteca?: { buscar(q: string): readonly ProductoConocido[] };
+  readonly biblioteca?: Pick<Biblioteca, 'buscar'> & Partial<Pick<Biblioteca, 'cotizar'>>;
   /** La lista de productos de cada proveedor (server/catalogo): "vendo ..." la llena por WhatsApp. */
   readonly productos?: ListaDeProductos;
   readonly ahora?: () => Date;
@@ -257,7 +263,9 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       alFrente(comprador.id, { tipo: 'sumarse', licitacionId: abierta.l.id, productoId: abierta.p.id, producto: abierta.p.nombre, cantidad, mensaje });
       return mensaje;
     }
-    const mensaje = m.proponerSolicitud(nombre, cantidad);
+    // Lo que hoy dan las listas (su propia lista no cuenta, salvo en la demo que deja comprarse a sí mismo).
+    const excluir = env.DEMO_COMPRA_A_SI_MISMO === '1' ? undefined : comprador.id;
+    const mensaje = m.proponerSolicitud(nombre, cantidad, unidad, opciones.biblioteca?.cotizar?.(nombre, unidad, cantidad, excluir));
     alFrente(comprador.id, { tipo: 'abrir_solicitud', producto: nombre, unidad, cantidad, mensaje });
     return mensaje;
   }
@@ -295,6 +303,24 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return proponerAlProveedor(negocio, await proveedores!.proponerProducto(negocio, producto.nombre, producto.unidad ?? para.unidad, para.precio));
   }
 
+  /** "cerrar la compra": quien abrió una compra en grupo la cierra antes, con un paso de confirmación. */
+  async function proponerCierre(comprador: Negocio, texto: string): Promise<string> {
+    const { licitaciones = [] } = await red.estadoDeLaRed();
+    const suyas = licitaciones.filter(l => l.estado === 'abierta' && l.iniciadaPor === comprador.id);
+    if (!suyas.length) return m.SIN_COMPRA_PARA_CERRAR;
+    const dicho = normalizar(texto);
+    const nombrada = suyas.find(l => dicho.includes(normalizar(l.producto)));
+    if (!nombrada && suyas.length > 1) return m.cualCerrar(suyas.map(l => l.producto));
+    const l = nombrada ?? suyas[0]!;
+    const p = productosDe(l)[0]!;
+    const gana = mejorOferta(p.ofertas, p.totalUnidades);
+    if (!puedeCerrarAntes(p.ofertas, p.totalUnidades)) return m.todaviaNoSeCierra(l.producto, gana?.minimo, p.totalUnidades);
+    const mensaje = m.proponerCierre(l.producto, l.participantes.length, p.totalUnidades, p.precioActual, p.unidad);
+    if (actual(comprador.id)?.tipo === 'cerrar_antes') tomar(comprador.id);
+    alFrente(comprador.id, { tipo: 'cerrar_antes', licitacionId: l.id, producto: l.producto, mensaje });
+    return mensaje;
+  }
+
   async function proponerConfirmacion(proveedor: Negocio): Promise<string> {
     const { ordenes, negocios } = await red.estadoDeLaRed();
     const nuevas = ordenes.filter(o => o.proveedorId === proveedor.id && o.estado === 'enviada');
@@ -316,6 +342,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
           ?.items?.find(i => i.productoId === p.productoId)?.cantidad ?? 0;
         await red.agregarAlCarrito!(p.licitacionId, { negocioId: negocio.id, productoId: p.productoId, cantidad: lleva + p.cantidad });
         return m.sumadoAOtraCompra(p.producto, lleva + p.cantidad);
+      }
+      case 'cerrar_antes': {
+        const ordenes = await red.cerrarAntes!(p.licitacionId, negocio.id);
+        return m.compraCerradaAntes(p.producto, ordenes.length);
       }
       case 'abrir_solicitud': {
         const l = await red.abrirSolicitud!({ compradorId: negocio.id, producto: p.producto, unidad: p.unidad, cantidad: p.cantidad });
@@ -510,6 +540,11 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     if (!negocio) {
       const quiereVender = proveedores && ['ser_proveedor', 'crear_producto'].includes(interpretarConReglas(texto).tipo);
       await ctx.reply(quiereVender ? proveedores!.empezar(telefono) : sala ? await sala.atenderPublico(telefono, texto) : m.NO_REGISTRADO);
+      return;
+    }
+    // "cerrar la compra": quien abrió una compra en grupo la cierra antes (igual que en la web).
+    if (red.cerrarAntes && puedeComprar(negocio) && CERRAR_COMPRA.test(normalizar(texto))) {
+      await ctx.reply(await proponerCierre(negocio, texto));
       return;
     }
     const antes = actual(negocio.id);

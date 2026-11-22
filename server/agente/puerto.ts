@@ -77,6 +77,8 @@ export interface Red {
   agregarAlCarrito?(licitacionId: string, item: { readonly negocioId: string; readonly productoId: string; readonly cantidad: number }): Talvez<unknown>;
   /** Un comprador abre una compra en grupo de un producto. */
   abrirSolicitud?(s: { readonly compradorId: string; readonly producto: string; readonly unidad: string; readonly cantidad: number }): Talvez<{ readonly id: string; readonly cierraEn: string }>;
+  /** Quien abrió una compra en grupo la cierra antes de su hora (si ya hay oferta y llegó al pedido mínimo). */
+  cerrarAntes?(licitacionId: string, negocioId: string): Talvez<readonly OrdenCompra[]>;
 }
 
 // Compra conjunta de la sala ("la sala compra junta"). El público se suma por WhatsApp,
@@ -102,7 +104,9 @@ export interface ProductoCompra {
   readonly precioSolo: number;
   readonly tramos: readonly Tramo[];
   /** Ofertas de proveedores por este producto. */
-  readonly ofertas?: readonly { readonly proveedorId: string; readonly precioUnitario: number }[];
+  readonly ofertas?: readonly {
+    readonly proveedorId: string; readonly precioUnitario: number; readonly tramos?: readonly Tramo[]; readonly minimo?: number;
+  }[];
   /** Quien creó el producto (sus tramos son su precio por volumen). */
   readonly proveedorId?: string;
   readonly totalUnidades: number;
@@ -140,6 +144,8 @@ export interface LicitacionSala {
   readonly siguienteTramo: { readonly desde: number; readonly precioUnitario: number; readonly faltan: number } | null;
   readonly cierraEn: string;
   readonly estado: string;
+  /** El comprador que la abrió: solo él la puede cerrar antes. */
+  readonly iniciadaPor?: string;
 }
 
 export interface UnionLicitacion {

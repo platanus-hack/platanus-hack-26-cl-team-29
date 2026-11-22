@@ -121,7 +121,9 @@ export async function iniciarAvisos(o: OpcionesAvisos): Promise<Avisos> {
     if (!l) return;
     const estaRonda = ronda(l);
     const negocios = new Map(o.red.estadoDeLaRed().negocios.map(n => [n.id, n]));
-    const dentro = new Set(l.participantes.flatMap(p => {
+    // Quien la abrió está dentro aunque el aviso salga antes de que entre su cantidad (se avisa al abrirse).
+    const quienes = [...l.participantes, ...(l.iniciadaPor ? [{ negocioId: l.iniciadaPor, telefono: undefined }] : [])];
+    const dentro = new Set(quienes.flatMap(p => {
       const n = p.negocioId ? negocios.get(p.negocioId) : undefined;
       const id = n ? claveDe(n) : p.telefono ? claveDe({ telefono: p.telefono }) : null;
       return id ? [id] : [];
