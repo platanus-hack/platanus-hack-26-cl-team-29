@@ -2,7 +2,7 @@
 Actualizado: 2026-11-22 02:40
 
 ## Estado
-en curso
+libre
 
 ## Trabajando en
 - Vender exige facturar (PR 1), stock declarado (PR 2) y detalles de /app (PR 3).
@@ -14,6 +14,7 @@ en curso
 - client/src/canal/Proveedor.tsx, ConectarSii.tsx, api.ts, tipos.ts; client/src/proveedor/Compras.tsx, proveedor.css
 
 ## Hecho
+- PR #143 vender exige facturar, PR #145 stock declarado, y /app: volver al producto tras inscribir la tarjeta y el frasco que separa lo del grupo de lo que uno está por sumar.
 
 ## Bloqueos
 

@@ -16,16 +16,28 @@ export interface ProductoProgreso {
   tramos: Tramo[];
 }
 
-/** `vista`: unidades del grupo (con lo que el comprador está por sumar), precio de hoy y el siguiente tramo. */
-export function ProgresoCompra({ p, vista }: { p: ProductoProgreso; vista: { unidades: number; precio: number; siguiente: SiguienteTramo | null } }) {
+/**
+ * `vista`: unidades del grupo (con lo que el comprador está por sumar), precio de hoy y el siguiente tramo.
+ * `tuyas`: lo que está por sumar y todavía no guarda: el número grande es lo que ya juntó el grupo y lo suyo se ve
+ * aparte, como vista previa ("con tus 12: 12 de 25"), para no contar como hecho lo que aún no se suma.
+ */
+export function ProgresoCompra({ p, vista, tuyas = 0 }: {
+  p: ProductoProgreso; vista: { unidades: number; precio: number; siguiente: SiguienteTramo | null }; tuyas?: number;
+}) {
   const f = frasco(p.tramos, vista.unidades, vista.siguiente);
+  const grupo = Math.max(0, vista.unidades - tuyas);
+  const llenadoGrupo = vista.unidades > 0 ? f.llenado * (grupo / vista.unidades) : 0;
   const peldanos = escalera(p.tramos, vista.unidades);
   return p.tramos.length > 0 ? (
       <section className="bm-tarjeta bm-tramos" aria-label="Precios por volumen">
-        <div className="bm-frasco" role="img" aria-label={`${vista.unidades} de ${contar(f.meta, p.unidad, p.unidadPlural)}`}>
-          <span className="bm-miel" style={{ height: `${f.llenado * 100}%` }} />
+        <div className="bm-frasco" role="img" aria-label={`${grupo} de ${contar(f.meta, p.unidad, p.unidadPlural)}${tuyas ? `; con tus ${tuyas}, ${vista.unidades}` : ''}`}>
+          {tuyas > 0 && <span className="bm-miel bm-miel-previa" style={{ height: `${f.llenado * 100}%` }} />}
+          <span className="bm-miel" style={{ height: `${llenadoGrupo * 100}%` }} />
           {f.marcas.map(m => <span key={m} className="bm-marca-tramo" style={{ bottom: `${m * 100}%` }} />)}
-          <span className="bm-frasco-cifra"><strong>{vista.unidades}</strong>de {contar(f.meta, p.unidad, p.unidadPlural)}</span>
+          <span className="bm-frasco-cifra">
+            <strong>{grupo}</strong>de {contar(f.meta, p.unidad, p.unidadPlural)}
+            {tuyas > 0 && <small className="bm-frasco-previa">con tus {tuyas}: {vista.unidades}</small>}
+          </span>
         </div>
         <ol className="bm-escalera">
           {peldanos.map(t => (

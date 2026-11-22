@@ -1,11 +1,12 @@
 // /app: "Mi negocio", el canal web del comprador: iniciar o sumarse a compras en grupo, ver los proveedores de la red,
 // la recepción de sus pedidos, sus documentos del SII y su crédito Bando. Se compra en grupo: no hay pedidos directos a un proveedor.
+import { useEffect } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { licitacionVigente } from './logica.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { Invitar, useInvitacionRecibida } from './Invitar.tsx';
-import { MiCredito } from './MiCredito.tsx';
+import { MiCredito, volverTrasTarjeta } from './MiCredito.tsx';
 import { BotonWhatsapp } from './piezas.tsx';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
@@ -38,6 +39,7 @@ export function MiNegocio() {
 
   const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
   useInvitacionRecibida(token, api?.modo); // llegó desde /unirse?ref=<código> de otro negocio ("Trae a tu vecino")
+  useEffect(volverTrasTarjeta, []); // volvió de inscribir la tarjeta: al producto al que se estaba sumando
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
   if (!token) {

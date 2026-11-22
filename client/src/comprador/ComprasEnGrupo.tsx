@@ -287,7 +287,7 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
       )}
 
       <div className="bm-detalle">
-        <ProgresoCompra p={p} vista={vista} />
+        <ProgresoCompra p={p} vista={vista} tuyas={Math.max(0, cantidad - mio)} />
 
         <div className="bm-columna">
           <section className="bm-tarjeta bm-sumarme">
