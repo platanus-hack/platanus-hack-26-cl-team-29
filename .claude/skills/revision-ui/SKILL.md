@@ -7,7 +7,7 @@ description: Revisión de UI y UX de las vistas de la app antes de mergear. Úsa
 
 Objetivo: pantallas ambiciosas pero no sobrecargadas, bien distribuidas, sin fricción y con textos que se entienden al primer vistazo. Una vista no está terminada hasta que pasa esta revisión en todos los tamaños.
 
-La marca (logo, color, tipografía, íconos, ilustraciones y voz) está en `DESIGN.md`: una vista rediseñada se revisa también contra esas reglas.
+La marca (logo, color, tipografía, íconos, ilustraciones y voz) está en `DESIGN.md`: una vista rediseñada se revisa también contra esas reglas, se arma con las primitivas de `client/src/marca/componentes.tsx` y se compara con la guía viva `/marca`. `npm run marca` tiene que pasar: ningún archivo sube su deuda de marca.
 
 ## Principios
 
@@ -83,6 +83,7 @@ En pantallas que se proyectan, `scrollVertical` tiene que decir `no`. Los elemen
 ## Lista final antes de mergear
 
 - [ ] El detector no reporta problemas en ningún tamaño obligatorio.
+- [ ] `npm run marca` pasa, y botones, tarjetas, estados y vacíos usan las primitivas de marca.
 - [ ] Lo más importante de cada pantalla se entiende en tres segundos.
 - [ ] La acción principal está a la vista y se hace en el menor número de toques.
 - [ ] Textos cortos, naturales, en español neutro, con plurales correctos y todo monto con separador de miles.

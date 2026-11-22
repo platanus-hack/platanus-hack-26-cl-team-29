@@ -14,6 +14,8 @@ import { Unirse } from './vistas/Unirse.tsx';
 const Mapa = lazy(() => import('./vistas/Mapa.tsx').then(m => ({ default: m.Mapa })));
 // La red en 3D suma deck.gl encima de MapLibre: se descarga solo al entrar a /red-3d.
 const Red3D = lazy(() => import('./vistas/Red3D.tsx').then(m => ({ default: m.Red3D })));
+// La guía del sistema de diseño es para el equipo: no pesa en las vistas de la demo.
+const GuiaMarca = lazy(() => import('./vistas/GuiaMarca.tsx').then(m => ({ default: m.GuiaMarca })));
 
 // Rutas por path, sin librería: la pantalla de la demo, la licitación y la página del QR.
 const VISTAS: Record<string, ComponentType> = {
@@ -24,6 +26,7 @@ const VISTAS: Record<string, ComponentType> = {
   '/app': MiNegocio,
   '/proveedor': Proveedor,
   '/pagos': Pagos,
+  '/marca': GuiaMarca,
 };
 
 iniciarTema(); // modo claro u oscuro de la marca, antes de dibujar para que no parpadee
