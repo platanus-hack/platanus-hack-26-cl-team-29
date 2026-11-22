@@ -177,6 +177,8 @@ export interface EstadoRed {
   /** El backend la manda como { proveedorId: nota }; normalizarEstado la convierte a lista. */
   notas: NotaProveedor[];
   licitaciones: Licitacion[];
+  /** La compra de la sala según el backend: la que se proyecta y a la que suma WhatsApp. null sin compra abierta. */
+  salaId?: string | null;
 }
 
 

@@ -40,3 +40,36 @@
 .lic-marca .lic-facturas .lic-foco { display: flex; align-items: center; gap: var(--espacio-2); }
 .lic-marca .lic-estado-sii { display: inline-flex; align-items: center; gap: var(--espacio-1); }
 .lic-marca .sumate .url { word-break: normal; overflow-wrap: anywhere; }
+
+/* Con varias compras abiertas: chips para elegir cuál se proyecta, discretos bajo la línea de la marca. */
+.lic-marca .lic-elegir { display: flex; flex-wrap: wrap; gap: var(--espacio-2); margin-top: var(--espacio-3); }
+.lic-marca .lic-elegir button {
+  font: 600 clamp(14px, 1.6vh, 18px) / 1.2 var(--font-sans); color: var(--color-muted-foreground); cursor: pointer;
+  background: var(--color-secondary); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-full);
+  padding: var(--espacio-1) var(--espacio-3); transition: border-color var(--duracion-rapida) ease;
+}
+.lic-marca .lic-elegir button:hover { border-color: var(--color-foreground); }
+.lic-marca .lic-elegir button.elegida { color: var(--color-foreground); border-color: var(--bando-miel); }
+.lic-marca .lic-elegir .lic-sala { color: var(--bando-miel-texto); }
+
+/* Panel del presentador (tecla "p"): flotante abajo a la derecha, fuera de la composición proyectada. */
+.lic-marca .panel-presentador {
+  position: fixed; right: var(--espacio-4); bottom: var(--espacio-4); z-index: var(--z-modal); width: min(360px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: var(--espacio-3); padding: var(--espacio-4);
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl);
+  box-shadow: var(--sombra-modal); font-size: 16px; line-height: 1.4;
+}
+.lic-marca .panel-presentador .panel-cabecera { display: flex; justify-content: space-between; align-items: center; }
+.lic-marca .panel-presentador .campo { display: flex; flex-direction: column; gap: var(--espacio-1); }
+.lic-marca .panel-presentador input {
+  font: inherit; color: var(--color-foreground); background: var(--color-secondary);
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); padding: var(--espacio-2) var(--espacio-3);
+}
+.lic-marca .panel-presentador .panel-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-2); }
+.lic-marca .panel-presentador button {
+  font: 600 14px / 1.2 var(--font-sans); cursor: pointer; color: var(--color-foreground); background: var(--color-secondary);
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); padding: var(--espacio-2) var(--espacio-3);
+}
+.lic-marca .panel-presentador button:disabled { opacity: 0.5; cursor: default; }
+.lic-marca .panel-presentador .panel-x { padding: var(--espacio-1) var(--espacio-2); }
+.lic-marca .panel-presentador .panel-mensaje { margin: 0; color: var(--color-muted-foreground); }

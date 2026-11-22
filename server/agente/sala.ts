@@ -146,8 +146,23 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
   let ofertasRecientes: (m.OfertaSala & { licitacionId: string })[] = [];
   let timerCascada: ReturnType<typeof setTimeout> | null = null;
 
-  async function abierta(): Promise<LicitacionSala | null> {
-    const l = await red.licitacionAbierta();
+  /** Teléfono -> compra que nombró ("quiero sumarme a la compra L-3", el texto del QR): mientras siga abierta, es la suya. */
+  const nombradas = new Map<string, string>();
+
+  /** Si el mensaje nombra una compra abierta, queda como la de ese teléfono. */
+  async function recordarNombrada(telefono: string, texto: string) {
+    const id = /\bcompra\s+(L-\d+)\b/i.exec(texto)?.[1]?.toUpperCase();
+    if (!id || !red.licitacionPorId) return;
+    const l = await red.licitacionPorId(id);
+    if (l?.estado === 'abierta') nombradas.set(claveTelefono(telefono), id);
+  }
+
+  /** La compra de este teléfono: la que nombró si sigue abierta; si no, la de la sala. */
+  async function abierta(telefono?: string): Promise<LicitacionSala | null> {
+    const id = telefono ? nombradas.get(claveTelefono(telefono)) : undefined;
+    const nombrada = id && red.licitacionPorId ? await red.licitacionPorId(id) : null;
+    if (id && nombrada?.estado !== 'abierta') nombradas.delete(claveTelefono(telefono!));
+    const l = nombrada?.estado === 'abierta' ? nombrada : await red.licitacionAbierta();
     if (l) ultimaConocida = l;
     return l;
   }
@@ -330,7 +345,8 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
 
   async function atenderPublico(telefono: string, texto: string, nombreConocido?: string): Promise<string> {
     const clave = claveTelefono(telefono);
-    const l = await abierta();
+    await recordarNombrada(telefono, texto);
+    const l = await abierta(telefono);
     if (!l) return participantes.has(clave) ? m.COMPRA_CERRADA : m.SIN_COMPRA_ABIERTA;
     const productos = productosDe(l);
     const yo = await participacionDe(telefono, l);
@@ -441,7 +457,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     if (await hablaDeOtroProducto(texto)) return false;
     if (borradores.has(clave) || salidas.has(clave)) return true;
     if (/\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto))) return true;
-    const l = await abierta();
+    const l = await abierta(telefono);
     if (!l) return false;
     const d = interpretarCanastaConReglas(texto, catalogoDe(l, o.cantidadMaxima));
     return d.cambios.length > 0 || d.accion !== undefined || d.suelta !== undefined;
@@ -452,7 +468,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
     if (await hablaDeOtroProducto(texto)) return false;
     if (participantes.has(clave) || borradores.has(clave) || salidas.has(clave)) return true;
     if (/\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto))) return true;
-    const l = await abierta();
+    const l = await abierta(telefono);
     if (!l) return false;
     if (l.participantes.some(p => p.negocioId === negocioId)) return true;
     const d = interpretarCanastaConReglas(texto, catalogoDe(l, o.cantidadMaxima));

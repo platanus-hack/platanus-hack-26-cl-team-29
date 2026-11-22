@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, normalizarEstado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, totalesCanasta } from '../client/src/red/derivar.ts';
+import { cambiosDeNota, cicloDeOrden, describirEvento, detalleCarrito, estadoTramos, licitacionActual, normalizarEstado, productosDeCanasta, productoQueCambio, ranking, resumenLicitacion, totalesCanasta } from '../client/src/red/derivar.ts';
 import { cuentaRegresiva, textoEstadoSii } from '../client/src/red/formato.ts';
 import type { EstadoRed, Licitacion } from '../client/src/red/tipos.ts';
 
@@ -139,4 +139,16 @@ test('los totales de la canasta suman cada producto con su propio precio y ahorr
   assert.equal(etiquetas.lider?.proveedorId, 'a');
   assert.equal(etiquetas.proveedores, 2);
   assert.equal(productoQueCambio({ rollos: '4', etiquetas: '11' }, { rollos: '4', etiquetas: '12' }), 'etiquetas');
+});
+
+test('licitacionActual: respeta el id; sin él, la abierta más reciente con negocios, luego la abierta más reciente', () => {
+  const lic = (id: string, estado: Licitacion['estado'], negocios: number) =>
+    ({ id, estado, participantes: Array.from({ length: negocios }, (_, i) => ({ negocioId: `n-${i}`, cantidad: 1 })) }) as unknown as Licitacion;
+  const conLista = (...licitaciones: Licitacion[]) => ({ licitaciones }) as unknown as EstadoRed;
+  const red = conLista(lic('L-1', 'cerrada', 3), lic('L-3', 'abierta', 2), lic('L-11', 'cerrada', 1), lic('L-12', 'abierta', 2), lic('L-13', 'abierta', 0));
+  assert.equal(licitacionActual(red)?.id, 'L-12', 'la abierta más reciente que ya tiene negocios');
+  assert.equal(licitacionActual(red, 'L-3')?.id, 'L-3', 'el id manda');
+  assert.equal(licitacionActual({ ...red, salaId: 'L-3' })?.id, 'L-3', 'sin id, la sala que dice el backend');
+  assert.equal(licitacionActual(conLista(lic('L-1', 'abierta', 0), lic('L-2', 'abierta', 0)))?.id, 'L-2', 'sin negocios, la más reciente');
+  assert.equal(licitacionActual(conLista(lic('L-1', 'cerrada', 1), lic('L-2', 'cerrada', 1)))?.id, 'L-2', 'sin abiertas, la última');
 });

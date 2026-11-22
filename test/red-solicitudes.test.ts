@@ -172,3 +172,21 @@ test('la dirección de factura: se da al registrarse, se completa después y no 
   assert.deepEqual([datos().direccion, datos().comuna], ['Irarrázaval 1234', 'Ñuñoa']);
   await assert.rejects(red.fijarDireccionFactura(ana.id, { direccion: ' ', comuna: 'Ñuñoa' }), /dirección y la comuna/);
 });
+
+test('la sala es la compra del proveedor de la demo aunque se abra otra desde /app; sin ella, la más reciente', async () => {
+  const env = { DEMO_FICTICIOS: '1' };
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo, new Date('2026-11-21T12:00:00Z'), env);
+  const red = await crearRed({ repo, sii: crearSiiFalso(), env, reloj: () => new Date('2026-11-21T12:00:00Z') });
+  const sala = red.licitacionAbierta()!;
+  assert.equal(sala.proveedorId, 'n-proveedor-demo');
+  const ana = (await red.registrarComprador({ nombre: 'Ana', comuna: 'Ñuñoa', telefono: '+56 9 3000 0003' })).id;
+  const cafe = await red.abrirSolicitud({ compradorId: ana, producto: 'Café molido', unidad: 'kilo', cantidad: 3, precioHoy: 12000 });
+  assert.equal(red.licitacionAbierta()!.id, sala.id, 'una compra nueva desde /app no le quita la sala a la de la demo');
+  assert.equal(red.estadoPublico().salaId, sala.id, 'el proyector recibe la misma sala');
+  assert.equal(red.licitacionPorId(cafe.id)!.id, cafe.id);
+
+  await red.cerrarLicitacion(sala.id);
+  assert.equal(red.licitacionAbierta()!.id, cafe.id, 'sin la de la demo, la abierta más reciente');
+  assert.equal(red.estadoPublico().salaId, cafe.id);
+});
