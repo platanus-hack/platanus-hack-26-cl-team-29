@@ -49,7 +49,7 @@ function Grupo({ lic, r, cerrada, unidad, canasta, whatsappNumero }: { lic: Lici
   const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
   // Con número de WhatsApp, el QR abre el chat con el mensaje ya escrito: quien escribe primero abre la ventana de 24 h
   // (el sandbox no tiene plantillas) y el agente le toma el pedido ahí mismo. La web queda como alternativa debajo.
-  const chat = whatsappNumero ? enlaceWhatsapp(whatsappNumero, `Hola Bando, quiero sumarme a la compra ${lic.id}`) : '';
+  const chat = whatsappNumero ? enlaceWhatsapp(whatsappNumero, `Quiero sumarme a la compra ${lic.id}`) : '';
   return (
     <section className="tarjeta apilada">
       <p className="etiqueta">Compradores en el grupo</p>

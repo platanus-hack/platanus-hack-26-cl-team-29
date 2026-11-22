@@ -45,6 +45,8 @@ export interface OpcionesSala {
   readonly almacenBorradores?: AlmacenBorradores;
   /** Deja la pregunta de facturar en la cola de confirmaciones del agente. */
   pedirConfirmacion(proveedor: Negocio, licitacionId: string, mensaje: string): Promise<void>;
+  /** Tras avisar el folio al comprador: preguntarle si recibió todo (con eso puede reclamar un faltante por aquí). */
+  preguntarRecepcion?(ordenId: string, folio: number): Promise<void>;
 }
 
 export interface Sala {
@@ -376,8 +378,9 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       return borrador ? b.pregunta : m.bienvenidaSala(l, b.pregunta, o.urlPublica);
     };
     const base = yo?.items ?? borrador?.items ?? [];
-    const nombre = yo?.nombre ?? d.nombre ?? borrador?.nombre ?? nombreConocido;
     const registro = borrador?.registro;
+    // Sin un nombre dicho, el de su factura: quien ya dio su RUT no tiene que volver a decir cómo se llama.
+    const nombre = yo?.nombre ?? d.nombre ?? borrador?.nombre ?? registro?.razonSocial ?? nombreConocido;
     const guardado = { ...(nombre ? { nombre } : {}), items: base, ...(registro ? { registro } : {}) };
     /** Se suma a la compra con los datos de su factura (del registro, si lo hizo recién). */
     const sumar = (nombre: string, items: readonly ItemCarrito[]) => guardar(telefono, nombre, items, l, false, registro?.rut, registro?.direccion);
@@ -612,6 +615,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
         link: pdf, filename: `factura-${documento.folio}.pdf`, caption: m.leyendaPdf(documento.folio),
       }, `pdf ${documento.folio}`);
     }
+    await o.preguntarRecepcion?.(orden.id, documento.folio);
   }
 
   /** Sin PDF el folio igual sale: el enlace es un extra. */

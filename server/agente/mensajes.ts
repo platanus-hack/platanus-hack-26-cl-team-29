@@ -4,7 +4,7 @@ import { dinero, miles, nota } from '../../shared/formato.ts';
 import { fechaCorta, fechaEnChile, horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
-import { totalOrden } from '../../shared/precios.ts';
+import { totalConIva, totalOrden } from '../../shared/precios.ts';
 import { contar, cuantos, mayuscula, pluralDe, segun } from '../../shared/texto.ts';
 import { cortoDe, productosDe } from './canasta.ts';
 
@@ -163,6 +163,10 @@ export function facturasEmitidas(ordenes: readonly OrdenCompra[], compradores: R
   return `Listo, emití ${ordenes.length} facturas en el SII con sus guías de despacho. Ya les avisé a tus clientes.`;
 }
 
+/** Tras el aviso del folio (que ya trae el detalle y el total): solo la pregunta, para poder reclamar un faltante. */
+export const preguntaRecepcion = (folio: number) =>
+  `Cuando te llegue el pedido de la factura folio ${folio}, ¿recibiste todo?\n` + opciones('Sí, todo bien', 'No, faltó algo');
+
 export function llegoFactura(orden: OrdenCompra, proveedor: Negocio): string {
   const [item] = orden.items;
   const despachada = item.cantidadDespachada ?? item.cantidad;
@@ -236,14 +240,17 @@ function lineasDe(items: readonly ItemCarrito[], l: LicitacionSala): { p: Produc
 const listaItems = (items: readonly ItemCarrito[], l: LicitacionSala) =>
   lineasDe(items, l).map(x => itemTexto(x.p, x.cantidad)).join(', ');
 
-/** "Total $133.400, ahorras $8.400." */
+/** Todo monto guardado es neto: por WhatsApp se dice el total con IVA, como en la web, con el neto al lado. */
+const conIva = (neto: number) => `${dinero(totalConIva(neto))} con IVA (neto ${dinero(neto)})`;
+
+/** "Total $158.746 con IVA (neto $133.400), ahorras $8.400." */
 function totalYAhorro(items: readonly ItemCarrito[], l: LicitacionSala): string {
   const lineas = lineasDe(items, l);
   // Una compra sin ofertas todavía no tiene precio: no se muestra $0.
   if (lineas.some(x => !(x.p.precioActual > 0))) return 'El precio lo ponen los proveedores al ofertar: al cerrar pagas el mejor para el grupo.';
   const total = lineas.reduce((s, x) => s + x.cantidad * x.p.precioActual, 0);
   const ahorro = lineas.reduce((s, x) => s + x.cantidad * Math.max(0, x.p.precioSolo - x.p.precioActual), 0);
-  return `Total ${dinero(total)}${ahorro > 0 ? `, ahorras ${dinero(ahorro)}` : ''}.`;
+  return `Total ${conIva(total)}${ahorro > 0 ? `, ahorras ${dinero(ahorro)}` : ''}.`;
 }
 
 /** El tramo más cercano entre lo que lleva (o de toda la canasta si no lleva nada): "Faltan 3 cajas de rollos para bajar a $27.900." */
@@ -377,14 +384,14 @@ export function bajoPrecio(bajas: readonly BajaDePrecio[], negocios: number): st
 
 export function cierreAlProveedor(r: { negocios: number; lineas: readonly string[]; total: number }): string {
   return `Cerró la compra conjunta: ${contar(r.negocios, 'negocio')}, ${r.lineas.join(', ')}. `
-    + `Total ${dinero(r.total)}. ¿Las facturo todas en el SII?\n` + opciones('Sí, factura todo', 'Todavía no');
+    + `Total ${conIva(r.total)}. ¿Las facturo todas en el SII?\n` + opciones('Sí, factura todo', 'Todavía no');
 }
 
 export const facturasDeLaSala = (cantidad: number) =>
   `Listo, emití ${contar(cantidad, 'factura')} en el SII en un solo envío. Cada negocio recibe su folio por aquí.`;
 
 export const folioAlComprador = (p: { folio: number; lineas: readonly string[]; total: number; ahorro: number; pdf?: string | null }) =>
-  `Tu factura folio ${p.folio} fue emitida en el SII: ${p.lineas.join(', ')}. Total ${dinero(p.total)}.`
+  `Tu factura folio ${p.folio} fue emitida en el SII: ${p.lineas.join(', ')}. Total ${conIva(p.total)}.`
   + (p.ahorro > 0 ? ` Ahorraste ${dinero(p.ahorro)}.` : '')
   + (p.pdf ? `\nDescárgala: ${p.pdf}` : '');
 

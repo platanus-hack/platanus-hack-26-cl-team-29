@@ -172,6 +172,8 @@ const RELLENO = new Set([
   'me', 'nos', 'sumo', 'sumamos', 'entro', 'entramos', 'y', 'con', 'para', 'por', 'favor', 'porfa', 'gracias', 'ok', 'dale',
   'si', 'listo', 'ya', 'unos', 'unas', 'anotame', 'anota', 'necesito', 'necesitamos', 'pido', 'pedimos', 'perfecto', 'aqui', 'aca',
   'solo', 'solamente', 'no', 'nop', 'mejor', 'ahora',
+  // El texto del QR ("Hola Bando, quiero sumarme a la compra L-1"): ni la marca ni la compra son el negocio.
+  'bando',
   // Verbos de pedir: "Quiero comprar guantes" no es el negocio "comprar".
   'comprar', 'compro', 'compramos', 'comprarme', 'pedir', 'pide', 'pideme', 'pidan', 'pedirte', 'llevar', 'llevo', 'llevamos',
   'encargar', 'encargo', 'encarga', 'dame', 'deme', 'denme', 'manda', 'mandame', 'traeme', 'queria', 'quisieramos', 'necesitaria',
@@ -259,10 +261,13 @@ function extraerNombre(texto: string): string | undefined {
   const limpio = texto
     .replace(/\b(mi|el|nuestro)\s+(negocio|local)(\s+se\s+llama|\s+es)?\b/gi, ' ')
     .replace(/\bse\s+llama\b/gi, ' ')
-    .replace(/\b(soy|somos)(\s+de(l)?)?\b/gi, ' ');
+    .replace(/\b(soy|somos)(\s+de(l)?)?\b/gi, ' ')
+    .replace(/\ba\s+la\s+compra(\s+conjunta|\s+en\s+grupo)?(\s+L-?\d+)?/gi, ' ');
   const palabras = limpio.trim().split(/\s+/).filter(Boolean);
-  while (palabras.length && RELLENO.has(sinTildes(palabras[0]))) palabras.shift();
-  while (palabras.length && RELLENO.has(sinTildes(palabras.at(-1)!))) palabras.pop();
+  // "Bando," o "hola!" cuentan como relleno aunque traigan puntuación pegada.
+  const relleno = (palabra: string) => RELLENO.has(sinTildes(palabra).replace(/[^\p{L}\p{N}]/gu, ''));
+  while (palabras.length && relleno(palabras[0])) palabras.shift();
+  while (palabras.length && relleno(palabras.at(-1)!)) palabras.pop();
   const nombre = palabras.join(' ');
   if (!/\p{L}.*\p{L}/u.test(nombre) || palabras.length > 6 || NO_NOMBRE.test(sinTildes(nombre))) return undefined;
   return nombre.slice(0, 40);
