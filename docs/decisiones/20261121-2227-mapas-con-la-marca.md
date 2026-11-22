@@ -18,5 +18,5 @@ Autor: jorge-red3d
 - Un mapa fuera de `.bando-ui` (la ruta del proveedor en `canal/`) sigue con el estilo oscuro y sin teñir.
 
 ## Consecuencias
-Cambiar un color de marca en `tokens.css` cambia los mapas. El panel de `/red` dentro de `/mapa` va en `.puente-legado`
-hasta que su vista se migre; entonces sobran las reglas del panel en `vistas/mapa.css`.
+Cambiar un color de marca en `tokens.css` cambia los mapas. El panel de `/mapa` y la cabecera de `/red-3d` reusan las
+piezas de `/red` con su estilo de marca (`vistas/red.css`).

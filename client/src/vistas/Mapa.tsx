@@ -188,12 +188,12 @@ export function Mapa() {
   const ahora = useAhora();
   const mp = useProveedoresMapa(eventos[0]?.clave);
   const [elegido, setElegido] = useState<string | null>(null);
-  if (!estado) return <Cargando />;
+  if (!estado) return <Cargando bando />;
   const proveedorMp = mp.find(p => p.clave === elegido);
 
   return (
-    <main className="bando-ui pagina proyeccion red mapa-vista">
-      <CabeceraRed titulo="La red en el mapa" fuente={fuente} />
+    <main className="bando-ui pagina proyeccion red red-bando mapa-vista">
+      <CabeceraRed titulo="La red en el mapa" fuente={fuente} bando />
 
       <div className="red-cuerpo">
         <section className="mapa-zona">
@@ -217,8 +217,7 @@ export function Mapa() {
           </div>
         </section>
 
-        {/* El panel de /red aún usa la interfaz anterior: el puente le da los colores de la marca (DESIGN.md). */}
-        <div className="columna puente-legado">
+        <div className="columna">
           <Contadores estado={estado} />
           <Ranking estado={estado} cambios={cambios} ahora={ahora} />
           <MiniLicitacion estado={estado} />

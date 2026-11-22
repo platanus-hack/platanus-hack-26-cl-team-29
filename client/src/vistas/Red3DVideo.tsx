@@ -224,7 +224,7 @@ export function Red3DVideo() {
         <Logo className="r3d-logo-bando" />
         <h1>La red crece</h1>
       </header>
-      <div className="r3d-cifra puente-legado" aria-live="polite"><Contador valor={n} texto={capituloVideo(n)} /></div>
+      <div className="r3d-cifra" aria-live="polite"><Contador valor={n} texto={capituloVideo(n)} /></div>
       <LeyendaRed3D />
       <p className="r3d-aviso">Simulación ilustrativa</p>
     </main>

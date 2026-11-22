@@ -361,7 +361,7 @@ function Red3DRed() {
   const mp = useProveedoresMapa(eventos[0]?.clave);
   const [elegidoMp, setElegidoMp] = useState<string | null>(null);
   const [avance, setAvance] = useState({ t: 0, vistos: 0 });
-  if (!estado) return <Cargando />;
+  if (!estado) return <Cargando bando />;
   const proveedorMp = mp.find(p => p.clave === elegidoMp);
 
   const totalLocales = locales?.locales.length ?? 0;
@@ -374,11 +374,11 @@ function Red3DRed() {
         estado={estado} eventos={eventos} locales={locales?.locales ?? null} mp={mp} recorrido={recorrido}
         alElegir={id => { setElegido(id); setElegidoMp(null); }} alElegirMp={c => { setElegidoMp(c); setElegido(null); }} alAvanzar={(t, vistos) => setAvance(a => (a.vistos === vistos && Math.abs(a.t - t) < 150 ? a : { t, vistos }))}
       />
-      <div className="r3d-arriba puente-legado">
-        <CabeceraRed titulo="La red crece" fuente={fuente} />
+      <div className="r3d-arriba">
+        <CabeceraRed titulo="La red crece" fuente={fuente} bando />
         {!recorrido && <p className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</p>}
       </div>
-      <div className="r3d-cifra puente-legado" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} /></div>
+      <div className="r3d-cifra" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} /></div>
       <LeyendaRed3D mercadoPublico={mp.length > 0} />
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
       {proveedorMp && <FichaMercadoPublico proveedor={proveedorMp} alCerrar={() => setElegidoMp(null)} />}

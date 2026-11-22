@@ -1,13 +1,6 @@
 /* ---------- /mapa: la red sobre un mapa real, con la marca de Bando (.bando-ui, claro y oscuro) ---------- */
 /* Colores del mapa y de la red: mapa/base.ts los lee de los mismos tokens. Aquí solo tokens, nada escrito a mano. */
-.mapa-vista {
-  --relleno: clamp(14px, 2vh, 24px);
-  --t-fila: clamp(14px, 1.9vh, 20px);
-  /* Las piezas de /red que se reusan (cabecera, monogramas) no traen sus tipografías anteriores. */
-  --font-display: var(--font-sans); --font-mono: var(--font-sans);
-}
-.mapa-vista .titulo-red { font-size: clamp(24px, 3.6vh, 40px); font-weight: 700; letter-spacing: -0.03em; }
-.mapa-vista .marca { width: clamp(32px, 4.6vh, 48px); height: clamp(32px, 4.6vh, 48px); }
+.mapa-vista { --relleno: clamp(14px, 2vh, 24px); --t-fila: clamp(14px, 1.9vh, 20px); }
 
 .mapa-zona { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
 .mapa-caja {
@@ -77,35 +70,11 @@
 .mapa-caja .maplibregl-ctrl-attrib a { color: inherit; }
 .mapa-caja .mapa-ficha { top: 12px; right: 12px; max-height: calc(100% - 24px); overflow-y: auto; }
 
-/* ---------- Panel de la derecha (piezas de /red bajo .puente-legado): tarjetas y textos de la marca ---------- */
-.mapa-vista .tarjeta { border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); padding: var(--relleno); }
-.mapa-vista .etiqueta {
-  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; letter-spacing: var(--tracking-caps); color: var(--color-faint-fg);
-}
-.mapa-vista .numero-grande { font-weight: 600; letter-spacing: -0.03em; }
-.mapa-vista .contador .numero-grande { font-size: clamp(24px, 3.8vh, 40px); }
-.mapa-vista .contador .verde { color: var(--bando-miel-texto); }
-.mapa-vista .contador .amarillo { color: var(--bando-oliva-texto); }
-.mapa-vista .mini-lic .numero-grande { font-size: clamp(28px, 4.6vh, 48px); color: var(--color-foreground); }
-.mapa-vista .mini-lic-precio, .mapa-vista .mini-lic p:last-child { font-size: var(--text-sm); }
-.mapa-vista .fila-ranking { font-weight: 600; min-height: calc(var(--t-fila) * 2); padding-block: 0.4vh; }
-.mapa-vista .fila-ranking .puesto { color: var(--color-faint-fg); }
-.mapa-vista .fila-ranking .sub, .mapa-vista .feed-detalle, .mapa-vista .feed time { font-size: var(--text-xs); }
-.mapa-vista .fila-ranking.baja { background: color-mix(in srgb, var(--color-destructive) 10%, transparent); }
-.mapa-vista .fila-ranking.sube { background: color-mix(in srgb, var(--bando-oliva) 14%, transparent); }
-/* Texto y detalle del feed en bloque: así una línea larga termina en "…" en vez de cortarse. */
+/* ---------- Panel de la derecha (piezas de /red, con su estilo de marca en vistas/red.css) ---------- */
+/* Columna más angosta que en /red: filas del ranking más bajas para que quepan más, y textos del feed en bloque para
+   que una línea larga termine en "…" en vez de cortarse. */
+.mapa-vista .fila-ranking { min-height: calc(var(--t-fila) * 2); padding-block: 0.4vh; }
 .mapa-vista .feed .texto, .mapa-vista .feed-detalle { display: block; }
-.mapa-vista .feed li:first-child { animation: aparecer 0.4s ease-out, mapa-destello 2.5s ease-out; }
-.mapa-vista .feed li[role='button']:hover, .mapa-vista .feed li.elegido { background: var(--color-secondary); }
-.mapa-vista .feed li.elegido { box-shadow: inset 3px 0 0 var(--bando-miel); }
-.mapa-vista .feed li[role='button']:focus-visible { outline-color: var(--bando-miel); }
-.mapa-vista .feed-panel {
-  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl);
-  box-shadow: 0 -8px 24px color-mix(in srgb, var(--bando-carbon) 18%, transparent);
-}
-.mapa-vista .feed-pdf { color: var(--color-foreground); }
-.mapa-vista .feed-cerrar:hover, .mapa-vista .feed-cerrar:focus-visible { color: var(--color-foreground); border-color: var(--color-foreground); }
-@keyframes mapa-destello { from { background: var(--bando-miel-50); } to { background: transparent; } }
 
 /* Pantalla proyectada: el mapa y su pie llenan el alto. */
 @media (min-width: 1024px) and (min-height: 600px) {

@@ -18,4 +18,4 @@ libre
 - (ninguno)
 
 ## Pedidos a otros
-- @agente de `/red` (RedEnVivo): `/mapa` reusa Contadores, Ranking, MiniLicitacion y Feed bajo `.puente-legado`, con ajustes de marca en `vistas/mapa.css` (sección "Panel de la derecha"). Cuando migres esas piezas, borra esa sección y el `puente-legado` de Mapa.tsx. CabeceraRed también va bajo `.puente-legado` en `/red-3d`.
+- @marca-inicio: listo, `/mapa` y `/red-3d` usan `CabeceraRed bando`, `Cargando bando` y las piezas de `vistas/red.css` dentro de `.bando-ui`, sin puente.

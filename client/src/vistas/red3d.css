@@ -3,8 +3,6 @@
    Colores del mapa y de deck.gl: mapa/base.ts los lee de los mismos tokens. Aquí solo tokens, nada escrito a mano. */
 .r3d {
   position: fixed; inset: 0; overflow: hidden; background: var(--color-muted); color: var(--color-foreground);
-  /* Las piezas de /red que se reusan (monogramas) no traen sus tipografías anteriores. */
-  --font-display: var(--font-sans); --font-mono: var(--font-sans);
   --sombra-flotante: 0 4px 18px color-mix(in srgb, var(--bando-carbon) 16%, transparent);
 }
 .r3d-lienzo, .r3d-mapa { position: absolute; inset: 0; }
@@ -19,10 +17,10 @@
   position: absolute; left: var(--relleno); top: var(--relleno); max-width: calc(100vw - 2 * var(--relleno) - 140px);
   padding: 12px 18px; border-radius: var(--radius-xl); pointer-events: none;
 }
-.r3d-arriba .red-cabecera { gap: 12px; }
-.r3d-arriba .marca { width: clamp(28px, 3.6vh, 40px); height: clamp(28px, 3.6vh, 40px); }
-.r3d-arriba .titulo-red { font-size: clamp(22px, 3vh, 32px); font-weight: 700; letter-spacing: -0.03em; }
-.r3d-arriba .fuente-falsa, .r3d-arriba .en-vivo { pointer-events: auto; }
+/* La cabecera de /red (vistas/red.css; con `.r3d` delante para ganarle), compacta dentro de la tarjeta: sin el hueco para el menú, que ya da la tarjeta. */
+.r3d .r3d-arriba .red-cabecera { gap: 12px; padding-right: 0; }
+.r3d .r3d-arriba .marca-horizontal { height: clamp(36px, 4.4vh, 48px); }
+.r3d .r3d-arriba .boton-tema { margin-left: 4px; pointer-events: auto; }
 .r3d-ayuda { margin: 6px 0 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); }
 
 /* El titular del video: el logo y el nombre de la escena. */
@@ -35,9 +33,9 @@
 
 /* La cifra abajo a la izquierda: el único número grande de la pantalla. */
 .r3d-cifra { position: absolute; left: var(--relleno); bottom: calc(var(--relleno) + 22px); max-width: min(40vw, 460px); pointer-events: none; }
-.r3d-cifra .tarjeta { padding: clamp(14px, 2vh, 22px) clamp(16px, 2vh, 24px); border-radius: var(--radius-xl); }
-.r3d-cifra .numero-grande { font-size: clamp(40px, 5.6vh, 60px); line-height: 1; font-weight: 600; letter-spacing: -1.5px; color: var(--color-foreground); }
-.r3d-cifra .etiqueta {
+.r3d .r3d-cifra .tarjeta { padding: clamp(14px, 2vh, 22px) clamp(16px, 2vh, 24px); border-radius: var(--radius-xl); }
+.r3d .r3d-cifra .contador .numero-grande { font-size: clamp(40px, 5.6vh, 60px); line-height: 1; font-weight: 600; letter-spacing: -1.5px; color: var(--color-foreground); }
+.r3d .r3d-cifra .contador .etiqueta {
   margin-top: 8px; text-transform: none; letter-spacing: 0;
   font-size: clamp(14px, 1.6vh, 16px); line-height: 1.4; font-weight: 500; color: var(--color-muted-foreground);
 }
