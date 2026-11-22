@@ -76,9 +76,11 @@ export const noEntendi = (pregunta: string) => `No te entendí.\n\n${pregunta}`;
 export const fallo = (error: unknown) =>
   `No pude completarlo: ${error instanceof Error ? error.message : String(error)}. Si quieres reintentar, responde "sí".`;
 
-export const elegirProducto = (escrito: string, parecidos: readonly { nombre: string; unidad: string }[]) =>
+export const elegirProducto = (escrito: string, parecidos: readonly { nombre: string; unidad: string }[], puedeCrear = true) =>
   `En Bando ya hay productos parecidos a "${escrito}". ¿Cuál es?\n`
-  + opciones(...parecidos.map(p => `${p.nombre} (por ${p.unidad})`), `Otro: crear "${escrito}"`);
+  + opciones(...parecidos.map(p => `${p.nombre} (por ${p.unidad})`), ...(puedeCrear ? [`Otro: crear "${escrito}"`] : []));
+export const nadieLoVende = (escrito: string) =>
+  `Ningún proveedor vende "${escrito}" en Bando todavía. Cuando alguno lo agregue a su lista, podrás comprarlo en grupo.`;
 export const proponerSumarse = (p: ProductoCompra, cantidad: number, cierraEn: string) =>
   `Hay una compra en grupo abierta de "${p.nombre}"${p.precioActual > 0 ? `, hoy a ${dinero(p.precioActual)} por ${p.unidad}` : ', esperando ofertas de proveedores'}. `
   + `Cierra a las ${horaEnChile(Date.parse(cierraEn))}. ¿Te sumo con ${contar(cantidad, p.unidad, p.unidadPlural)}?\n` + opciones('Sí, súmame', 'No');

@@ -59,6 +59,7 @@ export interface OpcionesIniciarRed {
   antesDeEntrar?: (n: Negocio) => void | Promise<void>;
   /** Ver `OpcionesRed.precioDeReferencia` (listas de los proveedores y Mercado Público). */
   precioDeReferencia?: OpcionesRed['precioDeReferencia'];
+  existeProducto?: OpcionesRed['existeProducto'];
 }
 
 /**
@@ -81,7 +82,7 @@ export async function iniciarRed(
   await aplicarDatosDemo(repo);
   const falso = crearSiiFalso((await repo.cargar()).documentos);
   const consultarContribuyente = conCacheYFila(opciones.consultarContribuyente ?? crearConsultaContribuyenteFalsa());
-  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia });
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia, existeProducto: opciones.existeProducto });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }

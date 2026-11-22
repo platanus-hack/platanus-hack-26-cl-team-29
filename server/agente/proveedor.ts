@@ -195,9 +195,11 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
   async function proponerProducto(_proveedor: Negocio, nombre: string, dicha: string, precio: number): Promise<PropuestaProveedor | string> {
     // La unidad como la escribió ("kg", "la bolsa") pasa a una de la lista; si no es ninguna, por unidad.
     const unidad = unidadDeTexto(dicha) ?? 'unidad';
+    // Lo que vende va siempre a su lista (con tramos sugeridos que cambia en su panel): desde ahí compite solo en las
+    // compras en grupo que piden ese producto. Nunca se mete en una compra abierta de otra cosa.
+    if (o.productos) return { tipo: 'agregar_producto', nombre, unidad, precio, mensaje: m.proponerAgregarProducto(nombre, unidad, tramosAutomaticos(precio)) };
     const l = await abierta();
-    // Sin compra abierta, el producto va a su lista con tramos sugeridos, que después cambia en su panel.
-    if (!l) return o.productos ? { tipo: 'agregar_producto', nombre, unidad, precio, mensaje: m.proponerAgregarProducto(nombre, unidad, tramosAutomaticos(precio)) } : m.SIN_COMPRA_ABIERTA;
+    if (!l) return m.SIN_COMPRA_ABIERTA;
     if (productosDe(l).some(p => normalizar(p.nombre) === normalizar(nombre))) return m.productoYaExiste(nombre);
     return { tipo: 'crear_producto', licitacionId: l.id, nombre, unidad, precio, mensaje: m.proponerProducto(nombre, unidad, tramosAutomaticos(precio)) };
   }

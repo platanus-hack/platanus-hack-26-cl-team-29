@@ -34,7 +34,9 @@ const conexionSii = await iniciarConexionSii(dbRed);
 let antesDeEntrar: (n: Negocio) => void | Promise<void> = () => {};
 // La referencia de precio de una solicitud de compra: las listas de los proveedores y, si nadie lo vende, Mercado Público.
 let precioDeReferencia: NonNullable<OpcionesRed['precioDeReferencia']> = () => undefined;
-export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u) });
+// Solo se compra en grupo lo que algún proveedor vende (está en su lista).
+let existeProducto: NonNullable<OpcionesRed['existeProducto']> = () => true;
+export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u), existeProducto: (p, u) => existeProducto(p, u) });
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
@@ -53,7 +55,7 @@ const conexionDeProveedores = {
 };
 // Catálogo de cada proveedor (su lista y lo que sugieren sus facturas): se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
 const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
-const biblioteca = crearBiblioteca(red, catalogos);
+const biblioteca = crearBiblioteca(catalogos);
 // Cada lista de precios compite sola en las compras en grupo que piden ese producto.
 conectarOfertasDeListas(red, catalogos);
 export const agente = conectarAgente(whatsapp, red, {
@@ -74,6 +76,7 @@ const pagos = await iniciarPagos({
 });
 antesDeEntrar = pagos.exigirTarjeta;
 precioDeReferencia = (p, u) => catalogos.referencia(p, u) ?? referenciaPublica(mercadoPublico.foto().ordenes, p);
+existeProducto = (p, u) => catalogos.referencia(p, u) !== undefined;
 red.escuchar(e => {
   const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
   if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });

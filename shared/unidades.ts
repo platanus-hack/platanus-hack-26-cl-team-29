@@ -17,6 +17,7 @@ export const UNIDADES = [
   { id: 'saco', plural: 'sacos', dichas: [] },
   { id: 'rollo', plural: 'rollos', dichas: [] },
   { id: 'botella', plural: 'botellas', dichas: [] },
+  { id: 'lata', plural: 'latas', dichas: [] },
   { id: 'bidon', plural: 'bidones', dichas: ['bidón'] },
   { id: 'bandeja', plural: 'bandejas', dichas: [] },
   { id: 'docena', plural: 'docenas', dichas: [] },

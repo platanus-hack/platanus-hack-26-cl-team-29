@@ -54,3 +54,6 @@ Son dos cosas distintas:
   proveedores ficticios). Se compra en grupo. Por WhatsApp, "quiero comprar N de X" se suma a la compra abierta que ya
   tiene ese producto o propone abrir una; nunca mete un producto que no es de la compra en otra (el bug de "10 coca
   colas" que terminaban como bolsas). En su lugar, /app tiene "Proveedores" con pestañas Mis proveedores y Todos.
+- Solo se compra en grupo lo que existe: lo que algún proveedor tiene en su lista (`existeProducto` en el dominio; la
+  biblioteca muestra solo eso). El comprador elige de ahí; por WhatsApp, si nadie lo vende, se le dice. Crear productos
+  es solo del proveedor, y "vendo ..." siempre va a su lista, nunca a una compra abierta de otra cosa.

@@ -112,3 +112,12 @@ test('el pedido mínimo de la lista viaja con la oferta automática y no impide 
   assert.deepEqual([oferta.proveedorId, oferta.minimo], [prov, 50]);
   await assert.rejects(catalogos.agregar({ id: prov }, { nombre: 'Sal fina', unidad: 'kilo', tramos: [{ desde: 1, precioUnitario: 900 }], minimo: 2.5 }), /cantidad entera/);
 });
+
+test('con existeProducto, no se abre una compra en grupo de algo que ningún proveedor vende', async () => {
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo, new Date(), {});
+  const red = await crearRed({ repo, sii: crearSiiFalso(), env: {}, existeProducto: (p, u) => p === 'Café molido 1 kg' && u === 'bolsa' });
+  const ana = (await red.registrarComprador({ nombre: 'Ana', comuna: 'Ñuñoa', telefono: '+56 9 3000 0001' })).id;
+  await assert.rejects(red.abrirSolicitud({ compradorId: ana, producto: 'Cerveza Heineken 330 ml', unidad: 'lata', cantidad: 6 }), /Ningún proveedor vende/);
+  assert.equal((await red.abrirSolicitud({ compradorId: ana, producto: 'Café molido 1 kg', unidad: 'bolsa', cantidad: 6 })).estado, 'abierta');
+});
