@@ -14,7 +14,7 @@ export interface ProductoConocido {
 }
 
 /** Sin tildes, mayúsculas, espacios ni signos: "Coca-Cola 3 Lts" y "cocacola 3lts" quedan iguales. */
-const compacto = (texto: string) => sinTildes(texto).replace(/[^a-z0-9]/g, '');
+export const compacto = (texto: string): string => sinTildes(texto).replace(/[^a-z0-9]/g, '');
 
 /** El mismo nombre escrito de otra forma (ver `compacto`). */
 export const mismoNombre = (a: string, b: string): boolean => compacto(a) === compacto(b);

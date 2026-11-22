@@ -1,9 +1,10 @@
 // La lista de precios de cada proveedor compite sola: en cada compra en grupo sin proveedor fijo, el proveedor que
-// tiene ese mismo producto (mismo nombre y unidad, ver shared/productos.ts) queda ofertando con sus tramos. Pasa al
+// tiene ese mismo producto (mismo nombre y unidad, o el mismo escrito distinto según Jev: equivalencias.ts) queda ofertando con sus tramos. Pasa al
 // abrirse una compra (`licitacion.abierta`), al cambiar su lista y al arrancar, con su pedido mínimo si lo tiene. Si el proveedor mejora su oferta a mano
 // en esa compra, la automática ya no la pisa.
 // Decisión: docs/decisiones/20261121-2255-lista-de-productos-y-solicitudes.md
 import { mismoProducto } from '../../shared/productos.ts';
+import { crearEquivalencias, type Equivalencias } from './equivalencias.ts';
 import type { Tramo } from '../../shared/precios.ts';
 import type { EventoRed, LicitacionVista, NuevaOferta } from '../red/index.ts';
 import type { Catalogos } from './index.ts';
@@ -20,13 +21,18 @@ interface RedConOfertas {
 const mismosTramos = (a: readonly Tramo[] = [], b: readonly Tramo[] = []) =>
   a.length === b.length && a.every((t, i) => t.desde === b[i]!.desde && t.precioUnitario === b[i]!.precioUnitario);
 
-export function conectarOfertasDeListas(red: RedConOfertas, catalogos: Pick<Catalogos, 'listas' | 'alCambiarLista'>, log: Pick<Console, 'warn'> = console) {
+export function conectarOfertasDeListas(
+  red: RedConOfertas, catalogos: Pick<Catalogos, 'listas' | 'alCambiarLista'>,
+  log: Pick<Console, 'warn'> = console, equivalencias: Equivalencias = crearEquivalencias(),
+) {
   async function ofertarEn(l: LicitacionVista, soloDe?: string) {
     if (l.estado !== 'abierta' || l.proveedorId) return;
-    for (const { proveedorId, productos } of catalogos.listas()) {
-      if (soloDe && proveedorId !== soloDe) continue;
-      for (const p of l.productos.filter(x => !x.proveedorId)) {
-        const suyo = productos.find(x => mismoProducto(x, p));
+    const listas = catalogos.listas().filter(x => !soloDe || x.proveedorId === soloDe);
+    const pedidos = l.productos.filter(x => !x.proveedorId);
+    for (const p of pedidos) await equivalencias.aprender(p, listas.flatMap(x => x.productos));
+    for (const { proveedorId, productos } of listas) {
+      for (const p of pedidos) {
+        const suyo = productos.find(x => mismoProducto(x, p)) ?? productos.find(x => equivalencias.mismo(x, p));
         const actual = p.ofertas.find(o => o.proveedorId === proveedorId);
         const igual = actual && mismosTramos(actual.tramos, suyo?.tramos) && actual.minimo === suyo?.minimo && actual.stock === suyo?.stock;
         if (!suyo || (actual && !actual.automatica) || igual) continue;

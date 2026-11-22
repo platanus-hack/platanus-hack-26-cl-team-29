@@ -19,6 +19,7 @@ import { crearRutasAvisos } from './avisos/rutas.ts';
 import { crearRutasCatalogo, crearRutasOperacionCatalogo, iniciarCatalogos } from './catalogo/index.ts';
 import { crearBiblioteca } from './catalogo/biblioteca.ts';
 import { conectarOfertasDeListas } from './catalogo/ofertas.ts';
+import { crearEquivalenciasDesdeEnv } from './catalogo/equivalencias.ts';
 import type { Negocio } from './red/tipos.ts';
 
 const app = express();
@@ -65,8 +66,8 @@ const conexionDeProveedores = {
 // Catálogo de cada proveedor (su lista y lo que sugieren sus facturas): se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
 const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
 const biblioteca = crearBiblioteca(catalogos);
-// Cada lista de precios compite sola en las compras en grupo que piden ese producto.
-conectarOfertasDeListas(red, catalogos);
+// Cada lista de precios compite sola en las compras en grupo que piden ese producto (escrito igual o, con Jev, distinto).
+conectarOfertasDeListas(red, catalogos, console, crearEquivalenciasDesdeEnv(process.env));
 export const agente = conectarAgente(whatsapp, red, {
   interprete: crearInterpreteDesdeEnv(process.env, red, catalogos), certificados, conexionSii: conexionDeProveedores,
   almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos, biblioteca,
