@@ -877,8 +877,11 @@ export async function crearRed({
       if (!(precioUnitario > 0) || !Number.isInteger(plazoDias) || plazoDias < 0) {
         throw new ErrorRed('datos_invalidos', 'La oferta necesita precio positivo y plazo en días enteros');
       }
+      const minimo = Number(o.minimo);
+      if (o.minimo !== undefined && (!Number.isInteger(minimo) || minimo < 1)) throw new ErrorRed('datos_invalidos', 'El pedido mínimo es una cantidad entera');
       const oferta: Oferta = {
-        proveedorId: o.proveedorId, productoId: producto.id, precioUnitario, ...(tramos ? { tramos } : {}), ...(o.automatica ? { automatica: true } : {}), plazoDias, en: ahora(),
+        proveedorId: o.proveedorId, productoId: producto.id, precioUnitario, ...(tramos ? { tramos } : {}), ...(o.automatica ? { automatica: true } : {}),
+        ...(o.minimo !== undefined ? { minimo } : {}), plazoDias, en: ahora(),
       };
       producto.ofertas = producto.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
       await guardar('licitaciones', l);

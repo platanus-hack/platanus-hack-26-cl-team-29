@@ -58,7 +58,7 @@ export interface CanalApi {
   cerrar(token: string, licitacionId: string): Promise<void>;
   facturar(token: string, licitacionId: string): Promise<void>;
   /** Su oferta con tramos en una compra en grupo sin proveedor fijo (reemplaza la que entró desde su lista). */
-  ofertar(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
+  ofertar(token: string, licitacionId: string, productoId: string, tramos: Tramo[], minimo?: number): Promise<void>;
   /** Sus tramos por volumen de un producto de la compra abierta (solo el dueño del producto). */
   fijarTramos(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
   confirmarOrden(token: string, ordenId: string): Promise<void>;
@@ -184,8 +184,8 @@ export function crearApiReal(): CanalApi {
     yoProveedor: async token => normalizarYoProveedor(await llamar('/proveedor/yo', { token })),
     cerrar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },
-    ofertar: async (token, id, productoId, tramos) => {
-      await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/oferta`, { token, cuerpo: { tramos } });
+    ofertar: async (token, id, productoId, tramos, minimo) => {
+      await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/oferta`, { token, cuerpo: { tramos, ...(minimo ? { minimo } : {}) } });
     },
     fijarTramos: async (token, id, productoId, tramos) => {
       await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/tramos`, { token, cuerpo: { tramos }, metodo: 'PUT' });

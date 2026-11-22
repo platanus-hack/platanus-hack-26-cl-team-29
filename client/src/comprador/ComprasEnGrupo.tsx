@@ -22,7 +22,8 @@ import type { FotoRed, LicitacionCanal, YoComprador } from '../canal/tipos.ts';
 import { ABEJA, ILUSTRACION } from '../marca/recursos.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
-import { escalera, frasco, localesDelGrupo, rango, siLlegan } from './compra.ts';
+import { frasco, localesDelGrupo, siLlegan } from './compra.ts';
+import { ProgresoCompra } from './ProgresoCompra.tsx';
 import { Pestanas } from './Pestanas.tsx';
 
 /** Qué muestra la sección: la lista, el formulario para iniciar una o un producto de una compra. */
@@ -67,7 +68,7 @@ export function ComprasEnGrupo({ api, token, foto, yo, ruta }: Props) {
 const guardadoDe = (lic: LicitacionCanal, yo: YoComprador): Carrito =>
   carritoEnLaFoto(lic, yo.negocio.id) ?? desdeItems(yo.participaciones.find(p => p.licitacionId === lic.id)?.items ?? []);
 
-function Cierre({ lic, abierta, ahora }: { lic: LicitacionCanal; abierta: boolean; ahora: number }) {
+export function Cierre({ lic, abierta, ahora }: { lic: LicitacionCanal; abierta: boolean; ahora: number }) {
   return (
     <div className="bm-cierre">
       <span className="bm-etiqueta">{abierta ? 'Cierra en' : 'Cerró'}</span>
@@ -145,7 +146,9 @@ function ListaCompras({ foto, yo, ahora }: { foto: FotoRed; yo: YoComprador; aho
                       {contar(locales, 'local', 'locales')} · {contar(p.totalUnidades, p.unidad, p.unidadPlural)}
                       {abierta ? ` · cierra en ${cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}` : ''}
                     </span>
-                    {abierta && p.siguienteTramo && <span className="bm-ahorro">{pistaTramo(p.siguienteTramo, p)}</span>}
+                    {abierta && p.minimo && p.totalUnidades < p.minimo
+                      ? <span className="bm-falta-minimo">Mínimo del proveedor: {contar(p.minimo, p.unidad, p.unidadPlural)}</span>
+                      : abierta && p.siguienteTramo && <span className="bm-ahorro">{pistaTramo(p.siguienteTramo, p)}</span>}
                   </div>
                 </div>
                 <a className={`bm-boton${mio ? ' secundario' : ''}`} href={enlaceCompra(lic.id, p.id)}>
@@ -168,7 +171,6 @@ const DURACIONES = [{ minutos: 60, texto: '1 hora' }, { minutos: 24 * 60, texto:
 function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
   const [producto, setProducto] = useState<ProductoConocido | null>(null);
   const [cantidad, setCantidad] = useState('');
-  const [precioHoy, setPrecioHoy] = useState('');
   const [minutos, setMinutos] = useState(24 * 60);
   const { enviando, error, enviar } = useEnvio();
   const n = Number(cantidad);
@@ -179,7 +181,7 @@ function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
     e.preventDefault();
     if (!completo || !producto) return;
     void enviar(async () => {
-      const r = await api.abrirSolicitud(token, { producto: producto.nombre, unidad, cantidad: n, minutos, ...(Number(precioHoy) > 0 ? { precioHoy: Number(precioHoy) } : {}) });
+      const r = await api.abrirSolicitud(token, { producto: producto.nombre, unidad, cantidad: n, minutos });
       location.hash = enlaceCompra(r.licitacionId, r.productoId).slice(1);
     }, 'No pudimos iniciar la compra. Inténtalo de nuevo.');
   };
@@ -198,20 +200,22 @@ function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
           <Campo etiqueta={`¿Cuántas ${pluralUnidad(unidad)} necesitas?`}>
             <input inputMode="numeric" value={cantidad} onChange={e => setCantidad(e.target.value.replace(/\D/g, ''))} placeholder="10" />
           </Campo>
-        </div>
-        <div className="bm-nueva-fila">
-          <Campo etiqueta={`Lo que pagas hoy por ${u} (opcional)`}>
-            <input inputMode="numeric" value={precioHoy ? dinero(Number(precioHoy)) : ''} onChange={e => setPrecioHoy(e.target.value.replace(/\D/g, ''))} placeholder="$12.000" />
-          </Campo>
           <Campo etiqueta="Cierra en">
             <select value={minutos} onChange={e => setMinutos(Number(e.target.value))}>
               {DURACIONES.map(d => <option key={d.minutos} value={d.minutos}>{d.texto}</option>)}
             </select>
           </Campo>
         </div>
+        {producto && (
+          <p className="bm-nota" role="status">
+            {producto.precioBase
+              ? <>Precio base desde <strong>{dinero(producto.precioBase)}</strong> por {u} en las listas de los proveedores.{producto.minimo ? <> Ese proveedor pide un mínimo de <strong>{contar(producto.minimo, u, pluralUnidad(unidad))}</strong> entre todo el grupo.</> : null} Con más volumen, baja.</>
+              : 'Todavía ningún proveedor tiene precio para este producto: lo ponen al ofertar.'}
+          </p>
+        )}
         {error && <p className="bm-error" role="alert">{error}</p>}
         <button className="bm-boton bm-ancho" disabled={!completo || enviando}>{enviando ? 'Iniciando...' : 'Iniciar la compra en grupo'}</button>
-        <p className="bm-pie">Con lo que pagas hoy te mostramos cuánto ahorra el grupo. Si no lo pones, usamos un precio de referencia.</p>
+
       </form>
     </>
   );
@@ -235,7 +239,6 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
 
   const vista = proyectar(p, cantidad - mio);
   const f = frasco(p.tramos, vista.unidades, vista.siguiente);
-  const peldanos = escalera(p.tramos, vista.unidades);
   const proveedor = foto.negocios.find(n => n.id === lic.proveedorId);
   const notaProveedor = foto.notas.find(n => n.proveedorId === lic.proveedorId)?.nota;
   const locales = localesDelGrupo(conProducto(lic, p.id, orden[0]), foto.negocios);
@@ -280,42 +283,7 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
       )}
 
       <div className="bm-detalle">
-        {p.tramos.length > 0 ? (
-          <section className="bm-tarjeta bm-tramos" aria-label="Precios por volumen">
-            <div className="bm-frasco" role="img" aria-label={`${vista.unidades} de ${contar(f.meta, p.unidad, p.unidadPlural)}`}>
-              <span className="bm-miel" style={{ height: `${f.llenado * 100}%` }} />
-              {f.marcas.map(m => <span key={m} className="bm-marca-tramo" style={{ bottom: `${m * 100}%` }} />)}
-              <span className="bm-frasco-cifra"><strong>{vista.unidades}</strong>de {contar(f.meta, p.unidad, p.unidadPlural)}</span>
-            </div>
-            <ol className="bm-escalera">
-              {peldanos.map(t => (
-                <li key={t.desde} className={`bm-peldano ${t.estado}`}>
-                  <div>
-                    <span className="bm-peldano-rango">
-                      {rango(t, p)}{t.estado === 'siguiente' ? ' · siguiente tramo' : t.estado === 'actual' ? ' · precio de hoy' : ''}
-                    </span>
-                    {t.estado === 'siguiente' && vista.siguiente && <strong>{faltan(vista.siguiente, p)}</strong>}
-                    {t.estado === 'actual' && <strong>Todos pagan esto</strong>}
-                  </div>
-                  <span className="bm-peldano-precio">{dinero(t.estado === 'actual' ? vista.precio : t.precio)}</span>
-                </li>
-              ))}
-              {p.precioSolo > Math.max(0, ...p.tramos.map(t => t.precioUnitario)) && (
-                <li className="bm-peldano superado">
-                  <div><span className="bm-peldano-rango">Comprando solo</span></div>
-                  <span className="bm-peldano-precio">{dinero(p.precioSolo)}</span>
-                </li>
-              )}
-            </ol>
-          </section>
-        ) : (
-          <section className="bm-tarjeta bm-esperando" aria-label="Esperando ofertas">
-            <img className="ilustracion" src={ABEJA.celebra} alt="" />
-            <h2>Esperando ofertas de proveedores</h2>
-            <p>Los proveedores ven esta compra y ofertan su precio por volumen. Al cerrar gana el mejor para todo el grupo.</p>
-            <p>Van <strong>{contar(vista.unidades, p.unidad, p.unidadPlural)}</strong>{p.precioSolo > 0 ? <> · referencia hoy <strong>{dinero(p.precioSolo)}</strong> por {p.unidad}</> : null}.</p>
-          </section>
-        )}
+        <ProgresoCompra p={p} vista={vista} />
 
         <div className="bm-columna">
           <section className="bm-tarjeta bm-sumarme">
@@ -349,6 +317,12 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
                     {siLlegan(vista.siguiente, cantidad, p)} Todos pagan el precio final.
                   </p>
                 )}
+                {p.minimo && vista.unidades < p.minimo && (
+                  <p className="bm-nota bm-aviso-minimo">
+                    El proveedor que hoy gana pide un mínimo de {contar(p.minimo, p.unidad, p.unidadPlural)}: si entre todos no llegan,
+                    puede cancelar el pedido. Faltan {contar(p.minimo - vista.unidades, p.unidad, p.unidadPlural)}.
+                  </p>
+                )}
                 {error && <p className="bm-error" role="alert">{error}</p>}
                 <div className="bm-accion-fija">{accion}</div>
                 {mio > 0 && (
@@ -365,14 +339,20 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
             )}
           </section>
 
-          {locales && (
-            <section className="bm-tarjeta bm-locales">
-              <span className="bm-avatares" aria-hidden="true"><span /><span /><span /></span>
-              <p>{locales} · <strong>nombres ocultos</strong></p>
-            </section>
-          )}
+          <LocalesDelGrupo texto={locales} />
         </div>
       </div>
     </>
+  );
+}
+
+/** "11 locales de Providencia y Ñuñoa · nombres ocultos" (nunca el nombre de otro comprador). Nada si no va nadie. */
+export function LocalesDelGrupo({ texto }: { texto: string }) {
+  if (!texto) return null;
+  return (
+    <section className="bm-tarjeta bm-locales">
+      <span className="bm-avatares" aria-hidden="true"><span /><span /><span /></span>
+      <p>{texto} · <strong>nombres ocultos</strong></p>
+    </section>
   );
 }

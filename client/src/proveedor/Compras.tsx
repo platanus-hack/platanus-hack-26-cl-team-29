@@ -1,33 +1,60 @@
-// "Compras en grupo" del proveedor: las compras sin proveedor fijo donde compite (su lista entra sola o ofertó a mano),
-// con su precio para el volumen que lleva el grupo, el mejor precio y si va ganando. Puede mejorar su oferta con sus
-// propios tramos. En Cerradas, las que ganó o perdió. Todo se recalcula con cada `red:evento`.
+// "Compras en grupo" del proveedor: todas las compras abiertas sin proveedor fijo (las inician los compradores) y, en
+// Cerradas, las que ganó o perdió. Cada una abre su detalle (DESIGN.md, Paper "C3"): a la izquierda el frasco y la
+// escalera que ve el comprador; a la derecha su oferta (su precio para el volumen del grupo, si va ganando y "Mejorar mi
+// oferta"), el ranking de ofertas y los locales que van. Su lista entra sola; a mano la mejora o la pone si no estaba.
+// Todo se recalcula con cada `red:evento`.
 
 import { useState, type FormEvent } from 'react';
-import { dinero } from '../../../shared/formato.ts';
-import { errorDeTramos, precioDeOferta } from '../../../shared/precios.ts';
+import { dinero, nota } from '../../../shared/formato.ts';
+import { errorDeTramos, precioDeOferta, type Tramo } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
+import { itemsDe, productosDe } from '../canal/carrito.ts';
+import { Campo } from '../canal/Acceso.tsx';
 import { estaAbierta } from '../canal/logica.ts';
 import { useEnvio } from '../canal/piezas.tsx';
 import type { FotoRed, LicitacionCanal, YoProveedor } from '../canal/tipos.ts';
+import { Cierre, LocalesDelGrupo } from '../comprador/ComprasEnGrupo.tsx';
+import { localesDelGrupo } from '../comprador/compra.ts';
+import { Pestanas } from '../comprador/Pestanas.tsx';
+import { ProgresoCompra } from '../comprador/ProgresoCompra.tsx';
 import { cuentaRegresiva } from '../red/formato.ts';
 import type { Oferta, ProductoCompra } from '../red/tipos.ts';
 import { useAhora } from '../red/useRed.ts';
+import { FilaProducto } from './FilaProducto.tsx';
 import { AccionesTramos, aFilas, aTramos, TablaTramos, useTramos } from './tramos.tsx';
 import type { PropsAccion } from './Ventas.tsx';
-import { FilaProducto } from './FilaProducto.tsx';
-import { Pestanas } from '../comprador/Pestanas.tsx';
 
-interface Fila { lic: LicitacionCanal; p: ProductoCompra; mia: Oferta }
+interface Fila { lic: LicitacionCanal; p: ProductoCompra; mia?: Oferta }
 
-export function Compras({ foto, yo, ...props }: PropsAccion & { foto: FotoRed; yo: YoProveedor }) {
+export const enlaceCompraProveedor = (licitacionId: string, productoId: string) =>
+  `#compras/${encodeURIComponent(licitacionId)}/${encodeURIComponent(productoId)}`;
+
+/** Lo que pasa con su oferta en una compra: va ganando, por cuánto le ganan o cómo terminó. */
+function estadoDe({ lic, p, mia }: Fila, ahora: number): { texto: string; tono: string } {
+  const unidades = p.totalUnidades ?? 0;
+  if (!estaAbierta(lic, ahora)) {
+    if (mia && p.ganadora?.proveedorId === mia.proveedorId) return { texto: 'Ganaste', tono: 'listo' };
+    return { texto: p.ganadora ? `Ganó otro a ${dinero(p.ganadora.precioUnitario)}` : 'Cerró sin ganador', tono: 'neutro' };
+  }
+  if (!mia) return { texto: 'No compites', tono: 'neutro' };
+  const suya = precioDeOferta(mia, unidades);
+  const mejor = Math.min(...(p.ofertas ?? []).map(o => precioDeOferta(o, unidades)));
+  return suya <= mejor ? { texto: 'Vas ganando', tono: 'listo' } : { texto: `Te ganan por ${dinero(suya - mejor)}`, tono: 'accion' };
+}
+
+export function Compras({ foto, yo, ruta, ...props }: PropsAccion & { foto: FotoRed; yo: YoProveedor; ruta: readonly string[] }) {
   const ahora = useAhora();
   const [pestana, setPestana] = useState<'abiertas' | 'cerradas'>('abiertas');
-  const filas: Fila[] = foto.licitaciones.filter(l => !l.proveedorId).flatMap(lic => (lic.productos ?? []).flatMap(p => {
+  const filas: Fila[] = foto.licitaciones.filter(l => !l.proveedorId).flatMap(lic => (lic.productos ?? []).filter(p => !p.proveedorId).map(p => {
     const mia = p.ofertas?.find(o => o.proveedorId === yo.proveedor.id);
-    return mia ? [{ lic, p, mia }] : [];
+    return { lic, p, ...(mia ? { mia } : {}) };
   }));
-  const abiertas = filas.filter(f => estaAbierta(f.lic, ahora));
-  const cerradas = filas.filter(f => !estaAbierta(f.lic, ahora)).reverse();
+  const [licId, productoId] = ruta.map(decodeURIComponent);
+  const elegida = filas.find(f => f.lic.id === licId && f.p.id === productoId);
+  if (elegida) return <DetalleCompra {...props} foto={foto} fila={elegida} ahora={ahora} />;
+
+  const abiertas = filas.filter(f => estaAbierta(f.lic, ahora)).sort((a, b) => Number(!!b.mia) - Number(!!a.mia));
+  const cerradas = filas.filter(f => !estaAbierta(f.lic, ahora) && f.mia).reverse();
   const lista = pestana === 'abiertas' ? abiertas : cerradas;
 
   return (
@@ -35,69 +62,143 @@ export function Compras({ foto, yo, ...props }: PropsAccion & { foto: FotoRed; y
       <header className="bm-cabecera">
         <div>
           <h1 className="bm-titulo">Compras en grupo</h1>
-          <p className="bm-bajada">Cuando unos negocios piden algo de tu lista, compites solo con tus precios. Al cerrar gana el mejor precio para el grupo.</p>
+          <p className="bm-bajada">Lo que están comprando en grupo los negocios. Con lo que tienes en tu lista compites solo; al cerrar gana el mejor precio para el grupo.</p>
         </div>
       </header>
       <Pestanas etiqueta="Compras en grupo" activa={pestana} onCambio={setPestana}
         pestanas={[['abiertas', 'Abiertas', abiertas.length], ['cerradas', 'Cerradas', cerradas.length]]} />
       {!lista.length ? (
         <p className="bp-nada">
-          {pestana === 'abiertas'
-            ? 'Todavía no compites en ninguna. Agrega productos a tu lista en Productos: cuando alguien pida uno, entras solo.'
-            : 'Aquí quedan las compras que ganaste o perdiste.'}
+          {pestana === 'abiertas' ? 'No hay compras en grupo abiertas ahora. Cuando un negocio inicie una, aparece aquí.' : 'Aquí quedan las compras en que competiste: las que ganaste y las que no.'}
         </p>
       ) : (
         <ul className="bm-tarjeta bp-filas">
-          {lista.map(f => <FilaCompra key={`${f.lic.id}-${f.p.id}`} {...props} fila={f} ahora={ahora} />)}
+          {lista.map(f => {
+            const estado = estadoDe(f, ahora);
+            const locales = f.lic.participantes.filter(x => x.cantidad > 0).length;
+            const unidades = f.p.totalUnidades ?? 0;
+            return (
+              <FilaProducto key={`${f.lic.id}-${f.p.id}`} nombre={f.p.nombre} acciones={<>
+                <span className={`bp-estado ${estado.tono}`}>{estado.texto}</span>
+                <a className="bm-boton secundario" href={enlaceCompraProveedor(f.lic.id, f.p.id)}>Ver</a>
+              </>}>
+                <span>
+                  {contar(locales, 'local', 'locales')} · {contar(unidades, f.p.unidad, f.p.unidadPlural)}
+                  {estaAbierta(f.lic, ahora) ? ` · cierra en ${cuentaRegresiva(Date.parse(f.lic.cierraEn) - ahora)}` : ''}
+                </span>
+                {f.mia && <span>Tu precio a este volumen: <strong>{dinero(precioDeOferta(f.mia, unidades))}</strong>{f.mia.automatica ? ' (desde tu lista)' : ''}</span>}
+              </FilaProducto>
+            );
+          })}
         </ul>
       )}
     </div>
   );
 }
 
-function FilaCompra({ api, token, alCambiar, fila: { lic, p, mia }, ahora }: PropsAccion & { fila: Fila; ahora: number }) {
-  const [mejorando, setMejorando] = useState(false);
-  const unidades = p.totalUnidades ?? 0;
-  const suya = precioDeOferta(mia, unidades);
-  const mejor = Math.min(...(p.ofertas ?? []).map(o => precioDeOferta(o, unidades)));
+function DetalleCompra({ api, token, alCambiar, foto, fila, ahora }: PropsAccion & { foto: FotoRed; fila: Fila; ahora: number }) {
+  const { lic, p, mia } = fila;
+  const [ofertando, setOfertando] = useState(false);
+  const productos = productosDe(lic);
+  const visto = productos.find(x => x.id === p.id)!;
   const abierta = estaAbierta(lic, ahora);
-  const gano = p.ganadora?.proveedorId === mia.proveedorId;
-  const locales = lic.participantes.filter(x => x.cantidad > 0).length;
-  const estado = abierta
-    ? (suya <= mejor ? { texto: 'Vas ganando', tono: 'listo' } : { texto: `Te ganan por ${dinero(suya - mejor)}`, tono: 'accion' })
-    : gano ? { texto: 'Ganaste', tono: 'listo' } : { texto: p.ganadora ? `Ganó otro a ${dinero(p.ganadora.precioUnitario)}` : 'Cerró sin ganador', tono: 'neutro' };
+  const unidades = visto.totalUnidades;
+  const estado = estadoDe(fila, ahora);
+  const ranking = [...(p.ofertas ?? [])].sort((a, b) => precioDeOferta(a, unidades) - precioDeOferta(b, unidades));
+  const nombreDe = (id: string) => foto.negocios.find(n => n.id === id)?.nombre ?? 'Proveedor';
+  const notaDe = (id: string) => foto.notas.find(n => n.proveedorId === id)?.nota;
+  const conProducto = lic.participantes.map(x => ({ negocioId: x.negocioId, cantidad: itemsDe(x, productos[0].id).find(i => i.productoId === p.id)?.cantidad ?? 0 }));
+  const locales = localesDelGrupo(conProducto, foto.negocios);
+  const faltaMinimo = mia?.minimo && unidades < mia.minimo ? mia.minimo - unidades : 0;
 
   return (
-    <FilaProducto nombre={p.nombre}
-      acciones={<>
-        <span className={`bp-estado ${estado.tono}`}>{estado.texto}</span>
-        {abierta && !mejorando && <button type="button" className="bm-boton secundario" onClick={() => setMejorando(true)}>Mejorar mi oferta</button>}
-      </>}
-      debajo={mejorando && <MejorarOferta api={api} token={token} lic={lic} p={p} mia={mia} onListo={() => { setMejorando(false); alCambiar(); }} onCancelar={() => setMejorando(false)} />}>
-        <span>
-          {contar(locales, 'local', 'locales')} · {contar(unidades, p.unidad, p.unidadPlural)}
-          {abierta ? ` · cierra en ${cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}` : ''}
-        </span>
-        <span>Tu precio a este volumen: <strong>{dinero(suya)}</strong>{mia.automatica ? ' (desde tu lista)' : ''}</span>
-    </FilaProducto>
+    <div className="bp-pagina">
+      <header className="bm-cabecera">
+        <div>
+          <a className="bm-miga" href="#compras">Compras en grupo › {p.nombre}</a>
+          <h1 className="bm-titulo">{p.nombre}</h1>
+          <p className="bm-bajada">{abierta ? 'Los negocios se suman y el precio baja con el volumen. Gana el mejor precio para todo el grupo.' : 'Esta compra en grupo ya cerró.'}</p>
+        </div>
+        <Cierre lic={lic} abierta={abierta} ahora={ahora} />
+      </header>
+
+      <div className="bm-detalle">
+        <ProgresoCompra p={visto} vista={{ unidades, precio: visto.precioActual, siguiente: visto.siguienteTramo }} />
+
+        <div className="bm-columna">
+          <section className="bm-tarjeta bm-sumarme">
+            <h2>Tu oferta</h2>
+            {mia ? (
+              <dl className="bm-cuenta">
+                <div><dt>Tu precio con {contar(unidades, p.unidad, p.unidadPlural)}</dt><dd>{dinero(precioDeOferta(mia, unidades))}</dd></div>
+                {mia.minimo ? <div><dt>Tu pedido mínimo</dt><dd>{contar(mia.minimo, p.unidad, p.unidadPlural)}</dd></div> : null}
+                <div><dt><span className={`bp-estado ${estado.tono}`}>{estado.texto}</span></dt><dd>{mia.automatica ? 'Desde tu lista' : 'A mano'}</dd></div>
+              </dl>
+            ) : <p className="bm-bajada">{abierta ? 'Todavía no compites en esta compra. Pon tu precio por cantidad y entras.' : 'No ofertaste en esta compra.'}</p>}
+            {abierta && faltaMinimo > 0 && (
+              <p className="bm-nota">Al grupo le faltan {contar(faltaMinimo, p.unidad, p.unidadPlural)} para tu mínimo. Si gana tu oferta y no llegan, puedes cancelar el pedido.</p>
+            )}
+            {abierta && !ofertando && (
+              <button type="button" className="bm-boton bm-ancho" onClick={() => setOfertando(true)}>{mia ? 'Mejorar mi oferta' : 'Ofertar'}</button>
+            )}
+            {ofertando && (
+              <MejorarOferta api={api} token={token} lic={lic} p={p} minimo={mia?.minimo}
+                inicial={mia?.tramos?.length ? mia.tramos : [{ desde: 1, precioUnitario: mia?.precioUnitario ?? 0 }]}
+                onListo={() => { setOfertando(false); alCambiar(); }} onCancelar={() => setOfertando(false)} />
+            )}
+          </section>
+
+          {ranking.length > 0 && (
+            <section className="bm-tarjeta bp-bloque">
+              <header className="bp-bloque-cabecera"><h2>Ofertas</h2><span>con {contar(unidades, p.unidad, p.unidadPlural)}</span></header>
+              <ol className="bp-filas bp-ranking">
+                {ranking.map((o, i) => {
+                  const n = notaDe(o.proveedorId);
+                  const mio = o.proveedorId === mia?.proveedorId;
+                  return (
+                    <li key={o.proveedorId} className={`bp-fila${mio ? ' mia' : ''}`}>
+                      <span className="bp-fila-icono">{i + 1}</span>
+                      <div className="bp-fila-texto">
+                        <strong>{mio ? 'Tú' : nombreDe(o.proveedorId)}</strong>
+                        <span>{n !== undefined ? `★ ${nota(n)}` : 'Sin nota todavía'}{o.minimo ? ` · mínimo ${o.minimo}` : ''}{o.automatica ? ' · desde su lista' : ''}</span>
+                      </div>
+                      <span className="bp-monto">{dinero(precioDeOferta(o, unidades))}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
+          <LocalesDelGrupo texto={locales} />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function MejorarOferta({ api, token, lic, p, mia, onListo, onCancelar }: Pick<PropsAccion, 'api' | 'token'> & {
-  lic: LicitacionCanal; p: ProductoCompra; mia: Oferta; onListo: () => void; onCancelar: () => void;
+function MejorarOferta({ api, token, lic, p, inicial, minimo: minimoInicial, onListo, onCancelar }: Pick<PropsAccion, 'api' | 'token'> & {
+  lic: LicitacionCanal; p: ProductoCompra; inicial: Tramo[]; minimo?: number; onListo: () => void; onCancelar: () => void;
 }) {
-  const t = useTramos(aFilas(mia.tramos?.length ? mia.tramos : [{ desde: 1, precioUnitario: mia.precioUnitario }]));
+  const t = useTramos(aFilas(inicial).map(f => (f.precio === '0' ? { ...f, precio: '' } : f)));
+  const [minimo, setMinimo] = useState(minimoInicial ? String(minimoInicial) : '');
   const { enviando, error, enviar } = useEnvio();
   const problema = errorDeTramos(aTramos(t.filas));
   const guardar = (e: FormEvent) => {
     e.preventDefault();
     if (problema) return;
-    void enviar(async () => { await api.ofertar(token, lic.id, p.id, aTramos(t.filas)); onListo(); }, 'No pudimos guardar tu oferta. Inténtalo de nuevo.');
+    void enviar(async () => {
+      await api.ofertar(token, lic.id, p.id, aTramos(t.filas), Number(minimo) || undefined);
+      onListo();
+    }, 'No pudimos guardar tu oferta. Inténtalo de nuevo.');
   };
   return (
-    <form className="bp-fila-confirmar bp-mejorar" onSubmit={guardar}>
+    <form className="bp-mejorar" onSubmit={guardar}>
       <TablaTramos t={t} unidad={p.unidad} unidades={p.unidadPlural} />
-      {(problema || error) && <p className="bm-error bp-margen" role="alert">{error || `${problema}.`}</p>}
+      <Campo etiqueta={`Pedido mínimo del grupo (opcional, en ${p.unidadPlural})`}>
+        <input inputMode="numeric" value={minimo} onChange={e => setMinimo(e.target.value.replace(/\D/g, ''))} placeholder="Sin mínimo" />
+      </Campo>
+      {error && <p className="bm-error" role="alert">{error}</p>}
       <div className="bp-acciones">
         <button className="bm-boton" disabled={enviando || !!problema}>{enviando ? 'Guardando...' : 'Guardar mi oferta'}</button>
         <AccionesTramos t={t} />

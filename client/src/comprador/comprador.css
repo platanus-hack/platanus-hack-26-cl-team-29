@@ -383,3 +383,5 @@
 .bm-elegido strong { font-size: var(--text-sm); font-weight: 600; overflow-wrap: anywhere; }
 .bm-elegido span { font-size: var(--text-xs); color: var(--color-muted-foreground); }
 .bm-elegido .bm-boton-texto { min-height: 36px; }
+.bm-aviso-minimo { background: color-mix(in srgb, var(--bando-miel) 16%, transparent); }
+.bm-falta-minimo { color: var(--bando-miel-texto); font-weight: 600; }

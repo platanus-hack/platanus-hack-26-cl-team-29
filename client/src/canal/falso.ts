@@ -113,6 +113,18 @@ function sembrar() {
       items: CARRITOS_SEMBRADOS[i].map(([productoId, cantidad]) => ({ productoId, cantidad })),
     })),
   };
+  // Una compra que inició un comprador (sin proveedor fijo): Molinos del Sur compite con su lista y su pedido mínimo.
+  const cafe = {
+    id: 'cafe-molido-1-kg', nombre: 'Café molido 1 kg', unidad: 'bolsa', unidadPlural: 'bolsas', precioSolo: 0, tramos: [],
+    ofertas: [{ proveedorId: 'p-molinos', productoId: 'cafe-molido-1-kg', precioUnitario: 12_500, tramos: [{ desde: 1, precioUnitario: 12_500 }, { desde: 20, precioUnitario: 11_200 }], minimo: 30, automatica: true as const, plazoDias: 1, en: hace(20 * MINUTO) }],
+  };
+  const solicitud: LicitacionCanal = {
+    id: 'L-2', producto: cafe.nombre, unidad: cafe.unidad, unidadPlural: cafe.unidadPlural, comuna: 'Ñuñoa', cierraEn: new Date(Date.now() + 6 * 60 * MINUTO).toISOString(),
+    estado: 'abierta', precioSolo: 0, tramos: [], ofertas: [], productos: [cafe],
+    participantes: COMPRADORES_FALSOS.slice(0, 3).map(([negocioId, nombre, comuna], i) => conCantidad({
+      negocioId, nombre, comuna, cantidad: 0, en: hace((30 - i) * MINUTO), items: [{ productoId: cafe.id, cantidad: 4 + i * 2 }],
+    })),
+  };
   const item = (cantidad: number, producto = CONFIG.producto) => [{ producto, cantidad, precioUnitario: PRECIOS[producto] }];
   const ordenes: OrdenCanal[] = [
     { id: 'o-101', compradorId: 'c-trigal', proveedorId: PROVEEDOR_DEMO, estado: 'enviada', creadaEn: hace(3 * MINUTO), items: item(6) },
@@ -127,7 +139,7 @@ function sembrar() {
     negocios,
     notas: new Map(PROVEEDORES.map(([id, , , n]) => [id, n])),
     notasAnteriores: new Map<string, number>([[PROVEEDOR_DEMO, 4.6]]),
-    licitaciones: [licitacion],
+    licitaciones: [licitacion, solicitud],
     ordenes,
     documentos: [] as Documento[],
   };
@@ -282,7 +294,7 @@ export function crearApiFalsa(): CanalApi {
         const actual = p.ofertas?.find(o => o.proveedorId === PROVEEDOR_DEMO);
         if (!suyo || (actual && !actual.automatica)) continue;
         p.ofertas = [...(p.ofertas ?? []).filter(o => o.proveedorId !== PROVEEDOR_DEMO),
-          { proveedorId: PROVEEDOR_DEMO, productoId: p.id, precioUnitario: suyo.tramos[0].precioUnitario, tramos: suyo.tramos, automatica: true, plazoDias: 1, en: ahoraIso() }];
+          { proveedorId: PROVEEDOR_DEMO, productoId: p.id, precioUnitario: suyo.tramos[0].precioUnitario, tramos: suyo.tramos, ...(suyo.minimo ? { minimo: suyo.minimo } : {}), automatica: true, plazoDias: 1, en: ahoraIso() }];
       }
     }
   };
@@ -371,7 +383,8 @@ export function crearApiFalsa(): CanalApi {
     },
 
     async buscarProductos(q) {
-      const conocidos = [...manuales, ...red.licitaciones.flatMap(l => l.productos ?? [])].flatMap(p => (esUnidad(p.unidad) ? [{ nombre: p.nombre, unidad: p.unidad }] : []));
+      const deListas = manuales.map(p => ({ nombre: p.nombre, unidad: p.unidad, precioBase: p.tramos[0].precioUnitario, ...(p.minimo ? { minimo: p.minimo } : {}) }));
+      const conocidos = [...deListas, ...red.licitaciones.flatMap(l => l.productos ?? [])].flatMap(p => (esUnidad(p.unidad) ? [{ ...p, unidad: p.unidad }] : []));
       return sugerirProductos(q, conocidos);
     },
 
@@ -484,7 +497,7 @@ export function crearApiFalsa(): CanalApi {
       avisar('licitacion.facturada' as TipoEventoRed, { licitacion: lic });
     },
 
-    async ofertar(token, licitacionId, productoId, tramos) {
+    async ofertar(token, licitacionId, productoId, tramos, minimo) {
       await espera(400);
       const proveedor = quien(token);
       const producto = abierta(licitacionId).productos?.find(p => p.id === productoId);
@@ -493,7 +506,7 @@ export function crearApiFalsa(): CanalApi {
       const error = errorDeTramos(nuevos);
       exigir(!error, `${error}.`);
       producto!.ofertas = [...(producto!.ofertas ?? []).filter(o => o.proveedorId !== proveedor.id),
-        { proveedorId: proveedor.id, productoId, precioUnitario: nuevos[0].precioUnitario, tramos: nuevos, plazoDias: 1, en: ahoraIso() }];
+        { proveedorId: proveedor.id, productoId, precioUnitario: nuevos[0].precioUnitario, tramos: nuevos, ...(minimo ? { minimo } : {}), plazoDias: 1, en: ahoraIso() }];
       avisar('licitacion.oferta', { licitacionId });
     },
 

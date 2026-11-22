@@ -3,7 +3,7 @@
 // mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Productos
 // están rediseñados; Reparto y Facturas van por el puente.
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { nota } from '../../../shared/formato.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
@@ -16,7 +16,7 @@ import { ListaDocumentos, Vacio } from './piezas.tsx';
 import type { YoProveedor } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
-import { Marco, type SeccionMarco } from '../comprador/Marco.tsx';
+import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
 import { Inicio } from '../comprador/Inicio.tsx';
 import { Ventas } from '../proveedor/Ventas.tsx';
 import { Pedidos } from '../proveedor/Pedidos.tsx';
@@ -36,19 +36,17 @@ const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'facturas', titulo: 'Facturas', icono: 'documento' },
 ];
 
-const seccionDelHash = (): Seccion => SECCIONES.find(x => x.id === location.hash.slice(1))?.id ?? 'inicio';
+/** `#compras/L-3/cafe` → la sección y lo que viene después (el detalle de una compra). */
+const rutaDelHash = (): { seccion: Seccion; resto: string[] } => {
+  const [s, ...resto] = location.hash.slice(1).split('/');
+  return { seccion: SECCIONES.find(x => x.id === s)?.id ?? 'inicio', resto };
+};
 
 export function Proveedor() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const { token, entrar, vencer, salir } = useSesion(api);
   const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yoProveedor(t), vencer);
-  const [seccion, setSeccion] = useState(seccionDelHash);
-
-  useEffect(() => {
-    const alCambiar = () => { setSeccion(seccionDelHash()); scrollTo(0, 0); };
-    addEventListener('hashchange', alCambiar);
-    return () => removeEventListener('hashchange', alCambiar);
-  }, []);
+  const { seccion, resto } = useRutaDelHash(rutaDelHash);
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
   if (!token) {
@@ -70,7 +68,7 @@ export function Proveedor() {
         <Inicio foto={foto} negocio={yo.proveedor} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="vender" />
       )}
       {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
-      {seccion === 'compras' && <Compras {...props} foto={foto} yo={yo} />}
+      {seccion === 'compras' && <Compras {...props} foto={foto} yo={yo} ruta={resto} />}
       {seccion === 'pedidos' && <Pedidos yo={yo} config={config} comprador={comprador} />}
       {seccion === 'productos' && (
         <>

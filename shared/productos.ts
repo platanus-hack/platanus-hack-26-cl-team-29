@@ -7,6 +7,10 @@ import type { IdUnidad } from './unidades.ts';
 export interface ProductoConocido {
   nombre: string;
   unidad: IdUnidad;
+  /** El precio base más bajo en las listas de los proveedores, si alguno lo vende. */
+  precioBase?: number;
+  /** El pedido mínimo (MOQ) de ese proveedor, si tiene. */
+  minimo?: number;
 }
 
 /** Sin tildes, mayúsculas, espacios ni signos: "Coca-Cola 3 Lts" y "cocacola 3lts" quedan iguales. */

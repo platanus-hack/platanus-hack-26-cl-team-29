@@ -128,6 +128,11 @@ export type OfertaConTramos = { precioUnitario: number; tramos?: readonly Tramo[
 export const precioDeOferta = (o: OfertaConTramos, unidades: number): number =>
   o.tramos?.length ? precioPorVolumen({ tramos: o.tramos, precioSolo: o.precioUnitario }, unidades) : o.precioUnitario;
 
+/** La oferta más barata para `unidades` (la que hoy ganaría), o undefined si no hay ofertas. */
+export function mejorOferta<O extends OfertaConTramos>(ofertas: readonly O[] | undefined, unidades: number): O | undefined {
+  return [...(ofertas ?? [])].sort((a, b) => precioDeOferta(a, unidades) - precioDeOferta(b, unidades))[0];
+}
+
 type ConOfertas = ConPrecio & {
   ofertas?: readonly ({ proveedorId: string } & OfertaConTramos)[];
   /** Quien creó el producto: sus tramos son su precio por volumen. */
