@@ -164,16 +164,14 @@ test('un comprador ya registrado (como queda quien se suma por WhatsApp) arma su
   assert.match(ultimo(REGISTRADO.telefono), /^Te propongo pedir 4 sacos de harina/);
 });
 
-test('cantidad fuera de rango por producto: pregunta en vez de inventar', async t => {
+test('sin tope real por comprador: 80 rollos entran; solo un número absurdo se pregunta', async t => {
   const { agente, escribir, ultimo, red } = montar();
   t.after(() => agente.desconectar());
   await escribir('56933333004', 'Almacén Norte, 80 rollos');
-  assert.match(ultimo('56933333004'), /\n\nCada negocio puede pedir entre 1 y 20 por producto\. Escribe la cantidad de nuevo\.$/);
-  await escribir('56933333004', '3 cajas de rollos');
-  assert.match(ultimo('56933333004'), /^Listo, Almacén Norte entra con 3 cajas de rollos/);
-  await escribir('56933333004', 'agrega 18 de rollos');
-  assert.equal(ultimo('56933333004'), 'Cada negocio puede pedir entre 1 y 20 por producto. Escribe la cantidad de nuevo.');
-  assert.equal((await red.licitacionAbierta())?.productos?.[0].totalUnidades, 3);
+  assert.match(ultimo('56933333004'), /^Listo, Almacén Norte entra con 80 cajas de rollos/);
+  await escribir('56933333004', 'agrega 200000 de rollos');
+  assert.match(ultimo('56933333004'), /demasiado grande/);
+  assert.equal((await red.licitacionAbierta())?.productos?.[0].totalUnidades, 80);
 });
 
 test('cascada por producto: bajas de la misma ventana salen en una sola difusión y nadie recibe dos en menos del mínimo', async t => {

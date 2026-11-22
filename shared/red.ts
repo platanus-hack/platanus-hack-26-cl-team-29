@@ -13,6 +13,12 @@ interface ConRol {
 }
 
 /** Puede ofertar y recibir órdenes: un proveedor o un negocio registrado como proveedor. */
+/**
+ * Tope técnico de unidades por producto y por negocio en una compra en grupo: no limita a nadie de verdad, solo evita
+ * un error de tipeo (un 1.000.000 por un 1.000). Lo usan el dominio, la web y el agente.
+ */
+export const CANTIDAD_MAXIMA = 100_000;
+
 export const puedeVender = (n: ConRol): boolean => n.rol === 'proveedor' || n.vende === true;
 
 /** Puede sumarse a una compra: un comprador o un proveedor registrado por WhatsApp. Los proveedores ficticios no compran. */

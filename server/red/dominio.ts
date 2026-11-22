@@ -9,7 +9,7 @@ import { pluralDe } from '../../shared/texto.ts';
 import { pluralUnidad, unidadDeTexto, type IdUnidad } from '../../shared/unidades.ts';
 import { mismoProducto } from '../../shared/productos.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
-import { CANTIDAD_MAXIMA } from './config-demo.ts';
+import { CANTIDAD_MAXIMA } from '../../shared/red.ts';
 
 /** Cuánto dura una solicitud de compra en grupo si no se dice: un día. Lo máximo: una semana. */
 const MINUTOS_SOLICITUD = 24 * 60;
@@ -203,7 +203,7 @@ export interface Red {
   notaDeProveedor(proveedorId: string): number;
   /**
    * Compatibilidad: suma o actualiza un producto del carrito (por defecto el primero de la canasta). Mismo negocio
-   * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad 1 a 20. El público anónimo suma uno nuevo.
+   * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad desde 1 (sin tope real, ver `CANTIDAD_MAXIMA`). El público anónimo suma uno nuevo.
    */
   unirseALicitacion(licitacionId: string, participante: NuevoParticipante): Promise<ResultadoUnion>;
   /** Reemplaza el carrito completo (cantidad 0 quita el ítem; carrito vacío sale). Exige `negocioId` o `telefono`. */

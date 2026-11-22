@@ -96,7 +96,7 @@ export interface Participante {
   nombre: string;
   comuna?: string;
   rubro?: Rubro;
-  /** Su carrito: cada producto de la canasta que compra, con cantidad de 1 a 20. */
+  /** Su carrito: cada producto de la canasta que compra, con su cantidad. */
   items: ItemCarrito[];
   /** Suma de `items` (compatibilidad con la compra de un solo producto). */
   cantidad: number;

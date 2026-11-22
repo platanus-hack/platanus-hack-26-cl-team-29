@@ -152,7 +152,7 @@ const VERBOS: Record<string, ModoCambio> = {
  *  - "las 10 en total" fija, aunque diga "más" en otra parte.
  */
 function modoDe(tokens: readonly string[]): ModoCambio | undefined {
-  const numero = tokens.findIndex(t => /^\d{1,4}$/.test(t));
+  const numero = tokens.findIndex(t => /^\d{1,6}$/.test(t));
   const masJuntoAlNumero = tokens.some((t, i) => t === 'mas' && (numero < 0 || Math.abs(i - numero) <= 2));
   let modo: ModoCambio | undefined;
   for (const token of tokens) if (token !== 'mas' && token in VERBOS) { modo = VERBOS[token]; break; }
@@ -241,7 +241,7 @@ function leerTramo(original: string, texto: string, cat: Catalogo): Lectura {
   lectura.modo = modoDe(tokens) ?? lectura.modo;
   if (lectura.cantidad === undefined) {
     // Primero dígitos ("Negocio Uno, 9" son 9); las palabras ("tres cajas") solo si no hay dígitos.
-    const numero = tokens.find(t => /^\d{1,4}$/.test(t)) ?? tokens.find((_, i) => esNumeroEnPalabras(tokens, i, cat));
+    const numero = tokens.find(t => /^\d{1,6}$/.test(t)) ?? tokens.find((_, i) => esNumeroEnPalabras(tokens, i, cat));
     if (numero !== undefined) lectura.cantidad = aNumero(numero);
   }
   lectura.productoId ??= productoDeTexto(tokens, cat);

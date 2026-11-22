@@ -69,7 +69,7 @@ test('el carrito se reemplaza, se agrega, se quita y se sale, con su evento en c
   assert.equal(eventos.length, antes);
 
   await assert.rejects(red.agregarAlCarrito('L-1', { telefono: ANA, productoId: 'cafe', cantidad: 1 }), { codigo: 'datos_invalidos' });
-  await assert.rejects(red.agregarAlCarrito('L-1', { telefono: ANA, productoId: 'rollos', cantidad: 21 }), { codigo: 'datos_invalidos' });
+  await assert.rejects(red.agregarAlCarrito('L-1', { telefono: ANA, productoId: 'rollos', cantidad: 100_001 }), { codigo: 'datos_invalidos' });
   await assert.rejects(red.actualizarCarrito('L-1', { nombre: 'Sin dueño', items: [] }), { codigo: 'datos_invalidos' });
 });
 

@@ -1,6 +1,6 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
-import { dinero, nota } from '../../shared/formato.ts';
+import { dinero, miles, nota } from '../../shared/formato.ts';
 import { horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
@@ -282,7 +282,7 @@ export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantos(unidadDe(p,
 export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
   `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;
 export const cantidadFueraDeRango = (maximo: number) =>
-  `Cada negocio puede pedir entre 1 y ${maximo} por producto. Escribe la cantidad de nuevo.`;
+  `Esa cantidad es demasiado grande (más de ${miles(maximo)}). Escribe la cantidad de nuevo.`;
 
 /** Tras cada cambio, en 3 líneas: el carrito, total y ahorro, y el tramo más cercano. */
 export const carritoActualizado = (nombre: string, items: readonly ItemCarrito[], l: LicitacionSala, actualizado: boolean) =>

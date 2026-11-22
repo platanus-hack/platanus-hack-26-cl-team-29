@@ -11,7 +11,7 @@ import type { Interprete, Intencion } from './intencion.ts';
 import type { Negocio, OrdenCompra, Red } from './puerto.ts';
 import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
-import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { CANTIDAD_MAXIMA, puedeComprar, puedeVender } from '../../shared/red.ts';
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
 import { productosDe } from './canasta.ts';
 import { crearProveedores } from './proveedor.ts';
@@ -97,7 +97,7 @@ const TIEMPOS_SALA: TiemposSala = {
   minimoDifusionMs: 5000,
   vigilarCierreMs: 1000,
   avisoAceptadaMs: 60_000,
-  cantidadMaxima: 20,
+  cantidadMaxima: CANTIDAD_MAXIMA,
 };
 
 export interface Agente {

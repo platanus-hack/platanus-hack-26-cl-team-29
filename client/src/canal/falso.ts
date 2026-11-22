@@ -11,6 +11,7 @@ import {
   type CatalogoProveedor, type ProductoCatalogo, type ProductoEscrito,
 } from '../../../shared/catalogo.ts';
 import { pluralDe, sinTildes } from '../../../shared/texto.ts';
+import { CANTIDAD_MAXIMA } from '../../../shared/red.ts';
 import { mismoProducto, sugerirProductos } from '../../../shared/productos.ts';
 import { esUnidad } from '../../../shared/unidades.ts';
 import { duenoDeTramos, errorDeTramos, ordenarTramos, precioDelProducto, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
@@ -363,7 +364,7 @@ export function crearApiFalsa(): CanalApi {
       await espera(300);
       const negocio = quien(token);
       const lic = abierta(licitacionId);
-      exigir(Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 20, 'Puedes pedir entre 1 y 20.');
+      exigir(Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= CANTIDAD_MAXIMA, 'Escribe una cantidad válida.');
       const previo = lic.participantes.find(p => p.negocioId === negocio.id);
       const items = [...(previo?.items ?? []).filter(i => i.productoId !== PRODUCTOS[0].id), { productoId: PRODUCTOS[0].id, cantidad }];
       cambiarCarrito(lic, conCantidad({ negocioId: negocio.id, nombre: negocio.nombre, comuna: negocio.comuna, cantidad: 0, items, en: previo?.en ?? ahoraIso() }), previo ? 'cambia' : 'entra');
@@ -375,7 +376,7 @@ export function crearApiFalsa(): CanalApi {
       const lic = abierta(licitacionId);
       // Cada compra tiene su canasta: la de la sala o el producto de una solicitud.
       const orden = (lic.productos ?? PRODUCTOS).map(p => p.id);
-      exigir(items.every(i => orden.includes(i.productoId) && Number.isInteger(i.cantidad) && i.cantidad >= 0 && i.cantidad <= 20), 'Puedes pedir entre 0 y 20 de cada producto.');
+      exigir(items.every(i => orden.includes(i.productoId) && Number.isInteger(i.cantidad) && i.cantidad >= 0 && i.cantidad <= CANTIDAD_MAXIMA), 'Escribe una cantidad válida para cada producto.');
       const previo = lic.participantes.find(p => p.negocioId === negocio.id);
       const limpios = items.filter(i => i.cantidad > 0).sort((a, b) => orden.indexOf(a.productoId) - orden.indexOf(b.productoId));
       const participante = conCantidad({ negocioId: negocio.id, nombre: negocio.nombre, comuna: negocio.comuna, cantidad: 0, items: limpios, en: previo?.en ?? ahoraIso() });
@@ -393,7 +394,7 @@ export function crearApiFalsa(): CanalApi {
       quien(token);
       const nombre = producto.replace(/\s+/g, ' ').trim();
       exigir(nombre.length >= 3, 'Escribe qué producto quieres comprar.');
-      exigir(Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 20, 'La cantidad va de 1 a 20.');
+      exigir(Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= CANTIDAD_MAXIMA, 'Escribe una cantidad válida.');
       exigir(!red.licitaciones.some(l => l.estado === 'abierta' && l.productos?.some(p => sinTildes(p.nombre) === sinTildes(nombre))), `Ya hay una compra en grupo abierta de "${nombre}": súmate a ella.`);
       const u = unidad.trim().toLowerCase() || 'unidad';
       const p = { id: sinTildes(nombre).replace(/[^a-z0-9]+/g, '-'), nombre, unidad: u, unidadPlural: pluralDe(u), precioSolo: precioHoy ?? 0, tramos: [], ofertas: [] };
