@@ -11,7 +11,7 @@ import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
 import type { CatalogoProveedor, ProductoEscrito } from '../../../shared/catalogo.ts';
 import type { ProductoConocido } from '../../../shared/productos.ts';
 import type { RutaReparto } from '../../../shared/ruta.ts';
-import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
+import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FacturaA, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
 export type Entrada = { registro: true } | { token: string; negocio: Negocio };
 
@@ -35,6 +35,8 @@ export interface CanalApi {
    * se vuelve con el mismo código y los datos del negocio (el servidor consulta el RUT en el SII: tarda un par de segundos).
    */
   entrar(telefono: string, codigo: string, datos?: DatosEntrada): Promise<Entrada>;
+  /** Antes de registrarse, con el código vigente (sin gastarlo): los datos del SII de un RUT para prellenar el registro. */
+  consultarRut(telefono: string, codigo: string, rut: string): Promise<FacturaA>;
   /** Revoca la sesión de este dispositivo. */
   cerrarSesion(token: string): Promise<void>;
   yo(token: string): Promise<YoComprador>;
@@ -165,8 +167,12 @@ export function crearApiReal(): CanalApi {
     estado: async () => normalizarEstado(await llamar('/estado')) as FotoRed,
     pedirCodigo: telefono => llamar('/acceso/codigo', { cuerpo: { telefono } }),
     entrar: (telefono, codigo, datos) => llamar('/acceso/entrar', { cuerpo: {
-      telefono, codigo, ...(datos ? { nombre: datos.nombre, rut: datos.rut, ...(datos.comuna ? { comuna: datos.comuna } : {}), ...(datos.rubro ? { rubro: datos.rubro } : {}) } : {}),
+      telefono, codigo, ...(datos ? {
+        nombre: datos.nombre, rut: datos.rut, ...(datos.comuna ? { comuna: datos.comuna } : {}),
+        ...(datos.direccion ? { direccion: datos.direccion } : {}), ...(datos.rubro ? { rubro: datos.rubro } : {}),
+      } : {}),
     } }),
+    consultarRut: (telefono, codigo, rut) => llamar('/acceso/rut', { cuerpo: { telefono, codigo, rut } }),
     cerrarSesion: async token => { await llamar('/acceso/salir', { token, cuerpo: {} }); },
     yo: async token => {
       const r = await llamar<Partial<YoComprador>>('/yo', { token });

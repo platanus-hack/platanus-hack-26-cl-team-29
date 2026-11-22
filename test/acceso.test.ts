@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSesiones, crearSiiFalso } from '../server/red/index.ts';
+import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSesiones, crearSiiFalso, RUT_DE_OTRO_TELEFONO } from '../server/red/index.ts';
 import { crearCodigosAcceso, DURACION_CODIGO_MS, INTENTOS_POR_CODIGO } from '../server/red/acceso.ts';
 import { DURACION_SESION_MS } from '../server/red/sesiones.ts';
 import type { EnvioCodigo } from '../server/red/rutas-web.ts';
@@ -100,6 +100,30 @@ test('un número nuevo entra con el código y se registra con su nombre y RUT; e
     assert.equal((await s.post('/acceso/salir', {}, otra)).status, 204);
     assert.equal((await s.get('/yo', otra)).status, 401);
     assert.equal((await s.get('/yo', entrada.cuerpo.token)).status, 200);
+  } finally {
+    s.server.close();
+  }
+});
+
+test('antes de registrarse, el RUT trae sus datos del SII con el código vigente, sin gastarlo ni mostrar teléfonos', async () => {
+  const s = await servidor();
+  try {
+    await tokenConCodigo(s.post, s.buzon, BETO, { nombre: 'Almacén Beto', rut: '22.222.222-2' });
+    assert.equal((await s.post('/acceso/codigo', { telefono: ANA })).status, 200);
+    const codigo = s.buzon.ultimo(ANA);
+    assert.equal((await s.post('/acceso/rut', { telefono: ANA, codigo: codigo === '000000' ? '111111' : '000000', rut: '11.111.111-1' })).status, 401, 'sin el código correcto no consulta');
+
+    const datos = await s.post('/acceso/rut', { telefono: ANA, codigo, rut: '11111111-1' });
+    assert.equal(datos.status, 200, JSON.stringify(datos.cuerpo));
+    assert.equal(datos.cuerpo.rut, '11.111.111-1');
+    assert.ok(datos.cuerpo.razonSocial, 'trae la razón social');
+    assert.ok(!JSON.stringify(datos.cuerpo).includes('569'), 'sin teléfonos en la respuesta');
+
+    const ajeno = await s.post('/acceso/rut', { telefono: ANA, codigo, rut: '22.222.222-2' });
+    assert.equal(ajeno.status, 400);
+    assert.equal(ajeno.cuerpo.mensaje, RUT_DE_OTRO_TELEFONO);
+
+    assert.equal((await s.post('/acceso/entrar', { telefono: ANA, codigo, nombre: 'Almacén Ana', rut: '11.111.111-1' })).status, 201, 'el código sigue sirviendo para entrar');
   } finally {
     s.server.close();
   }
