@@ -10,7 +10,7 @@ import { conectarAgente, crearAlmacenBorradores } from './agente/index.ts';
 import { crearCertificados } from './certificados/index.ts';
 import { crearInterpreteDesdeEnv } from './ia/index.ts';
 import { iniciarLocales } from './locales/index.ts';
-import { iniciarMercadoPublico } from './mercado-publico/index.ts';
+import { iniciarMercadoPublico, precioDeReferencia as referenciaPublica } from './mercado-publico/index.ts';
 import { iniciarAvisos } from './avisos/index.ts';
 import { iniciarProveedores } from './proveedores/index.ts';
 import { iniciarPagos } from './pagos/index.ts';
@@ -29,7 +29,9 @@ export const whatsapp = await createWhatsApp({ db: dbRed });
 const conexionSii = await iniciarConexionSii(dbRed);
 // Crédito Bando exige la tarjeta inscrita para entrar a una compra; se enlaza al crear los pagos, más abajo.
 let antesDeEntrar: (n: Negocio) => void | Promise<void> = () => {};
-export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n) });
+// La referencia de precio de una solicitud de compra: las listas de los proveedores y, si nadie lo vende, Mercado Público.
+let precioDeReferencia: (producto: string) => number | undefined = () => undefined;
+export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: p => precioDeReferencia(p) });
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
@@ -65,6 +67,7 @@ const pagos = await iniciarPagos({
   enviar: (telefono, texto) => whatsapp.send(telefono, texto, { source: 'pagos' }),
 });
 antesDeEntrar = pagos.exigirTarjeta;
+precioDeReferencia = p => catalogos.referencia(p) ?? referenciaPublica(mercadoPublico.foto().ordenes, p);
 red.escuchar(e => {
   const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
   if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });

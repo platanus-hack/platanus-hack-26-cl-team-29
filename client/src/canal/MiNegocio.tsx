@@ -23,7 +23,7 @@ import type { ConfigRed, FotoRed, OrdenCanal, YoComprador } from './tipos.ts';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Marco, type SeccionMarco } from '../comprador/Marco.tsx';
 import { Inicio } from '../comprador/Inicio.tsx';
-import { ComprasEnGrupo } from '../comprador/ComprasEnGrupo.tsx';
+import { ComprasEnGrupo, rutaDeCompra, type RutaCompra } from '../comprador/ComprasEnGrupo.tsx';
 import './canal.css';
 
 /** Copia del catálogo de la red (server/red/catalogo.ts). El producto de la compra conjunta se compra en su sección. */
@@ -36,11 +36,10 @@ const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'facturas', titulo: 'Facturas', icono: 'documento' }, { id: 'credito', titulo: 'Crédito', icono: 'tarjeta' },
 ];
 
-/** `#compra/rollos` → la compra en grupo con ese producto abierto. Sin hash, la portada. */
-const rutaDelHash = (): { seccion: Seccion; productoId?: string } => {
-  const [s, productoId] = location.hash.slice(1).split('/');
-  const seccion = SECCIONES.find(x => x.id === s)?.id ?? 'inicio';
-  return seccion === 'compra' && productoId ? { seccion, productoId: decodeURIComponent(productoId) } : { seccion };
+/** `#compra/...` → la lista, iniciar una o un producto (ver `rutaDeCompra`). Sin hash, la portada. */
+const rutaDelHash = (): { seccion: Seccion; compra: RutaCompra } => {
+  const [s, ...resto] = location.hash.slice(1).split('/');
+  return { seccion: SECCIONES.find(x => x.id === s)?.id ?? 'inicio', compra: rutaDeCompra(resto) };
 };
 
 const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
@@ -48,7 +47,7 @@ const cantidadEn = (n: number, u: Unidad) => contar(n, u.singular, u.plural);
 export function MiNegocio() {
   const { api, config, foto, cambio, fuente } = useCanal();
   const { token, entrar, vencer, salir } = useSesion(api);
-  const [{ seccion, productoId }, setRuta] = useState(rutaDelHash);
+  const [{ seccion, compra }, setRuta] = useState(rutaDelHash);
 
   useEffect(() => {
     const alCambiar = () => { setRuta(rutaDelHash()); scrollTo(0, 0); };
@@ -77,8 +76,8 @@ export function MiNegocio() {
     <Marco secciones={secciones} activa={seccion} negocio={yo.negocio} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
       {error && <p className="bm-error">{error}</p>}
       {seccion === 'inicio' && <Inicio foto={foto} negocio={yo.negocio} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="comprar" />}
-      {seccion === 'compra' && <ComprasEnGrupo api={api} token={token} foto={foto} yo={yo} productoId={productoId} />}
-      {seccion === 'compra' && !productoId && vigente && participa && (
+      {seccion === 'compra' && <ComprasEnGrupo api={api} token={token} foto={foto} yo={yo} ruta={compra} />}
+      {seccion === 'compra' && compra.vista === 'lista' && vigente && participa && (
         <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>
       )}
       {seccion !== 'inicio' && seccion !== 'compra' && (

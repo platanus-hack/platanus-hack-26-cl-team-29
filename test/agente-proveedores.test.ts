@@ -157,3 +157,18 @@ test('por WhatsApp: sin compra abierta, "vendo ..." agrega el producto a su list
   const lista = catalogos.de(red.negocioPorTelefono(ANA)!.id)!.productos.filter(p => p.manual);
   assert.deepEqual(lista.map(p => [p.nombre, p.unidad, p.tramos[0].precioUnitario]), [['Etiquetas adhesivas', 'rollo', 2000]]);
 });
+
+test('por WhatsApp: un comprador pide algo que nadie vende a precio fijo y abre una compra en grupo', async t => {
+  const { red, agente, escribir, ultimo } = await montar();
+  t.after(() => agente.desconectar());
+  await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+  await escribir(CARO, 'quiero comprar 10 servilletas de papel');
+  assert.match(ultimo(CARO), /Ningún proveedor de la red tiene precio fijo para "Servilletas de papel"\. ¿Abro una compra en grupo con tus 10\?/);
+  await escribir(CARO, 'si');
+  assert.match(ultimo(CARO), /abriste una compra en grupo de "Servilletas de papel" con tus 10/);
+  const abierta = red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta' && l.producto === 'Servilletas de papel')!;
+  assert.deepEqual([abierta.proveedorId, abierta.totalUnidades], [undefined, 10]);
+
+  await escribir(CARO, 'necesito 4 sacos de harina');
+  assert.doesNotMatch(ultimo(CARO), /compra en grupo/, 'lo que tiene precio sigue siendo un pedido directo');
+});

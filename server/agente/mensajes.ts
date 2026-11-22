@@ -1,6 +1,7 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
 import { dinero, nota } from '../../shared/formato.ts';
+import { horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
 import { totalOrden } from '../../shared/precios.ts';
@@ -75,6 +76,13 @@ export const noEntendi = (pregunta: string) => `No te entendí.\n\n${pregunta}`;
 export const fallo = (error: unknown) =>
   `No pude completarlo: ${error instanceof Error ? error.message : String(error)}. Si quieres reintentar, responde "sí".`;
 
+export const proponerSolicitud = (producto: string, cantidad: number) =>
+  `Ningún proveedor de la red tiene precio fijo para "${producto}". ¿Abro una compra en grupo con tus ${cantidad}? `
+  + 'Otros negocios se suman, los proveedores ofertan y gana el mejor precio para todo el grupo. Cierra en 24 horas.\n'
+  + opciones('Sí, ábrela', 'No');
+export const solicitudAbierta = (producto: string, cantidad: number, cierraEn: string) =>
+  `Listo, abriste una compra en grupo de "${producto}" con tus ${cantidad}. Cierra mañana a las ${horaEnChile(Date.parse(cierraEn))}. `
+  + 'Les avisamos a los negocios de la red para que se sumen.';
 export function proponerPedido(cantidad: number, producto: string, proveedor: Negocio, notaProveedor: number): string {
   return `Te propongo pedir ${cantidad} ${producto} a ${proveedor.nombre} (${proveedor.comuna}), nota ${nota(notaProveedor)}. ¿Envío la orden de compra?\n`
     + opciones('Sí, envíala', 'No');

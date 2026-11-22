@@ -8,6 +8,10 @@ import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
+
+/** Cuánto dura una solicitud de compra en grupo si no se dice: un día. Lo máximo: una semana. */
+const MINUTOS_SOLICITUD = 24 * 60;
+const MAXIMO_MINUTOS_SOLICITUD = 7 * 24 * 60;
 import { enlacePdf } from './pdf-enlace.ts';
 import { sinTelefonos } from './publico.ts';
 import type { SinTelefono } from './publico.ts';
@@ -151,6 +155,19 @@ export interface ContribuyenteDeRut extends DatosContribuyente {
 
 export type NuevaOferta = Omit<Oferta, 'en'>;
 
+export interface NuevaSolicitud {
+  compradorId: string;
+  /** El producto como lo escribe el comprador ("Etiquetas adhesivas 50x30"). */
+  producto: string;
+  /** Unidad de venta en singular ("rollo"). */
+  unidad: string;
+  cantidad: number;
+  /** Lo que paga hoy por unidad, si lo sabe: la referencia del ahorro. Si no, `precioDeReferencia`. */
+  precioHoy?: number;
+  /** Cuánto dura abierta, en minutos (por defecto un día; máximo una semana). */
+  minutos?: number;
+}
+
 export interface NuevoProducto {
   proveedorId: string;
   nombre: string;
@@ -195,6 +212,16 @@ export interface Red {
   salirDeLicitacion(licitacionId: string, quien: Pick<DuenoCarrito, 'negocioId' | 'telefono'>): Promise<{ licitacion: SinTelefono<LicitacionVista> }>;
   /** La compra conjunta abierta más reciente, o null. */
   licitacionAbierta(): SinTelefono<LicitacionVista> | null;
+  /**
+   * Un comprador inicia una compra en grupo de un producto, con su cantidad: queda como su primer participante y otras
+   * pueden estar abiertas a la vez. Sin proveedor fijo: los proveedores ofertan y al cerrar gana la mejor oferta.
+   * Emite `licitacion.abierta`.
+   */
+  abrirSolicitud(s: NuevaSolicitud): Promise<SinTelefono<LicitacionVista>>;
+  /** El producto del catálogo con precio que nombra el texto, o undefined (ver `normalizarProducto`). */
+  productoConPrecio(texto: string): string | undefined;
+  /** Cierra las compras abiertas cuyo `cierraEn` ya pasó. Devuelve cuántas cerró. */
+  cerrarVencidas(): Promise<number>;
   ofertar(licitacionId: string, oferta: NuevaOferta): Promise<LicitacionVista>;
   /**
    * Un proveedor suma un producto a la canasta abierta: nombre, unidad y su precio. Sus tramos salen del precio
@@ -266,6 +293,11 @@ export type EstadoPublico = SinTelefono<EstadoRed>;
 export interface OpcionesRed {
   repo: Repositorio;
   sii: PuertoSii;
+  /**
+   * Precio de referencia por unidad de un producto escrito por un comprador (las listas de los proveedores o Mercado
+   * Público), para mostrar el ahorro antes de la primera oferta. Sin él, o sin coincidencia, la solicitud parte sin precio.
+   */
+  precioDeReferencia?: (producto: string) => number | undefined;
   reloj?: () => Date;
   /** Variables de la demo (proveedor, producto, tramos). Por defecto `process.env`. */
   env?: NodeJS.ProcessEnv;
@@ -315,7 +347,7 @@ function migrarLicitacion(l: Licitacion) {
 
 export async function crearRed({
   repo, sii, reloj = () => new Date(), env = process.env,
-  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar,
+  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar, precioDeReferencia,
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
   for (const l of datos.licitaciones) migrarLicitacion(l);
@@ -856,8 +888,45 @@ export async function crearRed({
     });
   }
 
+  function abrirSolicitud(n: NuevaSolicitud) {
+    return enFila('abrir-solicitud', async () => {
+      const comprador = negocio(n.compradorId, 'comprador');
+      const nombre = String(n.producto ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const unidad = String(n.unidad ?? '').trim().toLowerCase().slice(0, 20) || 'unidad';
+      const cantidad = Number(n.cantidad);
+      if (nombre.length < 3) throw new ErrorRed('datos_invalidos', 'Escribe qué producto quieres comprar');
+      if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA) throw new ErrorRed('datos_invalidos', `La cantidad va de 1 a ${CANTIDAD_MAXIMA}`);
+      const hoy = Number(n.precioHoy);
+      const referencia = Number.isInteger(hoy) && hoy > 0 ? hoy : precioDeReferencia?.(nombre) ?? 0;
+      const repetida = datos.licitaciones.find(x => x.estado === 'abierta' && x.productos.some(p => sinTildes(p.nombre) === sinTildes(nombre)));
+      if (repetida) throw new ErrorRed('datos_invalidos', `Ya hay una compra en grupo abierta de "${nombre}": súmate a ella`);
+      const pedidos = Number(n.minutos);
+      const minutos = Number.isInteger(pedidos) && pedidos > 0 ? Math.min(pedidos, MAXIMO_MINUTOS_SOLICITUD) : MINUTOS_SOLICITUD;
+      let k = datos.licitaciones.length + 1;
+      while (datos.licitaciones.some(x => x.id === `L-${k}`)) k++;
+      const producto: ProductoCompra = { id: idDeProducto({ productos: [] }, nombre), nombre, unidad, unidadPlural: pluralDe(unidad), precioSolo: referencia, tramos: [], ofertas: [] };
+      const l: Licitacion = {
+        id: `L-${k}`, productos: [producto], producto: nombre, unidad, unidadPlural: producto.unidadPlural, comuna: comprador.comuna,
+        cierraEn: new Date(reloj().getTime() + minutos * 60_000).toISOString(), precioSolo: referencia, tramos: [],
+        participantes: [], ofertas: [], estado: 'abierta',
+      };
+      await guardar('licitaciones', l);
+      emitir('licitacion.abierta', { licitacionId: l.id, licitacion: vistaLicitacion(l) });
+      return l.id;
+    }).then(async id => {
+      const { licitacion } = await actualizarCarrito(id, { negocioId: n.compradorId, items: [{ productoId: datos.licitaciones.find(x => x.id === id)!.productos[0].id, cantidad: Number(n.cantidad) }] });
+      return licitacion;
+    });
+  }
+
+  async function cerrarVencidas() {
+    const vencidas = datos.licitaciones.filter(l => l.estado === 'abierta' && Date.parse(l.cierraEn) <= reloj().getTime());
+    for (const l of vencidas) await cerrarLicitacion(l.id);
+    return vencidas.length;
+  }
+
   /** Id legible y único del producto en la canasta: "Café molido 1 kg" → "cafe-molido-1-kg". */
-  function idDeProducto(l: Licitacion, nombre: string) {
+  function idDeProducto(l: Pick<Licitacion, 'productos'>, nombre: string) {
     const base = sinTildes(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'producto';
     let id = base;
     for (let k = 2; l.productos.some(p => p.id === id); k++) id = `${base}-${k}`;
@@ -1113,7 +1182,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

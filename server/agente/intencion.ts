@@ -113,7 +113,7 @@ export function interpretarConReglas(texto: string): Intencion {
   const faltante = t.match(new RegExp(`(?:faltaron|falto|faltan|falta|llegaron solo|solo llegaron) ${CANTIDAD}`));
   if (faltante) return { tipo: 'faltante', cantidad: aNumero(faltante[1]) };
 
-  const pedido = t.match(new RegExp(`(?:pide|pideme|pedir|quiero|necesito|encarga|compra|manda|envia)(?: me)? ${CANTIDAD} (.+)`));
+  const pedido = t.match(new RegExp(`(?:pide|pideme|pedir|quiero|necesito|encarga|compra|manda|envia)(?: me)?(?: (?:comprar|pedir|encargar))? ${CANTIDAD} (.+)`));
   if (pedido) return { tipo: 'pedir', cantidad: aNumero(pedido[1]), producto: pedido[2].trim() };
 
   if (/\b(todo bien|todo ok|llego todo|recibi todo|todo conforme|conforme)\b/.test(t)) return { tipo: 'conforme' };

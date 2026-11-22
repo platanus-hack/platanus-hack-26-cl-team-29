@@ -19,6 +19,15 @@ export interface ItemPedido {
   cantidad: number;
 }
 
+/** Lo que pide el comprador al iniciar una compra en grupo. `precioHoy`: lo que paga hoy por unidad, si lo sabe. */
+export interface NuevaSolicitud {
+  producto: string;
+  unidad: string;
+  cantidad: number;
+  precioHoy?: number;
+  minutos: number;
+}
+
 export interface CanalApi {
   modo: Modo;
   config(): Promise<ConfigRed>;
@@ -36,6 +45,8 @@ export interface CanalApi {
   unirse(token: string, licitacionId: string, cantidad: number): Promise<void>;
   /** Reemplaza el carrito completo de la canasta (cantidad 0 quita; vacío = sale). */
   carrito(token: string, licitacionId: string, items: ItemCarrito[]): Promise<void>;
+  /** Inicia una compra en grupo de un producto con su cantidad; devuelve dónde quedó para abrirla. */
+  abrirSolicitud(token: string, s: NuevaSolicitud): Promise<{ licitacionId: string; productoId: string }>;
   /** Sale de la compra conjunta (vacía el carrito). */
   salir(token: string, licitacionId: string): Promise<void>;
   pedir(token: string, proveedorId: string, items: ItemPedido[]): Promise<OrdenCompra>;
@@ -156,6 +167,10 @@ export function crearApiReal(): CanalApi {
       return { negocio: r.negocio!, facturaA: r.facturaA ?? null, ordenes: lista(r.ordenes), documentos: lista(r.documentos), participaciones: lista(r.participaciones) };
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
+    abrirSolicitud: async (token, solicitud) => {
+      const l = await llamar<{ id: string; productos: { id: string }[] }>('/yo/solicitudes', { token, cuerpo: solicitud });
+      return { licitacionId: l.id, productoId: l.productos[0].id };
+    },
     carrito: async (token, licitacionId, items) => { await llamar('/yo/carrito', { token, cuerpo: { licitacionId, items }, metodo: 'PUT' }); },
     salir: async (token, licitacionId) => { await llamar(`/yo/carrito/${encodeURIComponent(licitacionId)}`, { token, metodo: 'DELETE' }); },
     pedir: (token, proveedorId, items) => llamar('/yo/ordenes', { token, cuerpo: { proveedorId, items } }),

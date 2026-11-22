@@ -7,7 +7,8 @@ export const TITULO_COMPRA_CERCA = 'Compra conjunta abierta cerca de ti';
 /** "Caja de rollos a $29.900 y bajando, 3 negocios sumados" (o "sé el primero en sumarte" si no hay nadie). */
 export function resumenCompraAbierta(p: { producto: string; precio: number; negocios: number }): string {
   const grupo = p.negocios > 0 ? contar(p.negocios, 'negocio sumado', 'negocios sumados') : 'sé el primero en sumarte';
-  return `${p.producto} a ${dinero(p.precio)} y bajando, ${grupo}`;
+  // Sin precio todavía (una solicitud sin referencia): los proveedores lo ponen al ofertar.
+  return `${p.producto} ${p.precio > 0 ? `a ${dinero(p.precio)} y bajando` : 'esperando ofertas de proveedores'}, ${grupo}`;
 }
 
 // ---------- Trae a tu vecino ----------

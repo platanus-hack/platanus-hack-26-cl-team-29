@@ -9,12 +9,19 @@ import {
   type CatalogoProveedor, type LineaVendida, type ProductoCatalogo, type ProductoEscrito,
 } from '../../shared/catalogo.ts';
 import { ErrorRed } from '../red/dominio.ts';
+import { sinTildes } from '../../shared/texto.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import { origenEjemplo, type OrigenXml } from './origenes.ts';
 import { leerFacturas } from './xml.ts';
 
 export { crearRutasCatalogo, crearRutasOperacionCatalogo } from './rutas.ts';
 export { origenArchivos, origenEjemplo, type OrigenXml } from './origenes.ts';
+
+/** "Etiquetas adhesivas" y "etiquetas adhesivas 50x30" son el mismo producto: uno contiene al otro, sin tildes. */
+export function mismoProducto(a: string, b: string): boolean {
+  const x = sinTildes(a).trim(), y = sinTildes(b).trim();
+  return !!x && !!y && (x.includes(y) || y.includes(x));
+}
 
 export interface ProveedorCatalogo {
   id: string;
@@ -53,6 +60,8 @@ export interface Catalogos {
   editar(proveedor: ProveedorCatalogo, clave: string, producto: ProductoEscrito): Promise<ProductoCatalogo>;
   /** Quita un producto de su lista (las sugerencias de sus facturas no se quitan). */
   quitar(proveedorId: string, clave: string): Promise<void>;
+  /** El precio base más bajo de un producto en las listas de todos los proveedores, o undefined si nadie lo vende. */
+  referencia(producto: string): number | undefined;
 }
 
 export interface OpcionesCatalogos {
@@ -192,6 +201,10 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
       const producto = validado(escrito, manuales.filter(x => x.clave !== clave), clave);
       await conManuales(p, ms => ms.map(x => (x.clave === clave ? producto : x)));
       return producto;
+    },
+    referencia(producto) {
+      const precios = [...guardados.values()].flatMap(g => g.manuales ?? []).filter(p => mismoProducto(p.nombre, producto)).map(p => p.tramos[0].precioUnitario);
+      return precios.length ? Math.min(...precios) : undefined;
     },
     async quitar(id, clave) {
       deSuLista(id, clave);

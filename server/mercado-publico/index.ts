@@ -102,6 +102,15 @@ export function preciosDeReferencia(ordenes: OrdenMP[], producto: string) {
   return { producto, resumen, precios: precios.slice(0, MAX_PRECIOS).map(({ p, o }) => precioPublico(p, o)) };
 }
 
+/**
+ * Un precio por unidad para usar de referencia: la mediana de la unidad con más compras públicas del producto, o
+ * undefined si no hay ninguna.
+ */
+export function precioDeReferencia(ordenes: OrdenMP[], producto: string): number | undefined {
+  const [masUsada] = [...preciosDeReferencia(ordenes, producto).resumen].sort((a, b) => b.cantidad - a.cantidad);
+  return masUsada ? Math.round(masUsada.mediana) : undefined;
+}
+
 /** Lo que se muestra de Mercado Público en un momento: órdenes ya limpias (limpieza.ts) y de dónde salen. */
 export interface FotoMercadoPublico {
   ordenes: OrdenLimpia[];

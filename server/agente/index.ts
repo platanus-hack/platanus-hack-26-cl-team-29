@@ -30,6 +30,7 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'crear_orden'; readonly proveedor: Negocio; readonly producto: string; readonly cantidad: number }
+  | { readonly tipo: 'abrir_solicitud'; readonly producto: string; readonly cantidad: number }
   | { readonly tipo: 'confirmar_ordenes'; readonly ordenIds: readonly string[] }
   | { readonly tipo: 'recepcion'; readonly ordenId: string; readonly facturaEn: Date }
   | { readonly tipo: 'reclamar'; readonly ordenId: string; readonly faltante: number; readonly facturaEn: Date }
@@ -206,6 +207,14 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   }
 
   async function proponerPedido(comprador: Negocio, producto: string, cantidad: number, elegido?: string): Promise<string> {
+    // Nadie lo vende a precio fijo: en vez de una orden que no se puede cumplir, se ofrece abrir una compra en grupo.
+    if (red.abrirSolicitud && red.productoConPrecio && !red.productoConPrecio(producto)) {
+      const nombre = producto.charAt(0).toUpperCase() + producto.slice(1);
+      const mensaje = m.proponerSolicitud(nombre, cantidad);
+      if (actual(comprador.id)?.tipo === 'crear_orden' || actual(comprador.id)?.tipo === 'abrir_solicitud') tomar(comprador.id);
+      alFrente(comprador.id, { tipo: 'abrir_solicitud', producto: nombre, cantidad, mensaje });
+      return mensaje;
+    }
     const { negocios } = await red.estadoDeLaRed();
     const candidatos = await Promise.all(
       negocios.filter(n => puedeVender(n) && n.id !== comprador.id).map(async n => ({ n, nota: await red.notaDeProveedor(n.id) })),
@@ -238,6 +247,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   /** Ejecuta una acción ya confirmada con un sí. */
   async function ejecutar(negocio: Negocio, p: Pendiente): Promise<string> {
     switch (p.tipo) {
+      case 'abrir_solicitud': {
+        const l = await red.abrirSolicitud!({ compradorId: negocio.id, producto: p.producto, unidad: 'unidad', cantidad: p.cantidad });
+        return m.solicitudAbierta(p.producto, p.cantidad, l.cierraEn);
+      }
       case 'crear_orden': {
         const orden = await red.crearOrden({
           compradorId: negocio.id, proveedorId: p.proveedor.id, items: [{ producto: p.producto, cantidad: p.cantidad }],

@@ -15,7 +15,7 @@ Son dos cosas distintas:
    tramos por cantidad, que escribe el proveedor (con una sugerencia de 5, 10 y 15 % menos a un toque). Vive en
    `server/catalogo` junto a las sugerencias que salen de sus facturas, que puede copiar a su lista y editar. Se arma en
    el panel (Productos, con un + arriba) o por WhatsApp ("vendo café 1 kg a $12.000 la bolsa").
-2. **Solicitud de compra en grupo del comprador** (siguiente PR). Un comprador la inicia desde la web (+ en Compras en
+2. **Solicitud de compra en grupo del comprador.** Un comprador la inicia desde la web (+ en Compras en
    grupo) o por WhatsApp ("quiero comprar 10 kilos de café"), otros se suman y pueden estar varias abiertas a la vez.
    Cada proveedor con ese producto en su lista compite solo con sus tramos y puede mejorarlos para esa solicitud. Antes
    de la primera oferta se muestra un precio de referencia (las listas publicadas o Mercado Público). Al cerrar gana
@@ -28,3 +28,6 @@ Son dos cosas distintas:
   tramos }`; el primer tramo, desde 1, es el precio base) y `DELETE /productos/:clave`. Solo se editan o quitan los de
   su lista; las sugerencias de sus facturas no.
 - El agente recibe la lista (`productos` en `conectarAgente`): "vendo ..." sin compra abierta propone agregarlo a ella.
+- Solicitudes (PR 2): `abrirSolicitud` y `cerrarVencidas` en el dominio, `POST /yo/solicitudes`, + y pestañas Abiertas y
+  Cerradas en /app, y por WhatsApp "quiero comprar N de X" sin precio fijo ofrece abrirla. Falta que los proveedores
+  compitan solos con su lista (PR 3): hoy una solicitud sin ofertas cierra sin proveedor.
