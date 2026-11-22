@@ -40,6 +40,8 @@
 
   /* Tipografía */
   --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: var(--font-sans);  /* las piezas anteriores que viven en una vista migrada también van en Inter */
+  --font-mono: var(--font-sans);
   --text-display: 72px;  --leading-display: 76px;
   --text-hero: 60px;     --leading-hero: 60px;
   --text-4xl: 36px;      --leading-4xl: 40px;

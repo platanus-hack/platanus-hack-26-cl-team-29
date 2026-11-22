@@ -1,4 +1,6 @@
 import type { Fuente } from '../red/tipos.ts';
+import { ABEJA } from '../marca/recursos.ts';
+import { BotonTema } from '../marca/BotonTema.tsx';
 import { Logo } from '../marca/Logo.tsx';
 
 /** Aviso discreto cuando la pantalla muestra datos de prueba (sin backend). */
@@ -7,18 +9,31 @@ export function AvisoFuente({ fuente }: { fuente: Fuente }) {
   return <span className="fuente-falsa" title="El backend de la red no responde; se muestran datos de prueba">datos de prueba</span>;
 }
 
-export function Cargando() {
+/** `bando`: la vista ya migrada a la marca (va dentro de `.bando-ui`), con la abeja volando mientras carga. */
+export function Cargando({ bando = false }: { bando?: boolean }) {
+  if (bando) {
+    return (
+      <main className="bando-ui pagina cargando-bando">
+        <img className="ilustracion" src={ABEJA.volando} alt="" />
+        <p>Conectando con la red…</p>
+      </main>
+    );
+  }
   return <main className="pagina"><p className="vacio">Conectando con la red...</p></main>;
 }
 
-/** Cabecera de las pantallas proyectadas de la red: marca, título, "En vivo" y el aviso de datos de prueba. */
-export function CabeceraRed({ titulo, fuente }: { titulo: string; fuente: Fuente }) {
+/**
+ * Cabecera de las pantallas proyectadas de la red: marca, título, "En vivo" y el aviso de datos de prueba.
+ * `bando`: la vista ya migrada a la marca (dentro de `.bando-ui`): logo horizontal y botón de modo claro/oscuro.
+ */
+export function CabeceraRed({ titulo, fuente, bando = false }: { titulo: string; fuente: Fuente; bando?: boolean }) {
   return (
     <header className="red-cabecera">
-      <Logo variante="icono" className="marca" />
+      {bando ? <Logo className="marca-horizontal" /> : <Logo variante="icono" className="marca" />}
       <h1 className="titulo-red">{titulo}</h1>
       <span className="en-vivo contorno">En vivo</span>
       <AvisoFuente fuente={fuente} />
+      {bando && <BotonTema className="boton-tema" />}
     </header>
   );
 }
