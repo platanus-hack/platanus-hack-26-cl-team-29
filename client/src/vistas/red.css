@@ -1,0 +1,139 @@
+/* La red en vivo (/ y /red) con la marca Bando (DESIGN.md). Las piezas que comparte con /mapa (contadores, ranking,
+   feed, compra conjunta, cabecera) se estilan dentro de `.bando-ui`: fuera de ella siguen las anteriores de estilos.css,
+   así /mapa y /red-3d no cambian hasta que les toque. Solo tokens: se ve bien en modo claro y oscuro. */
+
+/* ---------- Marco de la pantalla ---------- */
+.red-bando {
+  --t-etiqueta: clamp(12px, 1.35vh, 15px);
+  min-height: 100vh; min-height: 100dvh;
+  background: var(--color-muted);
+  -webkit-font-smoothing: antialiased;
+}
+
+.cargando-bando {
+  min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  max-width: none; background: var(--color-muted); color: var(--color-muted-foreground); font-size: var(--text-base);
+}
+.cargando-bando img { width: min(200px, 50vw); height: auto; }
+
+/* ---------- Piezas comunes dentro de la marca ---------- */
+.bando-ui .tarjeta {
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl);
+}
+.bando-ui .etiqueta {
+  font-size: var(--t-etiqueta); line-height: 1.33; font-weight: 600; letter-spacing: var(--tracking-caps); color: var(--color-faint-fg);
+}
+.bando-ui .tenue, .bando-ui .tachado { color: var(--color-faint-fg); }
+.bando-ui .magenta { color: var(--bando-miel-texto); }
+.bando-ui .vacio { font-size: var(--t-cuerpo); color: var(--color-faint-fg); margin-top: 1.2vh; }
+.bando-ui .numero-grande { font-weight: 600; letter-spacing: -0.025em; color: var(--color-foreground); }
+.bando-ui .icono { color: var(--color-muted-foreground); }
+.bando-ui .monograma { color: var(--bando-tinta); font-weight: 600; }
+.bando-ui .monograma:not(.con-logo) { filter: saturate(0.7); }
+.bando-ui .monograma.con-logo { background: var(--color-background); border: var(--border-width) solid var(--color-border); }
+
+/* Cabecera: logo horizontal, título, "En vivo" y el botón de modo; a la derecha queda libre el botón "Vistas". */
+.bando-ui .red-cabecera { gap: clamp(12px, 1.6vh, 20px); padding-right: 112px; }
+.bando-ui .marca-horizontal { height: clamp(52px, 5.4vh, 68px); width: auto; flex-shrink: 0; }
+.bando-ui .titulo-red {
+  font-size: clamp(22px, 3.3vh, 36px); line-height: 1.1; font-weight: 700; letter-spacing: -0.03em;
+  padding-left: clamp(12px, 1.6vh, 20px); border-left: var(--border-width) solid var(--color-border);
+}
+.bando-ui .en-vivo.contorno {
+  padding: 4px 10px; border-radius: var(--radius-full); border: var(--border-width) solid var(--color-border);
+  background: var(--color-background); color: var(--color-foreground); font-size: var(--t-etiqueta); font-weight: 600; letter-spacing: var(--tracking-caps);
+}
+.bando-ui .en-vivo.contorno::before { background: var(--color-destructive); }
+.bando-ui .fuente-falsa { font-size: var(--text-xs); letter-spacing: var(--tracking-caps); color: var(--color-faint-fg); border-color: var(--color-border); border-radius: var(--radius-full); }
+.bando-ui .boton-tema {
+  appearance: none; display: grid; place-items: center; width: 40px; height: 40px; margin-left: auto; padding: 0; flex-shrink: 0;
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-background);
+  color: var(--color-muted-foreground); cursor: pointer;
+}
+.bando-ui .boton-tema:hover { color: var(--color-foreground); background: var(--color-secondary); }
+
+/* ---------- Contadores ---------- */
+.bando-ui .contador { padding: clamp(12px, 2vh, 28px); }
+.bando-ui .contador .numero-grande { font-size: clamp(28px, 4vh, 44px); line-height: 1.1; }
+.bando-ui .contador .etiqueta { margin-top: 0.8vh; font-size: var(--t-etiqueta); }
+.bando-ui .contador-fila .logo-sii { font-size: clamp(14px, 1.8vh, 20px); border: var(--border-width) solid var(--color-border); }
+
+/* ---------- Ranking de proveedores ---------- */
+.bando-ui .fila-ranking { line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; border-radius: var(--radius-lg); }
+.bando-ui .fila-ranking .puesto { color: var(--color-faint-fg); font-variant-numeric: tabular-nums; }
+.bando-ui .fila-ranking .sub { font-weight: 400; letter-spacing: 0; color: var(--color-faint-fg); }
+.bando-ui .fila-ranking .valor-nota { font-weight: 600; }
+.bando-ui .fila-ranking.sube { background: color-mix(in srgb, var(--bando-oliva) 14%, transparent); }
+.bando-ui .fila-ranking.sube :is(.puesto, .valor-nota, .sub) { color: var(--bando-oliva-texto); }
+.bando-ui .fila-ranking.baja { background: color-mix(in srgb, var(--color-destructive) 10%, transparent); }
+.bando-ui .fila-ranking.baja :is(.puesto, .valor-nota, .sub) { color: var(--color-destructive); }
+
+/* ---------- Ciclo de la orden ---------- */
+.red-bando .orden-titulo { font-size: clamp(20px, 3vh, 34px); line-height: 1.2; font-weight: 700; letter-spacing: -0.025em; }
+.red-bando .orden-titulo .precio { font-variant-numeric: tabular-nums; }
+.red-bando .orden-partes { font-size: var(--t-cuerpo); color: var(--color-muted-foreground); }
+.red-bando .paso {
+  --carril: var(--bando-miel);
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-background);
+}
+.red-bando .paso.proveedor { --carril: var(--bando-oliva); }
+.red-bando .paso.sii { --carril: var(--color-sii); }
+.red-bando .paso .num { display: flex; align-items: center; gap: 6px; color: var(--color-faint-fg); }
+.red-bando .paso:not(.sii) .num::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--carril); flex-shrink: 0; }
+.red-bando .paso h3 { font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
+.red-bando .paso p { color: var(--color-muted-foreground); }
+.red-bando .paso.pendiente { opacity: 0.45; }
+.red-bando .paso.omitido { opacity: 0.35; border-style: dashed; }
+.red-bando .paso.hecho { border-color: var(--carril); }
+.red-bando .paso.ultimo { border: 2px solid var(--carril); box-shadow: none; background: color-mix(in srgb, var(--carril) 10%, var(--color-background)); }
+.red-bando .paso.sii.hecho, .red-bando .paso.sii.ultimo { background: color-mix(in srgb, var(--color-sii) 12%, var(--color-background)); }
+.red-bando .paso.sii.hecho p, .red-bando .paso.sii.ultimo p { color: var(--color-muted-foreground); }
+.red-bando .paso.sii .num { color: var(--color-faint-fg); }
+
+/* ---------- Feed "Pasando ahora" ---------- */
+@keyframes destello-miel { from { background: var(--bando-miel-50); } to { background: transparent; } }
+.bando-ui .feed li { border-bottom: var(--border-width) solid var(--color-border); }
+.bando-ui .feed li:last-child { border-bottom: 0; }
+.bando-ui .feed li:first-child { animation: aparecer 0.4s ease-out, destello-miel 2.5s ease-out; border-radius: var(--radius-md); }
+.bando-ui .feed .texto { font-weight: 500; }
+.bando-ui .feed-detalle, .bando-ui .feed time { color: var(--color-faint-fg); font-weight: 400; font-variant-numeric: tabular-nums; }
+.bando-ui .feed li[role='button']:hover { background: var(--color-secondary); }
+.bando-ui .feed li[role='button']:focus-visible { outline: 2px solid var(--color-foreground); }
+.bando-ui .feed li.elegido { background: var(--color-secondary); box-shadow: inset 3px 0 0 var(--bando-miel); }
+.bando-ui .feed-panel {
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl);
+  box-shadow: 0 -8px 32px color-mix(in srgb, var(--bando-carbon) 18%, transparent);
+}
+.bando-ui .feed-panel-cabeza strong { font-weight: 600; }
+.bando-ui .feed-panel-cabeza time, .bando-ui .feed-filas dt { color: var(--color-faint-fg); }
+.bando-ui .feed-filas dd { color: var(--color-foreground); }
+.bando-ui .feed-cerrar { color: var(--color-muted-foreground); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
+.bando-ui .feed-cerrar:hover, .bando-ui .feed-cerrar:focus-visible { color: var(--color-foreground); border-color: var(--color-foreground); }
+.bando-ui .feed-pdf { color: var(--color-foreground); font-weight: 600; text-underline-offset: 3px; }
+
+/* Estado vacío con la abeja (una sola ilustración por pantalla). */
+.bando-ui .vacio-ilustrado { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.bando-ui .vacio-ilustrado img { width: clamp(120px, 18vh, 200px); height: auto; }
+
+/* ---------- Compra conjunta: la tarjeta cálida y el número héroe de la pantalla ---------- */
+.bando-ui .mini-lic { background: var(--bando-crema); border-color: transparent; }
+.bando-ui .mini-lic:hover { border-color: var(--bando-miel-600); }
+.bando-ui .mini-lic-precio { font-size: var(--t-cuerpo); }
+.bando-ui .mini-lic .numero-grande { color: var(--color-foreground); font-size: clamp(40px, 6.2vh, 72px); letter-spacing: -1.5px; }
+.bando-ui .mini-lic-ahorro { margin-top: 0.6vh; font-size: var(--t-cuerpo); font-weight: 600; color: var(--bando-oliva-texto); }
+.bando-ui .mini-lic p:last-child { color: var(--color-muted-foreground); }
+
+@media (max-width: 640px) {
+  .bando-ui .red-cabecera { padding-right: 0; }
+  .bando-ui .fuente-falsa { order: 1; }
+  .bando-ui .contadores { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .bando-ui .contador { padding: 12px; }
+  .bando-ui .contador .numero-grande { font-size: 26px; }
+  .bando-ui .contador .etiqueta { letter-spacing: 0.02em; overflow-wrap: anywhere; }
+  .bando-ui .contador-fila { flex-direction: column-reverse; gap: 4px; }
+  .bando-ui .titulo-red { flex-basis: 100%; order: 2; padding-left: 0; border-left: 0; font-size: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bando-ui .feed li, .bando-ui .feed li:first-child { animation: none; }
+}

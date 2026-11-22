@@ -11,6 +11,8 @@ import { contar, segun } from '../../../shared/texto.ts';
 import { haceCuanto, pedidoDe, unidadDe } from '../red/formato.ts';
 import type { EstadoRed, EventoRed, TipoEventoRed } from '../red/tipos.ts';
 import { useAhora, useConfigRed, useRed, type EventoVisto } from '../red/useRed.ts';
+import { ABEJA } from '../marca/recursos.ts';
+import './red.css';
 
 export function Contador({ valor, texto, color, marca }: { valor: number; texto: string; color?: string; marca?: ReactNode }) {
   return (
@@ -180,7 +182,10 @@ export function Feed({ estado, eventos, ahora }: { estado: EstadoRed; eventos: E
           })}
         </ul>
       ) : (
-        <p className="vacio">Todavía no pasa nada. Escribe por WhatsApp para empezar.</p>
+        <div className="vacio vacio-ilustrado">
+          <img className="ilustracion" src={ABEJA.volando} alt="" />
+          <p>Todavía no pasa nada. Escribe por WhatsApp para empezar.</p>
+        </div>
       )}
       {elegido && <PanelEvento e={elegido} estado={estado} eventos={eventos} ahora={ahora} cerrar={() => setAbierto(null)} />}
     </section>
@@ -213,15 +218,15 @@ export function RedEnVivo() {
   const { estado, eventos, cambios, fuente } = useRed();
   const config = useConfigRed(fuente);
   const ahora = useAhora();
-  if (!estado) return <Cargando />;
+  if (!estado) return <Cargando bando />;
 
   const orden = ordenActual(estado);
   const pasos = orden ? cicloDeOrden(estado, orden, eventos) : [];
   const item = orden?.items[0];
 
   return (
-    <main className="pagina proyeccion red">
-      <CabeceraRed titulo="La red de compras, en vivo" fuente={fuente} />
+    <main className="bando-ui pagina proyeccion red red-bando">
+      <CabeceraRed titulo="La red de compras, en vivo" fuente={fuente} bando />
 
       <div className="red-cuerpo">
         <div className="columna">
@@ -231,7 +236,7 @@ export function RedEnVivo() {
               <>
                 <h2 className="orden-titulo">
                   {pedidoDe(item.cantidad, item.producto)} a{' '}
-                  <span className="amarillo">{dinero(item.precioUnitario)}</span> por {unidadDe(item.producto).singular}
+                  <span className="precio">{dinero(item.precioUnitario)}</span> por {unidadDe(item.producto).singular}
                 </h2>
                 <p className="orden-partes">
                   {negocioPorId(estado, orden.compradorId)?.nombre ?? 'Comprador'} → {negocioPorId(estado, orden.proveedorId)?.nombre ?? 'Proveedor'} · {orden.id}
