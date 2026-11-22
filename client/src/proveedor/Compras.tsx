@@ -36,6 +36,8 @@ function estadoDe({ lic, p, mia }: Fila, ahora: number): { texto: string; tono: 
     if (mia && p.ganadora?.proveedorId === mia.proveedorId) return { texto: 'Ganaste', tono: 'listo' };
     return { texto: p.ganadora ? `Ganó otro a ${dinero(p.ganadora.precioUnitario)}` : 'Cerró sin ganador', tono: 'neutro' };
   }
+  // Con proveedor fijo (solo llegan aquí las de este proveedor), la compra ya es suya: no compite, la abastece.
+  if (lic.proveedorId) return { texto: 'Tú la abasteces', tono: 'listo' };
   if (!mia) return { texto: 'No compites', tono: 'neutro' };
   const suya = precioDeOferta(mia, unidades);
   const mejor = Math.min(...(p.ofertas ?? []).map(o => precioDeOferta(o, unidades)));
@@ -45,7 +47,10 @@ function estadoDe({ lic, p, mia }: Fila, ahora: number): { texto: string; tono: 
 export function Compras({ foto, yo, ruta, ...props }: PropsAccion & { foto: FotoRed; yo: YoProveedor; ruta: readonly string[] }) {
   const ahora = useAhora();
   const [pestana, setPestana] = useState<'abiertas' | 'cerradas'>('abiertas');
-  const filas: Fila[] = foto.licitaciones.filter(l => !l.proveedorId).flatMap(lic => (lic.productos ?? []).filter(p => !p.proveedorId).map(p => {
+  // Las compras abiertas a todos y las que abastece este proveedor (la de la demo tiene proveedor fijo): antes la suya
+  // no aparecía y la lista decía "no hay pedidos" justo encima de la compra en curso.
+  const esMio = (id?: string) => !id || id === yo.proveedor.id;
+  const filas: Fila[] = foto.licitaciones.filter(l => esMio(l.proveedorId)).flatMap(lic => (lic.productos ?? []).filter(p => esMio(p.proveedorId)).map(p => {
     const mia = p.ofertas?.find(o => o.proveedorId === yo.proveedor.id);
     return { lic, p, ...(mia ? { mia } : {}) };
   }));
