@@ -60,6 +60,8 @@ export interface OpcionesIniciarRed {
   /** Ver `OpcionesRed.precioDeReferencia` (listas de los proveedores y Mercado Público). */
   precioDeReferencia?: OpcionesRed['precioDeReferencia'];
   existeProducto?: OpcionesRed['existeProducto'];
+  aprenderProducto?: OpcionesRed['aprenderProducto'];
+  mismoProducto?: OpcionesRed['mismoProducto'];
 }
 
 /**
@@ -82,7 +84,8 @@ export async function iniciarRed(
   await aplicarDatosDemo(repo);
   const falso = crearSiiFalso((await repo.cargar()).documentos);
   const consultarContribuyente = conCacheYFila(opciones.consultarContribuyente ?? crearConsultaContribuyenteFalsa());
-  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia, existeProducto: opciones.existeProducto });
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia, existeProducto: opciones.existeProducto,
+    aprenderProducto: opciones.aprenderProducto, mismoProducto: opciones.mismoProducto });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }
