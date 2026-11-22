@@ -338,7 +338,10 @@ function FormularioNegocio({ onEntrar, consultarRut }: {
 
 /** Mientras llegan los datos con sesión. Si fallan (por ejemplo, un negocio que no vende abre el panel), deja entrar con otro número. */
 export function CargandoCuenta({ error, texto, onSalir }: { error: string; texto: string; onSalir: () => void }) {
-  if (!error) return <p className="vacio">{texto}</p>;
+  // La misma sesión sirve en /app y /proveedor: si este negocio solo vende (o solo compra), se lleva a su panel.
+  const otroPanel = /no compra en la red/.test(error) ? '/proveedor' : /no vende en la red/.test(error) ? '/app' : null;
+  useEffect(() => { if (otroPanel) location.replace(otroPanel); }, [otroPanel]);
+  if (!error || otroPanel) return <p className="vacio">{texto}</p>;
   return (
     <>
       <p className="error">{error}</p>
