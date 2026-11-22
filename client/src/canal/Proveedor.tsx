@@ -64,14 +64,15 @@ export function Proveedor() {
         <Inicio foto={foto} negocio={yo.proveedor} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="vender" />
       )}
       {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
-      {seccion === 'compras' && <Compras {...props} foto={foto} yo={yo} ruta={resto} />}
-      {seccion === 'pedidos' && <Pedidos {...props} yo={yo} config={config} comprador={comprador} />}
-      {seccion === 'productos' && (
+      {seccion === 'compras' && (
         <>
-          <Productos {...props} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />
-          {lic && <Precios {...props} lic={lic} yo={yo} />}
+          <Compras {...props} foto={foto} yo={yo} ruta={resto} />
+          {/* Los precios por volumen de la compra abierta viven aquí, junto a sus pedidos en grupo (antes también en Productos). */}
+          {lic && !resto.length && <Precios {...props} lic={lic} yo={yo} />}
         </>
       )}
+      {seccion === 'pedidos' && <Pedidos {...props} yo={yo} config={config} comprador={comprador} />}
+      {seccion === 'productos' && <Productos {...props} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />}
       {seccion === 'facturas' && (
         <Sii api={api} token={token} cambio={cambio} negocios={foto.negocios} panel="proveedor" vende compra={puedeComprar(yo.proveedor)} vencer={vencer}
           acciones={<>
