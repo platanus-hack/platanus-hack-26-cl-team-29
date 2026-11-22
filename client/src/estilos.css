@@ -456,10 +456,13 @@ button, input, select, textarea { font-family: inherit; }
 .navegador-lista a:hover {
   background: var(--color-secondary);
 }
+/* La vista actual: el mismo bloque de apoyo del hover más el filete miel; el texto sigue en el color de primer plano,
+   así se lee igual en claro y en oscuro. */
 .navegador-lista a[aria-current='page'] {
-  background: var(--color-muted-foreground);
+  background: var(--color-secondary);
   box-shadow: inset 3px 0 0 var(--bando-miel);
 }
+.navegador-lista a[aria-current='page'] .navegador-nombre { font-weight: 700; }
 .navegador-nombre {
   font-weight: 600;
   font-size: var(--text-sm);
