@@ -1,19 +1,27 @@
-/* Ficha de un proveedor al hacer clic en el mapa: /mapa y /red-3d. */
+/* Ficha de un proveedor al hacer clic en el mapa (/mapa y /red-3d): tarjeta flotante de la marca, sobre el mapa. */
 .mapa-ficha {
-  position: absolute; z-index: 4; right: var(--relleno); top: calc(var(--relleno) + 60px); width: min(340px, calc(100vw - 32px));
-  background: rgb(10 10 10 / 0.92); font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-muted);
+  position: absolute; z-index: 4; right: var(--relleno); top: calc(var(--relleno) + 60px); width: min(360px, calc(100vw - 32px));
+  padding: 16px; background: var(--color-background); color: var(--color-muted-foreground);
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--bando-carbon) 22%, transparent);
+  font-size: var(--text-sm); line-height: var(--leading-sm);
 }
-.mapa-ficha h2 { display: flex; align-items: center; gap: 10px; margin: 0 28px 8px 0; font-family: var(--font-display); font-size: clamp(18px, 2.4vh, 26px); color: var(--color-text); overflow-wrap: anywhere; }
+/* El nombre completo, en las líneas que necesite: nunca cortado. */
+.mapa-ficha h2 {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0 32px 10px 0;
+  font-size: var(--text-base); line-height: 22px; font-weight: 600; color: var(--color-foreground); overflow-wrap: anywhere;
+}
+.mapa-ficha h2 .monograma { font-size: 14px; }
 .mapa-ficha p { margin: 4px 0; }
-.mapa-ficha-nota b { font-size: clamp(22px, 3vh, 32px); color: var(--color-primary); margin-right: 6px; }
-.mapa-ficha ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-.mapa-ficha li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--color-border); padding-top: 4px; }
-.mapa-ficha li b { color: var(--color-text); }
+.mapa-ficha-nota { display: flex; align-items: baseline; gap: 8px; }
+.mapa-ficha-nota b { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 600; color: var(--color-foreground); font-variant-numeric: tabular-nums; }
+.mapa-ficha ul { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.mapa-ficha li { display: flex; justify-content: space-between; gap: 12px; border-top: var(--border-width) solid var(--color-border); padding-top: 4px; }
+.mapa-ficha li b { color: var(--color-foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
 .mapa-ficha-cerrar {
-  position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; border: 0; background: transparent;
-  color: var(--color-muted); font-size: 22px; cursor: pointer;
+  position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-faint-fg); cursor: pointer;
 }
-.mapa-ficha-cerrar:hover { color: var(--color-text); }
-
-.mapa-ficha .mapa-ficha-aprox { color: var(--color-tenue); }
-.mapa-ficha a { display: inline-block; margin-top: 10px; color: var(--color-primary); }
+.mapa-ficha-cerrar:hover { color: var(--color-foreground); background: var(--color-secondary); }
+.mapa-ficha .mapa-ficha-aprox { color: var(--color-faint-fg); }
+.mapa-ficha a { display: inline-block; margin-top: 10px; font-weight: 600; color: var(--color-foreground); }

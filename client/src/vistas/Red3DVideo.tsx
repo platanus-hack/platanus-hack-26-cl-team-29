@@ -1,13 +1,15 @@
 // /red-3d#video: la red crece con proveedores conocidos, guionada y determinista, para grabar el video del pitch.
 // No usa la BD ni useRed: negocios del catálogo de locales y marcas ilustrativas (ver mapa/video.ts).
-// Mismo estilo que /red-3d#recorrido: mapa 3D, puntos verdes, estelas que se apagan, tarjetas efímeras y la cifra.
+// Mismo estilo que /red-3d#recorrido: mapa 3D, negocios en miel, estelas que se apagan, tarjetas efímeras y la cifra.
 
 import { useEffect, useRef, useState } from 'react';
+import type { Map as MapaLibre } from 'maplibre-gl';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { ArcLayer, ScatterplotLayer } from '@deck.gl/layers';
 import './red3d.css';
 import { Icono, LogoSii, Monograma } from '../components/Iconos.tsx';
-import { AMARILLO, AZUL_LOCAL, crearMapa, MAGENTA, ponerEdificios, VERDE } from '../mapa/base.ts';
+import { crearMapa, ponerEdificios } from '../mapa/base.ts';
+import { Logo } from '../marca/Logo.tsx';
 import { MUT, type Punto } from '../mapa/geo.ts';
 import {
   camaraVideo, capituloVideo, dejaEstela, guionVideo, negociosEn, negociosVideo, PROVEEDORES,
@@ -15,7 +17,7 @@ import {
 } from '../mapa/video.ts';
 import { MAX_TARJETAS, VIDA_TARJETA } from '../mapa/crece.ts';
 import { Contador } from './RedEnVivo.tsx';
-import { anclarAlMapa, C_AMARILLO, C_BLANCO, C_LOCAL, C_MAGENTA, C_VERDE, conAlfa, LeyendaRed3D } from './red3dComun.tsx';
+import { anclarAlMapa, conAlfa, LeyendaRed3D, useColoresDeck, type ColoresDeck } from './red3dComun.tsx';
 import { nota } from '../../../shared/formato.ts';
 
 const entre = (x: number, a: number, b: number) => Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -28,7 +30,7 @@ const ETIQUETAS_DESDE = 4500;
 interface Tarjeta { clave: number; paso: PasoVideo; punto: Punto; inicio: number }
 interface Animacion { clase: ClaseVideo; desde: Punto; hasta: Punto; inicio: number }
 
-function capas(negocios: NegocioVideo[], fondo: LocalVideo[], animaciones: Animacion[], t: number) {
+function capas(c: ColoresDeck, negocios: NegocioVideo[], fondo: LocalVideo[], animaciones: Animacion[], t: number) {
   const n = negociosEn(t, negocios.length);
   const visibles = negocios.slice(0, n);
   const estelas = visibles.filter((x, i) => t - x.aparece < VIDA_ESTELA && dejaEstela(i));
@@ -38,18 +40,18 @@ function capas(negocios: NegocioVideo[], fondo: LocalVideo[], animaciones: Anima
   const conectados = PROVEEDORES.map((p, i) => ({ p, c: cuantos[i] })).filter(x => x.c > 0);
   return [
     new ScatterplotLayer<LocalVideo>({
-      id: 'locales', data: fondo, getPosition: l => [l[0], l[1]], getFillColor: C_LOCAL,
+      id: 'locales', data: fondo, getPosition: l => [l[0], l[1]], getFillColor: c.rotulo,
       radiusUnits: 'pixels', getRadius: 1.1, opacity: 0.08 + 0.17 * entre(t, 9000, 18_000),
     }),
     new ArcLayer<NegocioVideo>({
       id: 'estelas', data: estelas, getSourcePosition: x => PROVEEDORES[x.proveedor].punto, getTargetPosition: x => x.punto,
-      getSourceColor: x => conAlfa(C_AMARILLO, 0.7 * (1 - (t - x.aparece) / VIDA_ESTELA)),
-      getTargetColor: x => conAlfa(C_VERDE, 0.7 * (1 - (t - x.aparece) / VIDA_ESTELA)),
+      getSourceColor: x => conAlfa(c.oliva, 0.8 * (1 - (t - x.aparece) / VIDA_ESTELA)),
+      getTargetColor: x => conAlfa(c.miel, 0.8 * (1 - (t - x.aparece) / VIDA_ESTELA)),
       getWidth: 1.5, getHeight: 0.35, updateTriggers: { getSourceColor: t, getTargetColor: t },
     }),
     new ArcLayer<Animacion>({
       id: 'pedidos', data: animaciones.filter(a => a.clase === 'pedido'), getSourcePosition: a => a.desde, getTargetPosition: a => a.hasta,
-      getSourceColor: a => conAlfa(C_AMARILLO, 1 - entre(edad(a), 0.55, 1)), getTargetColor: a => conAlfa(C_AMARILLO, 1 - entre(edad(a), 0.55, 1)),
+      getSourceColor: a => conAlfa(c.oliva, 1 - entre(edad(a), 0.55, 1)), getTargetColor: a => conAlfa(c.miel, 1 - entre(edad(a), 0.55, 1)),
       getWidth: 3.5, getHeight: 0.35, updateTriggers: { getSourceColor: t, getTargetColor: t },
     }),
     new ScatterplotLayer<{ p: Punto; a: number }>({
@@ -58,10 +60,10 @@ function capas(negocios: NegocioVideo[], fondo: LocalVideo[], animaciones: Anima
         const k = entre(edad(a), atraso, atraso + 0.6);
         return { p: [a.desde[0] + (a.hasta[0] - a.desde[0]) * k, a.desde[1] + (a.hasta[1] - a.desde[1]) * k] as Punto, a: k > 0 && k < 1 ? 1 : 0 };
       })),
-      getPosition: d => d.p, getFillColor: d => conAlfa(C_MAGENTA, d.a), radiusUnits: 'pixels', getRadius: 3.5,
+      getPosition: d => d.p, getFillColor: d => conAlfa(c.miel600, d.a), radiusUnits: 'pixels', getRadius: 3.5,
     }),
     new ScatterplotLayer<NegocioVideo>({
-      id: 'negocios', data: visibles, getPosition: x => x.punto, getFillColor: C_VERDE,
+      id: 'negocios', data: visibles, getPosition: x => x.punto, getFillColor: c.miel,
       // Al llegar se infla un instante; después queda chico, para que 2.000 no tapen el mapa.
       getRadius: x => (n < 60 ? 4 : 2.5) * (1 + 1.2 * (1 - entre(t, x.aparece, x.aparece + 700))),
       radiusUnits: 'pixels', opacity: 0.9, updateTriggers: { getRadius: t },
@@ -69,20 +71,20 @@ function capas(negocios: NegocioVideo[], fondo: LocalVideo[], animaciones: Anima
     // Brillo de cada proveedor: crece con sus compradores.
     new ScatterplotLayer<{ p: (typeof PROVEEDORES)[number]; c: number }>({
       id: 'brillo', data: conectados, getPosition: x => x.p.punto, radiusUnits: 'pixels',
-      getRadius: x => 9 + 1.6 * Math.sqrt(x.c), getFillColor: x => conAlfa(C_AMARILLO, 0.08 + 0.1 * Math.min(1, x.c / 150)),
+      getRadius: x => 9 + 1.6 * Math.sqrt(x.c), getFillColor: x => conAlfa(c.oliva, 0.12 + 0.12 * Math.min(1, x.c / 150)),
       updateTriggers: { getRadius: t, getFillColor: t },
     }),
     new ScatterplotLayer<{ p: (typeof PROVEEDORES)[number]; c: number }>({
       id: 'proveedores', data: conectados, getPosition: x => x.p.punto, radiusUnits: 'pixels',
-      getRadius: x => 4.5 + 0.4 * Math.sqrt(x.c), getFillColor: C_AMARILLO,
-      stroked: true, getLineColor: [11, 11, 11, 255], lineWidthUnits: 'pixels', getLineWidth: 2,
+      getRadius: x => 4.5 + 0.4 * Math.sqrt(x.c), getFillColor: c.oliva,
+      stroked: true, getLineColor: c.fondo, lineWidthUnits: 'pixels', getLineWidth: 2,
       updateTriggers: { getRadius: t },
     }),
     new ScatterplotLayer<Animacion>({
       id: 'pulsos', data: animaciones.filter(a => a.clase !== 'pedido'), getPosition: a => a.desde,
       stroked: true, filled: false, radiusUnits: 'pixels', lineWidthUnits: 'pixels', getLineWidth: 2,
       getRadius: a => 6 + 30 * Math.sqrt(edad(a)),
-      getLineColor: a => conAlfa(a.clase === 'venta' ? C_BLANCO : a.clase === 'reclamo' ? C_MAGENTA : C_VERDE, 1 - edad(a)),
+      getLineColor: a => conAlfa(a.clase === 'venta' ? c.sii : a.clase === 'reclamo' ? c.olivaTexto : c.miel600, 1 - edad(a)),
       updateTriggers: { getRadius: t, getLineColor: t },
     }),
   ];
@@ -98,6 +100,8 @@ function IconoPaso({ paso }: { paso: PasoVideo }) {
 
 export function Red3DVideo() {
   const caja = useRef<HTMLDivElement>(null);
+  const mapa = useRef<MapaLibre | null>(null);
+  const colores = useColoresDeck(mapa);
   const sobre = useRef<HTMLDivElement>(null);
   const [t, setT] = useState(0);
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([]);
@@ -115,6 +119,7 @@ export function Red3DVideo() {
     const m = crearMapa(caja.current!, { ...camaraVideo(0), interactive: false, maxPitch: 80 }, ponerEdificios);
     const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
     m.addControl(overlay);
+    mapa.current = m;
     // Parte cuando el mapa terminó de cargar sus teselas (si no, los primeros cuadros se traban).
     m.once('idle', () => setTimeout(() => { cargado = true; }, 600));
     fetch('/video-locales.json').then(r => r.json()).then((locales: LocalVideo[]) => {
@@ -147,7 +152,8 @@ export function Red3DVideo() {
         m.jumpTo(camaraVideo(tt, datos.negocios[0]?.punto ?? MUT));
         while (inicio !== null && pasos.length && pasos[0].t <= tt) ejecutar(pasos.shift()!, tt);
         animaciones = animaciones.filter(a => tt - a.inicio < DURACION[a.clase]);
-        overlay.setProps({ layers: capas(datos.negocios, datos.fondo, animaciones, tt) });
+        const c = colores();
+        if (c) overlay.setProps({ layers: capas(c, datos.negocios, datos.fondo, animaciones, tt) });
       }
       const alto = caja.current?.clientHeight ?? 1080;
       const ancho = caja.current?.clientWidth ?? 1920;
@@ -160,7 +166,7 @@ export function Red3DVideo() {
         const caja = el.firstElementChild?.getBoundingClientRect();
         if (dentro && caja) etiquetas.push(caja);
       }
-      // Una tarjeta que cae encima de una etiqueta sube hasta quedar libre.
+      // Una tarjeta que cae encima de una etiqueta (o de otra tarjeta) sube hasta quedar libre.
       for (const el of Array.from(sobre.current?.querySelectorAll<HTMLElement>('[data-tarjeta] > .r3d-evento') ?? [])) {
         el.style.marginBottom = '0px';
         for (let sube = 0; sube < 12; sube++) {
@@ -168,6 +174,7 @@ export function Red3DVideo() {
           if (!etiquetas.some(e => r.left < e.right && r.right > e.left && r.top < e.bottom + 4 && r.bottom > e.top - 4)) break;
           el.style.marginBottom = `${(sube + 1) * 16}px`;
         }
+        etiquetas.push(el.getBoundingClientRect());
       }
       if (ahora - ultimoAviso > 120) {
         ultimoAviso = ahora;
@@ -180,6 +187,7 @@ export function Red3DVideo() {
     return () => {
       activo = false;
       cancelAnimationFrame(cuadro);
+      mapa.current = null;
       m.remove();
     };
   }, []);
@@ -190,7 +198,7 @@ export function Red3DVideo() {
   const enPunto = (p: Punto) => ({ 'data-lng': p[0], 'data-lat': p[1] });
 
   return (
-    <main className="r3d r3d-video">
+    <main className="bando-ui r3d r3d-video">
       <div className="r3d-lienzo">
         <div className="r3d-mapa" ref={caja} role="img" aria-label="Mapa 3D de Santiago: la red de compras crece" />
         <div className="r3d-sobre" ref={sobre}>
@@ -212,13 +220,11 @@ export function Red3DVideo() {
           ))}
         </div>
       </div>
-      <div className="r3d-arriba">
-        <header className="red-cabecera">
-          <div className="marca" aria-hidden>B</div>
-          <h1 className="titulo-red">La red crece</h1>
-        </header>
-      </div>
-      <div className="r3d-cifra" aria-live="polite"><Contador valor={n} texto={capituloVideo(n)} color="verde" /></div>
+      <header className="r3d-arriba r3d-titular">
+        <Logo className="r3d-logo-bando" />
+        <h1>La red crece</h1>
+      </header>
+      <div className="r3d-cifra puente-legado" aria-live="polite"><Contador valor={n} texto={capituloVideo(n)} /></div>
       <LeyendaRed3D />
       <p className="r3d-aviso">Simulación ilustrativa</p>
     </main>
