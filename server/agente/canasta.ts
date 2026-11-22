@@ -45,6 +45,11 @@ export interface DatosCanasta {
   readonly sinCantidad?: { readonly productoId: string; readonly modo: ModoCambio };
   /** Pidió más que el máximo por producto ("80 rollos"): se pregunta en vez de adivinar. */
   readonly fueraDeRango?: boolean;
+  /**
+   * Nombró un producto que no está en esta compra ("10 coca colas" en la de bolsas): no es de esta canasta. El agente
+   * lo busca en la biblioteca o en otra compra abierta.
+   */
+  readonly otroProducto?: string;
   /** Falso si las reglas no están seguras y conviene que lo lea Claude. */
   readonly claro: boolean;
 }
@@ -278,6 +283,29 @@ function tramos(original: string): { original: string; texto: string }[] {
   return res;
 }
 
+/** Palabras de un pedido que no nombran producto: "quiero agregar 10 ... a mi pedido". */
+const DE_PEDIDO = new Set(['quiero', 'quisiera', 'necesito', 'me', 'mi', 'mis', 'a', 'al', 'pedido', 'carrito', 'compra', 'porfa', 'favor',
+  'por', 'tambien', 'pedir', 'comprar', 'sumarme', 'ahora', 'otro', 'otra', 'ese', 'esa', 'este', 'esta', 'nada', 'dale', 'gracias', 'hola',
+  'total', 'faltan', 'falta', 'mas', 'cada', 'unidades', 'unidad', 'mejor', 'que', 'cual', 'cuales', 'nomas', 'solo', 'son']);
+
+/**
+ * "10 coca colas": el número va pegado a algo que no es de esta canasta (ni producto, ni unidad, ni relleno). Devuelve
+ * eso, o undefined. Solo lo que sigue al número cuenta: "Bazar Uno, 4" o "10 en total" no nombran otro producto.
+ */
+function nombraOtroProducto(original: string, cat: Catalogo): string | undefined {
+  const unidades = new Set(cat.productos.flatMap(p => [raiz(sinTildes(p.unidad)), raiz(sinTildes(p.unidadPlural))]));
+  const tokens = plano(original).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const i = tokens.findIndex(w => /^\d+$/.test(w) || w in NUMEROS);
+  if (i < 0) return undefined;
+  const despues = tokens.slice(i + 1).filter(w => !VACIAS.has(w));
+  const primera = despues[0];
+  if (!primera || primera.length < 3 || DE_PEDIDO.has(primera) || primera in VERBOS) return undefined;
+  const r = SINONIMOS[raiz(primera)] ?? raiz(primera);
+  if (unidades.has(r) || cat.productos.some(p => p.claves.includes(r))) return undefined;
+  const hasta = despues.findIndex(w => DE_PEDIDO.has(w));
+  return (hasta < 0 ? despues : despues.slice(0, hasta)).join(' ');
+}
+
 export function interpretarCanastaConReglas(texto: string, cat: Catalogo): DatosCanasta {
   const original = texto.replace(/[ \t]+/g, ' ').trim().normalize('NFC');
   const t = plano(original).replace(/[,;:\n]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -312,6 +340,9 @@ export function interpretarCanastaConReglas(texto: string, cat: Catalogo): Datos
   for (const s of sinCantidad.filter(s => s.modo === 'sumar')) agregar(s.productoId, 1, 'sumar');
   const falta = sinCantidad.find(s => s.modo !== 'sumar');
   const suelta = sueltas[0];
+  // Un número con un producto que no es de esta compra no es de la canasta: lo atiende el agente.
+  const otroProducto = suelta && !cambios.length && !sinCantidad.length && !nombre ? nombraOtroProducto(original, cat) : undefined;
+  if (otroProducto) return { cambios: [], otroProducto, claro: true };
   if (suelta && suelta.modo !== 'quitar' && suelta.cantidad > cat.maximo) fueraDeRango = true;
 
   const algo = cambios.length > 0 || Boolean(nombre || falta || suelta) || fueraDeRango;

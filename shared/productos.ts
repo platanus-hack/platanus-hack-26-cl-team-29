@@ -33,7 +33,9 @@ export function sugerirProductos(q: string, conocidos: readonly ProductoConocido
   const vistos = new Set<string>();
   const unicos = conocidos.filter(p => {
     const clave = `${compacto(p.nombre)}|${p.unidad}`;
-    if (vistos.has(clave) || !palabras.every(w => compacto(p.nombre).includes(w))) return false;
+    // "colas" también encuentra "Cola": cada palabra en singular si la escribió en plural.
+    const nombre = compacto(p.nombre);
+    if (vistos.has(clave) || !palabras.every(w => nombre.includes(w) || (w.length > 3 && nombre.includes(w.replace(/e?s$/, ''))))) return false;
     vistos.add(clave);
     return true;
   });

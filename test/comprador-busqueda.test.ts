@@ -12,7 +12,9 @@ const FUENTES: FuentesBusqueda = {
 
 test('la búsqueda encuentra productos, pedidos, facturas y secciones, sin importar tildes ni mayúsculas', () => {
   assert.deepEqual(buscarEnApp('TERMICOS', FUENTES).map(r => r.href), ['#compra/L-1/rollos']);
-  assert.deepEqual(buscarEnApp('molinos', FUENTES).map(r => [r.tipo, r.titulo]), [['pedido', 'Harina 25 kg']]);
+  assert.deepEqual(buscarEnApp('molinos', FUENTES), [], 'sin sección Pedidos (el comprador), no se buscan pedidos');
+  const conPedidos = { ...FUENTES, secciones: [...FUENTES.secciones, { id: 'pedidos', titulo: 'Pedidos' }] };
+  assert.deepEqual(buscarEnApp('molinos', conPedidos).map(r => [r.tipo, r.titulo]), [['pedido', 'Harina 25 kg']]);
   assert.deepEqual(buscarEnApp('5190', FUENTES).map(r => [r.titulo, r.detalle]), [['Factura folio 5190', 'Molinos del Sur']]);
   assert.deepEqual(buscarEnApp('credito', FUENTES).map(r => r.href), ['#credito']);
 });
@@ -24,7 +26,7 @@ test('todas las palabras tienen que aparecer, y con menos de 2 letras no busca',
 });
 
 test('desde el panel del proveedor, los pedidos se buscan por el comprador y la compra en grupo lleva a /app', () => {
-  const vendiendo = { ...FUENTES, contraparte: 'compradorId' as const, rutaCompra: '/app#compra' };
+  const vendiendo = { ...FUENTES, secciones: [{ id: 'pedidos', titulo: 'Pedidos' }], contraparte: 'compradorId' as const, rutaCompra: '/app#compra' };
   assert.deepEqual(buscarEnApp('trigal', vendiendo).map(r => [r.tipo, r.detalle]), [['pedido', 'Panadería El Trigal']]);
   assert.deepEqual(buscarEnApp('termicos', vendiendo).map(r => r.href), ['/app#compra/L-1/rollos']);
 });

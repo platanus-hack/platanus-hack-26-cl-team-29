@@ -2,7 +2,7 @@
 // y la falsa (client/src/canal/falso.ts), que se usa cuando el backend todavía no tiene estas rutas.
 
 import { io } from 'socket.io-client';
-import type { Negocio, OrdenCompra } from '../red/tipos.ts';
+import type { Negocio } from '../red/tipos.ts';
 import { normalizarEstado } from '../red/derivar.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
@@ -11,14 +11,9 @@ import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
 import type { CatalogoProveedor, ProductoEscrito } from '../../../shared/catalogo.ts';
 import type { ProductoConocido } from '../../../shared/productos.ts';
 import type { RutaReparto } from '../../../shared/ruta.ts';
-import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
+import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
 export type Entrada = { registro: true } | { token: string; negocio: Negocio };
-
-export interface ItemPedido {
-  producto: string;
-  cantidad: number;
-}
 
 /** Lo que pide el comprador al iniciar una compra en grupo. `precioHoy`: lo que paga hoy por unidad, si lo sabe. */
 export interface NuevaSolicitud {
@@ -52,8 +47,6 @@ export interface CanalApi {
   abrirSolicitud(token: string, s: NuevaSolicitud): Promise<{ licitacionId: string; productoId: string }>;
   /** Sale de la compra conjunta (vacía el carrito). */
   salir(token: string, licitacionId: string): Promise<void>;
-  pedir(token: string, proveedorId: string, items: ItemPedido[]): Promise<OrdenCompra>;
-  recepcion(token: string, ordenId: string, r: Recepcion): Promise<void>;
   yoProveedor(token: string): Promise<YoProveedor>;
   cerrar(token: string, licitacionId: string): Promise<void>;
   facturar(token: string, licitacionId: string): Promise<void>;
@@ -179,8 +172,6 @@ export function crearApiReal(): CanalApi {
     },
     carrito: async (token, licitacionId, items) => { await llamar('/yo/carrito', { token, cuerpo: { licitacionId, items }, metodo: 'PUT' }); },
     salir: async (token, licitacionId) => { await llamar(`/yo/carrito/${encodeURIComponent(licitacionId)}`, { token, metodo: 'DELETE' }); },
-    pedir: (token, proveedorId, items) => llamar('/yo/ordenes', { token, cuerpo: { proveedorId, items } }),
-    recepcion: async (token, ordenId, r) => { await llamar(`/yo/ordenes/${encodeURIComponent(ordenId)}/recepcion`, { token, cuerpo: r }); },
     yoProveedor: async token => normalizarYoProveedor(await llamar('/proveedor/yo', { token })),
     cerrar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },

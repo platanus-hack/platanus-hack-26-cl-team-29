@@ -81,8 +81,6 @@ export interface YoProveedor {
   licitaciones?: LicitacionCanal[];
 }
 
-export type Recepcion = { conforme: true; confirmado: true } | { faltante: number; confirmado: true };
-
 export interface FotoRed extends Omit<EstadoRed, 'licitaciones' | 'ordenes'> {
   licitaciones: LicitacionCanal[];
   ordenes: OrdenCanal[];

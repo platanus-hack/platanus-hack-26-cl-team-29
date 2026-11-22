@@ -3,8 +3,6 @@
 
 import type { Documento } from '../red/tipos.ts';
 import { siguienteTramo, totalOrden, tramoAlcanzado } from '../../../shared/precios.ts';
-import { contar } from '../../../shared/texto.ts';
-import { textoEstadoSii } from '../red/formato.ts';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, Tramo } from './tipos.ts';
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -107,69 +105,6 @@ export function montoNotaCredito(orden: OrdenCanal, documentos: readonly Documen
   if (nc?.monto !== undefined) return nc.monto;
   const item = orden.items.find(i => i.producto === orden.reclamo?.producto) ?? orden.items[0];
   return (orden.reclamo?.faltante ?? 0) * (item?.precioUnitario ?? 0);
-}
-
-export type EstadoPaso = 'hecho' | 'actual' | 'pendiente' | 'omitido';
-
-export interface PasoPedido {
-  titulo: string;
-  detalle: string;
-  estado: EstadoPaso;
-}
-
-export interface CicloPedido {
-  /** Lo que se ve en la cabecera del pedido. */
-  resumen: string;
-  /** Qué tiene que hacer el comprador ahora. */
-  accion: 'recibir' | 'ninguna';
-  pasos: PasoPedido[];
-}
-
-const RESUMEN: Record<OrdenCanal['estado'], string> = {
-  enviada: 'Esperando al proveedor',
-  confirmada: 'Confirmado, facturando',
-  facturada: '¿Recibiste todo?',
-  recibida: 'Recibido conforme',
-  reclamada: 'Reclamado en el SII',
-  corregida: 'Nota de crédito recibida',
-};
-
-/** Último paso hecho en cada estado; el siguiente es el que está en curso. */
-const AVANCE: Record<OrdenCanal['estado'], number> = {
-  enviada: 0, confirmada: 1, facturada: 2, recibida: 3, reclamada: 4, corregida: 5,
-};
-
-const conEstadoSii = (texto: string, estado: string | null | undefined) => {
-  const e = textoEstadoSii(estado);
-  return e ? `${texto}, ${e}` : texto;
-};
-
-/** Los 6 pasos del ciclo, los mismos de la pantalla en vivo, vistos por el comprador. */
-export function cicloDelPedido(orden: OrdenCanal, documentos: readonly Documento[], unidad?: Unidad): CicloPedido {
-  const doc = (tipo: Documento['tipo']) => documentos.find(d => d.ordenId === orden.id && d.tipo === tipo);
-  const factura = doc(33);
-  const nc = doc(61);
-  const avance = AVANCE[orden.estado] ?? 0;
-  const conforme = orden.estado === 'recibida';
-  const faltante = orden.reclamo?.faltante;
-
-  const pasos: Array<[string, string]> = [
-    ['Pedido', 'Enviaste la orden de compra'],
-    ['Confirmado', avance >= 1 ? 'El proveedor confirmó' : 'Esperando que el proveedor confirme'],
-    ['Factura en el SII', factura ? conEstadoSii(`Folio ${factura.folio}`, factura.estadoSii) : 'Llega con la guía de despacho'],
-    ['Recepción', conforme ? 'Llegó todo' : faltante ? `${faltante === 1 ? 'Faltó' : 'Faltaron'} ${unidad ? contar(faltante, unidad.singular, unidad.plural) : faltante}` : '¿Recibiste todo?'],
-    ['Reclamo en el SII', conforme ? 'No hizo falta' : orden.reclamo ? conEstadoSii('Reclamado', orden.reclamo.estadoSii) : 'Solo si falta algo'],
-    ['Nota de crédito', conforme ? 'No hizo falta' : nc ? conEstadoSii(`Folio ${nc.folio}`, nc.estadoSii) : 'El proveedor la emite'],
-  ];
-  return {
-    resumen: RESUMEN[orden.estado] ?? orden.estado,
-    accion: orden.estado === 'facturada' ? 'recibir' : 'ninguna',
-    pasos: pasos.map(([titulo, detalle], i) => ({
-      titulo,
-      detalle,
-      estado: conforme && i >= 4 ? 'omitido' : i <= avance ? 'hecho' : i === avance + 1 ? 'actual' : 'pendiente',
-    })),
-  };
 }
 
 // ---------- Paso de confirmación ----------

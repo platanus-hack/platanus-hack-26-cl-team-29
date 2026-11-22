@@ -171,8 +171,10 @@ test('por WhatsApp: un comprador pide algo que nadie vende a precio fijo y abre 
   const abierta = red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta' && l.producto === 'Servilletas de papel')!;
   assert.deepEqual([abierta.proveedorId, abierta.totalUnidades], [undefined, 10]);
 
-  await escribir(CARO, 'necesito 4 sacos de harina');
-  assert.doesNotMatch(ultimo(CARO), /compra en grupo/, 'lo que tiene precio sigue siendo un pedido directo');
+  // Ya está en la de servilletas: la sala ajusta su cantidad, sin "$0" ni "mejor precio" (no hay ofertas todavía).
+  await escribir(CARO, 'quiero comprar 5 servilletas de papel');
+  assert.match(ultimo(CARO), /va con 5 unidades de servilletas[\s\S]*Esperando ofertas de proveedores/);
+  assert.doesNotMatch(ultimo(CARO), /\$0|mejor precio\./);
 });
 
 test('por WhatsApp: "cocacola" sugiere los productos parecidos de la biblioteca o crear uno nuevo', async t => {
@@ -191,4 +193,25 @@ test('por WhatsApp: "cocacola" sugiere los productos parecidos de la biblioteca 
 
   await escribir(CARO, 'quiero comprar 5 cocacola zero');
   assert.match(ultimo(CARO), /Ningún proveedor de la red tiene precio fijo para "Cocacola zero"/, 'sin parecidos, va directo como nuevo');
+});
+
+test('por WhatsApp: "agregar 10 coca colas a mi pedido" no se suma a la compra de bolsas; se ofrece la compra que tiene coca colas', async t => {
+  const conocidos: ProductoConocido[] = [{ nombre: 'Coca-Cola lata 330 ml', unidad: 'unidad' }];
+  const { red, agente, escribir, ultimo } = await montar({}, undefined, { buscar: q => sugerirProductos(q, conocidos) });
+  t.after(() => agente.desconectar());
+  const caro = (await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' })).id;
+  const beto = (await red.registrarComprador({ nombre: 'Beto', comuna: 'Ñuñoa', telefono: BETO, rut: '11.111.111-1' })).id;
+  // Caro está en una compra de bolsas (la más reciente) y Beto abrió una de Coca-Cola.
+  const cocas = await red.abrirSolicitud({ compradorId: beto, producto: 'Coca-Cola lata 330 ml', unidad: 'unidad', cantidad: 6 });
+  const bolsas = await red.abrirSolicitud({ compradorId: caro, producto: 'Bolsas camiseta', unidad: 'paquete', cantidad: 10 });
+
+  await escribir(CARO, 'quiero agregar 10 coca colas a mi pedido');
+  assert.doesNotMatch(ultimo(CARO), /paquetes de bolsas|\$0/);
+  assert.match(ultimo(CARO), /¿Cuál es\?\n1\. Coca-Cola lata 330 ml/);
+  await escribir(CARO, '1');
+  assert.match(ultimo(CARO), /Hay una compra en grupo abierta de "Coca-Cola lata 330 ml".*¿Te sumo con 10 unidades\?/s);
+  await escribir(CARO, 'si');
+  const deCaro = (id: string) => red.estadoDeLaRed().licitaciones.find(l => l.id === id)!.participantes.find(p => p.negocioId === caro)?.items;
+  assert.deepEqual(deCaro(cocas.id)?.map(i => i.cantidad), [10]);
+  assert.deepEqual(deCaro(bolsas.id)?.map(i => i.cantidad), [10], 'las bolsas siguen igual');
 });

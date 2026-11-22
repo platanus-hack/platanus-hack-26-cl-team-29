@@ -46,7 +46,9 @@ export function buscarEnApp(q: string, f: FuentesBusqueda): Resultado[] {
 
   const compras = f.productos.filter(p => coincide(q, p.nombre))
     .map(p => ({ tipo: 'compra' as const, titulo: p.nombre, detalle: 'Compra en grupo abierta', href: `${f.rutaCompra ?? '#compra'}/${encodeURIComponent(p.licitacionId)}/${encodeURIComponent(p.id)}` }));
-  const pedidos = f.ordenes.filter(o => coincide(q, otro(o), ...o.items.map(i => i.producto)))
+  // Pedidos solo donde hay una sección que los muestre (el panel del proveedor).
+  const conPedidos = f.secciones.some(s => s.id === 'pedidos');
+  const pedidos = f.ordenes.filter(o => conPedidos && coincide(q, otro(o), ...o.items.map(i => i.producto)))
     .map(o => ({ tipo: 'pedido' as const, titulo: o.items.map(i => i.producto).join(', ') || 'Pedido', detalle: otro(o), href: '#pedidos' }));
   const facturas = f.documentos.filter(d => d.folio !== null && NOMBRE_DOCUMENTO[d.tipo] && coincide(q, `${NOMBRE_DOCUMENTO[d.tipo]} ${d.folio}`))
     .map(d => ({ tipo: 'factura' as const, titulo: `${NOMBRE_DOCUMENTO[d.tipo]} folio ${d.folio}`, detalle: otro(f.ordenes.find(o => o.id === d.ordenId)), href: '#facturas' }));

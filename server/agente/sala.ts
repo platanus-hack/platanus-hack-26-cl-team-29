@@ -427,8 +427,15 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
       [p.unidad, p.unidadPlural ?? '', p.id, ...normalizar(p.nombre).split(' ')].some(x => x.length > 2 && dichas.has(normalizar(x))));
   }
 
+  /** "10 coca colas" en una compra de bolsas: habla de otro producto, no de esta canasta. */
+  async function hablaDeOtroProducto(texto: string): Promise<boolean> {
+    const l = await abierta();
+    return !!l && !!interpretarCanastaConReglas(texto, catalogoDe(l, o.cantidadMaxima)).otroProducto;
+  }
+
   async function entiende(telefono: string, texto: string): Promise<boolean> {
     const clave = claveTelefono(telefono);
+    if (await hablaDeOtroProducto(texto)) return false;
     if (borradores.has(clave) || salidas.has(clave)) return true;
     if (/\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto))) return true;
     const l = await abierta();
@@ -439,6 +446,7 @@ export function crearSala(red: Red & RedSala, o: OpcionesSala): Sala {
 
   async function atiende(telefono: string, negocioId: string, texto: string): Promise<boolean> {
     const clave = claveTelefono(telefono);
+    if (await hablaDeOtroProducto(texto)) return false;
     if (participantes.has(clave) || borradores.has(clave) || salidas.has(clave)) return true;
     if (/\bsum(o|ar|arme|arnos|amos)\b/.test(normalizar(texto))) return true;
     const l = await abierta();
