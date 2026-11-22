@@ -39,7 +39,8 @@ let existeProducto: NonNullable<OpcionesRed['existeProducto']> = () => true;
 export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u), existeProducto: (p, u) => existeProducto(p, u) });
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
-conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
+// Una factura y una guía de despacho por negocio de la compra abierta: los folios se reponen mientras la gente se suma.
+conexionSii.fijarDemanda(tipo => (tipo === 33 || tipo === 52 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
 conexionSii.escuchar(evento => {
   io.emit('red:evento', evento);
   // Llegaron folios: quien ahora puede facturar empieza a competir en vivo, sin esperar al cierre.
