@@ -18,7 +18,7 @@
   --bando-fondo-crema: #FCF4DC;   /* fondo de ilustraciones, imagen para compartir, ícono de app */
   --bando-carbon: #343532;        /* trazo de ilustración, fondo oscuro de marca */
   --bando-tinta: #1D1D1F;         /* texto sobre miel */
-  --bando-fondo-ilustracion: #FCF4DC; /* detrás de ilustraciones e íconos de flujo en modo oscuro: siempre claro */
+  --bando-fondo-ilustracion: #FCF4DC; /* contorno de ilustraciones en modo oscuro */
   --bando-sii: #0061A0;           /* azul del SII: solo lo que queda registrado en el SII */
   --bando-sobre-sii: #FFFFFF;     /* texto y fondo del logo sobre el azul del SII */
 
@@ -167,8 +167,11 @@
    propio del logo (por ejemplo, oculto en el teléfono) sigue mandando. */
 :root:not([data-tema='oscuro']) .bando-ui .logo-oscuro, [data-tema='oscuro'] .bando-ui .logo-claro { display: none; }
 
-/* Ilustraciones e íconos de flujo van sobre blanco o crema (DESIGN.md): en modo oscuro, sobre una baldosa crema. */
-[data-tema='oscuro'] .bando-ui .ilustracion { background: var(--bando-fondo-ilustracion); border-radius: var(--radius-xl); padding: 6px; }
+/* Ilustraciones, abejas e íconos de flujo nunca llevan fondo ni baldosa (DESIGN.md). En modo oscuro, un contorno crema
+   de medio píxel separa el trazo negro del fondo sin dibujar un cuadro. */
+[data-tema='oscuro'] .bando-ui .ilustracion {
+  filter: drop-shadow(0 0 0.5px var(--bando-fondo-ilustracion)) drop-shadow(0 0 0.5px var(--bando-fondo-ilustracion));
+}
 
 /* Modo proyección (DESIGN.md, "Modo proyección"): Bando en grande y a distancia, para `/red`, `/licitacion` y `/mapa`.
    Siempre oscuro (un proyector lava los blancos y el negro de fondo no encandila la sala): carbón profundo, texto
