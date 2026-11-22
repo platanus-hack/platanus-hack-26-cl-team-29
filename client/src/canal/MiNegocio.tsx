@@ -19,9 +19,9 @@ import './canal.css';
 
 type Seccion = 'inicio' | 'compra' | 'proveedores' | 'recepcion' | 'facturas' | 'credito';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
-  { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'compra', titulo: 'Compras en grupo', corto: 'Compras', icono: 'grupo' },
-  { id: 'proveedores', titulo: 'Proveedores', icono: 'camion' }, { id: 'recepcion', titulo: 'Recepción', icono: 'caja' },
-  { id: 'facturas', titulo: 'SII', icono: 'documento' }, { id: 'credito', titulo: 'Crédito', icono: 'tarjeta' },
+  { id: 'inicio', titulo: 'Inicio', icono: 'inicio' }, { id: 'compra', titulo: 'Compras en grupo', corto: 'Compras', icono: 'grupo' },
+  { id: 'proveedores', titulo: 'Proveedores', icono: 'proveedores' }, { id: 'recepcion', titulo: 'Recepción', icono: 'recepcion' },
+  { id: 'facturas', titulo: 'SII', icono: 'facturas' }, { id: 'credito', titulo: 'Crédito', icono: 'stock' },
 ];
 
 /** `#compra/...` → la lista, iniciar una o un producto (ver `rutaDeCompra`); `#proveedores/<clave>` → su ficha. Sin hash, la portada. */

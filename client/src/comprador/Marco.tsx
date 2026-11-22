@@ -2,7 +2,8 @@
 // logo, las secciones y el negocio abajo; en el teléfono, una barra arriba con el negocio y las secciones fijas abajo.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Icono, Monograma, type NombreIcono } from '../canal/iconos.tsx';
+import { Monograma } from '../canal/iconos.tsx';
+import { ICONO_MENU, type IconoMenu } from '../marca/recursos.ts';
 import { Logo } from '../marca/Logo.tsx';
 import { BotonTema } from '../marca/BotonTema.tsx';
 import type { Negocio } from '../red/tipos.ts';
@@ -13,7 +14,8 @@ export interface SeccionMarco<S extends string> {
   titulo: string;
   /** En la barra de abajo del teléfono, si el título no cabe. */
   corto?: string;
-  icono: NombreIcono;
+  /** Ícono ilustrado del menú (`ICONO_MENU`). */
+  icono: IconoMenu;
   /** Un número al lado (por ejemplo, pedidos por revisar). */
   globo?: number;
 }
@@ -50,7 +52,7 @@ export function Marco<S extends string>({ secciones, activa, negocio, aviso, onS
         <nav className="bm-secciones" aria-label="Secciones">
           {secciones.map(s => (
             <a key={s.id} href={`#${s.id}`} className={s.id === activa ? 'activa' : ''} aria-current={s.id === activa ? 'page' : undefined}>
-              <Icono nombre={s.icono} tam={22} />
+              <img className="bm-icono-menu" src={ICONO_MENU[s.icono]} alt="" width={22} height={22} />
               <span className="bm-seccion-titulo">{s.titulo}</span>
               {s.corto && <span className="bm-seccion-corto" aria-hidden="true">{s.corto}</span>}
               {!!s.globo && <span className="bm-globo" aria-label={`${s.globo} por revisar`}>{s.globo}</span>}

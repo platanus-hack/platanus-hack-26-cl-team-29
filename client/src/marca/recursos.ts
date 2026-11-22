@@ -23,6 +23,21 @@ export const ICONO_FLUJO = {
   sumarProveedores: `${BASE}/02-iconos-flujos/flujo-7.png`,
 } as const;
 
+/** Íconos ilustrados del menú lateral (Paper "C2" y "P2"): uno por sección, a color, en 22 px. */
+export const ICONO_MENU = {
+  inicio: `${BASE}/05-iconos-menu/inicio.png`,
+  grupo: `${BASE}/05-iconos-menu/grupo.png`,
+  pedidos: `${BASE}/05-iconos-menu/pedidos.png`,
+  recepcion: `${BASE}/05-iconos-menu/recepcion.png`,
+  proveedores: `${BASE}/05-iconos-menu/proveedores.png`,
+  facturas: `${BASE}/05-iconos-menu/facturas.png`,
+  tramos: `${BASE}/05-iconos-menu/tramos.png`,
+  stock: `${BASE}/05-iconos-menu/stock.png`,
+  reparto: `${BASE}/05-iconos-menu/reparto.png`,
+  configuracion: `${BASE}/05-iconos-menu/configuracion.png`,
+} as const;
+export type IconoMenu = keyof typeof ICONO_MENU;
+
 /** Escenas para estados vacíos, confirmaciones y láminas. Una por pantalla; nunca dentro de tablas o formularios. */
 export const ILUSTRACION = {
   problema: `${BASE}/03-ilustraciones/problema.png`,
