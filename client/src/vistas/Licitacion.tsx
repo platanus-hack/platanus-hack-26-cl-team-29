@@ -14,7 +14,8 @@ import { dinero, nota } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import type { EstadoRed, Fuente, Licitacion as LicitacionRed } from '../red/tipos.ts';
-import { useAhora, useRed } from '../red/useRed.ts';
+import { useAhora, useConfigRed, useRed } from '../red/useRed.ts';
+import { enlaceWhatsapp } from '../../../shared/telefono.ts';
 import { Logo } from '../marca/Logo.tsx';
 import './licitacion.css';
 
@@ -43,9 +44,12 @@ function Proyeccion({ className = '', children }: { className?: string; children
 
 type Unidad = { singular: string; plural: string };
 
-function Grupo({ lic, r, cerrada, unidad, canasta }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean; unidad: Unidad; canasta?: TotalesCanasta }) {
+function Grupo({ lic, r, cerrada, unidad, canasta, whatsappNumero }: { lic: LicitacionRed; r: ResumenLicitacion; cerrada: boolean; unidad: Unidad; canasta?: TotalesCanasta; whatsappNumero: string | null }) {
   const [lista, caben] = useFilasQueCaben<HTMLUListElement>(8, r.compradores);
   const urlUnirse = `${location.origin}/unirse?licitacion=${encodeURIComponent(lic.id)}`;
+  // Con número de WhatsApp, el QR abre el chat con el mensaje ya escrito: quien escribe primero abre la ventana de 24 h
+  // (el sandbox no tiene plantillas) y el agente le toma el pedido ahí mismo. La web queda como alternativa debajo.
+  const chat = whatsappNumero ? enlaceWhatsapp(whatsappNumero, `Hola Bando, quiero sumarme a la compra ${lic.id}`) : '';
   return (
     <section className="tarjeta apilada">
       <p className="etiqueta">Compradores en el grupo</p>
@@ -68,10 +72,10 @@ function Grupo({ lic, r, cerrada, unidad, canasta }: { lic: LicitacionRed; r: Re
         <div className="sumate">
           <h3>Súmate como almacén</h3>
           <div className="sumate-cuerpo">
-            <Qr className="qr" texto={urlUnirse} />
+            <Qr className="qr" texto={chat || urlUnirse} />
             <div>
-              <p>Escanea y mira cómo baja el precio</p>
-              <p className="url">{urlUnirse.replace(/^https?:\/\//, '')}</p>
+              <p>{chat ? 'Escanea, envía el mensaje y pide por WhatsApp' : 'Escanea y mira cómo baja el precio'}</p>
+              <p className="url">{chat ? 'o en ' : ''}{urlUnirse.replace(/^https?:\/\//, '')}</p>
             </div>
           </div>
         </div>
@@ -152,6 +156,7 @@ export function Licitacion() {
 }
 
 function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado: EstadoRed; r: ResumenLicitacion; ahora: number; fuente: Fuente }) {
+  const { whatsappNumero } = useConfigRed(fuente);
   const productos = productosDeCanasta(lic, estado);
   /** El foco cambia como mucho cada 6 s: la columna de ofertas no salta con cada negocio que llega. */
   const destacado = useProductoDestacado(productos, 6000);
@@ -187,7 +192,7 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
       </header>
 
       <div className="lic-cuerpo">
-        <Grupo lic={lic} r={r} cerrada={cerrada} unidad={unidad} canasta={canasta} />
+        <Grupo lic={lic} r={r} cerrada={cerrada} unidad={unidad} canasta={canasta} whatsappNumero={whatsappNumero} />
 
         {canasta ? <Canasta lic={lic} estado={estado} productos={productos} destacado={destacado} canasta={canasta} /> : <section className="tarjeta apilada">
           <div className="mejor-oferta">

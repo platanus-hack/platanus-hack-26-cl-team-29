@@ -195,7 +195,7 @@ export function Campo({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?:
 function VentanaCerrada({ enlace }: { enlace: string }) {
   return (
     <p className="bm-nota">
-      Si no te llega, escríbenos un «Hola» por WhatsApp y el código te llega al tiro.
+      Si no te llega, escríbenos un «Hola» por WhatsApp y el código te llega al instante.
       {enlace && <> <a href={enlace} target="_blank" rel="noreferrer">Abrir WhatsApp</a></>}
     </p>
   );
