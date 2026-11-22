@@ -352,6 +352,7 @@ export async function crearRed({
   consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar, precioDeReferencia,
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
+  const aSiMismo = env.DEMO_COMPRA_A_SI_MISMO === '1';
   for (const l of datos.licitaciones) migrarLicitacion(l);
   const oyentes = new Set<(evento: EventoRed) => void>();
   const enCurso = new Set<string>();
@@ -1032,7 +1033,8 @@ export async function crearRed({
     for (const participante of l.participantes) {
       const porProveedor = new Map<string, { items: ItemCarrito[]; precios: Map<string, number> }>();
       for (const i of participante.items) {
-        const g = candidatas.get(i.productoId)?.find(c => c.proveedorId !== participante.negocioId);
+        // Nadie se compra a sí mismo, salvo en la demo con DEMO_COMPRA_A_SI_MISMO=1 (para probar todo con un teléfono).
+        const g = candidatas.get(i.productoId)?.find(c => aSiMismo || c.proveedorId !== participante.negocioId);
         if (!g) {
           sinProveedor.push({ productoId: i.productoId, cantidad: i.cantidad });
           continue;

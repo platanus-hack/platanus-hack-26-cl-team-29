@@ -20,10 +20,12 @@ export const mismoProducto = (a: { nombre: string; unidad: string }, b: { nombre
 
 const MAXIMO_SUGERENCIAS = 8;
 
-/** Los que contienen todas las palabras escritas (sin importar espacios ni guiones), sin repetir; primero los que empiezan así. */
+/**
+ * Los que contienen todas las palabras escritas (sin importar espacios ni guiones), sin repetir; primero los que empiezan
+ * así. Sin nada escrito, los primeros por nombre (para abrir un selector y ver qué hay).
+ */
 export function sugerirProductos(q: string, conocidos: readonly ProductoConocido[]): ProductoConocido[] {
   const palabras = sinTildes(q).split(/\s+/).map(compacto).filter(Boolean);
-  if (!palabras.length) return [];
   const vistos = new Set<string>();
   const unicos = conocidos.filter(p => {
     const clave = `${compacto(p.nombre)}|${p.unidad}`;
@@ -31,6 +33,7 @@ export function sugerirProductos(q: string, conocidos: readonly ProductoConocido
     vistos.add(clave);
     return true;
   });
-  const empieza = (p: ProductoConocido) => Number(compacto(p.nombre).startsWith(palabras[0]));
-  return unicos.sort((a, b) => empieza(b) - empieza(a) || a.nombre.length - b.nombre.length).slice(0, MAXIMO_SUGERENCIAS);
+  const empieza = (p: ProductoConocido) => Number(!!palabras.length && compacto(p.nombre).startsWith(palabras[0]));
+  return unicos.sort((a, b) => empieza(b) - empieza(a) || (palabras.length ? a.nombre.length - b.nombre.length : a.nombre.localeCompare(b.nombre)))
+    .slice(0, MAXIMO_SUGERENCIAS);
 }

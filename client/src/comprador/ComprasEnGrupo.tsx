@@ -6,8 +6,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
-import { nombreUnidad, pluralUnidad, type IdUnidad } from '../../../shared/unidades.ts';
-import { CampoProducto, SelectorUnidad } from '../canal/CampoProducto.tsx';
+import { nombreUnidad, pluralUnidad } from '../../../shared/unidades.ts';
+import type { ProductoConocido } from '../../../shared/productos.ts';
+import { SelectorProducto } from '../canal/CampoProducto.tsx';
 import {
   aItems, carritoEnLaFoto, CANTIDAD_MAXIMA, desdeItems, faltan, fijar, itemsDe, pistaTramo, productosDe, proyectar, una, type Carrito, type ProductoCanasta,
 } from '../canal/carrito.ts';
@@ -165,20 +166,20 @@ const DURACIONES = [{ minutos: 60, texto: '1 hora' }, { minutos: 24 * 60, texto:
 
 /** Iniciar una compra en grupo: qué producto, cuánto necesita, lo que paga hoy (opcional) y cuándo cierra. */
 function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
-  const [producto, setProducto] = useState('');
-  const [unidad, setUnidad] = useState<IdUnidad>('unidad');
+  const [producto, setProducto] = useState<ProductoConocido | null>(null);
   const [cantidad, setCantidad] = useState('');
   const [precioHoy, setPrecioHoy] = useState('');
   const [minutos, setMinutos] = useState(24 * 60);
   const { enviando, error, enviar } = useEnvio();
   const n = Number(cantidad);
-  const completo = producto.trim().length >= 3 && n >= 1 && n <= CANTIDAD_MAXIMA;
+  const completo = !!producto && n >= 1 && n <= CANTIDAD_MAXIMA;
+  const unidad = producto?.unidad ?? 'unidad';
   const u = nombreUnidad(unidad);
   const iniciar = (e: FormEvent) => {
     e.preventDefault();
-    if (!completo) return;
+    if (!completo || !producto) return;
     void enviar(async () => {
-      const r = await api.abrirSolicitud(token, { producto: producto.trim(), unidad, cantidad: n, minutos, ...(Number(precioHoy) > 0 ? { precioHoy: Number(precioHoy) } : {}) });
+      const r = await api.abrirSolicitud(token, { producto: producto.nombre, unidad, cantidad: n, minutos, ...(Number(precioHoy) > 0 ? { precioHoy: Number(precioHoy) } : {}) });
       location.hash = enlaceCompra(r.licitacionId, r.productoId).slice(1);
     }, 'No pudimos iniciar la compra. Inténtalo de nuevo.');
   };
@@ -192,10 +193,8 @@ function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
         </div>
       </header>
       <form className="bm-tarjeta bm-formulario bm-nueva" onSubmit={iniciar}>
-        <CampoProducto api={api} etiqueta="¿Qué quieres comprar?" nombre={producto} placeholder="Café molido 1 kg"
-          onCambio={(nombre, de) => { setProducto(nombre); if (de) setUnidad(de); }} />
+        <SelectorProducto api={api} etiqueta="¿Qué quieres comprar?" elegido={producto} onElegir={setProducto} />
         <div className="bm-nueva-fila">
-          <SelectorUnidad unidad={unidad} onCambio={setUnidad} />
           <Campo etiqueta={`¿Cuántas ${pluralUnidad(unidad)} necesitas?`}>
             <input inputMode="numeric" value={cantidad} onChange={e => setCantidad(e.target.value.replace(/\D/g, ''))} placeholder="10" />
           </Campo>

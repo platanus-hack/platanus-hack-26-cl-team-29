@@ -41,3 +41,7 @@ Son dos cosas distintas:
   al escribir y el bot pregunta "¿cuál es?" si lo escrito se parece a productos que ya existen ("cocacola" →
   "Coca-Cola 3 lts", "Coca-Cola lata 330 ml" u otro nuevo). Un índice con códigos UNSPSC y clasificación con IA
   queda para después.
+- El comprador elige el producto de su compra en grupo de la biblioteca con un selector con buscador (no lo escribe):
+  así su compra calza con las listas de los proveedores. El proveedor sí escribe productos nuevos en su lista.
+- Solo para la demo, `DEMO_COMPRA_A_SI_MISMO=1` deja que un proveedor gane las compras en grupo en que él mismo compra
+  y que se pida a sí mismo por WhatsApp, para probar todo con un solo teléfono. Apagarlo antes de un uso real.
