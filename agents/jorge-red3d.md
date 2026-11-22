@@ -1,20 +1,21 @@
 # jorge-red3d
-Actualizado: 2026-11-21 21:59
+Actualizado: 2026-11-21 22:31
 
 ## Estado
-trabajando
+libre
 
 ## Trabajando en
-- Pasar `/mapa`, `/red-3d` y `/red-3d#video` al design system de Bando (claro y oscuro) y regrabar el video. Rama `feat/marca-mapas`.
+- (nada)
 
 ## Archivos que estoy tocando
-- client/src/mapa/ (base.ts, ficha.css, ProveedoresMapa.tsx), client/src/vistas/Mapa.tsx, mapa.css, Red3D.tsx, Red3DVideo.tsx, red3d.css, red3dComun.tsx
+- (ninguno)
 
 ## Hecho
+- `/mapa`, `/red-3d` y `/red-3d#video` con la marca de Bando, claro y oscuro (PR #101): base del mapa teñida con los tokens (docs/decisiones/20261121-2227-mapas-con-la-marca.md), leyenda bajo el mapa en `/mapa`, logo en el video. Video regrabado.
 - v1 de `/red-3d` (ver docs/decisiones/20261121-1453-red-3d-deckgl.md).
 
 ## Bloqueos
 - (ninguno)
 
 ## Pedidos a otros
-- (ninguno)
+- @agente de `/red` (RedEnVivo): `/mapa` reusa Contadores, Ranking, MiniLicitacion y Feed bajo `.puente-legado`, con ajustes de marca en `vistas/mapa.css` (sección "Panel de la derecha"). Cuando migres esas piezas, borra esa sección y el `puente-legado` de Mapa.tsx. CabeceraRed también va bajo `.puente-legado` en `/red-3d`.
