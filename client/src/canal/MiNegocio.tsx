@@ -1,20 +1,19 @@
 // /app: "Mi negocio", el canal web del comprador: iniciar o sumarse a compras en grupo, ver los proveedores de la red,
 // sus facturas del SII y su crédito Bando. Se compra en grupo: no hay pedidos directos a un proveedor.
-
 import { AvisoFuente } from '../components/Cabecera.tsx';
-import type { Documento } from '../red/tipos.ts';
 import { licitacionVigente } from './logica.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
 import { Invitar } from './Invitar.tsx';
 import { MiCredito } from './MiCredito.tsx';
-import { BotonWhatsapp, ListaDocumentos, Vacio } from './piezas.tsx';
-import type { FotoRed, YoComprador } from './tipos.ts';
+import { BotonWhatsapp } from './piezas.tsx';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
 import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
 import { Inicio } from '../comprador/Inicio.tsx';
 import { ComprasEnGrupo, rutaDeCompra, type RutaCompra } from '../comprador/ComprasEnGrupo.tsx';
 import { Proveedores } from '../comprador/Proveedores.tsx';
+import { Facturas } from '../comprador/Facturas.tsx';
+import { puedeVender } from '../../../shared/red.ts';
 import './canal.css';
 
 type Seccion = 'inicio' | 'compra' | 'proveedores' | 'facturas' | 'credito';
@@ -60,34 +59,17 @@ export function MiNegocio() {
         <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>
       )}
       {seccion === 'proveedores' && <Proveedores foto={foto} yo={yo} />}
-      {(seccion === 'facturas' || seccion === 'credito') && (
+      {seccion === 'facturas' && (
+        <Facturas api={api} token={token} cambio={cambio} negocios={foto.negocios} vende={puedeVender(yo.negocio)} compra vencer={vencer} />
+      )}
+      {seccion === 'credito' && (
         // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).
         <div className="puente-legado cn-contenido">
           <AvisoCompraAbierta lic={vigente} participa={participa} irACompra={() => irA('compra')} />
-          {seccion === 'facturas' && <MisFacturas foto={foto} yo={yo} />}
-          {seccion === 'credito' && <MiCredito api={api} token={token} foto={foto} cambio={cambio} />}
+          <MiCredito api={api} token={token} foto={foto} cambio={cambio} />
           <BotonWhatsapp numero={config?.whatsappNumero} />
         </div>
       )}
     </Marco>
-  );
-}
-
-// ---------- Mis facturas ----------
-
-function MisFacturas({ foto, yo }: { foto: FotoRed; yo: YoComprador }) {
-  const docs = yo.documentos.filter(d => d.tipo === 33 || d.tipo === 61);
-  if (!docs.length) {
-    return <Vacio titulo="Todavía no tienes facturas" texto="Cuando un proveedor confirme tu pedido, su factura del SII aparece aquí con su estado." />;
-  }
-  const proveedorDe = (d: Documento) => {
-    const orden = yo.ordenes.find(o => o.id === d.ordenId);
-    return foto.negocios.find(n => n.id === orden?.proveedorId)?.nombre ?? 'Proveedor';
-  };
-  return (
-    <section className="cn-seccion">
-      <ListaDocumentos documentos={docs} contraparte={proveedorDe} />
-      <p className="mono tenue cn-nota-pie">Montos netos. Cada documento queda registrado en el SII.</p>
-    </section>
   );
 }
