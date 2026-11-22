@@ -30,7 +30,7 @@ test('el frasco se llena hacia el siguiente tramo y, sin más tramos, queda llen
 });
 
 test('"si llegan" usa el precio del siguiente tramo y la cantidad elegida', () => {
-  assert.equal(siLlegan({ desde: 50, precioUnitario: 27000, faltan: 13 }, 6, CAJAS), 'Si llegan a 50 cajas, pagas $162.000.');
+  assert.equal(siLlegan({ desde: 50, precioUnitario: 27000, faltan: 13 }, 6, CAJAS), 'Si llegan a 50 cajas, pagas $162.000 + IVA.');
   assert.equal(siLlegan(null, 6, CAJAS), '');
 });
 

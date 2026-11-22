@@ -1,11 +1,10 @@
 // Lo que muestra la compra en grupo del comprador (DESIGN.md, Paper C2 y C3), sin React: la escalera de tramos,
 // el frasco que se llena y quiénes van, para poder probarlo con node:test.
 
-import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import { fechaEnChile } from '../../../shared/fecha.ts';
 import type { OrdenCompra } from '../red/tipos.ts';
-import { ordenarTramos, tramoAlcanzado, type SiguienteTramo, type Tramo } from '../../../shared/precios.ts';
+import { dineroMasIva, ordenarTramos, tramoAlcanzado, type SiguienteTramo, type Tramo } from '../../../shared/precios.ts';
 
 /** `superado`: un tramo más caro que ya se pasó. `lejano`: más allá del siguiente. */
 export type EstadoPeldano = 'lejano' | 'siguiente' | 'actual' | 'superado';
@@ -62,7 +61,7 @@ export function frasco(tramos: readonly Tramo[], unidades: number, siguiente: Si
 /** "Si llegan a 50 cajas, pagas $162.000." Vacío si ya no hay un tramo más barato. */
 export function siLlegan(siguiente: SiguienteTramo | null, cantidad: number, u: Unidades): string {
   if (!siguiente || cantidad < 1) return '';
-  return `Si llegan a ${contar(siguiente.desde, u.unidad, u.unidadPlural)}, pagas ${dinero(cantidad * siguiente.precioUnitario)}.`;
+  return `Si llegan a ${contar(siguiente.desde, u.unidad, u.unidadPlural)}, pagas ${dineroMasIva(cantidad * siguiente.precioUnitario)}.`;
 }
 
 /**

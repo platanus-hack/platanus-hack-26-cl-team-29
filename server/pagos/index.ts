@@ -17,7 +17,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import type pg from 'pg';
-import { ivaDe } from '../../shared/precios.ts';
+import { totalConIva } from '../../shared/precios.ts';
 import { puedeVender } from '../../shared/red.ts';
 import { cuentaCorta, validarCuenta } from '../../shared/cuenta-bancaria.ts';
 import { crearLibro, tablaMemoria, tablaPostgres, type AvisoCredito, type Credito, type CuentaProveedor, type Libro, type Tabla, type Tarjeta } from './credito.ts';
@@ -118,7 +118,7 @@ export async function iniciarPagos(o: {
     const orden = o.red.estadoDeLaRed().ordenes.find(x => x.id === doc.ordenId);
     const comprador = orden && o.red.negocioPorId(orden.compradorId);
     if (!orden || !comprador?.rut) return;
-    libro.otorgar({ rut: comprador.rut, negocioId: comprador.id, proveedorId: orden.proveedorId, ordenId: orden.id, documentoId: doc.id, monto: doc.monto + ivaDe(doc.monto) })
+    libro.otorgar({ rut: comprador.rut, negocioId: comprador.id, proveedorId: orden.proveedorId, ordenId: orden.id, documentoId: doc.id, monto: totalConIva(doc.monto) })
       .catch(error => console.error('[pagos] no se pudo abrir el crédito', doc.id, error));
   });
   async function revisarPlazos() {

@@ -7,6 +7,7 @@ import { totalOrden } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import type { FotoRed, YoComprador } from '../canal/tipos.ts';
 import { Monograma } from '../canal/iconos.tsx';
+import { NotaPreciosNetos, TotalConIva } from '../marca/componentes.tsx';
 import { useAhora } from '../red/useRed.ts';
 import { ahorroDelMes } from './compra.ts';
 import { comprasAbiertas, filasDeCompras, FilaCompraEnGrupo } from './ComprasEnGrupo.tsx';
@@ -41,9 +42,12 @@ export function InicioComprador({ foto, yo }: { foto: FotoRed; yo: YoComprador }
         <section className="bm-tarjeta bp-bloque">
           <header className="bp-bloque-cabecera"><h2>Compras en grupo abiertas</h2>{abiertas.length > CERCA && <a href="#compra">Ver todas</a>}</header>
           {abiertas.length ? (
-            <ul className="bm-lista bp-margen">
-              {abiertas.slice(0, CERCA).map(f => <FilaCompraEnGrupo key={`${f.lic.id}-${f.p.id}`} {...f} yo={yo} ahora={ahora} abierta />)}
-            </ul>
+            <>
+              <ul className="bm-lista bp-margen">
+                {abiertas.slice(0, CERCA).map(f => <FilaCompraEnGrupo key={`${f.lic.id}-${f.p.id}`} {...f} yo={yo} ahora={ahora} abierta />)}
+              </ul>
+              <NotaPreciosNetos />
+            </>
           ) : <p className="bp-nada">No hay compras en grupo abiertas. Inicia una con «Nueva compra» y los negocios de la red se suman.</p>}
         </section>
 
@@ -58,7 +62,7 @@ export function InicioComprador({ foto, yo }: { foto: FotoRed; yo: YoComprador }
                     <strong className="bm-fila-nombre">{proveedor(o.proveedorId)}</strong>
                     <span className="bm-fila-abajo">{o.items.map(i => `${i.producto} × ${i.cantidad}`).join(', ')}</span>
                   </span>
-                  <span className="bm-nota-proveedor">{dinero(totalOrden(o))}</span>
+                  <TotalConIva neto={totalOrden(o)} />
                 </li>
               ))}
             </ul>

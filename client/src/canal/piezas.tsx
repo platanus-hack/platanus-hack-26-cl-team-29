@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { nombreDocumento } from '../../../shared/documentos.ts';
-import { dinero } from '../../../shared/formato.ts';
 import { textoEstadoSii } from '../red/formato.ts';
 import type { Documento } from '../red/tipos.ts';
 import { GlifoWhatsapp } from '../components/Iconos.tsx';
@@ -11,6 +10,7 @@ import { Icono } from './iconos.tsx';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { confirmacion, mensajeDeError, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
 import { Logo } from '../marca/Logo.tsx';
+import { TotalConIva } from '../marca/componentes.tsx';
 import './marca.css';
 
 /**
@@ -135,7 +135,7 @@ export function ListaDocumentos({ documentos, contraparte }: { documentos: reado
             <span className="mono tenue nombre">{contraparte(d)}</span>
           </div>
           <div className="cn-doc-der">
-            <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
+            {d.monto !== undefined && <TotalConIva neto={d.tipo === 61 ? -d.monto : d.monto} />}
             <EstadoSii estado={d.estadoSii} />
             {d.pdfUrl && <a className="cn-doc-pdf" href={d.pdfUrl} target="_blank" rel="noopener noreferrer">Ver PDF</a>}
           </div>

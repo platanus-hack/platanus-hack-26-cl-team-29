@@ -2,8 +2,8 @@
 // grupo y los pedidos sueltos) y los reclamos. Toda acción en el SII pasa por un paso de confirmación en la página.
 
 import { useCallback, type ReactNode } from 'react';
-import { dinero, nota } from '../../../shared/formato.ts';
-import { totalOrden } from '../../../shared/precios.ts';
+import { nota } from '../../../shared/formato.ts';
+import { dineroMasIva, totalOrden } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
@@ -11,6 +11,7 @@ import type { Documento, Negocio } from '../red/tipos.ts';
 import type { CanalApi } from '../canal/api.ts';
 import { Icono, iconoDeProducto, Monograma } from '../canal/iconos.tsx';
 import { LogoSii } from '../marca/LogoSii.tsx';
+import { TotalConIva } from '../marca/componentes.tsx';
 import { estaAbierta, estaFacturada, montoNotaCredito, ordenesDeLaCompra, precioDelGrupo, resumenFacturacion, unidadPara, type Unidad } from '../canal/logica.ts';
 import { Confirmar, useConfirmacion } from '../canal/piezas.tsx';
 import type { ConfigRed, LicitacionCanal, OrdenCanal, YoProveedor } from '../canal/tipos.ts';
@@ -47,7 +48,7 @@ export function Ventas({ yo, lic, config, comprador, ...props }: PropsAccion & {
       <header className="bp-hero">
         <div>
           <p className="bm-bajada">Hoy vendiste</p>
-          <strong className="bp-cifra">{dinero(hoy.total)}</strong>
+          <TotalConIva neto={hoy.total} alinear="inicio" className="bp-cifra bp-cifra-iva" />
           <p className="bm-bajada">
             {contar(hoy.pedidos, 'pedido confirmado', 'pedidos confirmados')}
             {porConfirmar > 0 && <> · <span className="bp-miel">{porConfirmar} por confirmar</span></>}
@@ -103,7 +104,7 @@ function Fila({ icono, titulo, detalle, monto, accion, confirmacion }: {
     <li className="bp-fila">
       <span className="bp-fila-icono">{icono}</span>
       <div className="bp-fila-texto"><strong>{titulo}</strong><span>{detalle}</span></div>
-      {monto !== undefined && <span className="bp-monto">{dinero(monto)}</span>}
+      {monto !== undefined && <TotalConIva neto={monto} className="bp-monto" />}
       {accion}
       {confirmacion && <div className="bp-fila-confirmar">{confirmacion}</div>}
     </li>
@@ -136,11 +137,11 @@ function FilaCompra({ api, token, alCambiar, lic, yo, config, ahora }: PropsAcci
         : <button type="button" className="bm-boton bm-boton-sii" onClick={() => c.pedir({ tipo: 'facturar', ...f })}><LogoSii tam={16} /> Facturar</button>)}
       confirmacion={enCurso?.tipo === 'cerrar' ? (
         <Confirmar titulo="¿Cierras la compra en grupo?" si="Sí, cerrar" {...c.panel}>
-          <p>Nadie más podrá sumarse. Queda una orden por local: {contar(lic.participantes.length, 'local', 'locales')}, {cantidadEn(g.unidades, u)} a {g.precio !== undefined ? dinero(g.precio) : '-'} por {u.singular}.</p>
+          <p>Nadie más podrá sumarse. Queda una orden por local: {contar(lic.participantes.length, 'local', 'locales')}, {cantidadEn(g.unidades, u)} a {g.precio !== undefined ? dineroMasIva(g.precio) : '-'} por {u.singular}.</p>
         </Confirmar>
       ) : enCurso?.tipo === 'facturar' ? (
         <Confirmar sii titulo={`¿Emites ${contar(enCurso.facturas, 'factura')} en el SII?`} si="Sí, factura todo" {...c.panel}>
-          <p className="cn-cifra-confirmar">{dinero(enCurso.total)} neto en total</p>
+          <p className="cn-cifra-confirmar"><TotalConIva neto={enCurso.total} antes="En total " alinear="inicio" /></p>
           <p>Una factura por local, con su orden de compra como referencia, en un solo envío al SII. Le avisamos a cada uno con su folio.</p>
         </Confirmar>
       ) : undefined}
@@ -168,7 +169,7 @@ export function FilaPedido({ api, token, alCambiar, orden, comprador, config }: 
       )}
       confirmacion={c.estado.fase !== 'nada' && (
         <Confirmar sii titulo={orden.estado === 'confirmada' ? '¿Facturas en el SII?' : '¿Confirmas y facturas?'} si="Sí, factura" {...c.panel}>
-          <p className="cn-cifra-confirmar">1 factura · {dinero(total)} neto</p>
+          <p className="cn-cifra-confirmar"><TotalConIva neto={total} antes="1 factura · " alinear="inicio" /></p>
           <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Le avisamos a {quien}.</p>
         </Confirmar>
       )}
@@ -198,7 +199,7 @@ function FilaReclamo({ api, token, alCambiar, orden, comprador, documentos, conf
       accion={c.estado.fase === 'nada' && <button type="button" className="bm-boton bm-boton-sii" onClick={() => c.pedir(undefined)}><LogoSii tam={16} /> Nota de crédito</button>}
       confirmacion={c.estado.fase !== 'nada' && (
         <Confirmar sii titulo="¿Emites la nota de crédito?" si="Sí, emítela" {...c.panel}>
-          <p className="cn-cifra-confirmar">Nota de crédito · {dinero(monto)} neto</p>
+          <p className="cn-cifra-confirmar"><TotalConIva neto={monto} antes="Nota de crédito · " alinear="inicio" /></p>
           <p>Queda amarrada a la factura{factura?.folio ? ` ${factura.folio}` : ''} en el SII. Le avisamos a {quien}.</p>
         </Confirmar>
       )}

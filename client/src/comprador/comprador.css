@@ -160,6 +160,8 @@
 
 .bm-tramos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
 @media (min-width: 720px) { .bm-tramos { grid-template-columns: 200px minmax(0, 1fr); gap: 32px; padding: 24px; } }
+/* La nota "Precios netos, más IVA" va bajo la escalera, no bajo el frasco. */
+.bm-tramos .bm-tramos-nota { grid-column: -2 / -1; margin-top: -8px; }
 
 /* El frasco: ancho y bajo en el teléfono, alto como en Paper desde 720 px. */
 .bm-frasco {

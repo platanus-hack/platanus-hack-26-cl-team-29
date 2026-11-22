@@ -3,6 +3,8 @@
 // Los estilos viven en marca/componentes.css y salen de tokens.css: funcionan en claro, oscuro y proyección.
 
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
+import { dinero } from '../../../shared/formato.ts';
+import { desgloseIva, totalConIva } from '../../../shared/precios.ts';
 import { LogoSii } from './LogoSii.tsx';
 
 const clases = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(' ');
@@ -60,6 +62,23 @@ export function Cifra({ valor, etiqueta, detalle, tamano = 'normal', tono }: {
     </div>
   );
 }
+
+/**
+ * Un total de pedido, factura o nota de crédito: lo que se paga, con IVA, y debajo, chico, su desglose
+ * ("$418.404" y "Neto $351.600 · IVA $66.804"). `neto` es el monto guardado; negativo resta (nota de crédito).
+ * `antes` va delante del total en la misma línea ("1 factura · "). Se alinea a la derecha salvo `alinear="inicio"`.
+ */
+export function TotalConIva({ neto, antes, alinear = 'fin', className }: { neto: number; antes?: string; alinear?: 'inicio' | 'fin'; className?: string }) {
+  return (
+    <span className={clases('bm-total-iva', alinear === 'inicio' && 'bm-total-iva-inicio', className)}>
+      <strong>{antes}{dinero(totalConIva(neto))}</strong>
+      <span className="bm-total-iva-desglose">{desgloseIva(neto)}</span>
+    </span>
+  );
+}
+
+/** La nota de un bloque con varios precios unitarios, en vez de repetir "+ IVA" en cada uno. */
+export const NotaPreciosNetos = ({ className }: { className?: string }) => <p className={clases('bm-nota-iva', className)}>Precios netos, más IVA.</p>;
 
 /** Tonos de estado. `aviso` pide una acción, `info` avanza solo, `exito` terminó bien, `sii` quedó en el SII. */
 export type TonoEstado = 'neutro' | 'aviso' | 'info' | 'exito' | 'error' | 'sii';

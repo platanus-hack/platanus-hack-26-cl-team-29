@@ -2,12 +2,12 @@
 // Los pedidos por confirmar se confirman aquí mismo (como en Ventas); de los demás se lee su estado.
 
 import { useState } from 'react';
-import { dinero } from '../../../shared/formato.ts';
 import { totalOrden } from '../../../shared/precios.ts';
 import { haceCuanto } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import type { Negocio } from '../red/tipos.ts';
 import { Monograma } from '../canal/iconos.tsx';
+import { TotalConIva } from '../marca/componentes.tsx';
 import type { ConfigRed, YoProveedor } from '../canal/tipos.ts';
 import { detalleDe, FilaPedido, type PropsAccion } from './Ventas.tsx';
 import { contarPorGrupo, ESTADO_PEDIDO, grupoDe, GRUPOS_PEDIDO, type GrupoPedido } from './pedidos.ts';
@@ -52,7 +52,7 @@ export function Pedidos({ yo, config, comprador, ...acciones }: PropsAccion & { 
                   <strong>{quien}{o.licitacionId ? ' · compra en grupo' : ''}</strong>
                   <span>{detalleDe(o, config)} · {haceCuanto(o.creadaEn, ahora)}</span>
                 </div>
-                <span className="bp-monto">{dinero(totalOrden(o))}</span>
+                <TotalConIva neto={totalOrden(o)} className="bp-monto" />
                 <span className={`bp-estado ${estado.tono}`}>{estado.texto}</span>
               </li>
             );
