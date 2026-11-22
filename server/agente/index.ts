@@ -11,7 +11,7 @@ import type { Interprete, Intencion } from './intencion.ts';
 import type { Negocio, OrdenCompra, Red } from './puerto.ts';
 import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
-import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { CANTIDAD_MAXIMA, puedeComprar, puedeVender } from '../../shared/red.ts';
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
 import { productosDe } from './canasta.ts';
 import { crearProveedores } from './proveedor.ts';
@@ -97,7 +97,7 @@ const TIEMPOS_SALA: TiemposSala = {
   minimoDifusionMs: 5000,
   vigilarCierreMs: 1000,
   avisoAceptadaMs: 60_000,
-  cantidadMaxima: 20,
+  cantidadMaxima: CANTIDAD_MAXIMA,
 };
 
 export interface Agente {
@@ -271,8 +271,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     const parecidos = opciones.biblioteca?.buscar(escrito).slice(0, MAXIMO_OPCIONES) ?? [];
     const igual = parecidos.find(p => mismoNombre(p.nombre, escrito));
     if (igual) return igual;
-    if (!parecidos.length) return nuevo;
-    const mensaje = m.elegirProducto(escrito, parecidos);
+    // Se compra en grupo solo lo que algún proveedor vende; vender sí crea productos nuevos.
+    const puedeCrear = para.tipo === 'vender' || !opciones.biblioteca;
+    if (!parecidos.length) return puedeCrear ? nuevo : m.nadieLoVende(escrito);
+    const mensaje = m.elegirProducto(escrito, parecidos, puedeCrear);
     if (actual(negocio.id)?.tipo === 'elegir_producto') tomar(negocio.id);
     alFrente(negocio.id, { tipo: 'elegir_producto', escrito, opciones: parecidos, para, mensaje });
     return mensaje;
@@ -282,7 +284,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   function eleccion(p: Extract<Pendiente, { tipo: 'elegir_producto' }>, texto: string): { nombre: string; unidad?: string } | undefined {
     const n = Number(texto.trim().replace(/\.$/, ''));
     if (Number.isInteger(n) && n >= 1 && n <= p.opciones.length) return p.opciones[n - 1];
-    if (n === p.opciones.length + 1 || /\b(otro|nuevo|crear)\b/.test(normalizar(texto))) return { nombre: p.escrito.charAt(0).toUpperCase() + p.escrito.slice(1) };
+    const puedeCrear = p.para.tipo === 'vender';
+    if (puedeCrear && (n === p.opciones.length + 1 || /\b(otro|nuevo|crear)\b/.test(normalizar(texto)))) return { nombre: p.escrito.charAt(0).toUpperCase() + p.escrito.slice(1) };
     return p.opciones.find(o => mismoNombre(o.nombre, texto));
   }
 

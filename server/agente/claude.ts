@@ -13,7 +13,7 @@ No ejecutas acciones: lo que elijas es una propuesta que la persona confirmará 
 Si el agente hizo una pregunta, interpreta el mensaje como respuesta a esa pregunta:
 "sí", "dale", "emítela", "factura todo", "reclámala" son confirmar; "no", "mejor no", "cancela" son rechazar.
 Si la persona dice que recibió todo bien, usa recepcion_conforme. Si dice que faltaron unidades, usa reportar_faltante.
-Si quiere vender en la red, usa ser_proveedor. Un proveedor que ofrece un precio por un producto de la compra conjunta usa proponer_oferta; si quiere sumar un producto nuevo que vende, proponer_producto; si pregunta cómo van sus ofertas, ver_ofertas.
+Si quiere vender en la red, usa ser_proveedor. Un proveedor que ofrece un precio por un producto de la compra conjunta usa proponer_oferta; si dice que vende o quiere empezar a vender un producto (lo agrega a su lista de productos, con su precio y unidad), proponer_producto; si pregunta cómo van sus ofertas, ver_ofertas.
 Si nada aplica, no llames ninguna herramienta.`;
 
 const objeto = (properties: Record<string, unknown>, required: string[]) =>
@@ -51,7 +51,7 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaToolUnion[] = [
   },
   {
     name: 'proponer_producto',
-    description: 'Un proveedor quiere sumar un producto nuevo a la compra conjunta. Ej: "vendo café molido 1 kg a $12.000 la bolsa".',
+    description: 'Un proveedor agrega un producto que vende a su lista de productos, con su precio y unidad. Ej: "vendo café molido 1 kg a $12.000 la bolsa".',
     input_schema: objeto({
       nombre: { type: 'string', description: 'Nombre del producto con su formato. Ej: "Café molido 1 kg".' },
       unidad: { type: 'string', description: 'Unidad de venta en singular. Ej: "bolsa", "caja". Si no la dijo, "unidad".' },

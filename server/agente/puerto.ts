@@ -162,7 +162,7 @@ export interface EventoDeLaRed {
 
 export interface RedSala {
   licitacionAbierta(): Talvez<LicitacionSala | null>;
-  /** El mismo teléfono otra vez actualiza la cantidad. La red valida el rango (hoy 1 a 20). */
+  /** El mismo teléfono otra vez actualiza la cantidad. La red valida que sea un entero positivo. */
   unirseALicitacion(licitacionId: string, datos: {
     readonly telefono: string;
     readonly nombre: string;

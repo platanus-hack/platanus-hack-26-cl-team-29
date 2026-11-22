@@ -43,7 +43,7 @@ test('el precio baja por tramos a medida que la sala se suma y avisa con licitac
   assert.deepEqual(eventos.at(-1)?.datos, { licitacionId: 'L-1', productoId: 'rollos', precioAnterior: 32000, precioNuevo: 29900, totalUnidades: 10 });
 
   await assert.rejects(red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 0 }), { codigo: 'datos_invalidos' });
-  await assert.rejects(red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 21 }), { codigo: 'datos_invalidos' });
+  await assert.rejects(red.unirseALicitacion('L-1', { nombre: 'Ana', cantidad: 100_001 }), { codigo: 'datos_invalidos' });
   await assert.rejects(red.unirseALicitacion('L-1', { nombre: '', cantidad: 1 }), { codigo: 'datos_invalidos' });
 });
 

@@ -65,12 +65,12 @@ test('totales y ahorro del carrito, con el precio proyectado', () => {
   assert.equal(r2.productos, 2);
 });
 
-test('fijar limita entre 0 y 20, 0 quita el producto, e ítems en el orden de la canasta', () => {
+test('fijar no pone tope real (25 queda en 25), 0 quita el producto, e ítems en el orden de la canasta', () => {
   let c: Carrito = {};
   c = fijar(c, 'etiquetas', 3);
   c = fijar(c, 'rollos', 25);
-  assert.deepEqual(aItems(c, ['rollos', 'etiquetas']), [{ productoId: 'rollos', cantidad: 20 }, { productoId: 'etiquetas', cantidad: 3 }]);
-  assert.deepEqual(fijar(c, 'etiquetas', 0), { rollos: 20 });
+  assert.deepEqual(aItems(c, ['rollos', 'etiquetas']), [{ productoId: 'rollos', cantidad: 25 }, { productoId: 'etiquetas', cantidad: 3 }]);
+  assert.deepEqual(fijar(c, 'etiquetas', 0), { rollos: 25 });
 });
 
 test('envío diferido: toques seguidos se juntan en un solo PUT con el último carrito', async () => {

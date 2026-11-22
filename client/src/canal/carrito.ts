@@ -9,8 +9,9 @@ import { mejorOferta, siguienteTramo, tramoAlcanzado } from '../../../shared/pre
 import { normalizarTramos } from './logica.ts';
 import type { LicitacionCanal, Tramo } from './tipos.ts';
 
-/** Cantidad máxima por producto (`CANTIDAD_MAXIMA` del dominio). */
-export const CANTIDAD_MAXIMA = 20;
+import { CANTIDAD_MAXIMA } from '../../../shared/red.ts';
+
+export { CANTIDAD_MAXIMA };
 /** Espera tras el último toque antes de enviar el carrito. */
 export const ESPERA_ENVIO_MS = 400;
 

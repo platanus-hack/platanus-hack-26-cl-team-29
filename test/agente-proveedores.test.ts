@@ -184,7 +184,7 @@ test('por WhatsApp: "cocacola" sugiere los productos parecidos de la biblioteca 
   await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
 
   await escribir(CARO, 'quiero comprar 12 cocacola');
-  assert.match(ultimo(CARO), /parecidos a "cocacola"\. ¿Cuál es\?\n1\. Coca-Cola 3 lts \(por botella\)\n2\. Coca Cola lata 330 ml \(por unidad\)\n3\. Otro: crear "cocacola"/);
+  assert.match(ultimo(CARO), /parecidos a "cocacola"\. ¿Cuál es\?\n1\. Coca-Cola 3 lts \(por botella\)\n2\. Coca Cola lata 330 ml \(por unidad\)$/);
   await escribir(CARO, '1');
   assert.match(ultimo(CARO), /¿Abro una compra en grupo con tus 12\?/);
   await escribir(CARO, 'si');
@@ -192,7 +192,7 @@ test('por WhatsApp: "cocacola" sugiere los productos parecidos de la biblioteca 
   assert.deepEqual([abierta.unidad, abierta.totalUnidades], ['botella', 12]);
 
   await escribir(CARO, 'quiero comprar 5 cocacola zero');
-  assert.match(ultimo(CARO), /Ningún proveedor de la red tiene precio fijo para "Cocacola zero"/, 'sin parecidos, va directo como nuevo');
+  assert.match(ultimo(CARO), /Ningún proveedor vende "cocacola zero" en Bando todavía/, 'se compra solo lo que algún proveedor vende');
 });
 
 test('por WhatsApp: "agregar 10 coca colas a mi pedido" no se suma a la compra de bolsas; se ofrece la compra que tiene coca colas', async t => {
@@ -214,4 +214,19 @@ test('por WhatsApp: "agregar 10 coca colas a mi pedido" no se suma a la compra d
   const deCaro = (id: string) => red.estadoDeLaRed().licitaciones.find(l => l.id === id)!.participantes.find(p => p.negocioId === caro)?.items;
   assert.deepEqual(deCaro(cocas.id)?.map(i => i.cantidad), [10]);
   assert.deepEqual(deCaro(bolsas.id)?.map(i => i.cantidad), [10], 'las bolsas siguen igual');
+});
+
+test('por WhatsApp: "vendo ..." va a la lista del proveedor aunque haya una compra abierta, y "lata" es una unidad', async t => {
+  const catalogos = await iniciarCatalogos({ emitir: () => {} });
+  const { red, agente, escribir, ultimo } = await montar({}, catalogos);
+  t.after(() => agente.desconectar());
+  await escribir(ANA, 'quiero vender');
+  await agente.certificadoConectado(ANA, '11111111-1');
+  await escribir(ANA, '1');
+  assert.ok(red.licitacionAbierta(), 'la compra de la sala sigue abierta');
+  await escribir(ANA, 'vendo cerveza heineken 330 ml a $1.000 la lata');
+  assert.match(ultimo(ANA), /¿Agrego "Cerveza heineken 330 ml" a tus productos a \$1\.000 por lata\?/);
+  await escribir(ANA, 'si');
+  assert.ok(!red.licitacionAbierta()!.productos.some(p => /heineken/i.test(p.nombre)), 'no entra a la compra de la sala');
+  assert.deepEqual(catalogos.listas()[0]?.productos.map(p => [p.nombre, p.unidad]), [['Cerveza heineken 330 ml', 'lata']]);
 });

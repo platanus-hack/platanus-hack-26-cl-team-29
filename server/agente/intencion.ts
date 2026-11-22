@@ -86,7 +86,10 @@ function leerProductoNuevo(texto: string): Intencion | null {
   const verbo = /^\s*(vendo|agrega(?:r)? (?:el )?producto|nuevo producto|suma(?:r)? (?:el )?producto)\s*:?\s*/i.exec(texto);
   if (!verbo) return null;
   const sinVerbo = texto.slice(verbo[0].length);
-  const precio = PRECIO.exec(sinVerbo);
+  // El precio va después de " a " o con "$" ("heineken 330 ml a $1.000"): el 330 del nombre no es precio.
+  const conA = /\s(?:a|en|por)\s+(?=\$?\s*\d)/i.exec(sinVerbo);
+  const precio = conA ? PRECIO.exec(sinVerbo.slice(conA.index)) : PRECIO.exec(sinVerbo);
+  if (precio && conA) precio.index += conA.index;
   if (!precio) return null;
   const antes = sinVerbo.slice(0, precio.index).replace(/\s+(a|en|por|x)\s*$/i, '').trim();
   const despues = sinVerbo.slice(precio.index + precio[0].length).trim();

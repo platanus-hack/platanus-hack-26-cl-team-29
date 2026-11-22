@@ -1,6 +1,6 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
-import { dinero, nota } from '../../shared/formato.ts';
+import { dinero, miles, nota } from '../../shared/formato.ts';
 import { horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
@@ -76,9 +76,11 @@ export const noEntendi = (pregunta: string) => `No te entendí.\n\n${pregunta}`;
 export const fallo = (error: unknown) =>
   `No pude completarlo: ${error instanceof Error ? error.message : String(error)}. Si quieres reintentar, responde "sí".`;
 
-export const elegirProducto = (escrito: string, parecidos: readonly { nombre: string; unidad: string }[]) =>
+export const elegirProducto = (escrito: string, parecidos: readonly { nombre: string; unidad: string }[], puedeCrear = true) =>
   `En Bando ya hay productos parecidos a "${escrito}". ¿Cuál es?\n`
-  + opciones(...parecidos.map(p => `${p.nombre} (por ${p.unidad})`), `Otro: crear "${escrito}"`);
+  + opciones(...parecidos.map(p => `${p.nombre} (por ${p.unidad})`), ...(puedeCrear ? [`Otro: crear "${escrito}"`] : []));
+export const nadieLoVende = (escrito: string) =>
+  `Ningún proveedor vende "${escrito}" en Bando todavía. Cuando alguno lo agregue a su lista, podrás comprarlo en grupo.`;
 export const proponerSumarse = (p: ProductoCompra, cantidad: number, cierraEn: string) =>
   `Hay una compra en grupo abierta de "${p.nombre}"${p.precioActual > 0 ? `, hoy a ${dinero(p.precioActual)} por ${p.unidad}` : ', esperando ofertas de proveedores'}. `
   + `Cierra a las ${horaEnChile(Date.parse(cierraEn))}. ¿Te sumo con ${contar(cantidad, p.unidad, p.unidadPlural)}?\n` + opciones('Sí, súmame', 'No');
@@ -280,7 +282,7 @@ export const preguntarCantidad = (p: ProductoCompra) => `¿${cuantos(unidadDe(p,
 export const preguntarProducto = (cantidad: number, l: LicitacionSala) =>
   `¿${cantidad} de cuál?\n${productosDe(l).map((p, i) => `${i + 1}. ${mayuscula(cortoDe(p))}`).join('\n')}\nEj: "${cantidad} de ${cortoDe(productosDe(l)[0])}" o "${cantidad} del 1".`;
 export const cantidadFueraDeRango = (maximo: number) =>
-  `Cada negocio puede pedir entre 1 y ${maximo} por producto. Escribe la cantidad de nuevo.`;
+  `Esa cantidad es demasiado grande (más de ${miles(maximo)}). Escribe la cantidad de nuevo.`;
 
 /** Tras cada cambio, en 3 líneas: el carrito, total y ahorro, y el tramo más cercano. */
 export const carritoActualizado = (nombre: string, items: readonly ItemCarrito[], l: LicitacionSala, actualizado: boolean) =>

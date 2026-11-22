@@ -9,7 +9,7 @@ import { pluralDe } from '../../shared/texto.ts';
 import { pluralUnidad, unidadDeTexto, type IdUnidad } from '../../shared/unidades.ts';
 import { mismoProducto } from '../../shared/productos.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
-import { CANTIDAD_MAXIMA } from './config-demo.ts';
+import { CANTIDAD_MAXIMA } from '../../shared/red.ts';
 
 /** Cuánto dura una solicitud de compra en grupo si no se dice: un día. Lo máximo: una semana. */
 const MINUTOS_SOLICITUD = 24 * 60;
@@ -203,7 +203,7 @@ export interface Red {
   notaDeProveedor(proveedorId: string): number;
   /**
    * Compatibilidad: suma o actualiza un producto del carrito (por defecto el primero de la canasta). Mismo negocio
-   * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad 1 a 20. El público anónimo suma uno nuevo.
+   * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad desde 1 (sin tope real, ver `CANTIDAD_MAXIMA`). El público anónimo suma uno nuevo.
    */
   unirseALicitacion(licitacionId: string, participante: NuevoParticipante): Promise<ResultadoUnion>;
   /** Reemplaza el carrito completo (cantidad 0 quita el ítem; carrito vacío sale). Exige `negocioId` o `telefono`. */
@@ -300,6 +300,8 @@ export interface OpcionesRed {
    * Público), para mostrar el ahorro antes de la primera oferta. Sin él, o sin coincidencia, la solicitud parte sin precio.
    */
   precioDeReferencia?: (producto: string, unidad: IdUnidad) => number | undefined;
+  /** Si algún proveedor vende ese producto (en su lista). Sin él, no se valida; con él, no se abren compras de lo que nadie vende. */
+  existeProducto?: (producto: string, unidad: IdUnidad) => boolean;
   reloj?: () => Date;
   /** Variables de la demo (proveedor, producto, tramos). Por defecto `process.env`. */
   env?: NodeJS.ProcessEnv;
@@ -349,7 +351,7 @@ function migrarLicitacion(l: Licitacion) {
 
 export async function crearRed({
   repo, sii, reloj = () => new Date(), env = process.env,
-  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar, precioDeReferencia,
+  consultarContribuyente = conCacheYFila(crearConsultaContribuyenteFalsa(), { intervaloMs: 0 }), antesDeEntrar, precioDeReferencia, existeProducto,
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
   const aSiMismo = env.DEMO_COMPRA_A_SI_MISMO === '1';
@@ -906,6 +908,9 @@ export async function crearRed({
       const nombre = String(n.producto ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
       const unidad = unidadDeTexto(String(n.unidad ?? '') || 'unidad');
       if (!unidad) throw new ErrorRed('datos_invalidos', 'Elige la unidad de venta de la lista (caja, bolsa, kilo...)');
+      if (existeProducto && !existeProducto(nombre, unidad)) {
+        throw new ErrorRed('datos_invalidos', `Ningún proveedor vende "${nombre}" todavía: cuando alguno lo agregue a su lista, podrás comprarlo en grupo`);
+      }
       const cantidad = Number(n.cantidad);
       if (nombre.length < 3) throw new ErrorRed('datos_invalidos', 'Escribe qué producto quieres comprar');
       if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA) throw new ErrorRed('datos_invalidos', `La cantidad va de 1 a ${CANTIDAD_MAXIMA}`);

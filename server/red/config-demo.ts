@@ -45,9 +45,6 @@ export interface ConfigDemo {
   competencia: boolean;
 }
 
-/** Cantidad máxima por participante en la compra conjunta. */
-export const CANTIDAD_MAXIMA = 20;
-
 /** La canasta por defecto: el primero (rollos) se puede cambiar con DEMO_PRODUCTO, DEMO_PRECIO_SOLO, DEMO_TRAMOS, etc. */
 const [ROLLOS, ...OTROS_PRODUCTOS] = CANASTA_DEMO;
 const TRAMOS = ROLLOS!.tramos;

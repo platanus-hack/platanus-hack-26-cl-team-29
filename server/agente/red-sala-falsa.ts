@@ -5,6 +5,7 @@
 // Con `ruts` (RUT -> razón social), ofrece `consultarRut` como la red real: valida el dígito verificador y solo conoce esos RUT.
 import { precioPorVolumen, siguienteTramo, unidadesDe as unidadesDelProducto } from '../../shared/precios.ts';
 import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
+import { CANTIDAD_MAXIMA } from '../../shared/red.ts';
 import { crearRedFalsa } from './red-falsa.ts';
 import type { RedFalsa } from './red-falsa.ts';
 import type {
@@ -36,7 +37,7 @@ export interface DatosLicitacionFalsa {
   readonly cierraEn: string;
 }
 
-const MAXIMO = 20;
+const MAXIMO = CANTIDAD_MAXIMA;
 
 /** Error como los de la red real: `codigo` y un mensaje para mostrar tal cual. */
 const errorRut = (mensaje: string, codigo = 'datos_invalidos') => Object.assign(new Error(mensaje), { codigo });

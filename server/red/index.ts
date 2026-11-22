@@ -42,7 +42,8 @@ export type { AlmacenFolios, EstadoFolio, RegistroFolio } from './folios.ts';
 export { COMPETIDORES_SALA, COMPRADOR_DEMO, LICITACION_SALA, PROVEEDOR_DEMO, PROVEEDOR_SALA } from './semilla.ts';
 export { iniciarCompetencia, PASO_REAL, pisosDeProducto } from './competencia.ts';
 export type { Competencia, OpcionesCompetencia } from './competencia.ts';
-export { CANTIDAD_MAXIMA, configDemo } from './config-demo.ts';
+export { configDemo } from './config-demo.ts';
+export { CANTIDAD_MAXIMA } from '../../shared/red.ts';
 export type { ConfigDemo, ProductoDemo } from './config-demo.ts';
 export { precioVigente, productoDe, vistaLicitacion } from './compra.ts';
 export type * from './tipos.ts';
@@ -59,6 +60,7 @@ export interface OpcionesIniciarRed {
   antesDeEntrar?: (n: Negocio) => void | Promise<void>;
   /** Ver `OpcionesRed.precioDeReferencia` (listas de los proveedores y Mercado Público). */
   precioDeReferencia?: OpcionesRed['precioDeReferencia'];
+  existeProducto?: OpcionesRed['existeProducto'];
 }
 
 /**
@@ -81,7 +83,7 @@ export async function iniciarRed(
   await aplicarDatosDemo(repo);
   const falso = crearSiiFalso((await repo.cargar()).documentos);
   const consultarContribuyente = conCacheYFila(opciones.consultarContribuyente ?? crearConsultaContribuyenteFalsa());
-  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia });
+  const red = await crearRed({ repo, sii: typeof sii === 'function' ? sii(falso) : sii ?? falso, consultarContribuyente, antesDeEntrar: opciones.antesDeEntrar, precioDeReferencia: opciones.precioDeReferencia, existeProducto: opciones.existeProducto });
   if (configDemo().competencia) iniciarCompetencia(red);
   return red;
 }
