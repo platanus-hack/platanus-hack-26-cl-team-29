@@ -12,6 +12,7 @@ import type { Negocio, OrdenCompra, Red } from './puerto.ts';
 import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
+import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
 import { crearProveedores } from './proveedor.ts';
 import type { EstadoSiiProveedor, ListaDeProductos, PropuestaProveedor, Proveedores } from './proveedor.ts';
 import { crearInterpreteClaude } from './claude.ts';
@@ -28,9 +29,17 @@ export { crearAlmacenBorradores } from './borradores.ts';
 const PLAZO_RECLAMO_DIAS = 8;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
+/** Para qué se eligió el producto: comprarlo en grupo o agregarlo a la lista del proveedor. */
+type ParaProducto = { readonly tipo: 'comprar'; readonly cantidad: number } | { readonly tipo: 'vender'; readonly unidad: string; readonly precio: number };
+
+/** Las sugerencias de la biblioteca que se ofrecen como máximo. */
+const MAXIMO_OPCIONES = 5;
+
 type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'crear_orden'; readonly proveedor: Negocio; readonly producto: string; readonly cantidad: number }
-  | { readonly tipo: 'abrir_solicitud'; readonly producto: string; readonly cantidad: number }
+  | { readonly tipo: 'abrir_solicitud'; readonly producto: string; readonly unidad: string; readonly cantidad: number }
+  // Lo escrito se parece a productos de la biblioteca: se pregunta cuál es (o si es uno nuevo) antes de seguir.
+  | { readonly tipo: 'elegir_producto'; readonly escrito: string; readonly opciones: readonly ProductoConocido[]; readonly para: ParaProducto }
   | { readonly tipo: 'confirmar_ordenes'; readonly ordenIds: readonly string[] }
   | { readonly tipo: 'recepcion'; readonly ordenId: string; readonly facturaEn: Date }
   | { readonly tipo: 'reclamar'; readonly ordenId: string; readonly faltante: number; readonly facturaEn: Date }
@@ -45,6 +54,8 @@ const DE_PROVEEDOR = new Set<Intencion['tipo']>(['ofertar', 'crear_producto', 's
 
 export interface OpcionesAgente {
   readonly interprete?: Interprete;
+  /** La biblioteca de productos (server/catalogo/biblioteca.ts): sugiere uno existente antes de crear otro. */
+  readonly biblioteca?: { buscar(q: string): readonly ProductoConocido[] };
   /** La lista de productos de cada proveedor (server/catalogo): "vendo ..." la llena por WhatsApp. */
   readonly productos?: ListaDeProductos;
   readonly ahora?: () => Date;
@@ -209,11 +220,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   async function proponerPedido(comprador: Negocio, producto: string, cantidad: number, elegido?: string): Promise<string> {
     // Nadie lo vende a precio fijo: en vez de una orden que no se puede cumplir, se ofrece abrir una compra en grupo.
     if (red.abrirSolicitud && red.productoConPrecio && !red.productoConPrecio(producto)) {
-      const nombre = producto.charAt(0).toUpperCase() + producto.slice(1);
-      const mensaje = m.proponerSolicitud(nombre, cantidad);
-      if (actual(comprador.id)?.tipo === 'crear_orden' || actual(comprador.id)?.tipo === 'abrir_solicitud') tomar(comprador.id);
-      alFrente(comprador.id, { tipo: 'abrir_solicitud', producto: nombre, cantidad, mensaje });
-      return mensaje;
+      const r = productoDeLaBiblioteca(comprador, producto, { tipo: 'comprar', cantidad });
+      return typeof r === 'string' ? r : proponerSolicitud(comprador, r.nombre, r.unidad ?? 'unidad', cantidad);
     }
     const { negocios } = await red.estadoDeLaRed();
     const candidatos = await Promise.all(
@@ -234,6 +242,43 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return mensaje;
   }
 
+  function proponerSolicitud(comprador: Negocio, nombre: string, unidad: string, cantidad: number): string {
+    const mensaje = m.proponerSolicitud(nombre, cantidad);
+    if (actual(comprador.id)?.tipo === 'crear_orden' || actual(comprador.id)?.tipo === 'abrir_solicitud') tomar(comprador.id);
+    alFrente(comprador.id, { tipo: 'abrir_solicitud', producto: nombre, unidad, cantidad, mensaje });
+    return mensaje;
+  }
+
+  /**
+   * El producto que nombró la persona, contra la biblioteca: si es uno que ya existe (escrito igual o de otra forma),
+   * ese; si solo se parece a otros, la pregunta de cuál es (queda pendiente); si no se parece a nada, uno nuevo.
+   */
+  function productoDeLaBiblioteca(negocio: Negocio, escrito: string, para: ParaProducto): { nombre: string; unidad?: string } | string {
+    const nuevo = { nombre: escrito.charAt(0).toUpperCase() + escrito.slice(1) };
+    const parecidos = opciones.biblioteca?.buscar(escrito).slice(0, MAXIMO_OPCIONES) ?? [];
+    const igual = parecidos.find(p => mismoNombre(p.nombre, escrito));
+    if (igual) return igual;
+    if (!parecidos.length) return nuevo;
+    const mensaje = m.elegirProducto(escrito, parecidos);
+    if (actual(negocio.id)?.tipo === 'elegir_producto') tomar(negocio.id);
+    alFrente(negocio.id, { tipo: 'elegir_producto', escrito, opciones: parecidos, para, mensaje });
+    return mensaje;
+  }
+
+  /** La respuesta a "¿cuál es?": un número o el nombre de una opción; el último número es "uno nuevo". Undefined: no eligió. */
+  function eleccion(p: Extract<Pendiente, { tipo: 'elegir_producto' }>, texto: string): { nombre: string; unidad?: string } | undefined {
+    const n = Number(texto.trim().replace(/\.$/, ''));
+    if (Number.isInteger(n) && n >= 1 && n <= p.opciones.length) return p.opciones[n - 1];
+    if (n === p.opciones.length + 1 || /\b(otro|nuevo|crear)\b/.test(normalizar(texto))) return { nombre: p.escrito.charAt(0).toUpperCase() + p.escrito.slice(1) };
+    return p.opciones.find(o => mismoNombre(o.nombre, texto));
+  }
+
+  /** Sigue lo que se estaba haciendo con el producto ya elegido. */
+  async function seguirCon(negocio: Negocio, para: ParaProducto, producto: { nombre: string; unidad?: string }): Promise<string> {
+    if (para.tipo === 'comprar') return proponerSolicitud(negocio, producto.nombre, producto.unidad ?? 'unidad', para.cantidad);
+    return proponerAlProveedor(negocio, await proveedores!.proponerProducto(negocio, producto.nombre, producto.unidad ?? para.unidad, para.precio));
+  }
+
   async function proponerConfirmacion(proveedor: Negocio): Promise<string> {
     const { ordenes, negocios } = await red.estadoDeLaRed();
     const nuevas = ordenes.filter(o => o.proveedorId === proveedor.id && o.estado === 'enviada');
@@ -247,8 +292,10 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   /** Ejecuta una acción ya confirmada con un sí. */
   async function ejecutar(negocio: Negocio, p: Pendiente): Promise<string> {
     switch (p.tipo) {
+      case 'elegir_producto':
+        return m.noEntendi(p.mensaje);
       case 'abrir_solicitud': {
-        const l = await red.abrirSolicitud!({ compradorId: negocio.id, producto: p.producto, unidad: 'unidad', cantidad: p.cantidad });
+        const l = await red.abrirSolicitud!({ compradorId: negocio.id, producto: p.producto, unidad: p.unidad, cantidad: p.cantidad });
         return m.solicitudAbierta(p.producto, p.cantidad, l.cierraEn);
       }
       case 'crear_orden': {
@@ -369,10 +416,19 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     let propuesta: PropuestaProveedor | string;
     switch (intencion.tipo) {
       case 'ofertar': propuesta = await proveedores.proponerOferta(negocio, intencion.precio, intencion.producto); break;
-      case 'crear_producto': propuesta = await proveedores.proponerProducto(negocio, intencion.nombre, intencion.unidad, intencion.precio); break;
+      case 'crear_producto': {
+        const r = productoDeLaBiblioteca(negocio, intencion.nombre, { tipo: 'vender', unidad: intencion.unidad, precio: intencion.precio });
+        if (typeof r === 'string') return r;
+        propuesta = await proveedores.proponerProducto(negocio, r.nombre, r.unidad ?? intencion.unidad, intencion.precio);
+        break;
+      }
       case 'ver_ofertas': return proveedores.verOfertas(negocio);
       default: return `Ya vendes en Bando ✓ ${m.AYUDA_PROVEEDOR}`;
     }
+    return proponerAlProveedor(negocio, propuesta);
+  }
+
+  function proponerAlProveedor(negocio: Negocio, propuesta: PropuestaProveedor | string): string {
     if (typeof propuesta === 'string') return propuesta;
     // Una oferta o un producto nuevo reemplaza a otro sin confirmar, pero no a lo que pregunta la contraparte.
     if (actual(negocio.id)?.tipo === 'proveedor') tomar(negocio.id);
@@ -434,6 +490,13 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       return;
     }
     const antes = actual(negocio.id);
+    // Respondió a "¿cuál es?" con un número o el nombre: sigue con ese producto.
+    const elegido = antes?.tipo === 'elegir_producto' ? eleccion(antes, texto) : undefined;
+    if (antes?.tipo === 'elegir_producto' && elegido) {
+      tomar(negocio.id);
+      await ctx.reply(await seguirCon(negocio, antes.para, elegido));
+      return;
+    }
     const intencion = await entender(negocio, telefono, texto, antes?.mensaje ?? null);
     // Un comprador registrado también arma su pedido en la compra conjunta, si no hay otra cosa en curso.
     // Quien se suma por WhatsApp queda registrado en la red: "sí", "no" o "2 del 3" también son de la sala.

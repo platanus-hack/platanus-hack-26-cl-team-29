@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { crearRed } from './dominio.ts';
-import type { Red } from './dominio.ts';
+import type { OpcionesRed, Red } from './dominio.ts';
 import { crearRepositorioMemoria, crearRepositorioPostgres } from './repositorio.ts';
 import type { Repositorio } from './repositorio.ts';
 import { aplicarDatosDemo, sembrarSiVacio } from './semilla.ts';
@@ -18,6 +18,7 @@ import type { Negocio } from './tipos.ts';
 export { crearRed, ErrorRed, FALTA_RUT, normalizarRubro, RUT_DE_OTRO_TELEFONO, RUT_DESCONOCIDO, SII_NO_DISPONIBLE } from './dominio.ts';
 export { RUBROS } from './tipos.ts';
 export type {
+  OpcionesRed,
   BajadaPrecio, CodigoError, ContribuyenteDeRut, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
   NuevoParticipante, NuevoProducto, NuevoProveedor, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
 } from './dominio.ts';
@@ -57,7 +58,7 @@ export interface OpcionesIniciarRed {
   /** Ver `OpcionesRed.antesDeEntrar` (crédito Bando: tarjeta inscrita antes de comprar). */
   antesDeEntrar?: (n: Negocio) => void | Promise<void>;
   /** Ver `OpcionesRed.precioDeReferencia` (listas de los proveedores y Mercado Público). */
-  precioDeReferencia?: (producto: string) => number | undefined;
+  precioDeReferencia?: OpcionesRed['precioDeReferencia'];
 }
 
 /**

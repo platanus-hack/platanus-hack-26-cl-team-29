@@ -7,6 +7,7 @@
 import { validarRut } from '../../shared/rut.ts';
 import { dinero } from '../../shared/formato.ts';
 import type { ProductoEscrito } from '../../shared/catalogo.ts';
+import { unidadDeTexto } from '../../shared/unidades.ts';
 import { precioDelProducto, tramosAutomaticos } from '../../shared/precios.ts';
 import { normalizar } from './intencion.ts';
 import { productoNombrado, productosDe } from './canasta.ts';
@@ -191,7 +192,9 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
     return { tipo: 'ofertar', licitacionId: l.id, productoId: producto.id, precio, mensaje: m.proponerOferta(producto, precio) };
   }
 
-  async function proponerProducto(_proveedor: Negocio, nombre: string, unidad: string, precio: number): Promise<PropuestaProveedor | string> {
+  async function proponerProducto(_proveedor: Negocio, nombre: string, dicha: string, precio: number): Promise<PropuestaProveedor | string> {
+    // La unidad como la escribió ("kg", "la bolsa") pasa a una de la lista; si no es ninguna, por unidad.
+    const unidad = unidadDeTexto(dicha) ?? 'unidad';
     const l = await abierta();
     // Sin compra abierta, el producto va a su lista con tramos sugeridos, que después cambia en su panel.
     if (!l) return o.productos ? { tipo: 'agregar_producto', nombre, unidad, precio, mensaje: m.proponerAgregarProducto(nombre, unidad, tramosAutomaticos(precio)) } : m.SIN_COMPRA_ABIERTA;

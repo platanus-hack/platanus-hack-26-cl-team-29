@@ -11,7 +11,9 @@ import {
   type CatalogoProveedor, type ProductoCatalogo, type ProductoEscrito,
 } from '../../../shared/catalogo.ts';
 import { pluralDe, sinTildes } from '../../../shared/texto.ts';
-import { duenoDeTramos, errorDeTramos, ordenarTramos, precioPorVolumen, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
+import { mismoProducto, sugerirProductos } from '../../../shared/productos.ts';
+import { esUnidad } from '../../../shared/unidades.ts';
+import { duenoDeTramos, errorDeTramos, ordenarTramos, precioDelProducto, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
 import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
@@ -71,8 +73,8 @@ const tramoEn = (p: ProductoCompra, unidades: number) => [...p.tramos].reverse()
 function conDerivados(lic: LicitacionCanal): LicitacionCanal {
   const productos = (lic.productos ?? []).map(p => {
     const totalUnidades = lic.participantes.reduce((s, x) => s + (x.items ?? []).filter(i => i.productoId === p.id).reduce((a, i) => a + i.cantidad, 0), 0);
-    // Como el backend: el tramo alcanzado o, sin tramos (una solicitud sin ofertas), el precio de referencia.
-    const precioActual = precioPorVolumen(p, totalUnidades);
+    // Como el backend: el tramo alcanzado o la mejor oferta a ese volumen; sin nada, el precio de referencia.
+    const precioActual = precioDelProducto(p, totalUnidades, lic.proveedorId);
     const sig = p.tramos.find(t => t.desde > totalUnidades && t.precioUnitario < precioActual);
     return { ...p, totalUnidades, precioActual, siguienteTramo: sig ? { ...sig, faltan: sig.desde - totalUnidades } : null };
   });
@@ -272,6 +274,19 @@ export function crearApiFalsa(): CanalApi {
     return productoManual(escrito, ahoraIso().slice(0, 10), clave);
   };
 
+  /** Como server/catalogo/ofertas.ts: la lista del proveedor de prueba entra sola donde piden lo mismo. */
+  const ofertarConLista = () => {
+    for (const l of red.licitaciones.filter(x => x.estado === 'abierta' && !x.proveedorId)) {
+      for (const p of (l.productos ?? []).filter(x => !x.proveedorId)) {
+        const suyo = manuales.find(m => mismoProducto(m, p));
+        const actual = p.ofertas?.find(o => o.proveedorId === PROVEEDOR_DEMO);
+        if (!suyo || (actual && !actual.automatica)) continue;
+        p.ofertas = [...(p.ofertas ?? []).filter(o => o.proveedorId !== PROVEEDOR_DEMO),
+          { proveedorId: PROVEEDOR_DEMO, productoId: p.id, precioUnitario: suyo.tramos[0].precioUnitario, tramos: suyo.tramos, automatica: true, plazoDias: 1, en: ahoraIso() }];
+      }
+    }
+  };
+
   const foto = (): FotoRed => structuredClone({
     negocios: red.negocios,
     ordenes: red.ordenes,
@@ -355,6 +370,11 @@ export function crearApiFalsa(): CanalApi {
       cambiarCarrito(lic, participante, !limpios.length ? 'sale' : previo ? 'cambia' : 'entra');
     },
 
+    async buscarProductos(q) {
+      const conocidos = [...manuales, ...red.licitaciones.flatMap(l => l.productos ?? [])].flatMap(p => (esUnidad(p.unidad) ? [{ nombre: p.nombre, unidad: p.unidad }] : []));
+      return sugerirProductos(q, conocidos);
+    },
+
     async abrirSolicitud(token, { producto, unidad, cantidad, precioHoy, minutos }) {
       await espera(400);
       quien(token);
@@ -369,6 +389,7 @@ export function crearApiFalsa(): CanalApi {
         cierraEn: new Date(Date.now() + minutos * 60_000).toISOString(), precioSolo: p.precioSolo, tramos: [], participantes: [], ofertas: [], estado: 'abierta' as const,
       };
       red.licitaciones.push(lic);
+      ofertarConLista();
       avisar('licitacion.abierta', { licitacionId: lic.id });
       await this.carrito(token, lic.id, [{ productoId: p.id, cantidad }]);
       return { licitacionId: lic.id, productoId: p.id };
@@ -463,6 +484,19 @@ export function crearApiFalsa(): CanalApi {
       avisar('licitacion.facturada' as TipoEventoRed, { licitacion: lic });
     },
 
+    async ofertar(token, licitacionId, productoId, tramos) {
+      await espera(400);
+      const proveedor = quien(token);
+      const producto = abierta(licitacionId).productos?.find(p => p.id === productoId);
+      exigir(!!producto, 'Ese producto no está en la compra.');
+      const nuevos = ordenarTramos(tramos);
+      const error = errorDeTramos(nuevos);
+      exigir(!error, `${error}.`);
+      producto!.ofertas = [...(producto!.ofertas ?? []).filter(o => o.proveedorId !== proveedor.id),
+        { proveedorId: proveedor.id, productoId, precioUnitario: nuevos[0].precioUnitario, tramos: nuevos, plazoDias: 1, en: ahoraIso() }];
+      avisar('licitacion.oferta', { licitacionId });
+    },
+
     async fijarTramos(token, licitacionId, productoId, tramos) {
       await espera(400);
       const proveedor = quien(token);
@@ -531,6 +565,7 @@ export function crearApiFalsa(): CanalApi {
       await espera(300);
       quien(token);
       manuales.unshift(validado(escrito, manuales));
+      ofertarConLista();
       avisar('catalogo.actualizado', {});
     },
 
@@ -540,6 +575,7 @@ export function crearApiFalsa(): CanalApi {
       const i = manuales.findIndex(x => x.clave === clave);
       exigir(i >= 0, 'Ese producto no está en tu lista.');
       manuales[i] = validado(escrito, manuales.filter(x => x.clave !== clave), clave);
+      ofertarConLista();
       avisar('catalogo.actualizado', {});
     },
 

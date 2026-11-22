@@ -4,6 +4,7 @@
 import { CANASTA_DEMO } from './canasta-demo.ts';
 import { aCentena, errorDeTramos, ordenarTramos, tramosAutomaticos, tramosSugeridos, type Tramo } from './precios.ts';
 import { sinTildes } from './texto.ts';
+import { esUnidad } from './unidades.ts';
 
 /** Una línea de detalle de una factura de venta, sin datos del receptor. */
 export interface LineaVendida {
@@ -43,8 +44,8 @@ export interface ProductoCatalogo {
 }
 
 /**
- * Un producto de la lista del proveedor escrito por él: nombre, unidad de venta y sus tramos por cantidad. El primer
- * tramo (desde 1) es el precio base por unidad; los demás, lo que cobra desde cierta cantidad.
+ * Un producto de la lista del proveedor escrito por él: nombre, unidad de venta (de `UNIDADES`) y sus tramos por
+ * cantidad. El primer tramo (desde 1) es el precio base por unidad; los demás, lo que cobra desde cierta cantidad.
  */
 export interface ProductoEscrito {
   nombre: string;
@@ -58,7 +59,7 @@ const limpio = (nombre: string) => nombre.replace(/\s+/g, ' ').trim();
 export function errorDeProductoEscrito(p: ProductoEscrito, ya: readonly Pick<ProductoCatalogo, 'nombre'>[]): string | null {
   const nombre = limpio(p.nombre);
   if (nombre.length < 3 || nombre.length > 60) return 'El producto necesita un nombre de 3 a 60 letras';
-  if (!p.unidad.trim() || p.unidad.trim().length > 20) return 'Falta la unidad de venta (caja, bolsa, kilo)';
+  if (!esUnidad(p.unidad)) return 'Elige la unidad de venta de la lista (caja, bolsa, kilo...)';
   const tramos = errorDeTramos(p.tramos);
   if (tramos) return tramos;
   if (ya.some(x => sinTildes(x.nombre) === sinTildes(nombre))) return `"${nombre}" ya está en tu lista`;
@@ -70,7 +71,7 @@ export function productoManual(p: ProductoEscrito, hoy: string, clave = `m-${cla
   const tramos = ordenarTramos(p.tramos);
   const precios = tramos.map(t => t.precioUnitario);
   return {
-    clave, nombre: limpio(p.nombre), unidad: p.unidad.trim().toLowerCase(), ultimoPrecio: tramos[0].precioUnitario,
+    clave, nombre: limpio(p.nombre), unidad: p.unidad, ultimoPrecio: tramos[0].precioUnitario,
     precioMinimo: Math.min(...precios), precioMaximo: Math.max(...precios), unidadesVendidas: 0, ventas: 0, ultimaVenta: hoy,
     tramos, tramosDe: 'propios', manual: true,
   };

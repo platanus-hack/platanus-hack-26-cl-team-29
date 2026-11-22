@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioDeOferta, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
+import { pluralUnidad, unidadDeTexto, type IdUnidad } from '../../shared/unidades.ts';
+import { mismoProducto } from '../../shared/productos.ts';
 import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
 import { CANTIDAD_MAXIMA } from './config-demo.ts';
 
@@ -159,7 +161,7 @@ export interface NuevaSolicitud {
   compradorId: string;
   /** El producto como lo escribe el comprador ("Etiquetas adhesivas 50x30"). */
   producto: string;
-  /** Unidad de venta en singular ("rollo"). */
+  /** Unidad de venta de la lista (`UNIDADES`) o como la escribe la persona ("kg", "la bolsa"). */
   unidad: string;
   cantidad: number;
   /** Lo que paga hoy por unidad, si lo sabe: la referencia del ahorro. Si no, `precioDeReferencia`. */
@@ -297,7 +299,7 @@ export interface OpcionesRed {
    * Precio de referencia por unidad de un producto escrito por un comprador (las listas de los proveedores o Mercado
    * Público), para mostrar el ahorro antes de la primera oferta. Sin él, o sin coincidencia, la solicitud parte sin precio.
    */
-  precioDeReferencia?: (producto: string) => number | undefined;
+  precioDeReferencia?: (producto: string, unidad: IdUnidad) => number | undefined;
   reloj?: () => Date;
   /** Variables de la demo (proveedor, producto, tramos). Por defecto `process.env`. */
   env?: NodeJS.ProcessEnv;
@@ -867,19 +869,25 @@ export async function crearRed({
       const proveedor = negocio(o.proveedorId, 'proveedor');
       const producto = productoDeLicitacion(l, o.productoId);
       const antes = precioVigente(l, producto.id);
-      const precioUnitario = Number(o.precioUnitario), plazoDias = Number(o.plazoDias);
+      const tramos = o.tramos?.length ? ordenarTramos(o.tramos.map(t => ({ desde: Number(t?.desde), precioUnitario: Number(t?.precioUnitario) }))) : undefined;
+      const problema = tramos && errorDeTramos(tramos);
+      if (problema) throw new ErrorRed('datos_invalidos', problema);
+      const precioUnitario = tramos ? tramos[0].precioUnitario : Number(o.precioUnitario), plazoDias = Number(o.plazoDias);
       if (!(precioUnitario > 0) || !Number.isInteger(plazoDias) || plazoDias < 0) {
         throw new ErrorRed('datos_invalidos', 'La oferta necesita precio positivo y plazo en días enteros');
       }
-      const oferta: Oferta = { proveedorId: o.proveedorId, productoId: producto.id, precioUnitario, plazoDias, en: ahora() };
+      const oferta: Oferta = {
+        proveedorId: o.proveedorId, productoId: producto.id, precioUnitario, ...(tramos ? { tramos } : {}), ...(o.automatica ? { automatica: true } : {}), plazoDias, en: ahora(),
+      };
       producto.ofertas = producto.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
       await guardar('licitaciones', l);
       const vista = vistaLicitacion(l);
       const nota = notaDeProveedor(o.proveedorId);
       const unidades = unidadesDe(l, producto.id);
       // La mejor del momento en ese producto: más barata que las demás ofertas y que el precio del tramo alcanzado.
-      const mejor = precioUnitario <= precioPorVolumen(producto, unidades)
-        && producto.ofertas.every(x => x === oferta || x.precioUnitario > precioUnitario);
+      const suya = precioDeOferta(oferta, unidades);
+      const mejor = (!producto.tramos.length || suya <= precioPorVolumen(producto, unidades))
+        && producto.ofertas.every(x => x === oferta || precioDeOferta(x, unidades) > suya);
       emitir('licitacion.oferta', {
         licitacionId: l.id, productoId: producto.id, licitacion: vista, oferta: { ...oferta, proveedorNombre: proveedor.nombre, nota }, nota, mejor,
       });
@@ -892,19 +900,20 @@ export async function crearRed({
     return enFila('abrir-solicitud', async () => {
       const comprador = negocio(n.compradorId, 'comprador');
       const nombre = String(n.producto ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
-      const unidad = String(n.unidad ?? '').trim().toLowerCase().slice(0, 20) || 'unidad';
+      const unidad = unidadDeTexto(String(n.unidad ?? '') || 'unidad');
+      if (!unidad) throw new ErrorRed('datos_invalidos', 'Elige la unidad de venta de la lista (caja, bolsa, kilo...)');
       const cantidad = Number(n.cantidad);
       if (nombre.length < 3) throw new ErrorRed('datos_invalidos', 'Escribe qué producto quieres comprar');
       if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA) throw new ErrorRed('datos_invalidos', `La cantidad va de 1 a ${CANTIDAD_MAXIMA}`);
       const hoy = Number(n.precioHoy);
-      const referencia = Number.isInteger(hoy) && hoy > 0 ? hoy : precioDeReferencia?.(nombre) ?? 0;
-      const repetida = datos.licitaciones.find(x => x.estado === 'abierta' && x.productos.some(p => sinTildes(p.nombre) === sinTildes(nombre)));
+      const referencia = Number.isInteger(hoy) && hoy > 0 ? hoy : precioDeReferencia?.(nombre, unidad) ?? 0;
+      const repetida = datos.licitaciones.find(x => x.estado === 'abierta' && x.productos.some(p => mismoProducto(p, { nombre, unidad })));
       if (repetida) throw new ErrorRed('datos_invalidos', `Ya hay una compra en grupo abierta de "${nombre}": súmate a ella`);
       const pedidos = Number(n.minutos);
       const minutos = Number.isInteger(pedidos) && pedidos > 0 ? Math.min(pedidos, MAXIMO_MINUTOS_SOLICITUD) : MINUTOS_SOLICITUD;
       let k = datos.licitaciones.length + 1;
       while (datos.licitaciones.some(x => x.id === `L-${k}`)) k++;
-      const producto: ProductoCompra = { id: idDeProducto({ productos: [] }, nombre), nombre, unidad, unidadPlural: pluralDe(unidad), precioSolo: referencia, tramos: [], ofertas: [] };
+      const producto: ProductoCompra = { id: idDeProducto({ productos: [] }, nombre), nombre, unidad, unidadPlural: pluralUnidad(unidad), precioSolo: referencia, tramos: [], ofertas: [] };
       const l: Licitacion = {
         id: `L-${k}`, productos: [producto], producto: nombre, unidad, unidadPlural: producto.unidadPlural, comuna: comprador.comuna,
         cierraEn: new Date(reloj().getTime() + minutos * 60_000).toISOString(), precioSolo: referencia, tramos: [],
@@ -997,7 +1006,9 @@ export async function crearRed({
     const tramoDelCreador: Oferta[] = p.proveedorId
       ? [{ proveedorId: p.proveedorId, productoId: p.id, precioUnitario: precioPorVolumen(p, unidadesDe(l, p.id)), plazoDias: 1, en: ahora() }]
       : [];
-    for (const o of [...p.ofertas, ...tramoDelCreador]) {
+    // Cada oferta al precio de su tramo para el volumen que juntó el grupo.
+    const unidades = unidadesDe(l, p.id);
+    for (const o of [...p.ofertas.map(x => ({ ...x, precioUnitario: precioDeOferta(x, unidades) })), ...tramoDelCreador]) {
       const actual = porProveedor.get(o.proveedorId);
       if (!actual || o.precioUnitario < actual.precioUnitario) porProveedor.set(o.proveedorId, o);
     }

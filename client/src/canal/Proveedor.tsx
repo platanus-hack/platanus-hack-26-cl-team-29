@@ -22,13 +22,15 @@ import { Ventas } from '../proveedor/Ventas.tsx';
 import { Pedidos } from '../proveedor/Pedidos.tsx';
 import { Precios } from '../proveedor/Precios.tsx';
 import { Productos } from '../proveedor/Productos.tsx';
+import { Compras } from '../proveedor/Compras.tsx';
 import { contarPorGrupo } from '../proveedor/pedidos.ts';
 import '../proveedor/proveedor.css';
 import './canal.css';
 
-type Seccion = 'inicio' | 'ventas' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
+type Seccion = 'inicio' | 'ventas' | 'compras' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'ventas', titulo: 'Ventas', icono: 'caja' },
+  { id: 'compras', titulo: 'Compras en grupo', corto: 'Compras', icono: 'grupo' },
   { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
   { id: 'productos', titulo: 'Productos', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
   { id: 'facturas', titulo: 'Facturas', icono: 'documento' },
@@ -68,6 +70,7 @@ export function Proveedor() {
         <Inicio foto={foto} negocio={yo.proveedor} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="vender" />
       )}
       {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
+      {seccion === 'compras' && <Compras {...props} foto={foto} yo={yo} />}
       {seccion === 'pedidos' && <Pedidos yo={yo} config={config} comprador={comprador} />}
       {seccion === 'productos' && (
         <>

@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { crearRed, crearRepositorioMemoria, crearSiiFalso } from '../server/red/index.ts';
 import type { EventoRed } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
+import { iniciarCatalogos } from '../server/catalogo/index.ts';
+import { conectarOfertasDeListas } from '../server/catalogo/ofertas.ts';
 
 async function redDePrueba(precioDeReferencia?: (producto: string) => number | undefined) {
   let ahora = Date.parse('2026-11-21T12:00:00Z');
@@ -46,4 +48,38 @@ test('las solicitudes vencidas cierran solas, sin tocar las que siguen abiertas'
   assert.ok(await red.cerrarVencidas() >= 1);
   const estado = (id: string) => red.estadoDeLaRed().licitaciones.find(l => l.id === id)!.estado;
   assert.deepEqual([estado(corta.id), estado(larga.id)], ['cerrada', 'abierta']);
+});
+
+test('las listas de precios compiten solas: gana el mejor precio para el volumen del grupo y la oferta a mano no se pisa', async () => {
+  const { red, comprador, avanzar } = await redDePrueba();
+  const catalogos = await iniciarCatalogos({ emitir: () => {} });
+  conectarOfertasDeListas(red, catalogos, { warn: () => {} });
+  const caro = (await red.registrarProveedor({ telefono: '+56 9 7000 0001', rut: '11.111.111-1' })).id;
+  const barato = (await red.registrarProveedor({ telefono: '+56 9 7000 0002', rut: '22.222.222-2' })).id;
+  const cafe = { nombre: 'Café molido 1 kg', unidad: 'bolsa' };
+  // El "caro" parte más barato, pero el otro baja más con volumen.
+  await catalogos.agregar({ id: caro }, { ...cafe, tramos: [{ desde: 1, precioUnitario: 11000 }, { desde: 10, precioUnitario: 10500 }] });
+  await catalogos.agregar({ id: barato }, { ...cafe, tramos: [{ desde: 1, precioUnitario: 12000 }, { desde: 10, precioUnitario: 9800 }] });
+
+  const ana = await comprador('Ana');
+  const beto = await comprador('Beto Díaz');
+  const l = await red.abrirSolicitud({ compradorId: ana, producto: 'cafe molido 1 KG', unidad: 'bolsa', cantidad: 4, minutos: 30 });
+  await new Promise(r => setTimeout(r, 20));
+  const producto = () => red.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.productos[0];
+  assert.deepEqual(producto().ofertas.map(o => [o.proveedorId, o.automatica]).sort(), [[caro, true], [barato, true]].sort());
+  assert.equal(producto().precioActual, 11000, 'con 4 bolsas, el mejor es 11.000');
+
+  await red.agregarAlCarrito(l.id, { negocioId: beto, productoId: producto().id, cantidad: 8 });
+  assert.equal(producto().precioActual, 9800, 'con 12 bolsas, baja el que tiene mejor tramo');
+
+  // Si el caro mejora a mano, su lista ya no la pisa.
+  await red.ofertar(l.id, { proveedorId: caro, productoId: producto().id, precioUnitario: 9500, plazoDias: 1 });
+  await catalogos.editar({ id: caro }, catalogos.listas().find(x => x.proveedorId === caro)!.productos[0].clave, { ...cafe, tramos: [{ desde: 1, precioUnitario: 11500 }] });
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(producto().ofertas.find(o => o.proveedorId === caro)!.precioUnitario, 9500);
+
+  avanzar(31);
+  await red.cerrarVencidas();
+  const ordenes = red.estadoDeLaRed().ordenes.filter(o => o.items.some(i => i.producto === 'cafe molido 1 KG'));
+  assert.deepEqual(ordenes.map(o => [o.proveedorId, o.items[0].precioUnitario]).sort(), [[caro, 9500], [caro, 9500]]);
 });

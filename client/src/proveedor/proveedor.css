@@ -127,4 +127,8 @@
 .bp-producto-acciones { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 @media (min-width: 640px) { .bp-producto { grid-template-columns: 32px minmax(0, 1fr) auto; } .bp-producto-acciones { grid-column: auto; justify-content: flex-end; } }
 
+.bp-mejorar { border-top: var(--border-width) solid var(--color-border); margin-top: 8px; }
+.bp-mejorar .bp-tramos { padding: 4px 0 8px; }
+.bp-mejorar .bp-acciones { padding: 12px 0 4px; border-top: 0; }
+
 @media (prefers-reduced-motion: reduce) { .bp-barra i { transition: none; } }

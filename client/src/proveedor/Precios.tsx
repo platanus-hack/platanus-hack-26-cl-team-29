@@ -14,6 +14,7 @@ import { useEnvio } from '../canal/piezas.tsx';
 import type { LicitacionCanal, Tramo, YoProveedor } from '../canal/tipos.ts';
 import type { PropsAccion } from './Ventas.tsx';
 import { largoDeBarras } from './pedidos.ts';
+import { aFilas, aTramos, type FilaTramo } from './tramos.tsx';
 
 export function Precios({ lic, yo, ...props }: PropsAccion & { lic: LicitacionCanal; yo: YoProveedor }) {
   const ahora = useAhora();
@@ -37,9 +38,6 @@ export function Precios({ lic, yo, ...props }: PropsAccion & { lic: LicitacionCa
   );
 }
 
-type FilaTramo = { desde: string; precio: string };
-const aFilas = (tramos: readonly Tramo[]): FilaTramo[] => tramos.map(t => ({ desde: String(t.desde), precio: String(t.precioUnitario) }));
-const aTramos = (filas: readonly FilaTramo[]): Tramo[] => filas.map(f => ({ desde: Number(f.desde), precioUnitario: Number(f.precio.replace(/\D/g, '')) }));
 
 function TramosDeProducto({ api, token, alCambiar, lic, producto, estado, editable }: PropsAccion & {
   lic: LicitacionCanal; producto: ProductoCompra; estado: EstadoTramos; editable: boolean;

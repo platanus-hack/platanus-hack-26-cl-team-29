@@ -108,7 +108,12 @@ export interface Oferta {
   proveedorId: string;
   /** Producto de la canasta al que se oferta. Falta solo en licitaciones guardadas antes de la canasta. */
   productoId?: string;
+  /** Precio base por unidad (con tramos, el de su primer tramo). */
   precioUnitario: number;
+  /** Sus tramos por cantidad: el precio que cobra depende de cuánto junte el grupo (`precioDeOferta`). */
+  tramos?: Tramo[];
+  /** La puso Bando desde la lista de precios del proveedor; si él oferta a mano, la reemplaza. */
+  automatica?: true;
   plazoDias: number;
   /** Cuándo llegó (ISO). */
   en: string;

@@ -31,3 +31,13 @@ Son dos cosas distintas:
 - Solicitudes (PR 2): `abrirSolicitud` y `cerrarVencidas` en el dominio, `POST /yo/solicitudes`, + y pestañas Abiertas y
   Cerradas en /app, y por WhatsApp "quiero comprar N de X" sin precio fijo ofrece abrirla. Falta que los proveedores
   compitan solos con su lista (PR 3): hoy una solicitud sin ofertas cierra sin proveedor.
+- Competencia (PR 3): las ofertas pueden traer tramos y valen lo que cobra su tramo para el volumen del grupo
+  (`precioDeOferta`). `server/catalogo/ofertas.ts` hace entrar sola la lista de cada proveedor en las compras sin
+  proveedor fijo que piden el **mismo producto**: mismo nombre (sin tildes, mayúsculas, espacios ni signos) y misma
+  unidad. Una oferta a mano no la pisa la automática. El proveedor ve dónde compite y mejora su oferta en "Compras en
+  grupo" de su panel.
+- Las unidades son un listado fijo (`shared/unidades.ts`) y hay una biblioteca de productos de la plataforma
+  (`server/catalogo/biblioteca.ts`, `GET /api/red/productos?q=`): la web sugiere un nombre existente con su unidad
+  al escribir y el bot pregunta "¿cuál es?" si lo escrito se parece a productos que ya existen ("cocacola" →
+  "Coca-Cola 3 lts", "Coca-Cola lata 330 ml" u otro nuevo). Un índice con códigos UNSPSC y clasificación con IA
+  queda para después.

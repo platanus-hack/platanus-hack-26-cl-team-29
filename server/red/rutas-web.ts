@@ -273,6 +273,15 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     res.json(await red.confirmarOrdenesDeLicitacion(licitacionId));
   });
 
+  // Su oferta en una compra en grupo sin proveedor fijo: sus tramos para ese producto. Reemplaza la que entró sola
+  // desde su lista; gana al cerrar si es el mejor precio para el volumen del grupo.
+  rutas.post('/proveedor/licitacion/:id/productos/:productoId/oferta', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
+    const tramos = cuerpo(req).tramos as Tramo[];
+    if (!Array.isArray(tramos) || !tramos.length) throw new ErrorRed('datos_invalidos', 'La oferta necesita sus tramos');
+    const r = await red.ofertar(id(req), { proveedorId: yo(req).id, productoId: String(req.params.productoId), precioUnitario: Number(tramos[0]?.precioUnitario), tramos, plazoDias: 1 });
+    res.status(201).json(sinTelefonos(r));
+  });
+
   // Sus tramos por volumen, mientras la compra está abierta. El dominio exige que el producto sea suyo.
   rutas.put('/proveedor/licitacion/:id/productos/:productoId/tramos', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
     const r = await red.fijarTramos(id(req), String(req.params.productoId), yo(req).id, cuerpo(req).tramos as Tramo[]);

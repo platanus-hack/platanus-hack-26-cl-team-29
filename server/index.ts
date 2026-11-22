@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import pg from 'pg';
 import { createWhatsApp } from './whatsapp/index.ts';
 import { crearRutasRed, crearSesiones, crearSesionesPostgres, iniciarRed } from './red/index.ts';
+import type { OpcionesRed } from './red/index.ts';
 import { iniciarConexionSii, resumenDeConexion } from './conexion-sii/index.ts';
 import { conectarAgente, crearAlmacenBorradores } from './agente/index.ts';
 
@@ -16,6 +17,8 @@ import { iniciarProveedores } from './proveedores/index.ts';
 import { iniciarPagos } from './pagos/index.ts';
 import { crearRutasAvisos } from './avisos/rutas.ts';
 import { crearRutasCatalogo, crearRutasOperacionCatalogo, iniciarCatalogos } from './catalogo/index.ts';
+import { crearBiblioteca } from './catalogo/biblioteca.ts';
+import { conectarOfertasDeListas } from './catalogo/ofertas.ts';
 import type { Negocio } from './red/tipos.ts';
 
 const app = express();
@@ -30,8 +33,8 @@ const conexionSii = await iniciarConexionSii(dbRed);
 // Crédito Bando exige la tarjeta inscrita para entrar a una compra; se enlaza al crear los pagos, más abajo.
 let antesDeEntrar: (n: Negocio) => void | Promise<void> = () => {};
 // La referencia de precio de una solicitud de compra: las listas de los proveedores y, si nadie lo vende, Mercado Público.
-let precioDeReferencia: (producto: string) => number | undefined = () => undefined;
-export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: p => precioDeReferencia(p) });
+let precioDeReferencia: NonNullable<OpcionesRed['precioDeReferencia']> = () => undefined;
+export const red = await iniciarRed(dbRed, conexionSii.sii, { consultarContribuyente: conexionSii.consultarContribuyente, antesDeEntrar: n => antesDeEntrar(n), precioDeReferencia: (p, u) => precioDeReferencia(p, u) });
 red.escuchar(evento => io.emit('red:evento', evento));
 // Folios del SII: el mínimo de facturas sigue a la compra conjunta abierta, y sus avisos van por el mismo canal.
 conexionSii.fijarDemanda(tipo => (tipo === 33 ? red.licitacionAbierta()?.totalNegocios ?? 0 : 0));
@@ -50,9 +53,12 @@ const conexionDeProveedores = {
 };
 // Catálogo de cada proveedor (su lista y lo que sugieren sus facturas): se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
 const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
+const biblioteca = crearBiblioteca(red, catalogos);
+// Cada lista de precios compite sola en las compras en grupo que piden ese producto.
+conectarOfertasDeListas(red, catalogos);
 export const agente = conectarAgente(whatsapp, red, {
   interprete: crearInterpreteDesdeEnv(process.env, red), certificados, conexionSii: conexionDeProveedores,
-  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos,
+  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos, biblioteca,
 });
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
@@ -67,7 +73,7 @@ const pagos = await iniciarPagos({
   enviar: (telefono, texto) => whatsapp.send(telefono, texto, { source: 'pagos' }),
 });
 antesDeEntrar = pagos.exigirTarjeta;
-precioDeReferencia = p => catalogos.referencia(p) ?? referenciaPublica(mercadoPublico.foto().ordenes, p);
+precioDeReferencia = (p, u) => catalogos.referencia(p, u) ?? referenciaPublica(mercadoPublico.foto().ordenes, p);
 red.escuchar(e => {
   const n = e.tipo === 'negocio.registrado' ? (e.datos as { negocio?: Negocio }).negocio : undefined;
   if (n?.vende) catalogos.asegurar({ id: n.id, ...(n.rut ? { rut: n.rut } : {}) });
@@ -92,6 +98,7 @@ app.use('/api/red', crearRutasRed(red, process.env, {
   conexionSii: conexionSii.rutas, sesiones,
   enviarCodigo: async (telefono, texto) => ENVIO_CODIGO[(await whatsapp.send(telefono, { body: texto }, { source: 'acceso' })).status],
   catalogo: { proveedor: crearRutasCatalogo(catalogos, red), operacion: crearRutasOperacionCatalogo(catalogos, red) },
+  biblioteca,
 }));
 app.use(express.static('dist'));
 app.use((_req, res) => res.sendFile('index.html', { root: 'dist' })); // fallback SPA (Express 5: no usar app.get('*'))
