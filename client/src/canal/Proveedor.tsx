@@ -24,9 +24,9 @@ import { contarPorGrupo } from '../proveedor/pedidos.ts';
 import '../proveedor/proveedor.css';
 import './canal.css';
 
-type Seccion = 'inicio' | 'ventas' | 'compras' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
+type Seccion = 'inicio' | 'compras' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
-  { id: 'inicio', titulo: 'Inicio', icono: 'inicio' }, { id: 'ventas', titulo: 'Ventas', icono: 'stock' },
+  { id: 'inicio', titulo: 'Inicio', icono: 'inicio' },
   { id: 'compras', titulo: 'Pedidos en grupo', corto: 'En grupo', icono: 'grupo' },
   { id: 'pedidos', titulo: 'Pedidos', icono: 'pedidos' },
   { id: 'productos', titulo: 'Productos', icono: 'tramos' }, { id: 'reparto', titulo: 'Reparto', icono: 'reparto' },
@@ -59,13 +59,15 @@ export function Proveedor() {
   const secciones = SECCIONES.map(s => (s.id === 'pedidos' ? { ...s, globo: cuenta.confirmar + cuenta.reclamos } : s));
 
   return (
-    <Marco secciones={secciones} activa={seccion} negocio={yo.proveedor} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
+    <Marco secciones={secciones} activa={seccion} negocio={yo.proveedor} modo={{ activo: 'vender', otro: puedeComprar(yo.proveedor) ? { href: '/app' } : null }} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
       {error && <p className="bm-error">{error}</p>}
       {yo.puedeFacturar === false && seccion !== 'facturas' && <AvisoSinFacturacion api={api} token={token} />}
       {seccion === 'inicio' && (
-        <Inicio foto={foto} negocio={yo.proveedor} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="vender" />
+        // Paper "P2": la portada del proveedor es su panel de ventas (lo vendido hoy y lo que espera su confirmación).
+        <Inicio foto={foto} ordenes={yo.ordenes} documentos={yo.documentos} secciones={SECCIONES} evento={cambio} desde="vender">
+          <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />
+        </Inicio>
       )}
-      {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
       {seccion === 'compras' && (
         <>
           <Compras {...props} foto={foto} yo={yo} ruta={resto} />

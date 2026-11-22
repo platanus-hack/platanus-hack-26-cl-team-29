@@ -9,8 +9,10 @@ import { Invitar, useInvitacionRecibida } from './Invitar.tsx';
 import { MiCredito, volverTrasTarjeta } from './MiCredito.tsx';
 import { BotonWhatsapp } from './piezas.tsx';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
-import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx';
+import { Marco, useRutaDelHash, type ModoMarco, type SeccionMarco } from '../comprador/Marco.tsx';
+import { enlaceWhatsapp } from '../../../shared/telefono.ts';
 import { Inicio } from '../comprador/Inicio.tsx';
+import { InicioComprador } from '../comprador/InicioComprador.tsx';
 import { ComprasEnGrupo, rutaDeCompra, type RutaCompra } from '../comprador/ComprasEnGrupo.tsx';
 import { Proveedores, rutaDeProveedor } from '../comprador/Proveedores.tsx';
 import { Sii } from '../comprador/Sii.tsx';
@@ -51,13 +53,20 @@ export function MiNegocio() {
   if (!yo) return <main className="cn-pagina"><CargandoCuenta error={error} texto="Cargando tu negocio..." onSalir={salir} /></main>;
 
   const irA = (s: Seccion) => { location.hash = s; };
+  // Quien ya vende pasa a su panel; quien no, empieza a vender por WhatsApp.
+  const quieroVender = enlaceWhatsapp(config?.whatsappNumero, 'Quiero vender en Bando');
+  const modo: ModoMarco = { activo: 'comprar', otro: !puedeVender(yo.negocio) && quieroVender ? { href: quieroVender, externo: true } : { href: '/proveedor' } };
   const vigente = licitacionVigente(foto.licitaciones);
   const participa = yo.participaciones.some(p => p.licitacionId === vigente?.id);
 
   return (
-    <Marco secciones={SECCIONES} activa={seccion} negocio={yo.negocio} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
+    <Marco secciones={SECCIONES} activa={seccion} negocio={yo.negocio} modo={modo} aviso={<AvisoFuente fuente={fuente} />} onSalir={salir}>
       {error && <p className="bm-error">{error}</p>}
-      {seccion === 'inicio' && <Inicio foto={foto} negocio={yo.negocio} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="comprar" />}
+      {seccion === 'inicio' && (
+        <Inicio foto={foto} ordenes={yo.ordenes} documentos={yo.documentos} secciones={SECCIONES} evento={cambio} desde="comprar">
+          <InicioComprador foto={foto} yo={yo} />
+        </Inicio>
+      )}
       {seccion === 'compra' && <ComprasEnGrupo api={api} token={token} foto={foto} yo={yo} ruta={compra} />}
       {seccion === 'compra' && compra.vista === 'lista' && vigente && participa && (
         <Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} />

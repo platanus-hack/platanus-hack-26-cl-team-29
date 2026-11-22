@@ -106,11 +106,9 @@
 
 
 /* ---------- Inicio ---------- */
-.bm-ahorro-mes p { font-size: var(--text-sm); color: var(--color-muted-foreground); }
-.bm-ahorro-mes div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
-.bm-ahorro-mes strong { font-size: clamp(40px, 8vw, 60px); line-height: 1; font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+.bm-ahorro-mes { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
 .bm-ahorro-mes span { font-size: var(--text-sm); font-weight: 600; color: var(--bando-oliva-texto); }
-.bm-inicio { display: flex; flex-direction: column; gap: 32px; width: 100%; max-width: 880px; margin: 0 auto; }
+.bm-inicio { display: flex; flex-direction: column; gap: 32px; width: 100%; max-width: 1200px; margin: 0 auto; }
 .bm-busqueda {
   display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px;
   border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-secondary);
@@ -128,25 +126,6 @@
 .bm-resultados strong { font-size: var(--text-sm); font-weight: 600; overflow-wrap: anywhere; }
 .bm-resultado-tipo { font-size: var(--text-xs); line-height: var(--leading-xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--bando-miel-texto); font-weight: 600; }
 .bm-resultado-detalle { font-size: var(--text-xs); color: var(--color-faint-fg); }
-
-.bm-hoy { display: flex; flex-direction: column; gap: 20px; }
-.bm-hoy h1 { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.03em; }
-@media (min-width: 1024px) { .bm-hoy h1 { font-size: var(--text-4xl); line-height: var(--leading-4xl); } }
-.bm-caminos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-@media (min-width: 640px) { .bm-caminos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.bm-camino {
-  display: grid; grid-template-columns: 72px minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 16px; row-gap: 4px; align-items: start;
-  padding: 20px; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-2xl); text-decoration: none;
-  transition: border-color 0.15s, background 0.15s;
-}
-.bm-camino:hover { border-color: var(--bando-miel-600); background: var(--bando-miel-50); }
-.bm-camino img { grid-row: span 2; width: 72px; height: 72px; object-fit: contain; }
-.bm-camino-titulo { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
-.bm-camino-texto { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
-@media (min-width: 640px) {
-  .bm-camino { grid-template-columns: 1fr; padding: 28px; row-gap: 8px; }
-  .bm-camino img { grid-row: auto; width: 96px; height: 96px; margin-bottom: 8px; }
-}
 
 /* ---------- Compras en grupo: lista ---------- */
 .bm-lista { list-style: none; margin: 0; padding: 0 16px; }
@@ -264,7 +243,7 @@
 .bm-avatares span:last-child { background: var(--bando-crema); }
 
 @media (prefers-reduced-motion: reduce) {
-  .bm-miel, .bm-camino { transition: none; }
+  .bm-miel { transition: none; }
 }
 
 /* Crédito: la misma columna que las demás secciones; las piezas del canal toman la marca en canal/marca.css. */
@@ -376,3 +355,11 @@
 }
 .bm-direccion { padding: 16px; }
 .bm-direccion h2 { font-size: var(--text-sm); font-weight: 600; }
+
+/* Comprar | Vender: arriba del menú (y en la barra de arriba del teléfono), un clic cambia de lado. */
+.bm-modo { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; border-radius: var(--radius-lg); background: var(--color-muted); }
+.bm-modo a, .bm-modo span { display: flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: calc(var(--radius-lg) - 3px); font-size: var(--text-sm); color: var(--color-muted-foreground); text-decoration: none; white-space: nowrap; }
+.bm-modo .activo { background: var(--color-background); color: var(--color-foreground); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+.bm-modo a:hover { color: var(--color-foreground); }
+.bm-modo a:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
+.bm-superior .bm-modo { flex: 1; max-width: 240px; }

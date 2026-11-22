@@ -90,13 +90,19 @@ const sinPrecio = (p: Pick<ProductoCanasta, 'precioActual'>) => !(p.precioActual
 
 type Pestana = 'abiertas' | 'cerradas';
 
+/** Una fila por producto de cada compra en grupo (`primero`: el primer producto de su canasta). */
+export const filasDeCompras = (licitaciones: readonly LicitacionCanal[]) => licitaciones.flatMap(lic => {
+  const productos = productosDe(lic);
+  return productos.map(p => ({ lic, p, primero: productos[0].id }));
+});
+/** Las abiertas, la que cierra primero arriba. */
+export const comprasAbiertas = <F extends { lic: LicitacionCanal }>(filas: readonly F[], ahora: number) =>
+  filas.filter(f => estaAbierta(f.lic, ahora)).sort((a, b) => Date.parse(a.lic.cierraEn) - Date.parse(b.lic.cierraEn));
+
 function ListaCompras({ foto, yo, ahora }: { foto: FotoRed; yo: YoComprador; ahora: number }) {
   const [pestana, setPestana] = useState<Pestana>('abiertas');
-  const filas = foto.licitaciones.flatMap(lic => {
-    const productos = productosDe(lic);
-    return productos.map(p => ({ lic, p, primero: productos[0].id }));
-  });
-  const abiertas = filas.filter(f => estaAbierta(f.lic, ahora)).sort((a, b) => Date.parse(a.lic.cierraEn) - Date.parse(b.lic.cierraEn));
+  const filas = filasDeCompras(foto.licitaciones);
+  const abiertas = comprasAbiertas(filas, ahora);
   const cerradas = filas.filter(f => !estaAbierta(f.lic, ahora)).sort((a, b) => Date.parse(b.lic.cierraEn) - Date.parse(a.lic.cierraEn));
   const lista = pestana === 'abiertas' ? abiertas : cerradas;
 
@@ -121,47 +127,51 @@ function ListaCompras({ foto, yo, ahora }: { foto: FotoRed; yo: YoComprador; aho
         </div>
       ) : (
         <ul className="bm-tarjeta bm-lista">
-          {lista.map(({ lic, p, primero }) => {
-            const abierta = pestana === 'abiertas';
-            const f = frasco(p.tramos, p.totalUnidades, p.siguienteTramo);
-            const locales = conProducto(lic, p.id, primero).filter(x => x.cantidad > 0).length;
-            const mio = guardadoDe(lic, yo)[p.id] ?? 0;
-            return (
-              <li key={`${lic.id}-${p.id}`} className="bm-fila-compra">
-                <span className="bm-icono-producto"><Icono nombre={iconoDeProducto(p.nombre)} tam={22} /></span>
-                <div className="bm-fila-cuerpo">
-                  <div className="bm-fila-arriba">
-                    <strong className="bm-fila-nombre">{p.nombre}</strong>
-                    <span className="bm-precio">
-                      {sinPrecio(p) ? 'Esperando ofertas' : dinero(p.precioActual)}
-                      {!sinPrecio(p) && p.precioSolo > p.precioActual && <s>{dinero(p.precioSolo)}</s>}
-                    </span>
-                  </div>
-                  {p.tramos.length > 0 && (
-                    <div className="bm-barra" role="progressbar" aria-valuemin={0} aria-valuemax={f.meta} aria-valuenow={p.totalUnidades}
-                      aria-label={`${p.totalUnidades} de ${contar(f.meta, p.unidad, p.unidadPlural)}`}>
-                      <span style={{ width: `${f.llenado * 100}%` }} />
-                    </div>
-                  )}
-                  <div className="bm-fila-abajo">
-                    <span>
-                      {contar(locales, 'local', 'locales')} · {contar(p.totalUnidades, p.unidad, p.unidadPlural)}
-                      {abierta ? ` · cierra en ${cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}` : ''}
-                    </span>
-                    {abierta && p.minimo && p.totalUnidades < p.minimo
-                      ? <span className="bm-falta-minimo">Mínimo del proveedor: {contar(p.minimo, p.unidad, p.unidadPlural)}</span>
-                      : abierta && p.siguienteTramo && <span className="bm-ahorro">{pistaTramo(p.siguienteTramo, p)}</span>}
-                  </div>
-                </div>
-                <a className={`bm-boton${mio ? ' secundario' : ''}`} href={enlaceCompra(lic.id, p.id)}>
-                  {mio ? `Llevas ${mio}` : abierta ? 'Sumarme' : 'Ver'}
-                </a>
-              </li>
-            );
-          })}
+          {lista.map(({ lic, p, primero }) => <FilaCompraEnGrupo key={`${lic.id}-${p.id}`} lic={lic} p={p} primero={primero} yo={yo} ahora={ahora} abierta={pestana === 'abiertas'} />)}
         </ul>
       )}
     </>
+  );
+}
+
+/** Una compra en grupo en la lista (y en la portada): producto, precio de hoy contra comprar solo, avance y "Sumarme". */
+export function FilaCompraEnGrupo({ lic, p, primero, yo, ahora, abierta }: {
+  lic: LicitacionCanal; p: ProductoCanasta; primero: string; yo: YoComprador; ahora: number; abierta: boolean;
+}) {
+  const f = frasco(p.tramos, p.totalUnidades, p.siguienteTramo);
+  const locales = conProducto(lic, p.id, primero).filter(x => x.cantidad > 0).length;
+  const mio = guardadoDe(lic, yo)[p.id] ?? 0;
+  return (
+    <li className="bm-fila-compra">
+      <span className="bm-icono-producto"><Icono nombre={iconoDeProducto(p.nombre)} tam={22} /></span>
+      <div className="bm-fila-cuerpo">
+        <div className="bm-fila-arriba">
+          <strong className="bm-fila-nombre">{p.nombre}</strong>
+          <span className="bm-precio">
+            {sinPrecio(p) ? 'Esperando ofertas' : dinero(p.precioActual)}
+            {!sinPrecio(p) && p.precioSolo > p.precioActual && <s>{dinero(p.precioSolo)}</s>}
+          </span>
+        </div>
+        {p.tramos.length > 0 && (
+          <div className="bm-barra" role="progressbar" aria-valuemin={0} aria-valuemax={f.meta} aria-valuenow={p.totalUnidades}
+            aria-label={`${p.totalUnidades} de ${contar(f.meta, p.unidad, p.unidadPlural)}`}>
+            <span style={{ width: `${f.llenado * 100}%` }} />
+          </div>
+        )}
+        <div className="bm-fila-abajo">
+          <span>
+            {contar(locales, 'local', 'locales')} · {contar(p.totalUnidades, p.unidad, p.unidadPlural)}
+            {abierta ? ` · cierra en ${cuentaRegresiva(Date.parse(lic.cierraEn) - ahora)}` : ''}
+          </span>
+          {abierta && p.minimo && p.totalUnidades < p.minimo
+            ? <span className="bm-falta-minimo">Mínimo del proveedor: {contar(p.minimo, p.unidad, p.unidadPlural)}</span>
+            : abierta && p.siguienteTramo && <span className="bm-ahorro">{pistaTramo(p.siguienteTramo, p)}</span>}
+        </div>
+      </div>
+      <a className={`bm-boton${mio ? ' secundario' : ''}`} href={enlaceCompra(lic.id, p.id)}>
+        {mio ? `Llevas ${mio}` : abierta ? 'Sumarme' : 'Ver'}
+      </a>
+    </li>
   );
 }
 

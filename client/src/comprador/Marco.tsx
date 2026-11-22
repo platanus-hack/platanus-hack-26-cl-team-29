@@ -20,10 +20,27 @@ export interface SeccionMarco<S extends string> {
   globo?: number;
 }
 
-export function Marco<S extends string>({ secciones, activa, negocio, aviso, onSalir, children }: {
+/** El cambio de lado: comprar (/app) o vender (/proveedor). Sin enlace al otro lado, no se muestra. */
+export interface ModoMarco {
+  activo: 'comprar' | 'vender';
+  /** Adónde lleva el otro lado; si es un enlace de afuera (WhatsApp para empezar a vender), se abre aparte. */
+  otro: { href: string; externo?: boolean } | null;
+}
+
+function CambioDeModo({ modo }: { modo: ModoMarco }) {
+  if (!modo.otro) return null;
+  const lado = (id: ModoMarco['activo'], texto: string) => (id === modo.activo
+    ? <span className="activo" aria-current="page">{texto}</span>
+    : <a href={modo.otro!.href} {...(modo.otro!.externo ? { target: '_blank', rel: 'noreferrer' } : {})}>{texto}</a>);
+  return <nav className="bm-modo" aria-label="Comprar o vender">{lado('comprar', 'Comprar')}{lado('vender', 'Vender')}</nav>;
+}
+
+export function Marco<S extends string>({ secciones, activa, negocio, modo, aviso, onSalir, children }: {
   secciones: readonly SeccionMarco<S>[];
   activa: S;
   negocio: Negocio;
+  /** Comprar o vender, arriba del menú. */
+  modo?: ModoMarco;
   /** El aviso de datos de prueba, si corresponde. */
   aviso?: ReactNode;
   onSalir: () => void;
@@ -42,13 +59,14 @@ export function Marco<S extends string>({ secciones, activa, negocio, aviso, onS
     <div className="bando-ui bm-marco">
       <header className="bm-superior">
         <Logo variante="icono" className="bm-logo-icono" />
-        {quien}
+        {modo ? <CambioDeModo modo={modo} /> : quien}
         <BotonTema className="bm-boton-icono" />
         <button type="button" className="bm-boton-texto" onClick={onSalir}>Salir</button>
       </header>
 
       <aside className="bm-lateral">
         <Logo className="bm-logo" />
+        {modo && <CambioDeModo modo={modo} />}
         <nav className="bm-secciones" aria-label="Secciones">
           {secciones.map(s => (
             <a key={s.id} href={`#${s.id}`} className={s.id === activa ? 'activa' : ''} aria-current={s.id === activa ? 'page' : undefined}>
