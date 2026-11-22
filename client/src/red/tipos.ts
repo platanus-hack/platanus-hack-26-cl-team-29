@@ -146,6 +146,8 @@ export interface Licitacion {
   totalUnidades?: number;
   precioActual?: number;
   siguienteTramo?: SiguienteTramo | null;
+  /** El comprador que inició la compra en grupo (una solicitud): puede cerrarla antes si ya llegó al mínimo. */
+  iniciadaPor?: string;
   /** Órdenes creadas al cerrar, una por participante. */
   ordenIds?: string[];
 }

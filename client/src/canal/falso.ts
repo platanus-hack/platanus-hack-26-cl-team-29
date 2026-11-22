@@ -14,7 +14,7 @@ import { pluralDe, sinTildes } from '../../../shared/texto.ts';
 import { CANTIDAD_MAXIMA } from '../../../shared/red.ts';
 import { mismoProducto, sugerirProductos } from '../../../shared/productos.ts';
 import { esUnidad } from '../../../shared/unidades.ts';
-import { duenoDeTramos, errorDeTramos, ordenarTramos, precioDelProducto, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, ordenarTramos, precioDelProducto, puedeCerrarAntes, totalesDeCanasta, totalOrden } from '../../../shared/precios.ts';
 import { COMPRADORES_FALSOS } from '../red/falso.ts';
 import { armarRuta, paradasDeOrdenes, POR_ENTREGAR } from '../../../shared/ruta.ts';
 import { centroDeComuna, MUT, ubicarEnComuna } from '../../../shared/ubicacion.ts';
@@ -389,6 +389,17 @@ export function crearApiFalsa(): CanalApi {
       return sugerirProductos(q, conocidos);
     },
 
+    async cerrarSolicitud(token, licitacionId) {
+      await espera(500);
+      const lic = abierta(licitacionId);
+      exigir(lic.iniciadaPor === quien(token).id, 'Solo quien inició la compra en grupo la puede cerrar antes.');
+      const listo = (lic.productos ?? []).every(p => puedeCerrarAntes(p.ofertas, conDerivados(lic).productos!.find(x => x.id === p.id)!.totalUnidades ?? 0));
+      exigir(listo, 'Todavía no se puede cerrar: falta una oferta o llegar al pedido mínimo del proveedor.');
+      lic.estado = 'cerrada';
+      lic.cierraEn = ahoraIso();
+      avisar('licitacion.cerrada', { licitacion: lic });
+    },
+
     async abrirSolicitud(token, { producto, unidad, cantidad, precioHoy, minutos }) {
       await espera(400);
       quien(token);
@@ -401,6 +412,7 @@ export function crearApiFalsa(): CanalApi {
       const lic = {
         id: `L-${red.licitaciones.length + 1}`, productos: [p], producto: nombre, unidad: u, unidadPlural: p.unidadPlural, comuna: quien(token).comuna,
         cierraEn: new Date(Date.now() + minutos * 60_000).toISOString(), precioSolo: p.precioSolo, tramos: [], participantes: [], ofertas: [], estado: 'abierta' as const,
+        iniciadaPor: quien(token).id,
       };
       red.licitaciones.push(lic);
       ofertarConLista();

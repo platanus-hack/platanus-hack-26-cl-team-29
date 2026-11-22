@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioDeOferta, precioPorVolumen, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioDeOferta, precioPorVolumen, puedeCerrarAntes, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
@@ -22,7 +22,7 @@ import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.
 import type { ConsultarContribuyente, DatosContribuyente } from './contribuyente.ts';
 import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
 import { RUBROS } from './tipos.ts';
-import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
+import { COMPETIDORES_SALA, LICITACION_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
 import type { PuertoSii, ResultadoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
@@ -220,6 +220,11 @@ export interface Red {
    * Emite `licitacion.abierta`.
    */
   abrirSolicitud(s: NuevaSolicitud): Promise<SinTelefono<LicitacionVista>>;
+  /**
+   * Quien inició una compra en grupo la cierra antes de tiempo, si ya hay oferta y el grupo llegó al mínimo de la que
+   * gana (`puedeCerrarAntes`). Igual que al vencer: crea las órdenes y emite `licitacion.cerrada`.
+   */
+  cerrarAntes(licitacionId: string, negocioId: string): Promise<OrdenCompra[]>;
   /** El producto del catálogo con precio que nombra el texto, o undefined (ver `normalizarProducto`). */
   productoConPrecio(texto: string): string | undefined;
   /** Cierra las compras abiertas cuyo `cierraEn` ya pasó. Devuelve cuántas cerró. */
@@ -335,6 +340,11 @@ const PRODUCTO_UNICO = 'producto';
 
 /** Licitaciones guardadas antes de los tramos o de la canasta: un producto con sus tramos y ofertas, y carritos de un ítem. */
 function migrarLicitacion(l: Licitacion) {
+  // Compras en grupo de un comprador abiertas antes de guardar quién la inició: la inició el primero que se sumó.
+  if (!l.iniciadaPor && !l.proveedorId && l.id !== LICITACION_SALA && l.participantes?.length) {
+    const primero = [...l.participantes].sort((a, b) => (a.en ?? '').localeCompare(b.en ?? ''))[0];
+    if (primero?.negocioId) l.iniciadaPor = primero.negocioId;
+  }
   l.tramos ??= [{ desde: 1, precioUnitario: l.precioSolo }];
   l.unidad ??= 'unidad';
   l.unidadPlural ??= 'unidades';
@@ -924,7 +934,7 @@ export async function crearRed({
       while (datos.licitaciones.some(x => x.id === `L-${k}`)) k++;
       const producto: ProductoCompra = { id: idDeProducto({ productos: [] }, nombre), nombre, unidad, unidadPlural: pluralUnidad(unidad), precioSolo: referencia, tramos: [], ofertas: [] };
       const l: Licitacion = {
-        id: `L-${k}`, productos: [producto], producto: nombre, unidad, unidadPlural: producto.unidadPlural, comuna: comprador.comuna,
+        id: `L-${k}`, productos: [producto], producto: nombre, unidad, unidadPlural: producto.unidadPlural, comuna: comprador.comuna, iniciadaPor: comprador.id,
         cierraEn: new Date(reloj().getTime() + minutos * 60_000).toISOString(), precioSolo: referencia, tramos: [],
         participantes: [], ofertas: [], estado: 'abierta',
       };
@@ -935,6 +945,14 @@ export async function crearRed({
       const { licitacion } = await actualizarCarrito(id, { negocioId: n.compradorId, items: [{ productoId: datos.licitaciones.find(x => x.id === id)!.productos[0].id, cantidad: Number(n.cantidad) }] });
       return licitacion;
     });
+  }
+
+  async function cerrarAntes(licitacionId: string, negocioId: string) {
+    const l = licitacionEnCurso(licitacionId);
+    if (l.iniciadaPor !== negocioId) throw new ErrorRed('prohibido', 'Solo quien inició la compra en grupo la puede cerrar antes');
+    const listo = l.productos.every(p => puedeCerrarAntes(p.ofertas, unidadesDe(l, p.id)));
+    if (!listo) throw new ErrorRed('transicion_invalida', 'Todavía no se puede cerrar: falta una oferta o llegar al pedido mínimo del proveedor');
+    return cerrarLicitacion(licitacionId);
   }
 
   async function cerrarVencidas() {
@@ -1203,7 +1221,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

@@ -3,7 +3,7 @@
 // escalera de tramos y "Sumarme con N". Puede haber varias abiertas (cada comprador inicia la suya). Todo se recalcula
 // con cada `red:evento` (la foto llega nueva); mis cambios sin guardar ya mueven el precio y el frasco.
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { dinero, nota } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import { nombreUnidad, pluralUnidad } from '../../../shared/unidades.ts';
@@ -15,7 +15,7 @@ import {
 import { Campo } from '../canal/Acceso.tsx';
 import { Icono, iconoDeProducto } from '../canal/iconos.tsx';
 import { estaAbierta, licitacionVigente } from '../canal/logica.ts';
-import { useEnvio } from '../canal/piezas.tsx';
+import { Confirmar, useConfirmacion, useEnvio } from '../canal/piezas.tsx';
 import { PedirTarjeta, useFaltaTarjeta } from '../canal/MiCredito.tsx';
 import type { CanalApi } from '../canal/api.ts';
 import type { FotoRed, LicitacionCanal, YoComprador } from '../canal/tipos.ts';
@@ -23,6 +23,7 @@ import { ABEJA, ILUSTRACION } from '../marca/recursos.ts';
 import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import { frasco, localesDelGrupo, siLlegan } from './compra.ts';
+import { puedeCerrarAntes } from '../../../shared/precios.ts';
 import { ProgresoCompra } from './ProgresoCompra.tsx';
 import { Pestanas } from './Pestanas.tsx';
 
@@ -58,7 +59,7 @@ export function ComprasEnGrupo({ api, token, foto, yo, ruta }: Props) {
       const abierta = estaAbierta(lic, ahora);
       return (
         <DetalleCompra api={api} token={token} foto={foto} lic={lic} p={producto} orden={productos.map(x => x.id)}
-          guardado={guardadoDe(lic, yo)} abierta={abierta} cierre={<Cierre lic={lic} abierta={abierta} ahora={ahora} />} />
+          guardado={guardadoDe(lic, yo)} abierta={abierta} cierre={<Cierre lic={lic} abierta={abierta} ahora={ahora} />} yoId={yo.negocio.id} />
       );
     }
   }
@@ -223,9 +224,11 @@ function NuevaCompra({ api, token }: { api: CanalApi; token: string }) {
 
 // ---------- Detalle (C3) ----------
 
-function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cierre }: {
+function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cierre, yoId }: {
   api: CanalApi; token: string; foto: FotoRed; lic: LicitacionCanal; p: ProductoCanasta; orden: string[];
   guardado: Carrito; abierta: boolean; cierre: ReactNode;
+  /** Mi negocio: si inicié esta compra, la puedo cerrar antes. */
+  yoId: string;
 }) {
   const mio = guardado[p.id] ?? 0;
   // Crédito Bando: quien todavía no está en la compra y no tiene tarjeta, primero la inscribe (igual que el carrito).
@@ -339,6 +342,7 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
             )}
           </section>
 
+          {abierta && lic.iniciadaPor === yoId && <CerrarAntes api={api} token={token} lic={lic} p={p} />}
           <LocalesDelGrupo texto={locales} />
         </div>
       </div>
@@ -353,6 +357,37 @@ export function LocalesDelGrupo({ texto }: { texto: string }) {
     <section className="bm-tarjeta bm-locales">
       <span className="bm-avatares" aria-hidden="true"><span /><span /><span /></span>
       <p>{texto} · <strong>nombres ocultos</strong></p>
+    </section>
+  );
+}
+
+/** Quien inició la compra la cierra antes de tiempo, cuando ya hay oferta y el grupo llegó al mínimo del que gana. */
+function CerrarAntes({ api, token, lic, p }: { api: CanalApi; token: string; lic: LicitacionCanal; p: ProductoCanasta }) {
+  const ofertas = lic.productos?.find(x => x.id === p.id)?.ofertas;
+  const listo = puedeCerrarAntes(ofertas, p.totalUnidades);
+  const faltanMinimo = p.minimo ? Math.max(0, p.minimo - p.totalUnidades) : 0;
+  const ejecutar = useCallback(async () => { await api.cerrarSolicitud(token, lic.id); }, [api, token, lic.id]);
+  const c = useConfirmacion(ejecutar);
+  return (
+    <section className="bm-tarjeta bm-cerrar-antes">
+      <h2>Tú iniciaste esta compra</h2>
+      {!listo ? (
+        <p className="bm-bajada">
+          {!ofertas?.length ? 'Podrás cerrarla antes cuando llegue la primera oferta de un proveedor.'
+            : `Podrás cerrarla antes cuando el grupo llegue al mínimo del proveedor: faltan ${contar(faltanMinimo, p.unidad, p.unidadPlural)}.`}
+        </p>
+      ) : c.estado.fase === 'nada' ? (
+        <>
+          <p className="bm-bajada">Ya llegaron al mínimo. Puedes cerrarla ahora y el grupo paga {dinero(p.precioActual)} por {p.unidad}, sin esperar el cierre.</p>
+          <button type="button" className="bm-boton secundario bm-ancho" onClick={() => c.pedir(undefined)}>Cerrar la compra ahora</button>
+        </>
+      ) : (
+        <div className="puente-legado">
+          <Confirmar titulo="¿Cierras la compra en grupo ahora?" si="Sí, cerrarla" {...c.panel}>
+            <p>Nadie más podrá sumarse. Gana la mejor oferta, {dinero(p.precioActual)} por {p.unidad}, y queda una orden por local con su factura del SII.</p>
+          </Confirmar>
+        </div>
+      )}
     </section>
   );
 }

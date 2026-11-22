@@ -133,6 +133,15 @@ export function mejorOferta<O extends OfertaConTramos>(ofertas: readonly O[] | u
   return [...(ofertas ?? [])].sort((a, b) => precioDeOferta(a, unidades) - precioDeOferta(b, unidades))[0];
 }
 
+/**
+ * Si quien inició una compra en grupo ya la puede cerrar: hay una oferta y el grupo llegó al pedido mínimo de la que hoy
+ * gana (si no pide mínimo, basta con que haya oferta).
+ */
+export function puedeCerrarAntes<O extends OfertaConTramos & { minimo?: number }>(ofertas: readonly O[] | undefined, unidades: number): boolean {
+  const gana = mejorOferta(ofertas, unidades);
+  return !!gana && unidades >= (gana.minimo ?? 1);
+}
+
 type ConOfertas = ConPrecio & {
   ofertas?: readonly ({ proveedorId: string } & OfertaConTramos)[];
   /** Quien creó el producto: sus tramos son su precio por volumen. */

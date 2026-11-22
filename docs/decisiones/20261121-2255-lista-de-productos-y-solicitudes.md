@@ -57,3 +57,6 @@ Son dos cosas distintas:
 - Solo se compra en grupo lo que existe: lo que algún proveedor tiene en su lista (`existeProducto` en el dominio; la
   biblioteca muestra solo eso). El comprador elige de ahí; por WhatsApp, si nadie lo vende, se le dice. Crear productos
   es solo del proveedor, y "vendo ..." siempre va a su lista, nunca a una compra abierta de otra cosa.
+- Cierre anticipado: quien inició la compra en grupo (`iniciadaPor`) la puede cerrar antes de tiempo cuando ya hay una
+  oferta y el grupo llegó al pedido mínimo de la que hoy gana (`puedeCerrarAntes`). Es igual que al vencer: se crean
+  las órdenes para el ganador. `POST /api/red/yo/solicitudes/:id/cerrar`.

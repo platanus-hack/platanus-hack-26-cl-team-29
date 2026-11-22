@@ -177,6 +177,8 @@ export interface Licitacion {
   proveedorId?: string;
   /** Precio por volumen total del grupo, de menor a mayor `desde`. */
   tramos: Tramo[];
+  /** El comprador que inició la compra en grupo (una solicitud): puede cerrarla antes si ya llegó al mínimo. */
+  iniciadaPor?: string;
   /** Órdenes creadas al cerrar, una por participante. */
   ordenIds?: string[];
 }
