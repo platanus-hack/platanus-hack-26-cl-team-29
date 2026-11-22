@@ -28,7 +28,7 @@ WhatsApp y la web hacen lo mismo. Todo lo que se puede hacer escribiendo tambié
 ## Tecnología
 
 - Monolito en TypeScript: Node 24 con Express y Socket.io, React 19 con Vite, y Postgres en Render.
-- Módulo SII propio y open source: firma XML, timbre electrónico, factura (33), guía de despacho (52), nota de crédito (61), envío, consulta de estado y aceptación o reclamo del receptor.
+- Módulo SII propio, escrito desde cero por el equipo: firma XML, timbre electrónico, factura (33), guía de despacho (52), nota de crédito (61), envío, consulta de estado y aceptación o reclamo del receptor.
 - Agente de WhatsApp sobre Kapso, que interpreta mensajes con Claude y tiene reglas de respaldo. Nunca ejecuta una acción legal sin un sí.
 
 ## Transparencia

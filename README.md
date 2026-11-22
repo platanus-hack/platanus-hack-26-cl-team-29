@@ -42,4 +42,4 @@ Sin variables de entorno todo funciona en modo simulado (SII, WhatsApp y Claude 
 
 ## Arquitectura
 
-Monolito en TypeScript: Node 24 con Express y Socket.io, React 19 con Vite y Postgres. Lo que usan front y back vive en `shared/`. El módulo SII es propio y open source (firma, timbre, factura, guía, nota de crédito, envío, estado y reclamos), con una sesión del portal compartida y persistida. Detalle y decisiones en `docs/` y reglas de trabajo en `AGENTS.md` y `CLAUDE.md`.
+Monolito en TypeScript: Node 24 con Express y Socket.io, React 19 con Vite y Postgres. Lo que usan front y back vive en `shared/`. El módulo SII es propio, escrito desde cero por el equipo (firma, timbre, factura, guía, nota de crédito, envío, estado y reclamos), con una sesión del portal compartida y persistida. Detalle y decisiones en `docs/` y reglas de trabajo en `AGENTS.md` y `CLAUDE.md`.
