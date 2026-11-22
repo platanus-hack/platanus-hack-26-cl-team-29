@@ -31,3 +31,9 @@ queda en el SII. Además el mensaje mostraba una ruta interna del portal (`tope_
 - Ningún proveedor real gana una compra que no puede facturar, y nunca se le factura simulado.
 - La marca `pendienteSii` de una oferta se actualiza al ofertar, crear un producto y cerrar; si el proveedor conecta su
   SII sin volver a ofertar, la pantalla puede mostrar la marca anterior hasta el cierre, que es lo que decide.
+
+## Actualización (2026-11-22 02:58)
+La marca "pendiente del SII" ya no espera al cierre: `red.revisarFacturacion()` vuelve a revisar las compras abiertas
+cuando un proveedor termina de conectar su SII por WhatsApp y cada vez que llegan folios (`sii.folios`). Por cada
+oferta o producto que pasa a competir (o deja de hacerlo) emite `licitacion.producto` con `cambio: 'facturacion'` y
+`compite`, y `licitacion.precio_bajo` si el precio del grupo bajó.

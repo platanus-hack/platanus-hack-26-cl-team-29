@@ -649,6 +649,10 @@ export function describirEvento(e: EventoRed, estado: EstadoRed): string {
       const nuevo = objeto(e.datos.producto);
       const quien = texto(e.datos.proveedorNombre) ?? 'Un proveedor';
       if (e.datos.cambio === 'tramos') return `${quien} cambió los precios por volumen de ${nombreCorto(texto(nuevo.nombre) ?? 'un producto', texto(nuevo.unidad))}`;
+      if (e.datos.cambio === 'facturacion') {
+        const cual = nombreCorto(texto(nuevo.nombre) ?? 'un producto', texto(nuevo.unidad));
+        return e.datos.compite === false ? `${quien} dejó de competir por ${cual} hasta reconectar su SII` : `${quien} conectó su SII: ya compite por ${cual}`;
+      }
       return `${quien} sumó ${texto(nuevo.nombre) ?? 'un producto'} a la compra`;
     }
     case 'negocio.registrado': {

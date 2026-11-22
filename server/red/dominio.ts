@@ -209,6 +209,12 @@ export interface Red {
   /** Si el proveedor puede competir y ganar: los de la demo siempre; quien se registró a vender, con su SII conectado. */
   puedeFacturar(proveedorId: string): Promise<boolean>;
   /**
+   * Vuelve a revisar quién puede facturar en las compras abiertas (al conectar un SII o reponer folios). Por cada oferta
+   * o producto que pasa a competir (o deja de hacerlo) emite `licitacion.producto` con `cambio: 'facturacion'`, y
+   * `licitacion.precio_bajo` si el precio del grupo bajó.
+   */
+  revisarFacturacion(): Promise<void>;
+  /**
    * Compatibilidad: suma o actualiza un producto del carrito (por defecto el primero de la canasta). Mismo negocio
    * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad desde 1 (sin tope real, ver `CANTIDAD_MAXIMA`). El público anónimo suma uno nuevo.
    */
@@ -930,6 +936,36 @@ export async function crearRed({
     }
   }
 
+  async function revisarFacturacion(): Promise<void> {
+    for (const { id } of datos.licitaciones.filter(x => x.estado === 'abierta')) {
+      await enFila(id, async () => {
+        const l = datos.licitaciones.find(x => x.id === id && x.estado === 'abierta');
+        if (!l) return;
+        const marca = () => new Map<string, boolean>(l.productos.flatMap(p => [
+          ...p.ofertas.map(o => [`${p.id}|${o.proveedorId}`, !!o.pendienteSii] as const),
+          ...(p.proveedorId ? [[`${p.id}|${p.proveedorId}|creador`, !!p.creadorPendienteSii] as const] : []),
+        ]));
+        const antes = marca();
+        const precios = preciosVigentes(l);
+        await marcarFacturacion(l);
+        const cambios = [...marca()].filter(([clave, pendiente]) => antes.get(clave) !== pendiente).map(([clave]) => clave.split('|'));
+        if (!cambios.length) return;
+        await guardar('licitaciones', l);
+        const licitacion = vistaLicitacion(l);
+        const despues = marca();
+        for (const [productoId, proveedorId, creador] of cambios) {
+          const producto = l.productos.find(p => p.id === productoId)!;
+          const compite = !despues.get([productoId, proveedorId, creador].filter(Boolean).join('|'));
+          emitir('licitacion.producto', {
+            licitacionId: l.id, licitacion, producto: vistaProducto(l, producto), cambio: 'facturacion', compite,
+            proveedorNombre: datos.negocios.find(n => n.id === proveedorId)?.nombre ?? 'Un proveedor',
+          });
+        }
+        for (const p of l.productos) avisarSiBajo(l, p.id, precios.get(p.id)!, unidadesDe(l, p.id));
+      });
+    }
+  }
+
   function avisarSiBajo(l: Licitacion, productoId: string, antes: number, totalUnidades: number) {
     const precioNuevo = precioVigente(l, productoId);
     if (precioNuevo < antes) emitir('licitacion.precio_bajo', { licitacionId: l.id, productoId, precioAnterior: antes, precioNuevo, totalUnidades });
@@ -1274,6 +1310,7 @@ export async function crearRed({
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
     puedeFacturar,
+    revisarFacturacion,
     unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, fijarDireccionFactura, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
