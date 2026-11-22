@@ -125,6 +125,7 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     rutas.use('/operacion/sii', exigirTokenDemo, limitarDemo, (req: Request, res: Response, next: NextFunction) => {
       const n = negocioDeOperacion(req.query.proveedor);
       res.locals.proveedor = { id: n.id, ...(n.rut ? { rut: n.rut } : {}), ...(n.vende ? { vende: true } : {}) };
+      res.locals.operacion = true;
       next();
     }, opciones.conexionSii);
   }
