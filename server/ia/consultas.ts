@@ -2,6 +2,7 @@
 // sin teléfonos: todo sale de la foto pública (`estadoPublico`), de la compra conjunta abierta y de las listas de
 // productos de los proveedores (server/catalogo): lo que de verdad se vende en Bando, con su precio base.
 import { nombreEnFrase } from '../../shared/documentos.ts';
+import { fechaEnChile, horaEnChile } from '../../shared/fecha.ts';
 import { totalOrden } from '../../shared/precios.ts';
 import { sugerirProductos } from '../../shared/productos.ts';
 import { esUnidad } from '../../shared/unidades.ts';
@@ -9,7 +10,7 @@ import type { Catalogos } from '../catalogo/index.ts';
 import { puedeVender } from '../../shared/red.ts';
 import type { Red } from '../red/index.ts';
 
-export type RedConsultable = Pick<Red, 'estadoPublico' | 'licitacionAbierta' | 'notaDeProveedor'>;
+export type RedConsultable = Pick<Red, 'estadoPublico' | 'notaDeProveedor'>;
 
 export interface Consultas {
   misPedidos(negocioId: string): unknown;
@@ -84,27 +85,31 @@ export function crearConsultasRed(red: RedConsultable, catalogos: ListasDeProduc
     },
 
     compraConjunta(negocioId) {
-      const l = red.licitacionAbierta();
-      if (!l) return { abierta: false };
-      const mio = l.participantes.find(p => p.negocioId === negocioId);
-      const producto = (id: string) => l.productos.find(p => p.id === id);
+      // Todas las abiertas (cada comprador puede abrir una): lo que lleva en cada una y la hora de Chile del cierre.
+      const abiertas = red.estadoPublico().licitaciones.filter(l => l.estado === 'abierta');
+      if (!abiertas.length) return { abiertas: [] };
       return {
-        abierta: true,
-        cierraEn: l.cierraEn,
-        negociosSumados: l.participantes.length,
-        // El proveedor se define al cierre: hasta entonces nadie le ha comprado a nadie.
-        productos: l.productos.map(p => ({
-          nombre: p.nombre,
-          unidad: p.unidadPlural,
-          precioSiCompraSolo: p.precioSolo,
-          precioActual: p.precioActual,
-          totalUnidadesDelGrupo: p.totalUnidades,
-          siguienteTramo: p.siguienteTramo,
-          ofertasDeProveedores: p.ofertas.length,
-        })),
-        tuPedido: mio
-          ? mio.items.map(i => ({ producto: producto(i.productoId)?.nombre ?? i.productoId, cantidad: i.cantidad, precioActual: producto(i.productoId)?.precioActual ?? null }))
-          : null,
+        abiertas: abiertas.map(l => {
+          const mio = l.participantes.find(p => p.negocioId === negocioId);
+          const producto = (id: string) => l.productos.find(p => p.id === id);
+          return {
+            cierra: `${fechaEnChile(l.cierraEn)} ${horaEnChile(Date.parse(l.cierraEn))} (hora de Chile)`,
+            laAbristeTu: l.iniciadaPor === negocioId,
+            negociosSumados: l.participantes.length,
+            // El proveedor se define al cierre: hasta entonces nadie le ha comprado a nadie.
+            productos: l.productos.map(p => ({
+              nombre: p.nombre,
+              unidad: p.unidadPlural,
+              precioActual: p.precioActual,
+              totalUnidadesDelGrupo: p.totalUnidades,
+              siguienteTramo: p.siguienteTramo,
+              ofertasDeProveedores: p.ofertas.length,
+            })),
+            tuPedido: mio
+              ? (mio.items ?? []).map(i => ({ producto: producto(i.productoId)?.nombre ?? i.productoId, cantidad: i.cantidad, precioActual: producto(i.productoId)?.precioActual ?? null }))
+              : null,
+          };
+        }),
       };
     },
   };

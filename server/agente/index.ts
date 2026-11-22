@@ -8,14 +8,15 @@
 // son el público de la sala y la facturación de la compra pasa por la misma cola de confirmaciones.
 import type { WhatsApp } from '../whatsapp/index.ts';
 import type { Interprete, Intencion } from './intencion.ts';
-import type { Negocio, OrdenCompra, Red } from './puerto.ts';
+import type { LicitacionSala, Negocio, OrdenCompra, Red } from './puerto.ts';
+import { unidadDeTexto } from '../../shared/unidades.ts';
 import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
 import { CANTIDAD_MAXIMA, puedeComprar, puedeVender } from '../../shared/red.ts';
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
 import { mejorOferta, puedeCerrarAntes } from '../../shared/precios.ts';
 import type { Biblioteca } from '../catalogo/biblioteca.ts';
-import { productosDe } from './canasta.ts';
+import { itemsDe, productosDe } from './canasta.ts';
 import { crearProveedores } from './proveedor.ts';
 import type { EstadoSiiProveedor, ListaDeProductos, PropuestaProveedor, Proveedores } from './proveedor.ts';
 import { crearInterpreteClaude } from './claude.ts';
@@ -25,6 +26,7 @@ import { crearSala } from './sala.ts';
 import type { Sala } from './sala.ts';
 import * as m from './mensajes.ts';
 import type { AlmacenBorradores } from './borradores.ts';
+import { crearAlmacenBorradoresMemoria, MapaPersistente } from './borradores.ts';
 
 export type { Red } from './puerto.ts';
 export { crearAlmacenBorradores } from './borradores.ts';
@@ -36,7 +38,48 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 type ParaProducto = { readonly tipo: 'comprar'; readonly cantidad: number } | { readonly tipo: 'vender'; readonly unidad: string; readonly precio: number };
 
 /** "cerrar la compra", "cierra la compra en grupo ya", "cerrar compra de coca cola". */
-const CERRAR_COMPRA = /\b(cerrar|cierra|cierrala|cerrarla|cierre)\b.*\b(compra|grupo|pedido)\b|^(cerrar|cierra|cerrarla|cierrala)( ya| ahora)?$/;
+const VERBO_CERRAR = '(cerrar|cerrarla|cerrarlas|cerrarlo|cerralo|cerrala|cerralas|cierra|cierrala|cierralas|cierralo|cierre|cierren)';
+/** "cerrar la compra", "cérralo", "quiero cerrar ambas", "cierra la de coca cola". */
+const CERRAR_COMPRA = new RegExp(`\\b${VERBO_CERRAR}\\b.*\\b(compras?|grupo|pedido|ambas|todas|las dos|la de|el de)\\b|^(quiero |puedes |podrias )?${VERBO_CERRAR}( ya| ahora| por favor)?$`);
+/**
+ * Si el texto nombra el producto por alguna de sus palabras ("las coca colas" → "CocaCola 330ml", "bolsas" →
+ * "Paquete de bolsas camiseta"), sin contar unidades ni palabras cortas. El texto, ya `normalizar`.
+ */
+function nombraProducto(dicho: string, producto: string): boolean {
+  const junto = dicho.replace(/[^a-z0-9]/g, '');
+  return normalizar(producto).split(/[^a-z0-9]+/)
+    .filter(w => w.length > 3 && !unidadDeTexto(w) && !/\d/.test(w))
+    .some(w => junto.includes(w.replace(/e?s$/, '')));
+}
+
+/** "kilos de durazno" → "durazno": la unidad y los artículos no son parte del nombre del producto. */
+function sinUnidades(escrito: string): string {
+  const fuera = new Set<number>();
+  const palabras = escrito.trim().split(/\s+/);
+  palabras.forEach((w, i) => {
+    // La unidad sale con el "de" que la sigue ("kilos de durazno"); "servilletas de papel" queda igual.
+    if (unidadDeTexto(w)) fuera.add(i).add(/^(de|del)$/i.test(palabras[i + 1] ?? '') ? i + 1 : i);
+  });
+  const limpio = palabras.filter((_, i) => !fuera.has(i)).join(' ').replace(/^(el|la|los|las|un|una|unos|unas)\s+/i, '');
+  return limpio || escrito.trim();
+}
+
+/** "sí, pero con 10", "mejor 10", "10 para mí": la cantidad nueva (no un botón: esos llegan como "1" o "2" solos). */
+function cantidadDicha(texto: string): number | null {
+  if (/^\d$/.test(texto.trim())) return null;
+  const n = Number(/\b(\d{1,6})\b/.exec(texto)?.[1]);
+  return Number.isInteger(n) && n >= 1 && n <= CANTIDAD_MAXIMA ? n : null;
+}
+const AFIRMA = /^(si|sip|dale|ok|ya|bueno|perfecto|claro)\b/;
+
+const MIS_COMPRAS = /^(mis compras|mis compras en grupo|en (que|cuales) compras estoy|que compras tengo|mis pedidos en grupo)\b/;
+const SALIR_DE = /\b(salir|salirme|sacame|retirarme)\b/;
+const SUMAR = /\b(mas|agrega|agregar|agregame|suma|sumar|sumame|anade|anadir)\b/;
+const RESTAR = /\b(menos|quita|quitar|quitame|saca|sacar|resta|restar|baja|bajar)\b/;
+const FIJAR = /\b(solo|cambia|cambiar|cambialo|cambiala|deja|dejar|dejame|pon|poner|total)\b|\ba \d+\b/;
+
+/** "ambas", "todas", "las dos": todas las que abrió. */
+const TODAS = /\b(ambas|todas|las dos|los dos|todo)\b/;
 
 /** Las sugerencias de la biblioteca que se ofrecen como máximo. */
 const MAXIMO_OPCIONES = 5;
@@ -44,7 +87,11 @@ const MAXIMO_OPCIONES = 5;
 type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'crear_orden'; readonly proveedor: Negocio; readonly producto: string; readonly cantidad: number }
   | { readonly tipo: 'abrir_solicitud'; readonly producto: string; readonly unidad: string; readonly cantidad: number }
-  | { readonly tipo: 'cerrar_antes'; readonly licitacionId: string; readonly producto: string }
+  // Cambiar lo que lleva en una compra en grupo (0: salir de ella).
+  | { readonly tipo: 'cambiar_cantidad'; readonly licitacionId: string; readonly productoId: string; readonly producto: string; readonly unidad: string; readonly unidadPlural?: string; readonly cantidad: number }
+  | { readonly tipo: 'cerrar_antes'; readonly licitacionIds: readonly string[]; readonly productos: readonly string[] }
+  // Abrió varias y no dijo cuál cerrar: se pregunta con botones (una por producto y "Todas").
+  | { readonly tipo: 'elegir_cierre'; readonly opciones: readonly { readonly id: string; readonly producto: string }[] }
   // Ya hay una compra en grupo abierta de ese producto: se suma a ella con su cantidad (además de lo que ya lleva).
   | { readonly tipo: 'sumarse'; readonly licitacionId: string; readonly productoId: string; readonly producto: string; readonly cantidad: number }
   // Lo escrito se parece a productos de la biblioteca: se pregunta cuál es (o si es uno nuevo) antes de seguir.
@@ -124,19 +171,35 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   const interprete = opciones.interprete ?? interpreteDesdeEnv(env);
   const ahora = opciones.ahora ?? (() => new Date());
   const log = opciones.log ?? console;
-  /** Cola de acciones pendientes por negocio; la primera es la que se está preguntando. */
-  const colas = new Map<string, Pendiente[]>();
+  /**
+   * Cola de acciones pendientes por negocio; la primera es la que se está preguntando. Se guarda (como los borradores
+   * de la sala): cada deploy reinicia el proceso y, sin esto, un "Sí" a una pregunta de antes del reinicio se perdía.
+   */
+  const colas = new MapaPersistente<Pendiente[]>(opciones.almacenBorradores ?? crearAlmacenBorradoresMemoria(), 'agente', log);
+  const fijarCola = (negocioId: string, cola: Pendiente[]) => (cola.length ? colas.set(negocioId, cola) : colas.delete(negocioId));
 
   const actual = (negocioId: string) => colas.get(negocioId)?.[0] ?? null;
-  const tomar = (negocioId: string) => colas.get(negocioId)?.shift() ?? null;
-  const alFrente = (negocioId: string, p: Pendiente) => colas.set(negocioId, [p, ...(colas.get(negocioId) ?? [])]);
+  const tomar = (negocioId: string) => {
+    const [primera = null, ...resto] = colas.get(negocioId) ?? [];
+    fijarCola(negocioId, resto);
+    return primera;
+  };
+  const alFrente = (negocioId: string, p: Pendiente) => fijarCola(negocioId, [p, ...(colas.get(negocioId) ?? [])]);
 
   /** Pendiente iniciada por la contraparte: se pregunta ahora si no hay otra en curso, o al terminar la actual. */
   async function encolar(negocio: Negocio, p: Pendiente) {
-    const cola = colas.get(negocio.id) ?? [];
-    cola.push(p);
-    colas.set(negocio.id, cola);
+    const cola = [...(colas.get(negocio.id) ?? []), p];
+    fijarCola(negocio.id, cola);
     if (cola.length === 1) await enviar(negocio.telefono, p.mensaje, 'agente');
+  }
+
+  /** Lo guardado vuelve como JSON: las fechas de las pendientes se rehacen. */
+  async function cargarColas() {
+    await colas.cargar();
+    const fecha = (v: unknown) => new Date(v as string);
+    for (const [id, cola] of colas) {
+      colas.set(id, cola.map(p => ('facturaEn' in p ? { ...p, facturaEn: fecha(p.facturaEn) } : 'reclamoEn' in p ? { ...p, reclamoEn: fecha(p.reclamoEn) } : p)));
+    }
   }
 
   /**
@@ -274,7 +337,9 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
    * El producto que nombró la persona, contra la biblioteca: si es uno que ya existe (escrito igual o de otra forma),
    * ese; si solo se parece a otros, la pregunta de cuál es (queda pendiente); si no se parece a nada, uno nuevo.
    */
-  function productoDeLaBiblioteca(negocio: Negocio, escrito: string, para: ParaProducto): { nombre: string; unidad?: string } | string {
+  function productoDeLaBiblioteca(negocio: Negocio, dicho: string, para: ParaProducto): { nombre: string; unidad?: string } | string {
+    // Al comprar, "kilos de durazno" se busca como "durazno"; al vender, el nombre queda como lo escribió.
+    const escrito = para.tipo === 'comprar' ? sinUnidades(dicho) : dicho;
     const nuevo = { nombre: escrito.charAt(0).toUpperCase() + escrito.slice(1) };
     const parecidos = opciones.biblioteca?.buscar(escrito).slice(0, MAXIMO_OPCIONES) ?? [];
     const igual = parecidos.find(p => mismoNombre(p.nombre, escrito));
@@ -303,21 +368,106 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return proponerAlProveedor(negocio, await proveedores!.proponerProducto(negocio, producto.nombre, producto.unidad ?? para.unidad, para.precio));
   }
 
+  /** Las compras en grupo abiertas que abrió este comprador. */
+  async function abiertasPor(comprador: Negocio) {
+    const { licitaciones = [] } = await red.estadoDeLaRed();
+    return licitaciones.filter(l => l.estado === 'abierta' && l.iniciadaPor === comprador.id);
+  }
+
   /** "cerrar la compra": quien abrió una compra en grupo la cierra antes, con un paso de confirmación. */
   async function proponerCierre(comprador: Negocio, texto: string): Promise<string> {
-    const { licitaciones = [] } = await red.estadoDeLaRed();
-    const suyas = licitaciones.filter(l => l.estado === 'abierta' && l.iniciadaPor === comprador.id);
+    const suyas = await abiertasPor(comprador);
     if (!suyas.length) return m.SIN_COMPRA_PARA_CERRAR;
     const dicho = normalizar(texto);
-    const nombrada = suyas.find(l => dicho.includes(normalizar(l.producto)));
-    if (!nombrada && suyas.length > 1) return m.cualCerrar(suyas.map(l => l.producto));
-    const l = nombrada ?? suyas[0]!;
-    const p = productosDe(l)[0]!;
-    const gana = mejorOferta(p.ofertas, p.totalUnidades);
-    if (!puedeCerrarAntes(p.ofertas, p.totalUnidades)) return m.todaviaNoSeCierra(l.producto, gana?.minimo, p.totalUnidades);
-    const mensaje = m.proponerCierre(l.producto, l.participantes.length, p.totalUnidades, p.precioActual, p.unidad);
+    const nombradas = suyas.filter(l => nombraProducto(dicho, l.producto));
+    const elegidas = TODAS.test(dicho) ? suyas : nombradas.length ? nombradas : suyas.length === 1 ? suyas : null;
+    if (elegidas) return proponerCierreDe(comprador, elegidas);
+    const opcionesCierre = suyas.map(l => ({ id: l.id, producto: l.producto }));
+    const mensaje = m.cualCerrar(opcionesCierre.map(o => o.producto));
+    if (actual(comprador.id)?.tipo === 'elegir_cierre') tomar(comprador.id);
+    alFrente(comprador.id, { tipo: 'elegir_cierre', opciones: opcionesCierre, mensaje });
+    return mensaje;
+  }
+
+  /** La respuesta a "¿cuál cierro?": el número de un botón, el producto o "todas". */
+  async function elegirCierre(comprador: Negocio, p: Extract<Pendiente, { tipo: 'elegir_cierre' }>, texto: string): Promise<string | null> {
+    const dicho = normalizar(texto);
+    const n = Number(dicho);
+    const ids = TODAS.test(dicho) || n === p.opciones.length + 1 ? p.opciones.map(o => o.id)
+      : Number.isInteger(n) && n >= 1 && n <= p.opciones.length ? [p.opciones[n - 1]!.id]
+      : p.opciones.filter(o => nombraProducto(dicho, o.producto)).map(o => o.id);
+    if (!ids.length) return null;
+    tomar(comprador.id);
+    const suyas = (await abiertasPor(comprador)).filter(l => ids.includes(l.id));
+    return suyas.length ? proponerCierreDe(comprador, suyas) : m.SIN_COMPRA_PARA_CERRAR;
+  }
+
+  /** Propone cerrar las que ya se pueden (con oferta y el mínimo del que gana) y dice por qué no las otras. */
+  function proponerCierreDe(comprador: Negocio, elegidas: readonly LicitacionSala[]): string {
+    const listas = elegidas.filter(l => { const p = productosDe(l)[0]!; return puedeCerrarAntes(p.ofertas, p.totalUnidades); });
+    const porque = elegidas.filter(l => !listas.includes(l)).map(l => {
+      const p = productosDe(l)[0]!;
+      return m.todaviaNoSeCierra(l.producto, mejorOferta(p.ofertas, p.totalUnidades)?.minimo, p.totalUnidades);
+    });
+    if (!listas.length) return porque.join('\n');
+    const [una] = listas;
+    const p = productosDe(una!)[0]!;
+    const pregunta = listas.length === 1
+      ? m.proponerCierre(una!.producto, una!.participantes.length, p.totalUnidades, p.precioActual, p.unidad)
+      : m.proponerCierreVarias(listas.map(l => l.producto));
+    const mensaje = porque.length ? `${porque.join('\n')}\n\n${pregunta}` : pregunta;
     if (actual(comprador.id)?.tipo === 'cerrar_antes') tomar(comprador.id);
-    alFrente(comprador.id, { tipo: 'cerrar_antes', licitacionId: l.id, producto: l.producto, mensaje });
+    alFrente(comprador.id, { tipo: 'cerrar_antes', licitacionIds: listas.map(l => l.id), productos: listas.map(l => l.producto), mensaje });
+    return mensaje;
+  }
+
+  /** Las compras en grupo abiertas en que está este comprador, de la más nueva a la más vieja. */
+  async function enLasQueEsta(comprador: Negocio) {
+    const { licitaciones = [] } = await red.estadoDeLaRed();
+    const abiertas = licitaciones.filter(l => l.estado === 'abierta');
+    return { abiertas, suyas: abiertas.filter(l => l.participantes.some(p => p.negocioId === comprador.id)).reverse() };
+  }
+
+  /** "mis compras": en cuáles está, cuánto lleva, a cuánto y cuándo cierra cada una. */
+  async function misCompras(comprador: Negocio): Promise<string> {
+    const { suyas } = await enLasQueEsta(comprador);
+    return m.misCompras(suyas.flatMap(l => {
+      const yo = l.participantes.find(p => p.negocioId === comprador.id)!;
+      return itemsDe(yo, l).flatMap(i => {
+        const p = productosDe(l).find(x => x.id === i.productoId);
+        return p ? [{ producto: p.nombre, unidad: p.unidad, ...(p.unidadPlural ? { unidadPlural: p.unidadPlural } : {}), lleva: i.cantidad, precio: p.ofertas?.length ? p.precioActual : null, cierraEn: l.cierraEn, abriste: l.iniciadaPor === comprador.id }] : [];
+      });
+    }), ahora());
+  }
+
+  /**
+   * "solo 150 coca colas", "quita 20", "salir de la compra de coca cola": cambia lo que lleva en la compra que nombra.
+   * Solo cuando la sala no basta (está en varias, o la suya no es la más nueva): la sala cambia la más nueva.
+   * Undefined: no es un cambio de cantidad, o lo atiende la sala.
+   */
+  async function proponerCambioDeCantidad(comprador: Negocio, texto: string): Promise<string | undefined> {
+    const dicho = normalizar(texto);
+    const n = cantidadDicha(texto);
+    const salir = SALIR_DE.test(dicho);
+    const modo = salir ? 'salir' : n === null ? null : FIJAR.test(dicho) ? 'fijar' : SUMAR.test(dicho) ? 'sumar' : RESTAR.test(dicho) ? 'restar' : null;
+    if (!modo) return undefined;
+    const { abiertas, suyas } = await enLasQueEsta(comprador);
+    if (!suyas.length || (suyas.length === 1 && suyas[0] === abiertas.at(-1))) return undefined;
+    const nombradas = suyas.filter(l => productosDe(l).some(p => nombraProducto(dicho, p.nombre)));
+    const l = nombradas.length === 1 ? nombradas[0]! : suyas.length === 1 ? suyas[0]! : null;
+    if (!l) return m.cualCompra(suyas.map(x => x.producto));
+    const yo = l.participantes.find(p => p.negocioId === comprador.id)!;
+    const items = itemsDe(yo, l);
+    const p = productosDe(l).find(x => nombraProducto(dicho, x.nombre) && items.some(i => i.productoId === x.id))
+      ?? productosDe(l).find(x => x.id === items[0]?.productoId)!;
+    const lleva = items.find(i => i.productoId === p.id)?.cantidad ?? 0;
+    const nueva = modo === 'salir' ? 0 : modo === 'fijar' ? n! : modo === 'sumar' ? Math.min(CANTIDAD_MAXIMA, lleva + n!) : Math.max(0, lleva - n!);
+    const mensaje = m.proponerCambio(p.nombre, p.unidad, p.unidadPlural, lleva, nueva);
+    if (actual(comprador.id)?.tipo === 'cambiar_cantidad') tomar(comprador.id);
+    alFrente(comprador.id, {
+      tipo: 'cambiar_cantidad', licitacionId: l.id, productoId: p.id, producto: p.nombre, unidad: p.unidad,
+      ...(p.unidadPlural ? { unidadPlural: p.unidadPlural } : {}), cantidad: nueva, mensaje,
+    });
     return mensaje;
   }
 
@@ -344,9 +494,15 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
         return m.sumadoAOtraCompra(p.producto, lleva + p.cantidad);
       }
       case 'cerrar_antes': {
-        const ordenes = await red.cerrarAntes!(p.licitacionId, negocio.id);
-        return m.compraCerradaAntes(p.producto, ordenes.length);
+        let pedidos = 0;
+        for (const id of p.licitacionIds) pedidos += (await red.cerrarAntes!(id, negocio.id)).length;
+        return m.compraCerradaAntes(p.productos, pedidos);
       }
+      case 'elegir_cierre':
+        return m.noEntendi(p.mensaje);
+      case 'cambiar_cantidad':
+        await red.agregarAlCarrito!(p.licitacionId, { negocioId: negocio.id, productoId: p.productoId, cantidad: p.cantidad });
+        return m.cantidadCambiada(p.producto, p.unidad, p.unidadPlural, p.cantidad);
       case 'abrir_solicitud': {
         const l = await red.abrirSolicitud!({ compradorId: negocio.id, producto: p.producto, unidad: p.unidad, cantidad: p.cantidad });
         return m.solicitudAbierta(p.producto, p.cantidad, l.cierraEn);
@@ -548,6 +704,29 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       return;
     }
     const antes = actual(negocio.id);
+    // Respondió a "¿cuál cierro?" con un botón, el producto o "todas".
+    const cierre = antes?.tipo === 'elegir_cierre' ? await elegirCierre(negocio, antes, texto) : null;
+    if (cierre) {
+      await ctx.reply(cierre);
+      return;
+    }
+    // "mis compras" y cambiar lo que lleva en una de varias compras en grupo (sin otra pregunta en curso).
+    if (puedeComprar(negocio) && !antes) {
+      const respuesta = MIS_COMPRAS.test(normalizar(texto)) ? await misCompras(negocio)
+        : red.agregarAlCarrito ? await proponerCambioDeCantidad(negocio, texto) : undefined;
+      if (respuesta) {
+        await ctx.reply(respuesta);
+        return;
+      }
+    }
+    // A "¿abro la compra con tus 1?" o "¿te sumo con 5?" responde otra cantidad: con un sí, se hace con esa; si no, se vuelve a proponer.
+    const otraCantidad = antes?.tipo === 'abrir_solicitud' || antes?.tipo === 'sumarse' ? cantidadDicha(texto) : null;
+    if (otraCantidad && (antes?.tipo === 'abrir_solicitud' || antes?.tipo === 'sumarse')) {
+      tomar(negocio.id);
+      const propuesta = await proponerSolicitud(negocio, antes.producto, antes.tipo === 'abrir_solicitud' ? antes.unidad : 'unidad', otraCantidad);
+      await ctx.reply(AFIRMA.test(normalizar(texto)) ? await confirmar(negocio) : propuesta);
+      return;
+    }
     // Respondió a "¿cuál es?" con un número o el nombre: sigue con ese producto.
     const elegido = antes?.tipo === 'elegir_producto' ? eleccion(antes, texto) : undefined;
     if (antes?.tipo === 'elegir_producto' && elegido) {
@@ -584,7 +763,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return siguiente;
   }
   // Lo que cada teléfono llevaba a medias antes de un reinicio: se recupera antes de atender el primer mensaje.
-  const cargado = Promise.all([sala?.cargar(), proveedores?.cargar()]).catch(error => log.error('[agente] no se pudieron recuperar los borradores', error));
+  const cargado = Promise.all([sala?.cargar(), proveedores?.cargar(), cargarColas()]).catch(error => log.error('[agente] no se pudieron recuperar los borradores', error));
   const desconectar = whatsapp.onMessage((mensaje, ctx) => {
     const telefono = mensaje.from;
     return enFila(telefono, async () => {

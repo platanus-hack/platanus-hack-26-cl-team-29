@@ -32,7 +32,7 @@ const CONSULTAS: Anthropic.Beta.BetaToolUnion[] = [
   },
   {
     name: 'compra_conjunta',
-    description: 'La compra conjunta abierta, si hay: sus productos con precio actual por volumen y cuánto falta para el siguiente tramo, cuántos negocios se sumaron, cuándo cierra y lo que lleva este negocio (tuPedido). El proveedor se elige al cierre.',
+    description: 'Las compras en grupo abiertas: sus productos con precio actual por volumen y cuánto falta para el siguiente tramo, cuántos negocios se sumaron, cuándo cierran (hora de Chile), si la abrió este negocio (laAbristeTu) y lo que lleva en cada una (tuPedido). El proveedor se elige al cierre.',
     input_schema: objeto({}, []),
     strict: true,
   },

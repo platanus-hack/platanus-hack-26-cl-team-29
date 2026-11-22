@@ -1,7 +1,7 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
 import { dinero, miles, nota } from '../../shared/formato.ts';
-import { horaEnChile } from '../../shared/fecha.ts';
+import { fechaCorta, fechaEnChile, horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
 import { totalOrden } from '../../shared/precios.ts';
@@ -97,8 +97,10 @@ export const proponerSolicitud = (producto: string, cantidad: number, unidad: st
   + opciones('Sí, ábrela', 'No');
 export const SIN_COMPRA_PARA_CERRAR = 'No tienes compras en grupo abiertas iniciadas por ti. Solo quien inicia una compra en grupo la puede cerrar antes.';
 export const cualCerrar = (productos: readonly string[]) =>
-  `Tienes ${contar(productos.length, 'compra en grupo abierta', 'compras en grupo abiertas')}: ${productos.map(p => `"${p}"`).join(', ')}. `
-  + `Escribe, por ejemplo, "cerrar compra de ${productos[0]}".`;
+  `Abriste ${contar(productos.length, 'compra en grupo', 'compras en grupo')}. ¿Cuál cierro?\n` + opciones(...productos, 'Todas');
+export const proponerCierreVarias = (productos: readonly string[]) =>
+  `¿Cierro ahora ${contar(productos.length, 'compra en grupo', 'compras en grupo')}: ${productos.map(p => `"${p}"`).join(' y ')}? `
+  + 'El proveedor que gana cada una recibe los pedidos.\n' + opciones('Sí, ciérralas', 'No');
 export const todaviaNoSeCierra = (producto: string, minimo?: number, unidades?: number) =>
   minimo && unidades !== undefined && unidades < minimo
     ? `Todavía no puedes cerrar "${producto}": el proveedor que gana pide un mínimo de ${miles(minimo)} y van ${miles(unidades)}.`
@@ -106,8 +108,32 @@ export const todaviaNoSeCierra = (producto: string, minimo?: number, unidades?: 
 export const proponerCierre = (producto: string, negocios: number, unidades: number, precio: number, unidad: string) =>
   `¿Cierro ahora la compra en grupo de "${producto}"? Van ${contar(negocios, 'negocio')} con ${miles(unidades)} en total, `
   + `a ${dinero(precio)} por ${unidad}. El proveedor que gana recibe los pedidos.\n` + opciones('Sí, ciérrala', 'No');
-export const compraCerradaAntes = (producto: string, pedidos: number) =>
-  `Listo, cerraste la compra en grupo de "${producto}". El proveedor recibió ${contar(pedidos, 'pedido')} para confirmar y facturar.`;
+export const compraCerradaAntes = (productos: readonly string[], pedidos: number) =>
+  `Listo, cerraste ${productos.length === 1 ? 'la compra en grupo' : 'las compras en grupo'} de ${productos.map(p => `"${p}"`).join(' y ')}. `
+  + `${productos.length === 1 ? 'El proveedor recibió' : 'Los proveedores recibieron'} ${contar(pedidos, 'pedido')} para confirmar y facturar.`;
+/** "hoy a las 18:00", "mañana a las 09:00" o "el 24-11 a las 18:00", en hora de Chile. */
+export function cuandoCierra(cierraEn: string, ahora: Date): string {
+  const dia = fechaEnChile(cierraEn), hoy = fechaEnChile(ahora), manana = fechaEnChile(new Date(ahora.getTime() + 86_400_000));
+  const hora = horaEnChile(Date.parse(cierraEn));
+  return dia === hoy ? `hoy a las ${hora}` : dia === manana ? `mañana a las ${hora}` : `el ${fechaCorta(dia)} a las ${hora}`;
+}
+
+export interface MiCompra { producto: string; unidad: string; unidadPlural?: string; lleva: number; precio: number | null; cierraEn: string; abriste: boolean }
+export const misCompras = (compras: readonly MiCompra[], ahora: Date) => (compras.length
+  ? `Estás en ${contar(compras.length, 'compra en grupo', 'compras en grupo')}:\n`
+    + compras.map(c => `• ${c.producto}: llevas ${contar(c.lleva, c.unidad, c.unidadPlural)}, `
+      + `${c.precio ? `hoy a ${dinero(c.precio)} por ${c.unidad}` : 'esperando ofertas'}, cierra ${cuandoCierra(c.cierraEn, ahora)}${c.abriste ? ' (la abriste tú)' : ''}.`).join('\n')
+    + '\nPara cambiar: "solo 150 coca colas", "quita 20 coca colas" o "salir de la compra de coca cola".'
+  : 'No estás en ninguna compra en grupo abierta. Escribe lo que quieres comprar, por ejemplo "quiero 50 coca colas".');
+export const cualCompra = (productos: readonly string[]) =>
+  `Estás en ${contar(productos.length, 'compra en grupo', 'compras en grupo')}: ${productos.map(p => `"${p}"`).join(', ')}. `
+  + `Dime de cuál, por ejemplo "solo 150 ${productos[0]}".`;
+export const proponerCambio = (producto: string, unidad: string, unidadPlural: string | undefined, lleva: number, nueva: number) => (nueva === 0
+  ? `¿Te saco de la compra en grupo de "${producto}"? Hoy llevas ${contar(lleva, unidad, unidadPlural)}.\n` + opciones('Sí, sácame', 'No')
+  : `¿Cambio lo que llevas de "${producto}" de ${miles(lleva)} a ${contar(nueva, unidad, unidadPlural)}?\n` + opciones('Sí, cámbialo', 'No'));
+export const cantidadCambiada = (producto: string, unidad: string, unidadPlural: string | undefined, nueva: number) => (nueva === 0
+  ? `Listo, saliste de la compra en grupo de "${producto}".`
+  : `Listo, ahora llevas ${contar(nueva, unidad, unidadPlural)} de "${producto}".`);
 export const solicitudAbierta = (producto: string, cantidad: number, cierraEn: string) =>
   `Listo, abriste una compra en grupo de "${producto}" con tus ${cantidad}. Cierra mañana a las ${horaEnChile(Date.parse(cierraEn))}. `
   + 'Les avisamos a los negocios de la red para que se sumen.';

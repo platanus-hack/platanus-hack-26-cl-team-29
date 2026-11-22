@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { conectarAgente, type OpcionesAgente } from '../server/agente/index.ts';
+import { crearAlmacenBorradoresMemoria } from '../server/agente/borradores.ts';
 import type { ListaDeProductos } from '../server/agente/proveedor.ts';
 import { sugerirProductos, type ProductoConocido } from '../shared/productos.ts';
 import { interpretarConReglas, interpreteDeReglas } from '../server/agente/intencion.ts';
@@ -16,10 +17,11 @@ const ANA = '56911110001';
 const BETO = '56911110002';
 const CARO = '56911110003';
 
-async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos, biblioteca?: OpcionesAgente['biblioteca']) {
+async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos, biblioteca?: OpcionesAgente['biblioteca'],
+  otra?: { red?: Awaited<ReturnType<typeof crearRed>>; almacenBorradores?: OpcionesAgente['almacenBorradores'] }) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), {});
-  const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
+  const red = otra?.red ?? await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const enviados: { to: string; body: string }[] = [];
   const conexiones: string[] = [];
   let handler: MessageHandler = () => {};
@@ -41,6 +43,7 @@ async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos,
     sala: { ventanaCascadaMs: 10, minimoDifusionMs: 0, vigilarCierreMs: 0 },
     ...(productos ? { productos } : {}),
     ...(biblioteca ? { biblioteca } : {}),
+    ...(otra?.almacenBorradores ? { almacenBorradores: otra.almacenBorradores } : {}),
   });
   let n = 0;
   const escribir = async (from: string, text: string) => {
@@ -255,4 +258,86 @@ test('por WhatsApp: quien abrió una compra en grupo la cierra antes con "cerrar
   await escribir(CARO, 'si');
   assert.match(ultimo(CARO), /Listo, cerraste la compra en grupo de "Servilletas de papel"\. El proveedor recibió 1 pedido/);
   assert.equal(red.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.estado, 'cerrada');
+});
+
+/** Caro abre dos compras en grupo (servilletas y vasos) y la sala de la demo queda cerrada. */
+async function dosComprasDeCaro() {
+  const t = await montar();
+  const caro = await t.red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+  await t.red.cerrarLicitacion(t.red.estadoDeLaRed().licitaciones.find(l => l.estado === 'abierta')!.id);
+  const servilletas = await t.red.abrirSolicitud({ compradorId: caro.id, producto: 'Servilletas de papel', unidad: 'paquete', cantidad: 10 });
+  const vasos = await t.red.abrirSolicitud({ compradorId: caro.id, producto: 'Vasos de plástico', unidad: 'paquete', cantidad: 20 });
+  const lleva = (id: string) => t.red.estadoDeLaRed().licitaciones.find(l => l.id === id)!.participantes.find(p => p.negocioId === caro.id)?.items?.[0]?.cantidad ?? 0;
+  return { ...t, caro, servilletas, vasos, lleva };
+}
+
+test('por WhatsApp: "mis compras" y cambiar lo que lleva en una de varias compras en grupo, nombrando el producto', async t => {
+  const { agente, escribir, ultimo, servilletas, vasos, lleva } = await dosComprasDeCaro();
+  t.after(() => agente.desconectar());
+
+  await escribir(CARO, 'mis compras');
+  assert.match(ultimo(CARO), /Estás en 2 compras en grupo:\n• Vasos de plástico: llevas 20 paquetes, esperando ofertas, cierra .* \(la abriste tú\)\.\n• Servilletas de papel: llevas 10 paquetes/);
+
+  // La de servilletas no es la más nueva: igual se cambia, nombrándola.
+  await escribir(CARO, 'solo 4 servilletas');
+  assert.match(ultimo(CARO), /¿Cambio lo que llevas de "Servilletas de papel" de 10 a 4 paquetes\?/);
+  await escribir(CARO, 'si');
+  assert.match(ultimo(CARO), /Listo, ahora llevas 4 paquetes de "Servilletas de papel"/);
+  assert.deepEqual([lleva(servilletas.id), lleva(vasos.id)], [4, 20]);
+
+  await escribir(CARO, 'agrega 5 vasos');
+  await escribir(CARO, 'si');
+  await escribir(CARO, 'quita 3 servilletas');
+  await escribir(CARO, 'si');
+  assert.deepEqual([lleva(servilletas.id), lleva(vasos.id)], [1, 25]);
+
+  // Sin nombrar el producto, estando en dos: pregunta de cuál.
+  await escribir(CARO, 'solo 7');
+  assert.match(ultimo(CARO), /Estás en 2 compras en grupo: .*Dime de cuál/);
+
+  await escribir(CARO, 'salir de la compra de servilletas');
+  assert.match(ultimo(CARO), /¿Te saco de la compra en grupo de "Servilletas de papel"\? Hoy llevas 1 paquete/);
+  await escribir(CARO, 'si');
+  assert.equal(lleva(servilletas.id), 0);
+});
+
+test('por WhatsApp: "cérralo" y "cerrar ambas" cierran las compras que abrió; si no dice cuál, pregunta con botones', async t => {
+  const { red, agente, escribir, ultimo, servilletas, vasos } = await dosComprasDeCaro();
+  t.after(() => agente.desconectar());
+  const ana = await red.registrarProveedor({ telefono: ANA, rut: '76.086.428-5' });
+  for (const l of [servilletas, vasos]) await red.ofertar(l.id, { proveedorId: ana.id, productoId: l.productos[0]!.id, precioUnitario: 900, plazoDias: 1 });
+
+  await escribir(CARO, 'Cérralo');
+  assert.match(ultimo(CARO), /Abriste 2 compras en grupo\. ¿Cuál cierro\?\n1\. Servilletas de papel\n2\. Vasos de plástico\n3\. Todas$/);
+  await escribir(CARO, '3');
+  assert.match(ultimo(CARO), /¿Cierro ahora 2 compras en grupo: "Servilletas de papel" y "Vasos de plástico"\?/);
+  await escribir(CARO, 'si');
+  assert.match(ultimo(CARO), /Listo, cerraste las compras en grupo de "Servilletas de papel" y "Vasos de plástico"\. Los proveedores recibieron 2 pedidos/);
+  assert.deepEqual([servilletas.id, vasos.id].map(id => red.estadoDeLaRed().licitaciones.find(l => l.id === id)!.estado), ['cerrada', 'cerrada']);
+});
+
+test('por WhatsApp: "sí, pero con 10" abre la compra con 10, y "kilos de durazno" se busca como "durazno"', async t => {
+  const conocidos: ProductoConocido[] = [{ nombre: 'Durazno', unidad: 'kilo' }];
+  const { red, agente, escribir, ultimo } = await montar({}, undefined, { buscar: q => sugerirProductos(q, conocidos) });
+  t.after(() => agente.desconectar());
+  await red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+
+  await escribir(CARO, 'quiero comprar 3 kilos de durazno');
+  assert.match(ultimo(CARO), /¿Abro una compra en grupo de "Durazno" con tus 3\?/);
+  await escribir(CARO, 'si pero con 10 para mi');
+  assert.match(ultimo(CARO), /abriste una compra en grupo de "Durazno" con tus 10/);
+});
+
+test('una pregunta pendiente sobrevive a un reinicio (deploy): el "sí" de después la confirma', async t => {
+  const almacenBorradores = crearAlmacenBorradoresMemoria();
+  const antes = await montar({}, undefined, undefined, { almacenBorradores });
+  await antes.red.registrarComprador({ nombre: 'Caro', comuna: 'Ñuñoa', telefono: CARO, rut: '12.345.678-5' });
+  await antes.escribir(CARO, 'quiero comprar 10 servilletas de papel');
+  assert.match(antes.ultimo(CARO), /¿Abro una compra en grupo/);
+  antes.agente.desconectar();
+
+  const despues = await montar({}, undefined, undefined, { red: antes.red, almacenBorradores });
+  t.after(() => despues.agente.desconectar());
+  await despues.escribir(CARO, 'si');
+  assert.match(despues.ultimo(CARO), /abriste una compra en grupo de "Servilletas de papel" con tus 10/);
 });
