@@ -64,7 +64,9 @@ export function productosDe(lic: LicitacionCanal): ProductoCanasta[] {
     // Una compra que inició un comprador no trae tramos propios: se ven los de la oferta que hoy gana.
     const propios = normalizarTramos(p.tramos);
     const gana = propios.length ? undefined : mejorOferta('ofertas' in p ? p.ofertas : undefined, total);
-    const tramos = propios.length ? propios : normalizarTramos(gana?.tramos);
+    // Una oferta sin tramos es un solo precio desde 1: si no, la compra se veía "esperando ofertas" con ofertas.
+    const tramosDeGana = normalizarTramos(gana?.tramos);
+    const tramos = propios.length ? propios : tramosDeGana.length || !gana ? tramosDeGana : [{ desde: 1, precioUnitario: gana.precioUnitario }];
     const precioTramo = tramos.length ? precioDelTramo(tramos, total) : undefined;
     const precioActual = numero(p.precioActual) ?? precioTramo ?? p.precioSolo;
     const precioSolo = numero(p.precioSolo) || tramos[0]?.precioUnitario || precioActual;
@@ -125,7 +127,10 @@ export function proyectar(p: ProductoCanasta, delta: number): VistaProducto {
   const unidades = Math.max(0, p.totalUnidades + delta);
   const tramoAntes = precioDelTramo(p.tramos, p.totalUnidades);
   const oferta = p.precioActual < tramoAntes ? p.precioActual : Infinity;
-  const precio = Math.min(precioDelTramo(p.tramos, unidades), oferta);
+  // Si el stock del que gana ya no alcanza (`cubreElMejor`), sumar unidades no baja el precio del grupo: lo cubre el
+  // siguiente, así que el precio de hoy es el piso (el backend lo recalcula al guardar).
+  const piso = p.cubreElMejor !== undefined ? p.precioActual : 0;
+  const precio = Math.max(Math.min(precioDelTramo(p.tramos, unidades), oferta), piso);
   return { precio, unidades, siguiente: siguienteTramo(p.tramos, unidades, precio) };
 }
 
