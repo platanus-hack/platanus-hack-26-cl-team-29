@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { crearRed, crearRepositorioMemoria, crearRutasRed, crearSesiones, crearSiiFalso, RUT_DE_OTRO_TELEFONO } from '../server/red/index.ts';
-import { crearCodigosAcceso, DURACION_CODIGO_MS, INTENTOS_POR_CODIGO } from '../server/red/acceso.ts';
+import { crearCodigosAcceso, crearEnlacesAcceso, DURACION_CODIGO_MS, INTENTOS_POR_CODIGO } from '../server/red/acceso.ts';
 import { DURACION_SESION_MS } from '../server/red/sesiones.ts';
 import type { EnvioCodigo } from '../server/red/rutas-web.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
@@ -13,12 +13,12 @@ import { buzonDeCodigos, entrarConCodigo, tokenConCodigo } from './acceso-apoyo.
 const ANA = '+56 9 1111 1111';
 const BETO = '9 2222 2222';
 
-async function servidor(enviar?: (telefono: string, texto: string) => Promise<EnvioCodigo>) {
+async function servidor(enviar?: (telefono: string, texto: string) => Promise<EnvioCodigo>, env: NodeJS.ProcessEnv = {}) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1' });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const buzon = buzonDeCodigos();
-  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, {}, { enviarCodigo: enviar ?? buzon.enviarCodigo }));
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { enviarCodigo: enviar ?? buzon.enviarCodigo }));
   const server = app.listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
   const pedir = async (metodo: string, ruta: string, body?: unknown, token?: string) => {
@@ -160,5 +160,55 @@ test('cada teléfono pide pocos códigos por hora, y si WhatsApp falla se avisa'
     assert.equal((await sinWhatsapp.post('/acceso/codigo', { telefono: ANA })).status, 503);
   } finally {
     sinWhatsapp.server.close();
+  }
+});
+
+test('el mensaje del código trae el código solo y un enlace que entra una vez, sin teléfono ni código en la URL', async () => {
+  const { server, buzon, post } = await servidor(undefined, { PUBLIC_URL: 'https://bando.test/' });
+  try {
+    assert.equal((await post('/acceso/codigo', { telefono: ANA, destino: 'proveedor' })).status, 200);
+    const codigo = buzon.ultimo(ANA);
+    assert.match(codigo, /^\d{6}$/, 'el código va solo en su línea, en monoespaciado');
+    const enlace = new URL(buzon.enlace(ANA));
+    assert.equal(enlace.origin + enlace.pathname, 'https://bando.test/proveedor', 'lleva al panel desde donde se pidió');
+    const token = enlace.searchParams.get('entrar')!;
+    assert.ok(token.length >= 32);
+    assert.ok(!enlace.href.includes(codigo) && !enlace.href.includes('1111'), 'la URL no trae el código ni el teléfono');
+
+    // Número nuevo: el enlace sigue al registro con el código del mensaje, que sirve para terminar de entrar.
+    const nuevo = await post('/acceso/enlace', { token });
+    assert.equal(nuevo.status, 200);
+    assert.equal(nuevo.cuerpo.registro, true);
+    assert.equal(nuevo.cuerpo.codigo, codigo);
+    const entrada = await post('/acceso/entrar', { telefono: nuevo.cuerpo.telefono, codigo, nombre: 'Almacén Ana', rut: '11.111.111-1' });
+    assert.equal(entrada.status, 201, JSON.stringify(entrada.cuerpo));
+    assert.equal((await post('/acceso/enlace', { token })).status, 401, 'el enlace sirve una vez');
+
+    // Ya registrado: el enlace de un código nuevo entra directo.
+    await post('/acceso/codigo', { telefono: ANA });
+    const directo = await post('/acceso/enlace', { token: new URL(buzon.enlace(ANA)).searchParams.get('entrar') });
+    assert.equal(directo.status, 201);
+    assert.ok(directo.cuerpo.token);
+    assert.equal(directo.cuerpo.negocio.telefono, undefined);
+  } finally {
+    server.close();
+  }
+});
+
+test('el enlace de entrada vence con el código y no existe sin URL pública', async () => {
+  let ahora = 0;
+  const enlaces = crearEnlacesAcceso(() => ahora);
+  const token = enlaces.crear('56911111111', '123456');
+  ahora += DURACION_CODIGO_MS;
+  assert.equal(enlaces.canjear(token), null, 'vencido');
+  assert.equal(enlaces.canjear('inventado'), null);
+
+  const { server, buzon, post } = await servidor();
+  try {
+    await post('/acceso/codigo', { telefono: BETO });
+    assert.equal(buzon.enlace(BETO), '', 'sin PUBLIC_URL no se arma un enlace');
+    assert.match(buzon.ultimo(BETO), /^\d{6}$/);
+  } finally {
+    server.close();
   }
 });

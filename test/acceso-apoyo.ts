@@ -10,13 +10,17 @@ export type Buzon = ReturnType<typeof buzonDeCodigos>;
 
 /** `enviarCodigo` para `crearRutasRed`: guarda el último código mandado a cada teléfono. */
 export function buzonDeCodigos() {
-  const codigos = new Map<string, string>();
+  const mensajes = new Map<string, string>();
+  const de = (telefono: string) => mensajes.get(telefonoParaWhatsapp(telefono) ?? '') ?? '';
   return {
     enviarCodigo: async (telefono: string, texto: string) => {
-      codigos.set(telefono, /\*(\d{6})\*/.exec(texto)?.[1] ?? '');
+      mensajes.set(telefono, texto);
       return 'enviado' as const;
     },
-    ultimo: (telefono: string) => codigos.get(telefonoParaWhatsapp(telefono) ?? '') ?? '',
+    ultimo: (telefono: string) => /```(\d{6})```/.exec(de(telefono))?.[1] ?? '',
+    /** El enlace de entrada directa del último mensaje, si traía uno. */
+    enlace: (telefono: string) => /https?:\/\/\S+\?entrar=\S+/.exec(de(telefono))?.[0] ?? '',
+    mensaje: de,
   };
 }
 

@@ -9,8 +9,8 @@ import { sinTelefonos } from './publico.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import { telefonoParaWhatsapp } from '../../shared/telefono.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
-import { mensajeDeCodigo } from './acceso.ts';
-import type { CodigosAcceso } from './acceso.ts';
+import { crearEnlacesAcceso, mensajeDeCodigo } from './acceso.ts';
+import type { CodigosAcceso, EnlacesAcceso } from './acceso.ts';
 import type { Sesion, Sesiones } from './sesiones.ts';
 import type { Negocio, OrdenCompra, Tramo } from './tipos.ts';
 import type { DatosContribuyente } from './contribuyente.ts';
@@ -27,6 +27,8 @@ export type EnvioCodigo = 'enviado' | 'retenido' | 'fallido';
 export interface OpcionesWeb {
   sesiones: Sesiones;
   codigos: CodigosAcceso;
+  /** Enlaces de entrada directa que van en el mensaje del código. Sin ellos, unos en memoria. */
+  enlaces?: EnlacesAcceso;
   /** Manda el texto con el código al WhatsApp del teléfono (solo dígitos, con código de país). */
   enviarCodigo: (telefono: string, texto: string) => Promise<EnvioCodigo>;
   /** Rutas "Conectar mi SII" (server/conexion-sii), montadas en /proveedor/sii detrás de la sesión del proveedor. */
@@ -41,7 +43,7 @@ interface ConSesion extends Request {
   sesion?: Sesion & { negocio: Negocio };
 }
 
-export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codigos, enviarCodigo, conexionSii, catalogo, reparto }: OpcionesWeb): express.Router {
+export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codigos, enlaces = crearEnlacesAcceso(), enviarCodigo, conexionSii, catalogo, reparto }: OpcionesWeb): express.Router {
   const rutas = express.Router();
   const rutaDeReparto = reparto ?? crearReparto(red, opcionesDesdeEnv(env));
   const id = (req: Request) => String(req.params.id);
@@ -82,6 +84,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
   const codigosPorTelefono = limitarPor(5, HORA, telefonoDe);
   const entradasPorTelefono = limitarPor(30, HORA, telefonoDe);
   const consultasRutPorTelefono = limitarPor(30, HORA, telefonoDe);
+  const canjesPorToken = limitarPor(10, HORA, req => texto(cuerpo(req).token) ?? null);
   const porIp = limitarPor(30, MINUTO, req => req.ip ?? 'sin-ip');
 
   const exigirConfirmado = (req: Request) => {
@@ -129,10 +132,23 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     }
   };
 
+  // El enlace para entrar directo, solo con URL pública configurada (PUBLIC_URL): nunca se arma desde un encabezado
+  // del pedido, porque el enlace lleva una llave de entrada y alguien podría pedirla para otro número con su dominio.
+  const urlPublica = env.PUBLIC_URL?.trim().replace(/\/+$/, '');
+  const enlaceDeEntrada = (telefono: string, codigo: string, destino: unknown) =>
+    urlPublica ? `${urlPublica}/${destino === 'proveedor' ? 'proveedor' : 'app'}?entrar=${enlaces.crear(telefono, codigo)}` : undefined;
+
+    /** Gasta el código del teléfono y responde la sesión nueva del negocio. */
+  const entrarComo = (res: Response, telefono: string, negocio: Negocio) => {
+    codigos.consumir(telefono);
+    res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id }), negocio: sinTelefonos(negocio) });
+  };
+
   // Se manda a cualquier teléfono válido, registrado o no: la respuesta no dice si el número es de la red.
   rutas.post('/acceso/codigo', porIp, codigosPorTelefono, async (req, res) => {
     const telefono = exigirTelefono(req);
-    const envio = await enviarCodigo(telefono, mensajeDeCodigo(codigos.generar(telefono)));
+    const codigo = codigos.generar(telefono);
+    const envio = await enviarCodigo(telefono, mensajeDeCodigo(codigo, enlaceDeEntrada(telefono, codigo, cuerpo(req).destino)));
     if (envio === 'fallido') {
       res.status(503).json({ error: 'whatsapp_no_disponible', mensaje: 'No pudimos mandarte el código por WhatsApp. Inténtalo de nuevo en un rato.' });
       return;
@@ -155,8 +171,20 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
       }
       negocio = await red.registrarComprador({ ...nuevoComprador(b, rut), telefono });
     }
-    codigos.consumir(telefono);
-    res.status(201).json({ token: sesiones.crear({ negocioId: negocio.id }), negocio: sinTelefonos(negocio) });
+    entrarComo(res, telefono, negocio);
+  });
+
+  // El enlace del mensaje: entra como `/acceso/entrar` con el código que ese token guarda. El token sirve una vez; si el
+  // teléfono no es de la red, responde `registro` con su teléfono y su código (los mismos del mensaje que tocó) para
+  // seguir con el formulario sin escribirlos.
+  rutas.post('/acceso/enlace', porIp, canjesPorToken, async (req, res) => {
+    const guardado = enlaces.canjear(texto(cuerpo(req).token) ?? '');
+    if (!guardado) throw new ErrorRed('no_autorizado', 'El enlace venció o ya se usó. Pide un código nuevo.');
+    const { telefono, codigo } = guardado;
+    exigirCodigo(telefono, { codigo });
+    const negocio = red.negocioPorTelefono(telefono);
+    if (negocio) entrarComo(res, telefono, negocio);
+    else res.json({ registro: true, telefono, codigo });
   });
 
   // Antes de registrarse: los datos del SII de un RUT para prellenar el formulario. Pide el código ya verificado (sin
