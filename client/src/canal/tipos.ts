@@ -81,6 +81,9 @@ export interface YoProveedor {
   licitaciones?: LicitacionCanal[];
 }
 
+/** La recepción que confirma el comprador: llegó todo, o cuántas faltaron (reclamo en el SII). */
+export type Recepcion = { conforme: true; confirmado: true } | { faltante: number; confirmado: true };
+
 export interface FotoRed extends Omit<EstadoRed, 'licitaciones' | 'ordenes'> {
   licitaciones: LicitacionCanal[];
   ordenes: OrdenCanal[];

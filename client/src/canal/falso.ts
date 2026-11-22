@@ -389,6 +389,27 @@ export function crearApiFalsa(): CanalApi {
       return sugerirProductos(q, conocidos);
     },
 
+    async recepcion(token, ordenId, r) {
+      await espera(400);
+      const negocio = quien(token);
+      const o = orden(ordenId);
+      exigir(r.confirmado === true, 'Esta acción queda registrada en el SII: falta tu confirmación.');
+      exigir(o.compradorId === negocio.id, 'Ese pedido no es tuyo.');
+      exigir(o.estado === 'facturada', 'Este pedido ya no espera tu recepción.');
+      if ('conforme' in r) {
+        o.estado = 'recibida';
+        avisar('recepcion.registrada', { orden: o, conforme: true });
+        cambiarNota(o.proveedorId, 0.1);
+        return;
+      }
+      const item = o.items[0];
+      exigir(Number.isInteger(r.faltante) && r.faltante >= 1 && r.faltante <= item.cantidad, `Indica cuántas faltaron, entre 1 y ${item.cantidad}.`);
+      o.estado = 'reclamada';
+      o.reclamo = { producto: item.producto, faltante: r.faltante, en: ahoraIso(), estadoSii: 'recibido' };
+      avisar('reclamo.registrado', { orden: o, reclamo: o.reclamo, motivo: 'falta parcial' });
+      cambiarNota(o.proveedorId, -0.4);
+    },
+
     async cerrarSolicitud(token, licitacionId) {
       await espera(500);
       const lic = abierta(licitacionId);

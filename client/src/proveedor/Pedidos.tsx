@@ -42,7 +42,7 @@ export function Pedidos({ yo, config, comprador, ...acciones }: PropsAccion & { 
       ) : (
         <ul className="bm-tarjeta bp-filas bp-tabla">
           {lista.map(o => {
-            if (o.estado === 'enviada') return <FilaPedido key={o.id} {...acciones} orden={o} comprador={comprador(o.compradorId)} config={config} />;
+            if (o.estado === 'enviada' || o.estado === 'confirmada') return <FilaPedido key={o.id} {...acciones} orden={o} comprador={comprador(o.compradorId)} config={config} />;
             const quien = comprador(o.compradorId)?.nombre ?? 'Un negocio';
             const estado = ESTADO_PEDIDO[o.estado];
             return (

@@ -11,7 +11,7 @@ import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
 import type { CatalogoProveedor, ProductoEscrito } from '../../../shared/catalogo.ts';
 import type { ProductoConocido } from '../../../shared/productos.ts';
 import type { RutaReparto } from '../../../shared/ruta.ts';
-import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Tramo, YoComprador, YoProveedor } from './tipos.ts';
+import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
 export type Entrada = { registro: true } | { token: string; negocio: Negocio };
 
@@ -43,6 +43,8 @@ export interface CanalApi {
   carrito(token: string, licitacionId: string, items: ItemCarrito[]): Promise<void>;
   /** Productos que ya existen en la plataforma y se parecen a lo escrito, con su unidad (la biblioteca). */
   buscarProductos(q: string): Promise<ProductoConocido[]>;
+  /** Confirma la recepción de un pedido facturado: llegó todo (acuse en el SII) o faltaron N (reclamo en el SII). */
+  recepcion(token: string, ordenId: string, r: Recepcion): Promise<void>;
   /** Quien la inició cierra la compra en grupo antes, si ya llegó al mínimo de la oferta que gana. */
   cerrarSolicitud(token: string, licitacionId: string): Promise<void>;
   /** Inicia una compra en grupo de un producto con su cantidad; devuelve dónde quedó para abrirla. */
@@ -170,6 +172,7 @@ export function crearApiReal(): CanalApi {
     },
     unirse: async (token, licitacionId, cantidad) => { await llamar('/yo/unirse', { token, cuerpo: { licitacionId, cantidad } }); },
     buscarProductos: async q => (await llamar<{ productos: ProductoConocido[] }>(`/productos?${new URLSearchParams({ q })}`)).productos,
+    recepcion: async (token, ordenId, r) => { await llamar(`/yo/ordenes/${encodeURIComponent(ordenId)}/recepcion`, { token, cuerpo: r }); },
     cerrarSolicitud: async (token, id) => { await llamar(`/yo/solicitudes/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     abrirSolicitud: async (token, solicitud) => {
       const l = await llamar<{ id: string; productos: { id: string }[] }>('/yo/solicitudes', { token, cuerpo: solicitud });

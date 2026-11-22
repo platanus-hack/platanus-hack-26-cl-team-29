@@ -33,7 +33,8 @@ export function Ventas({ yo, lic, config, comprador, ...props }: PropsAccion & {
   const ahora = useAhora();
   // Las órdenes de la compra en grupo se facturan juntas desde su fila, no una por una.
   const deCompras = new Set((yo.licitaciones ?? []).flatMap(l => ordenesDeLaCompra(l, yo.ordenes)).map(o => o.id));
-  const nuevos = yo.ordenes.filter(o => o.estado === 'enviada' && !deCompras.has(o.id)).sort((a, b) => Date.parse(a.creadaEn) - Date.parse(b.creadaEn));
+  // Por confirmar o confirmados sin factura todavía ("Por facturar"): en los dos casos, el botón emite la factura.
+  const nuevos = yo.ordenes.filter(o => (o.estado === 'enviada' || o.estado === 'confirmada') && !deCompras.has(o.id)).sort((a, b) => Date.parse(a.creadaEn) - Date.parse(b.creadaEn));
   const reclamos = yo.ordenes.filter(o => o.estado === 'reclamada');
   const compraPendiente = lic && !estaFacturada(lic, yo.ordenes) ? lic : undefined;
   const porConfirmar = nuevos.length + (compraPendiente ? 1 : 0);
@@ -146,7 +147,7 @@ function FilaCompra({ api, token, alCambiar, lic, yo, config, ahora }: PropsAcci
   );
 }
 
-/** Un pedido por confirmar: Confirmar abre el paso del SII (emite la factura y la guía). Lo usan Ventas y Pedidos. */
+/** Un pedido por confirmar o por facturar: el botón abre el paso del SII (emite la factura y la guía). Lo usan Ventas y Pedidos. */
 export function FilaPedido({ api, token, alCambiar, orden, comprador, config }: PropsAccion & { orden: OrdenCanal; comprador?: Negocio; config: ConfigRed | null }) {
   const ejecutar = useCallback(async () => {
     await api.confirmarOrden(token, orden.id);
@@ -161,9 +162,11 @@ export function FilaPedido({ api, token, alCambiar, orden, comprador, config }: 
       titulo={quien}
       detalle={`${detalleDe(orden, config)}${comprador?.comuna ? ` · ${comprador.comuna}` : ''}`}
       monto={total}
-      accion={c.estado.fase === 'nada' && <button type="button" className="bm-boton" onClick={() => c.pedir(undefined)}>Confirmar</button>}
+      accion={c.estado.fase === 'nada' && (
+        <button type="button" className="bm-boton" onClick={() => c.pedir(undefined)}>{orden.estado === 'confirmada' ? 'Facturar' : 'Confirmar'}</button>
+      )}
       confirmacion={c.estado.fase !== 'nada' && (
-        <Confirmar sii titulo="¿Confirmas y facturas?" si="Sí, factura" {...c.panel}>
+        <Confirmar sii titulo={orden.estado === 'confirmada' ? '¿Facturas en el SII?' : '¿Confirmas y facturas?'} si="Sí, factura" {...c.panel}>
           <p className="cn-cifra-confirmar">1 factura · {dinero(total)} neto</p>
           <p>Emitimos en el SII la factura con la orden de compra de {quien} y su guía de despacho. Le avisamos a {quien}.</p>
         </Confirmar>

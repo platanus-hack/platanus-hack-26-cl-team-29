@@ -171,7 +171,10 @@ export function crearRutasRed(red: Red, env: NodeJS.ProcessEnv = process.env, op
     conexionSii: opciones.conexionSii, catalogo: opciones.catalogo?.proveedor,
   }));
 
-  rutas.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+  rutas.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
+    // Lo que falla al emitir o al hablar con el SII se anota (sin datos personales): la pantalla lo muestra, el log lo explica.
+    const delSii = /\/(confirmar|facturar|nota-credito|recepcion|guias)\b/.test(req.path);
+    if (delSii) console.warn(`[red] ${req.method} ${req.path}: ${error instanceof Error ? error.message : String(error)}`);
     if (!(error instanceof ErrorRed)) return next(error);
     res.status(ESTADO_HTTP[error.codigo]).json({ error: error.codigo, mensaje: error.message });
   });
