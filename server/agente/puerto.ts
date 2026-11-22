@@ -168,6 +168,8 @@ export interface EventoDeLaRed {
 
 export interface RedSala {
   licitacionAbierta(): Talvez<LicitacionSala | null>;
+  /** Una compra por id (abierta o no), o null. Para quien nombra una compra en su mensaje (el texto del QR). */
+  licitacionPorId?(id: string): Talvez<LicitacionSala | null>;
   /** El mismo teléfono otra vez actualiza la cantidad. La red valida que sea un entero positivo. */
   unirseALicitacion(licitacionId: string, datos: {
     readonly telefono: string;

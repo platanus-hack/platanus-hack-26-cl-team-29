@@ -225,8 +225,14 @@ export interface Red {
   agregarAlCarrito(licitacionId: string, item: NuevoItemCarrito): Promise<ResultadoCarrito>;
   /** Saca al negocio de la compra (vacía su carrito). Si no estaba, no cambia nada. */
   salirDeLicitacion(licitacionId: string, quien: Pick<DuenoCarrito, 'negocioId' | 'telefono'>): Promise<{ licitacion: SinTelefono<LicitacionVista> }>;
-  /** La compra conjunta abierta más reciente, o null. */
+  /**
+   * La compra de la sala, o null: la abierta del proveedor de la demo (`PROVEEDOR_SALA`) si hay una; si no, la abierta
+   * más reciente. Una sola fuente para WhatsApp, los rivales, la demanda de folios, el catálogo y el proyector
+   * (`salaId` del estado): una compra creada desde /app no le quita la sala a la de la demo.
+   */
   licitacionAbierta(): SinTelefono<LicitacionVista> | null;
+  /** Una compra por id, abierta o no, o null. */
+  licitacionPorId(id: string): SinTelefono<LicitacionVista> | null;
   /**
    * Un comprador inicia una compra en grupo de un producto, con su cantidad: queda como su primer participante y otras
    * pueden estar abiertas a la vez. Sin proveedor fijo: los proveedores ofertan y al cerrar gana la mejor oferta.
@@ -970,10 +976,14 @@ export async function crearRed({
     });
   }
 
-  function licitacionAbierta() {
-    const l = datos.licitaciones.filter(x => x.estado === 'abierta').at(-1);
-    return l ? sinTelefonos(vistaLicitacion(l)) : null;
+  function licitacionDeLaSala(): Licitacion | undefined {
+    const abiertas = datos.licitaciones.filter(x => x.estado === 'abierta');
+    return abiertas.find(x => x.proveedorId === PROVEEDOR_SALA) ?? abiertas.at(-1);
   }
+
+  const vistaPublica = (l: Licitacion | undefined) => (l ? sinTelefonos(vistaLicitacion(l)) : null);
+  const licitacionAbierta = () => vistaPublica(licitacionDeLaSala());
+  const licitacionPorId = (id: string) => vistaPublica(datos.licitaciones.find(x => x.id === id));
 
   /** `licitacion.precio_bajo` si el precio vigente del producto quedó bajo `antes`. */
   /**
@@ -1345,6 +1355,7 @@ export async function crearRed({
     for (const n of datos.negocios) if (puedeVender(n)) notas[n.id] = notaDeProveedor(n.id);
     return structuredClone({
       negocios: datos.negocios, ordenes: datos.ordenes, documentos: datos.documentos, notas, licitaciones: datos.licitaciones.map(l => vistaLicitacion(l)),
+      salaId: licitacionDeLaSala()?.id ?? null,
     });
   }
 
@@ -1383,7 +1394,7 @@ export async function crearRed({
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
     puedeFacturar,
     revisarFacturacion,
-    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, fijarDireccionFactura, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
+    unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, licitacionPorId, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, fijarDireccionFactura, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);
       return () => { oyentes.delete(oyente); };

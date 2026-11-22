@@ -28,6 +28,7 @@ export function normalizarEstado(raw: unknown): EstadoRed {
     documentos: lista(r.documentos),
     notas: notas.filter(n => typeof n.nota === 'number'),
     licitaciones: lista(r.licitaciones),
+    salaId: typeof r.salaId === 'string' ? r.salaId : null,
   };
 }
 
@@ -161,9 +162,20 @@ export function cicloDeOrden(estado: EstadoRed, orden: OrdenCompra, eventos: Eve
 
 // ---------- Licitación ----------
 
+/** Compras abiertas, de la más reciente a la más antigua (las licitaciones se agregan al final). */
+export const licitacionesAbiertas = (estado: EstadoRed): Licitacion[] =>
+  estado.licitaciones.filter(l => l.estado === 'abierta').reverse();
+
+/**
+ * La compra a mostrar: la del `id` si se pidió una; si no, la sala que dice el backend (`salaId`); sin ella, la
+ * abierta más reciente que ya tiene negocios, luego la abierta más reciente y, sin abiertas, la última.
+ */
 export function licitacionActual(estado: EstadoRed, id?: string | null): Licitacion | undefined {
   if (id) return estado.licitaciones.find(l => l.id === id);
-  return estado.licitaciones.find(l => l.estado === 'abierta') ?? estado.licitaciones.at(-1);
+  const sala = estado.salaId ? estado.licitaciones.find(l => l.id === estado.salaId && l.estado === 'abierta') : undefined;
+  if (sala) return sala;
+  const abiertas = licitacionesAbiertas(estado);
+  return abiertas.find(l => l.participantes.length > 0) ?? abiertas[0] ?? estado.licitaciones.at(-1);
 }
 
 export interface OfertaVista {

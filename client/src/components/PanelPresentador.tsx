@@ -42,7 +42,7 @@ interface Props {
   alCerrar: () => void;
 }
 
-/** Panel oculto del presentador: se abre y se cierra con la tecla "d". */
+/** Panel oculto del presentador: en /licitacion se abre y se cierra con la tecla "p". */
 export function PanelPresentador({ licitacionId, accion, alCerrar }: Props) {
   const [token, setToken] = useState(leerToken);
   const [mensaje, setMensaje] = useState('');

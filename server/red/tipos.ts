@@ -244,6 +244,8 @@ export interface EstadoRed {
   documentos: Documento[];
   notas: Record<string, number>;
   licitaciones: LicitacionVista[];
+  /** La compra de la sala (`Red.licitacionAbierta`): la que proyecta /licitacion y a la que suma WhatsApp. */
+  salaId: string | null;
 }
 
 

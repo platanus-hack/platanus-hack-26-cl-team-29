@@ -96,6 +96,8 @@
 .bm-bajada strong { color: var(--color-foreground); font-weight: 600; }
 .bm-miga { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-faint-fg); text-decoration: none; }
 .bm-miga:hover { text-decoration: underline; }
+/* "Proyectar": abre esta compra en /licitacion en otra pestaña, para la pantalla grande. */
+.bm-proyectar { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); text-decoration: underline; }
 
 
 .bm-cabecera { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

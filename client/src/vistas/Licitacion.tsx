@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { PanelPresentador } from '../components/PanelPresentador.tsx';
 import { AvisoFuente, Cargando } from '../components/Cabecera.tsx';
 import { CurvaPrecio } from '../components/CurvaPrecio.tsx';
 import { TableroCanasta, useProductoDestacado } from '../components/Canasta.tsx';
@@ -7,7 +8,7 @@ import { Icono, iconoProducto, Monograma } from '../components/Iconos.tsx';
 import { useFilasQueCaben } from '../components/medidas.ts';
 import { Qr } from '../components/Qr.tsx';
 import {
-  estadoTramos, licitacionActual, licitacionDeProducto, negocioPorId, productosDeCanasta, resumenLicitacion, tieneTramos, totalesCanasta,
+  estadoTramos, licitacionActual, licitacionDeProducto, licitacionesAbiertas, negocioPorId, productosDeCanasta, resumenLicitacion, tieneTramos, totalesCanasta,
   unidadDeLicitacion, type OfertaVista, type ProductoSala, type ResumenLicitacion, type TotalesCanasta,
 } from '../red/derivar.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
@@ -174,25 +175,71 @@ function Canasta({ lic, estado, productos, destacado, canasta }: {
   );
 }
 
+/** La compra que se proyecta: `?licitacion=<id>` (el QR y "Proyectar" la ponen) o, sin ella, la que se está usando. */
+function useLicitacionElegida(): [string | null, (id: string) => void] {
+  const [id, setId] = useState(() => new URLSearchParams(location.search).get('licitacion'));
+  const elegir = (nuevo: string) => {
+    const url = new URL(location.href);
+    url.searchParams.set('licitacion', nuevo);
+    history.replaceState(null, '', url);
+    setId(nuevo);
+  };
+  return [id, elegir];
+}
+
+/** El panel del presentador (reiniciar, cerrar y confirmar la sala) se abre y se cierra con la tecla "p". */
+function usePanelPresentador(): [boolean, () => void] {
+  const [abierto, setAbierto] = useState(false);
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      const enCampo = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      if (e.key === 'p' && !e.metaKey && !e.ctrlKey && !enCampo) setAbierto(a => !a);
+    };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, []);
+  return [abierto, () => setAbierto(false)];
+}
+
 export function Licitacion() {
-  const { estado, fuente } = useRed();
+  const { estado, fuente, accionDemo } = useRed();
   const ahora = useAhora(500);
+  const [elegida, elegir] = useLicitacionElegida();
+  const [panel, cerrarPanel] = usePanelPresentador();
   if (!estado) return <Cargando />;
-  const lic = licitacionActual(estado);
+  const lic = licitacionActual(estado, elegida) ?? licitacionActual(estado);
+  // Las acciones del presentador van siempre a la sala, la compra que siguen WhatsApp y los rivales.
+  const presentador = panel && <PanelPresentador licitacionId={estado.salaId ?? undefined} accion={accionDemo} alCerrar={cerrarPanel} />;
   if (!lic) {
     return (
       <Proyeccion>
         <div className="lic-meta"><Logo fondo="oscuro" className="lic-logo" /><AvisoFuente fuente={fuente} /></div>
         <p className="vacio">No hay una compra en grupo abierta.</p>
+        {presentador}
       </Proyeccion>
     );
   }
 
   const r = resumenLicitacion(lic, estado);
-  return <EnCurso lic={lic} estado={estado} r={r} ahora={ahora} fuente={fuente} />;
+  return <EnCurso lic={lic} estado={estado} r={r} ahora={ahora} fuente={fuente} elegir={elegir} presentador={presentador} />;
 }
 
-function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado: EstadoRed; r: ResumenLicitacion; ahora: number; fuente: Fuente }) {
+/** Con varias compras abiertas, chips para elegir cuál proyectar: su producto principal y cuántos negocios van. */
+function ElegirCompra({ estado, actual, elegir }: { estado: EstadoRed; actual: string; elegir: (id: string) => void }) {
+  const abiertas = licitacionesAbiertas(estado);
+  if (abiertas.length < 2) return null;
+  return (
+    <nav className="lic-elegir" aria-label="Compra que se proyecta">
+      {abiertas.map(l => (
+        <button key={l.id} type="button" className={l.id === actual ? 'elegida' : ''} aria-pressed={l.id === actual} onClick={() => elegir(l.id)}>
+          {l.id === estado.salaId && <span className="lic-sala">Sala · </span>}{l.producto} · {contar(l.participantes.length, 'negocio')}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function EnCurso({ lic, estado, r, ahora, fuente, elegir, presentador }: { lic: LicitacionRed; estado: EstadoRed; r: ResumenLicitacion; ahora: number; fuente: Fuente; elegir: (id: string) => void; presentador: ReactNode }) {
   const { whatsappNumero } = useConfigRed(fuente);
   const productos = productosDeCanasta(lic, estado);
   /** El foco cambia como mucho cada 6 s: la columna de ofertas no salta con cada negocio que llega. */
@@ -219,6 +266,7 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
             <span>{conCanasta ? `Canasta de ${productos.length} productos` : lic.producto} · {lic.comuna}</span>
             <AvisoFuente fuente={fuente} />
           </div>
+          <ElegirCompra estado={estado} actual={lic.id} elegir={elegir} />
           <h1 className="lic-titulo">
             {r.curvaPorTramos
               ? <>El grupo compra junto. <span className="amarillo">El precio baja para todos.</span></>
@@ -265,6 +313,7 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
           <Ofertas r={rFoco} cerrada={cerrada} producto={foco} />
         )}
       </div>
+      {presentador}
     </Proyeccion>
   );
 }

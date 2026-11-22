@@ -76,6 +76,7 @@ export function Cierre({ lic, abierta, ahora }: { lic: LicitacionCanal; abierta:
     <div className="bm-cierre">
       <span className="bm-etiqueta">{abierta ? 'Cierra en' : 'Cerró'}</span>
       <strong>{abierta ? cuentaRegresiva(Date.parse(lic.cierraEn) - ahora) : 'Compra cerrada'}</strong>
+      <a className="bm-proyectar" href={`/licitacion?licitacion=${encodeURIComponent(lic.id)}`} target="_blank" rel="noreferrer">Proyectar</a>
     </div>
   );
 }

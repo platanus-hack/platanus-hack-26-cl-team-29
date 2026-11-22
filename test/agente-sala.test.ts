@@ -611,3 +611,18 @@ test('baja por una oferta con tramos: dice quién ofertó sin su precio base, y 
   assert.equal(bajoPrecio([{ producto: p, precio: 850, ofertas: [{ proveedorNombre: 'Cecilia bistro', precioUnitario: 950 }] }], 1),
     'Cecilia bistro ofertó. La unidad de cocacola ya va en $850.');
 });
+
+test('quien nombra una compra abierta ("quiero sumarme a la compra L-7", el texto del QR) entra a esa, no a la sala', async t => {
+  const { red, agente, escribir, ultimo } = montar({}, { id: 'L-7' });
+  t.after(() => agente.desconectar());
+  const l7 = red.licitacionAbierta.bind(red);
+  // La sala es otra compra (aquí, ninguna abierta): solo quien nombra L-7 llega a ella.
+  Object.assign(red, { licitacionAbierta: () => null, licitacionPorId: (id: string) => (id === 'L-7' ? l7() : null) });
+
+  await escribir('56911111009', 'Quiero sumarme');
+  assert.equal(ultimo('56911111009'), 'En este momento no hay una compra conjunta abierta.', 'sin nombrarla, va a la sala');
+  await escribir('56911111008', 'Quiero sumarme a la compra L-7');
+  assert.match(ultimo('56911111008'), /La sala compra en conjunto/, 'nombrándola, entra a L-7');
+  await escribir('56911111008', 'Almacén Rosita, 4 cajas de rollos');
+  assert.match(ultimo('56911111008'), /Almacén Rosita entra con 4 cajas de rollos/, 'y sigue en L-7 sin repetir el número');
+});
