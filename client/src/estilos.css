@@ -483,3 +483,9 @@ button, input, select, textarea { font-family: inherit; }
 .monograma .icono { width: 1.35em; height: 1.35em; }
 .monograma.con-logo { background: transparent; border: var(--border-width) solid var(--color-border); }
 .monograma.con-logo img { width: 100%; height: 100%; object-fit: contain; padding: 12%; box-sizing: border-box; }
+
+/* En el teléfono el menú de vistas no se muestra: es para quien presenta, y arriba a la derecha tapaba los controles
+   de cada vista (el sol/luna de /red). En computador sigue igual y la tecla "m" lo abre. */
+@media (max-width: 640px) {
+  .navegador { display: none; }
+}
