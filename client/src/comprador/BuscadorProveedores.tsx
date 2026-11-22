@@ -1,10 +1,10 @@
-// /proveedores: el buscador donde viven todos los proveedores, los de la red (registrados en Bando) y los de Mercado
-// Público, en una sola lista unida por RUT. Clic en uno → su ficha (?p=<clave>): categoría, giros del SII, antigüedad y
+// El buscador de proveedores de /app (Proveedores → Todos): los de la red (registrados en Bando) y los de Mercado
+// Público, en una sola lista unida por RUT. Clic en uno → su ficha (#proveedores/<clave>): categoría, giros del SII, antigüedad y
 // precios de referencia con la fuente y fecha de cada dato, y su contacto (teléfono, WhatsApp o correo) con la página de donde salió.
-// Solo aparecen proveedores a los que se les puede escribir: los de la red y los que tienen contacto. Se actualiza sola con cada `red:evento` (useRed).
+// Solo aparecen proveedores a los que se les puede escribir: los de la red y los que tienen contacto. Se actualiza sola con cada `red:evento` (`evento`).
 // Nunca muestra compradores de la red ni organismos públicos por nombre: solo conteos.
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CATEGORIAS, nombreCategoria } from '../../../shared/categorias.ts';
 import { fechaCorta } from '../../../shared/fecha.ts';
 import { dinero, nota } from '../../../shared/formato.ts';
@@ -12,9 +12,8 @@ import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { contar, segun } from '../../../shared/texto.ts';
 import { LogoSii, Monograma } from '../canal/iconos.tsx';
 import { useJson } from '../red/useJson.ts';
-import { useRed } from '../red/useRed.ts';
 import '../canal/canal.css';
-import './proveedores.css';
+import './buscador-proveedores.css';
 
 type TipoFuente = 'bando' | 'mercado_publico' | 'sii';
 interface Categoria { id: string; nombre: string; fuente: 'bando' | 'mercado_publico' | 'sii' | 'ia' | 'reglas'; porque?: string }
@@ -46,8 +45,6 @@ const NOMBRE_FUENTE: Record<TipoFuente | 'ia' | 'reglas', string> = {
   bando: 'En Bando', mercado_publico: 'Mercado Público', sii: 'SII', ia: 'Inferido por IA', reglas: 'Por palabras clave',
 };
 
-const claveEnUrl = () => new URLSearchParams(location.search).get('p');
-
 const lugar = (r: Pick<Resumen, 'comuna' | 'region'>) => [r.comuna, r.region].filter(Boolean).join(', ');
 
 /** "Desde 1993 · 33 años": el SII entrega el inicio como DD-MM-AAAA. */
@@ -74,40 +71,8 @@ function ContactoProveedor({ c, nombre }: { c: Contacto; nombre: string }) {
   );
 }
 
-function ChipsFuente({ fuentes }: { fuentes: Resumen['fuentes'] }) {
-  return (
-    <span className="pv-fuentes">
-      {fuentes.map(f => (
-        <span key={f.tipo} className={`pv-chip pv-chip-${f.tipo}`} title={f.fecha ? `Dato del ${fechaCorta(f.fecha)}` : undefined}>
-          {f.tipo === 'sii' && <LogoSii tam={14} />}{NOMBRE_FUENTE[f.tipo]}{f.fecha ? ` · ${fechaCorta(f.fecha)}` : ''}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-export function Proveedores() {
-  const { eventos } = useRed();
-  const evento = eventos[0]?.clave;
-  const [clave, setClave] = useState(claveEnUrl);
-  useEffect(() => {
-    const alVolver = () => setClave(claveEnUrl());
-    window.addEventListener('popstate', alVolver);
-    return () => window.removeEventListener('popstate', alVolver);
-  }, []);
-  const abrir = (c: string | null) => {
-    history.pushState(null, '', c ? `/proveedores?p=${encodeURIComponent(c)}` : '/proveedores');
-    setClave(c);
-    window.scrollTo(0, 0);
-  };
-  return (
-    <main className="pv-pagina">
-      {clave ? <FichaProveedor clave={clave} evento={evento} volver={() => abrir(null)} /> : <Buscador evento={evento} abrir={abrir} />}
-    </main>
-  );
-}
-
-function Buscador({ evento, abrir }: { evento: number | undefined; abrir: (clave: string) => void }) {
+/** La lista con buscador y categorías, con las mismas filas que "Mis proveedores"; `abrir` lleva a la ficha de uno. */
+export function Buscador({ evento, abrir }: { evento: number | undefined; abrir: (clave: string) => void }) {
   const [q, setQ] = useState('');
   const [categoria, setCategoria] = useState('');
   const [pagina, setPagina] = useState(1);
@@ -117,69 +82,51 @@ function Buscador({ evento, abrir }: { evento: number | undefined; abrir: (clave
 
   return (
     <>
-      <header className="pv-cabecera">
-        <p className="pv-ceja">Proveedores · Bando y Mercado Público</p>
-        <h1 className="pv-titulo">Encuentra a quién comprarle</h1>
-        <div className="pv-busqueda">
-          <input
-            type="search" value={q} autoFocus enterKeyHint="search" aria-label="Buscar proveedores"
-            placeholder="Nombre, RUT, rubro o producto" onChange={e => { setQ(e.target.value); setPagina(1); }}
-          />
-        </div>
-        <div className="pv-categorias" role="group" aria-label="Filtrar por categoría">
-          {CATEGORIAS.filter(c => datos?.conteos[c.id] || categoria === c.id).map(c => (
-            <button key={c.id} type="button" className="pv-categoria" aria-pressed={categoria === c.id} onClick={() => elegir(c.id)}>
-              {c.nombre} <span className="tenue">{datos?.conteos[c.id] ?? 0}</span>
-            </button>
-          ))}
-        </div>
-      </header>
+      <div className="bm-busqueda">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+        <input type="search" value={q} enterKeyHint="search" aria-label="Buscar proveedores"
+          placeholder="Nombre, RUT, rubro o producto" onChange={e => { setQ(e.target.value); setPagina(1); }} />
+      </div>
+      <div className="bm-chips" role="group" aria-label="Categoría">
+        {CATEGORIAS.filter(c => datos?.conteos[c.id] || categoria === c.id).map(c => (
+          <button key={c.id} type="button" className={`bm-chip${categoria === c.id ? ' elegido' : ''}`} aria-pressed={categoria === c.id} onClick={() => elegir(c.id)}>
+            {c.nombre} {datos?.conteos[c.id] ?? 0}
+          </button>
+        ))}
+      </div>
 
-      {error && <p className="error">{error}</p>}
-      {!datos && !error && <p className="vacio">Buscando proveedores...</p>}
-      {datos && (
-        <>
-          <p className="pv-total mono">
-            {contar(datos.total, 'proveedor', 'proveedores')}
-            {datos.mercadoPublico.hasta && ` · Mercado Público al ${fechaCorta(datos.mercadoPublico.hasta)}`}
-            {datos.mercadoPublico.fuente === 'ejemplo' && <span className="fuente-falsa">datos de ejemplo</span>}
-          </p>
-          {!datos.resultados.length && <p className="vacio">Nadie calza con "{q}". Prueba con un producto, como arroz o pollo.</p>}
-          <ul className="pv-lista">
-            {datos.resultados.map(r => (
-              <li key={r.clave}>
-                <button type="button" className="pv-fila" onClick={() => abrir(r.clave)}>
-                  <Monograma nombre={r.nombre} tam={44} rubro={false} />
-                  <span className="pv-fila-cuerpo">
-                    <span className="pv-fila-nombre">{r.nombre}</span>
-                    <span className="pv-fila-detalle mono">
-                      {[r.categoria?.nombre, ...r.secundarias.slice(0, 2).map(nombreCategoria)].filter(Boolean).join(' · ') || 'Sin categoría todavía'}
-                    </span>
-                    {lugar(r) && <span className="pv-fila-detalle mono tenue">{lugar(r)}</span>}
-                    <span className="pv-fila-pie">
-                      <ChipsFuente fuentes={r.fuentes} />
-                      {r.organismos > 0 && <span className="pv-organismos mono">{contar(r.organismos, 'organismo')} le {segun(r.organismos, 'compra', 'compran')}</span>}
-                    </span>
-                  </span>
-                  {r.nota !== null && <span className="pv-nota" title="Nota en la red de Bando">{nota(r.nota)}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {datos.paginas > 1 && (
-            <nav className="pv-paginas mono" aria-label="Páginas">
-              <button type="button" className="pv-categoria" disabled={datos.pagina <= 1} onClick={() => setPagina(datos.pagina - 1)}>Anterior</button>
-              <span>Página {datos.pagina} de {datos.paginas}</span>
-              <button type="button" className="pv-categoria" disabled={datos.pagina >= datos.paginas} onClick={() => setPagina(datos.pagina + 1)}>Siguiente</button>
-            </nav>
-          )}
-        </>
+      {error && <p className="bm-error">{error}</p>}
+      {!datos && !error && <p className="bm-vacio-texto">Buscando proveedores...</p>}
+      {datos && !datos.resultados.length && <p className="bm-vacio-texto">Nadie calza con "{q}". Prueba con un producto, como arroz o pollo.</p>}
+      {datos && datos.resultados.length > 0 && (
+        <ul className="bm-tarjeta bm-lista">
+          {datos.resultados.map(r => (
+            <li key={r.clave} className="bm-fila-enlace">
+              <button type="button" className="bm-fila-proveedor" onClick={() => abrir(r.clave)}>
+                <Monograma nombre={r.nombre} tam={40} rubro={false} />
+                <span className="bm-fila-cuerpo">
+                  <strong className="bm-fila-nombre">{r.nombre}</strong>
+                  <span className="bm-fila-abajo">{[r.categoria?.nombre, r.comuna || r.region, ...r.fuentes.map(f => NOMBRE_FUENTE[f.tipo])].filter(Boolean).join(' · ')}</span>
+                </span>
+                <span className="bm-nota-proveedor">{r.nota !== null ? <>★ {nota(r.nota)}</> : ''}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {datos && datos.paginas > 1 && (
+        <nav className="bm-paginas" aria-label="Páginas">
+          <button type="button" className="bm-boton-texto" disabled={datos.pagina <= 1} onClick={() => setPagina(datos.pagina - 1)}>Anterior</button>
+          <span>{contar(datos.total, 'proveedor', 'proveedores')} · página {datos.pagina} de {datos.paginas}</span>
+          <button type="button" className="bm-boton-texto" disabled={datos.pagina >= datos.paginas} onClick={() => setPagina(datos.pagina + 1)}>Siguiente</button>
+        </nav>
       )}
     </>
   );
 }
 
-function FichaProveedor({ clave, evento, volver }: { clave: string; evento: number | undefined; volver: () => void }) {
+/** La ficha de un proveedor: qué dicen Bando, Mercado Público y el SII, su contacto y sus precios de referencia. */
+export function FichaProveedor({ clave, evento, volver }: { clave: string; evento: number | undefined; volver: () => void }) {
   const { datos, error } = useJson<{ proveedor: Ficha } & MetaMp>(`/api/proveedores/${encodeURIComponent(clave)}`, evento);
   const atras = <button type="button" className="pv-volver mono" onClick={volver}>← Todos los proveedores</button>;
   if (error) return <>{atras}<p className="error">{error}</p></>;

@@ -25,5 +25,5 @@ export function textoInvitacion(p: { nombre: string; web: string | null; whatsap
   return `${p.nombre} te invita a la compra conjunta de Bando: mientras más negocios se suman, más baja el precio para todos. ${enlaces}`.trim();
 }
 
-/** "Almacén Uno invitó a Botillería Dos", la línea pública de /sala (solo nombres de negocios). */
+/** "Almacén Uno invitó a Botillería Dos", la línea pública (solo nombres de negocios). */
 export const lineaInvitacion = (invita: string, invitado: string) => `${invita} invitó a ${invitado}`;

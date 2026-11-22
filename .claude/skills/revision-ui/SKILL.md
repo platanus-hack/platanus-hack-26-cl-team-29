@@ -20,7 +20,7 @@ La marca (logo, color, tipografía, íconos, ilustraciones y voz) está en `DESI
 7. **Contexto mínimo suficiente.** Cada número con su etiqueta corta. Sin párrafos explicativos en pantallas que se proyectan.
 8. **Vivo.** Respeta la regla de tiempo real de `CLAUDE.md`: los cambios llegan solos y se notan con una animación breve, sin tapar lo demás. Respeta `prefers-reduced-motion`.
 9. **Iconografía que se reconoce al instante.** Ver la sección de abajo.
-10. **Aviso de modo demo.** Donde alguien se suma o actúa sin cuenta (`/unirse`, entrada de `/app`, `/sala`, junto a "Conectar mi SII"), una línea discreta en gris pequeño: en la demo cualquiera puede sumarse; en uso real cada negocio entra con su cuenta y su certificado digital. Nunca tapa acciones ni compite con lo principal.
+10. **Aviso de modo demo.** Donde alguien se suma o actúa sin cuenta (`/unirse`, entrada de `/app`, junto a "Conectar mi SII"), una línea discreta en gris pequeño: en la demo cualquiera puede sumarse; en uso real cada negocio entra con su cuenta y su certificado digital. Nunca tapa acciones ni compite con lo principal.
 11. **Estados completos.** Cada vista tiene estado vacío con guía ("Todavía no hay pedidos: súmate a la compra conjunta"), cargando, error en palabras simples y datos de prueba marcados.
 
 ## Iconografía
@@ -36,7 +36,7 @@ La marca (logo, color, tipografía, íconos, ilustraciones y voz) está en `DESI
 
 | Uso | Tamaños |
 |---|---|
-| Pantallas que se proyectan (`/sala`, `/red`, `/licitacion`) | 1920x1080, 1440x810, 1024x768. Caben en una sola pantalla, sin scroll. |
+| Pantallas que se proyectan (`/red`, `/licitacion`) | 1920x1080, 1440x810, 1024x768. Caben en una sola pantalla, sin scroll. |
 | Vistas de uso personal (`/app`, `/proveedor`, `/unirse`) | 375x812, 390x844, 768x1024, 1440x900. Sin scroll horizontal; en celular la acción principal visible sin scroll o fija abajo. |
 
 ## Proceso

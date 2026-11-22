@@ -3,13 +3,11 @@ import { useEffect, useState } from 'react';
 // Menú para moverse entre las vistas. En las pantallas que se proyectan se oculta solo
 // cuando el mouse no se mueve, para no ensuciar la demo. La tecla "m" lo abre y lo cierra.
 const ENLACES = [
-  { ruta: '/sala', nombre: 'La sala compra junta', detalle: 'Pantalla de la demo' },
   { ruta: '/red', nombre: 'La red en vivo', detalle: 'Ciclo de compra y notas' },
   { ruta: '/mapa', nombre: 'El mapa en vivo', detalle: 'La red sobre Santiago' },
   { ruta: '/licitacion', nombre: 'Licitación', detalle: 'Compra conjunta con QR' },
   { ruta: '/app', nombre: 'Mi negocio', detalle: 'Comprador por web' },
   { ruta: '/proveedor', nombre: 'Proveedor', detalle: 'Panel del proveedor' },
-  { ruta: '/proveedores', nombre: 'Proveedores', detalle: 'Buscador: red y Mercado Público' },
   { ruta: '/pagos', nombre: 'Pagos a proveedores', detalle: 'Equipo: transferir y marcar' },
   { ruta: '/unirse', nombre: 'Sumarse', detalle: 'Página del QR en el celular' },
 ] as const;

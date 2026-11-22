@@ -48,7 +48,7 @@ export function Inicio({ foto, negocio, ordenes, documentos, config, secciones, 
   const proveedores = buscando ? (datos?.resultados ?? []).slice(0, MAXIMO_PROVEEDORES) : [];
   const resultados = [
     ...locales,
-    ...proveedores.map(p => ({ tipo: 'proveedor' as const, titulo: p.nombre, detalle: [p.comuna, p.region].filter(Boolean).join(', '), href: `/proveedores?p=${encodeURIComponent(p.clave)}` })),
+    ...proveedores.map(p => ({ tipo: 'proveedor' as const, titulo: p.nombre, detalle: [p.comuna, p.region].filter(Boolean).join(', '), href: `/app#proveedores/${encodeURIComponent(p.clave)}` })),
   ];
 
   const vende = puedeVender(negocio);

@@ -386,7 +386,11 @@
 .bm-aviso-minimo { background: color-mix(in srgb, var(--bando-miel) 16%, transparent); }
 .bm-falta-minimo { color: var(--bando-miel-texto); font-weight: 600; }
 .bm-fila-proveedor { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 0; }
-.bm-fila-proveedor + .bm-fila-proveedor { border-top: var(--border-width) solid var(--color-border); }
+.bm-fila-proveedor + .bm-fila-proveedor, .bm-fila-enlace + .bm-fila-enlace { border-top: var(--border-width) solid var(--color-border); }
+/* Fila de proveedor que abre su ficha: la misma fila, como botón. */
+.bm-fila-enlace .bm-fila-proveedor { width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.bm-fila-enlace .bm-fila-proveedor:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
+.bm-paginas { display: flex; align-items: center; justify-content: center; gap: 16px; font-size: var(--text-xs); color: var(--color-muted-foreground); }
 .bm-nota-proveedor { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .bm-cerrar-antes { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
 .bm-cerrar-antes h2 { font-size: var(--text-sm); font-weight: 600; }
