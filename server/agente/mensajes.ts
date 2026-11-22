@@ -402,7 +402,7 @@ export const proponerAgregarProducto = (nombre: string, unidad: string, tramos: 
   + `Precio por cantidad sugerido: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
   + 'Lo cambias cuando quieras en tu panel web, en Productos.\n' + opciones('Sí, agrégalo', 'No');
 export const productoAgregado = (nombre: string) =>
-  `Listo, "${nombre}" quedó en tus productos. Con él compites en las compras en grupo que lo pidan.`;
+  `Listo, "${nombre}" quedó en tus productos. Con él compites en los pedidos en grupo que lo pidan.`;
 export const productoCreado = (p: ProductoCompra) =>
   `Listo, "${p.nombre}" ya está en la compra conjunta a ${dinero(p.precioActual)} por ${p.unidad}. La sala lo ve en vivo.`;
 export function estadoDeOfertas(mias: readonly { producto: ProductoCompra; propia: number; ganando: boolean }[], productos: readonly ProductoCompra[]): string {
