@@ -44,8 +44,6 @@
 }
 .bm-secciones a.activa { color: var(--color-foreground); font-weight: 600; }
 .bm-icono-menu { flex-shrink: 0; width: 22px; height: 22px; object-fit: contain; }
-/* En oscuro, los íconos ilustrados van sobre una baldosa crema, como las ilustraciones (DESIGN.md). */
-[data-tema='oscuro'] .bando-ui .bm-icono-menu { background: var(--bando-fondo-ilustracion); border-radius: 6px; padding: 2px; }
 .bm-seccion-titulo, .bm-seccion-corto { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 @media (max-width: 1023px) {
   .bm-secciones a:has(.bm-seccion-corto) .bm-seccion-titulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

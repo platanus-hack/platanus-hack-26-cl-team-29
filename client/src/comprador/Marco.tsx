@@ -52,7 +52,7 @@ export function Marco<S extends string>({ secciones, activa, negocio, aviso, onS
         <nav className="bm-secciones" aria-label="Secciones">
           {secciones.map(s => (
             <a key={s.id} href={`#${s.id}`} className={s.id === activa ? 'activa' : ''} aria-current={s.id === activa ? 'page' : undefined}>
-              <img className="bm-icono-menu" src={ICONO_MENU[s.icono]} alt="" width={22} height={22} />
+              <img className="bm-icono-menu ilustracion" src={ICONO_MENU[s.icono]} alt="" width={22} height={22} />
               <span className="bm-seccion-titulo">{s.titulo}</span>
               {s.corto && <span className="bm-seccion-corto" aria-hidden="true">{s.corto}</span>}
               {!!s.globo && <span className="bm-globo" aria-label={`${s.globo} por revisar`}>{s.globo}</span>}
