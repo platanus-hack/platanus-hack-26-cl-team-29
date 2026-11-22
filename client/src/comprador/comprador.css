@@ -258,11 +258,8 @@
   .bm-miel, .bm-camino { transition: none; }
 }
 
-/* Secciones aún sin rediseñar (`.puente-legado`): su barra fija va sobre las secciones de este marco y con una
-   sombra suave en vez de la del fondo oscuro. Se borra con el rediseño de "Pedir". */
-@media (max-width: 1023px) {
-  .bm-marco .puente-legado .cn-resumen-pedido { bottom: calc(var(--alto-barra) + 8px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 24px color-mix(in srgb, var(--color-foreground) 10%, transparent); }
-}
+/* Crédito: la misma columna que las demás secciones; las piezas del canal toman la marca en canal/marca.css. */
+.bm-credito { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 640px; }
 
 /* ---------- Entrar (canal/Acceso.tsx): tarjeta blanca centrada sobre crema, como "Conecta tu SII" en Paper ---------- */
 .bm-acceso {

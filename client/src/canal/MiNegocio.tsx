@@ -57,7 +57,7 @@ export function MiNegocio() {
       {seccion === 'inicio' && <Inicio foto={foto} negocio={yo.negocio} ordenes={yo.ordenes} documentos={yo.documentos} config={config} secciones={SECCIONES} evento={cambio} desde="comprar" />}
       {seccion === 'compra' && <ComprasEnGrupo api={api} token={token} foto={foto} yo={yo} ruta={compra} />}
       {seccion === 'compra' && compra.vista === 'lista' && vigente && participa && (
-        <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>
+        <Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} />
       )}
       {seccion === 'proveedores' && <Proveedores foto={foto} yo={yo} cambio={cambio} ficha={ficha} />}
       {seccion === 'recepcion' && <Recepcion api={api} token={token} ordenes={yo.ordenes} negocios={foto.negocios} />}
@@ -65,8 +65,13 @@ export function MiNegocio() {
         <Sii api={api} token={token} cambio={cambio} negocios={foto.negocios} panel="comprador" vende={puedeVender(yo.negocio)} compra vencer={vencer} />
       )}
       {seccion === 'credito' && (
-        // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).
-        <div className="puente-legado cn-contenido">
+        <div className="bm-credito">
+          <header className="bm-cabecera">
+            <div>
+              <h1 className="bm-titulo">Crédito</h1>
+              <p className="bm-bajada">Compra hoy y paga a plazo. Bando le paga al proveedor al instante.</p>
+            </div>
+          </header>
           <AvisoCompraAbierta lic={vigente} participa={participa} irACompra={() => irA('compra')} />
           <MiCredito api={api} token={token} foto={foto} cambio={cambio} />
           <BotonWhatsapp numero={config?.whatsappNumero} />

@@ -63,7 +63,7 @@ function Recibir({ api, token, orden, proveedor }: { api: CanalApi; token: strin
         </div>
       )}
       {c.estado.fase !== 'nada' && (
-        <div className="puente-legado bp-fila-confirmar">
+        <div className="bp-fila-confirmar">
           {'conforme' in c.estado.accion ? (
             <Confirmar sii titulo="¿Llegó todo bien?" si="Sí, llegó todo" {...c.panel}>
               <p>Queda registrado en el SII que recibiste conforme la factura de {proveedor}, y Bando le paga.</p>

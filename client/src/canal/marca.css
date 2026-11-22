@@ -1,0 +1,144 @@
+/* Las piezas del canal (/app y /proveedor) dentro de la marca Bando (DESIGN.md): confirmación, documentos y estado en
+   el SII, crédito, aviso de compra abierta, "trae a tu vecino", cantidad, vacío y WhatsApp. Se estilan dentro de
+   `.bando-ui`, así no necesitan `.puente-legado`; fuera de ella (vistas aún sin migrar) siguen las de canal.css.
+   Solo tokens: se ven bien en modo claro y oscuro. El azul del SII es `--color-sii` (estilos.css). */
+
+/* ---------- Texto y controles comunes ---------- */
+.bando-ui .cn-seccion { gap: 16px; }
+.bando-ui .cn-titulo { margin: 0; font-size: var(--text-xl); line-height: var(--leading-xl); font-weight: 700; letter-spacing: var(--tracking-tight); }
+.bando-ui .cn-texto { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.bando-ui .cn-seccion .tarjeta, .bando-ui .cn-confirmar .tarjeta, .bando-ui .cn-pedir-tarjeta, .bando-ui .cn-cuenta, .bando-ui .tarjeta.cn-documentos {
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); padding: 16px;
+}
+.bando-ui .cn-seccion .etiqueta, .bando-ui .cn-confirmar .etiqueta {
+  font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-faint-fg); margin: 0;
+}
+.bando-ui .cn-seccion .mono, .bando-ui .cn-confirmar .mono, .bando-ui .cn-pedir-tarjeta .mono { font-family: var(--font-sans); }
+.bando-ui .cn-seccion .tenue, .bando-ui .cn-pedir-tarjeta .tenue, .bando-ui .cn-documentos .tenue { color: var(--color-faint-fg); }
+.bando-ui .cn-seccion .vacio { font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-faint-fg); }
+.bando-ui .cn-seccion .nota-demo, .bando-ui .nota-demo { font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); }
+.bando-ui .cn-seccion .error, .bando-ui .cn-confirmar .error, .bando-ui .cn-pedir-tarjeta .error, .bando-ui .cn-cuenta .error {
+  font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-destructive);
+}
+.bando-ui .cn-ok {
+  margin: 0; padding: 12px 16px; border-radius: var(--radius-xl); font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--leading-sm);
+  background: color-mix(in srgb, var(--bando-oliva) 14%, transparent); color: var(--bando-oliva-texto);
+}
+
+/* Botones: primario negro (crema en oscuro), 36 px de alto mínimo y radio 12; acciones de pantalla a 44 px. */
+.bando-ui .cn-seccion .boton, .bando-ui .cn-confirmar .boton, .bando-ui .cn-pedir-tarjeta .boton, .bando-ui .cn-cuenta .boton,
+.bando-ui .cn-aviso-compra .boton, .bando-ui .cn-invitar .boton {
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: var(--radius-xl); font-family: var(--font-sans);
+  font-size: var(--text-sm); font-weight: 600; background: var(--color-primary); color: var(--color-primary-foreground); box-shadow: none;
+}
+.bando-ui .cn-boton-texto {
+  font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-muted-foreground); text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.bando-ui .cn-boton-texto:hover { color: var(--color-foreground); }
+.bando-ui .cn-chip {
+  padding: 2px 8px; border-radius: var(--radius-full); border: var(--border-width) solid var(--color-border); font-family: var(--font-sans);
+  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; color: var(--color-muted-foreground); background: var(--color-secondary);
+}
+.bando-ui .cn-chip.recibida, .bando-ui .cn-chip.corregida { color: var(--bando-oliva-texto); border-color: transparent; background: color-mix(in srgb, var(--bando-oliva) 14%, transparent); }
+.bando-ui .cn-chip.reclamada { color: var(--color-destructive); border-color: transparent; background: color-mix(in srgb, var(--color-destructive) 12%, transparent); }
+.bando-ui .cn-chip.facturada { color: var(--color-primary-foreground); border-color: var(--color-primary); background: var(--color-primary); }
+
+/* ---------- Confirmar (paso dentro de la página) ---------- */
+.bando-ui .cn-confirmar {
+  margin-top: 16px; padding: 16px; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-foreground);
+  background: var(--color-background); color: var(--color-foreground);
+}
+.bando-ui .cn-confirmar h3 { font-size: var(--text-base); line-height: var(--leading-base); font-weight: 700; letter-spacing: var(--tracking-tight); }
+.bando-ui .cn-confirmar-texto p { font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.bando-ui .cn-confirmar .cn-cifra-confirmar { font-family: var(--font-sans); font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; color: var(--color-foreground); font-variant-numeric: tabular-nums; }
+.bando-ui .cn-confirmar .cn-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.bando-ui .cn-confirmar .cn-acciones .boton { min-height: 44px; }
+/* Acción con efecto en el SII: borde y botón en azul SII, sin teñir todo el panel. */
+.bando-ui .cn-confirmar.sii { border-color: var(--color-sii); background: var(--color-background); color: var(--color-foreground); }
+.bando-ui .cn-confirmar.sii .etiqueta { color: var(--color-sii); display: inline-flex; align-items: center; gap: 6px; }
+.bando-ui .cn-confirmar.sii .boton { background: var(--color-sii); color: white; }
+.bando-ui .cn-confirmar.sii .error { background: none; padding: 0; color: var(--color-destructive); }
+[data-tema='oscuro'] .bando-ui .cn-confirmar.sii .etiqueta { color: var(--color-foreground); }
+
+/* ---------- Documentos y estado en el SII ---------- */
+.bando-ui .cn-seccion .tarjeta.cn-documentos, .bando-ui .tarjeta.cn-documentos { padding: 0 16px; }
+.bando-ui .cn-documentos li { padding: 14px 0; border-bottom: var(--border-width) solid var(--color-border); }
+.bando-ui .cn-documentos li:last-child { border-bottom: 0; }
+.bando-ui .cn-documentos .cn-icono { color: var(--color-faint-fg); }
+.bando-ui .cn-doc-izq strong { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; }
+.bando-ui .cn-doc-izq .mono { font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); }
+.bando-ui .cn-doc-der strong { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bando-ui .cn-doc-pdf { font-size: var(--text-xs); color: var(--color-sii); }
+.bando-ui .cn-sii {
+  font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; padding: 2px 8px 2px 4px;
+  border-radius: var(--radius-full);
+}
+.bando-ui .cn-sii.ok { background: var(--color-sii); color: white; }
+.bando-ui .cn-sii.en-curso { border: var(--border-width) solid var(--color-sii); color: var(--color-sii); background: none; }
+.bando-ui .cn-sii.simulado { border: var(--border-width) dashed var(--color-border); color: var(--color-faint-fg); }
+.bando-ui .cn-sii.mal { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }
+[data-tema='oscuro'] .bando-ui .cn-sii.en-curso, [data-tema='oscuro'] .bando-ui .cn-doc-pdf { color: var(--color-foreground); }
+
+/* ---------- Cantidad y vacío ---------- */
+.bando-ui .cn-stepper { grid-template-columns: 44px 1fr 44px; gap: 8px; }
+.bando-ui .cn-stepper .boton.secundario {
+  min-height: 44px; padding: 0; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-border);
+  background: var(--color-background); color: var(--color-foreground); font-family: var(--font-sans); font-size: var(--text-xl); font-weight: 500;
+}
+.bando-ui .cn-stepper input {
+  min-height: 44px; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-border); background: var(--color-background);
+  color: var(--color-foreground); font-family: var(--font-sans); font-size: var(--text-base); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.bando-ui .cn-vacio h3 { font-size: var(--text-base); font-weight: 700; }
+
+/* ---------- Crédito Bando ---------- */
+.bando-ui .cn-credito { gap: 4px; }
+.bando-ui .cn-credito > .mono { font-size: var(--text-sm); line-height: var(--leading-sm); }
+.bando-ui .cn-credito-cupo { font-family: var(--font-sans); font-size: 40px; line-height: 44px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.bando-ui .cn-credito-barra { height: 8px; border-radius: var(--radius-full); background: var(--color-secondary); margin: 8px 0 4px; }
+.bando-ui .cn-credito-barra span { background: var(--bando-miel); border-radius: inherit; }
+.bando-ui .cn-credito-sube { font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--bando-oliva-texto); font-weight: 500; }
+.bando-ui .cn-nota-pie { font-size: var(--text-xs); line-height: var(--leading-xs); }
+.bando-ui .cn-credito-tarjeta strong { font-size: var(--text-sm); font-weight: 600; }
+.bando-ui .cn-credito-tarjeta p { font-size: var(--text-xs); line-height: var(--leading-xs); }
+.bando-ui .cn-credito-tarjeta .cn-icono, .bando-ui .cn-pedir-tarjeta .cn-icono { color: var(--color-muted-foreground); }
+.bando-ui .cn-pedir-tarjeta { gap: 8px; }
+.bando-ui .cn-pedir-tarjeta h3 { font-size: var(--text-base); line-height: var(--leading-base); font-weight: 700; }
+.bando-ui .cn-pedir-tarjeta p { font-size: var(--text-sm); line-height: var(--leading-sm); }
+
+/* Cuenta para recibir (formulario del proveedor). */
+.bando-ui .cn-cuenta .campo span { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 500; color: var(--color-foreground); }
+.bando-ui .cn-cuenta .campo input, .bando-ui .cn-cuenta select {
+  min-height: 44px; padding: 0 12px; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-border);
+  background: var(--color-background); color: var(--color-foreground); font-family: var(--font-sans); font-size: var(--text-base);
+}
+/* El botón de guardar no flota con sombra negra como en la interfaz anterior. */
+.bando-ui .cn-cuenta .boton:not(.secundario) { position: static; box-shadow: none; }
+.bando-ui .cn-cuenta .campo input:focus, .bando-ui .cn-cuenta select:focus { outline: none; border-color: var(--color-foreground); box-shadow: 0 0 0 3px var(--color-secondary); }
+
+/* ---------- Avisos: compra abierta y trae a tu vecino ---------- */
+.bando-ui .cn-aviso-compra, .bando-ui .cn-invitar {
+  border-radius: var(--radius-xl); background: var(--bando-miel-50); border: var(--border-width) solid var(--bando-miel-600); animation: none;
+}
+.bando-ui .cn-invitar { background: var(--color-background); border-color: var(--color-border); }
+.bando-ui .cn-aviso-compra > svg { color: var(--bando-miel-texto); }
+.bando-ui .cn-invitar > svg { color: var(--bando-oliva-texto); }
+.bando-ui .cn-aviso-compra strong, .bando-ui .cn-invitar strong { font-size: var(--text-base); line-height: var(--leading-base); font-weight: 700; }
+.bando-ui .cn-aviso-compra p, .bando-ui .cn-invitar p {
+  font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground);
+}
+.bando-ui .cn-invitar .cn-invitar-estado { color: var(--bando-oliva-texto); }
+.bando-ui .cn-aviso-cerrar { color: var(--color-faint-fg); }
+.bando-ui .cn-aviso-cerrar:hover { color: var(--color-foreground); }
+
+/* ---------- Pedir por WhatsApp: botón secundario con el glifo (el primario de la pantalla es otro) ---------- */
+.bando-ui .cn-boton-whatsapp {
+  min-height: 44px; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-border);
+  background: var(--color-background); color: var(--color-foreground);
+}
+.bando-ui .cn-boton-whatsapp:hover { background: var(--color-secondary); }
+.bando-ui .cn-boton-whatsapp:focus-visible { outline: 2px solid var(--color-foreground); }
+.bando-ui .cn-wa-textos strong { font-size: var(--text-sm); font-weight: 600; }
+.bando-ui .cn-wa-textos span { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-faint-fg); }

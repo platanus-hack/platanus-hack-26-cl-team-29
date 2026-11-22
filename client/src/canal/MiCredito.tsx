@@ -172,7 +172,7 @@ export function PedirTarjeta({ token }: { token: string }) {
     <div className="tarjeta cn-pedir-tarjeta">
       <Icono nombre="tarjeta" tam={28} />
       <h3>Inscribe tu tarjeta para comprar</h3>
-      <p className="mono tenue">Bando le paga al proveedor al tiro y tú pagas a 30 días, solo. Se inscribe una vez en Transbank; Bando nunca ve el número.</p>
+      <p className="mono tenue">Bando le paga al proveedor al instante y tú pagas a 30 días, solo. Se inscribe una vez en Transbank; Bando nunca ve el número.</p>
       <button type="button" className="boton" disabled={abriendo} onClick={inscribir}>{abriendo ? 'Abriendo Transbank...' : 'Inscribir tarjeta'}</button>
       {error && <p className="error">{error}</p>}
     </div>

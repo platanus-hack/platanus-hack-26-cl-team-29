@@ -1,52 +1,80 @@
-/* Ficha del proveedor de /app (#proveedores/<clave>) (Paper "10 · Ficha del proveedor").
-   Uso personal, primero el teléfono. Todo con prefijo pv-. */
+/* Ficha del proveedor de /app (#proveedores/<clave>) con la marca Bando (DESIGN.md, Paper "10 · Ficha del proveedor").
+   Uso personal, primero el contacto. Todo con prefijo pv-; solo tokens, así se ve bien en modo claro y oscuro. */
 
-.pv-pagina { display: grid; gap: 16px; align-content: start; }
+.pv-pagina { display: grid; gap: 16px; align-content: start; width: 100%; max-width: 880px; }
 .pv-pagina > * { min-width: 0; }
 
-.pv-ceja { margin: 0; font-family: var(--font-mono); font-size: 12px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--color-primary); overflow-wrap: anywhere; max-width: calc(100% - 96px); }
-.pv-titulo { margin: 8px 0 0; font-size: clamp(28px, 6vw, 44px); line-height: 1.05; font-weight: 800; letter-spacing: var(--tracking-tight); overflow-wrap: anywhere; max-width: calc(100% - 96px); }
+/* Las piezas comunes dentro de la ficha (etiquetas, textos de apoyo, error y cargando) en la tipografía de la marca. */
+.bando-ui .pv-pagina .etiqueta {
+  margin: 0; font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-faint-fg);
+}
+.bando-ui .pv-pagina .mono { font-family: var(--font-sans); }
+.bando-ui .pv-pagina .tenue, .bando-ui .pv-pagina .vacio { color: var(--color-faint-fg); }
+.bando-ui .pv-pagina .vacio { font-family: var(--font-sans); font-size: var(--text-sm); margin: 0; }
+.bando-ui .pv-pagina .error { font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-destructive); }
 
-.pv-fila-detalle { font-size: 13px; color: var(--color-muted); margin: 0; overflow-wrap: anywhere; }
+.pv-ceja {
+  margin: 0; font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; letter-spacing: var(--tracking-caps);
+  text-transform: uppercase; color: var(--bando-miel-texto); overflow-wrap: anywhere;
+}
+.pv-titulo {
+  margin: 4px 0 0; font-size: var(--text-4xl); line-height: var(--leading-4xl); font-weight: 700; letter-spacing: -0.03em; overflow-wrap: anywhere;
+}
+.pv-fila-detalle { margin: 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); overflow-wrap: anywhere; }
 
 /* Ficha: lo que dice cada fuente, tres cifras y los precios. */
-.pv-volver { justify-self: start; background: none; border: 0; padding: 8px 0; color: var(--color-muted); font-size: 14px; cursor: pointer; }
+.pv-volver {
+  justify-self: start; min-height: 36px; padding: 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--text-sm); color: var(--color-faint-fg);
+}
+.pv-volver:hover { color: var(--color-foreground); text-decoration: underline; }
 .pv-cabecera-ficha { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 16px; align-items: start; }
 .pv-dicen { display: grid; gap: 12px; }
-.pv-dice { background: var(--color-surface); border: 1px solid var(--color-border); padding: 16px 18px; min-width: 0; }
-.pv-dice > p:not(.etiqueta) { margin: 8px 0 0; font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
-.pv-dice-bando { border-color: var(--color-primary); }
-.pv-dice-bando .etiqueta { color: var(--color-primary); }
-.pv-con-sii { display: flex; align-items: center; gap: 6px; }
-.pv-giros { margin: 8px 0 0; padding-left: 18px; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; }
-.pv-giros li::first-letter { text-transform: uppercase; }
-.pv-cifras { display: grid; gap: 20px; margin-top: 8px; }
-.pv-cifra { border-top: 3px solid var(--color-border); padding-top: 12px; min-width: 0; }
-.pv-cifra-volt { border-top-color: var(--color-primary); }
-.pv-cifra-sii { border-top-color: var(--color-sii); }
-.pv-cifra-magenta { border-top-color: var(--color-magenta); }
-.pv-cifra-valor { margin: 6px 0 0; font-size: 28px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
-.pv-cifra-pie { margin: 6px 0 0; font-size: 13px; color: var(--color-muted); line-height: 1.4; overflow-wrap: anywhere; }
-.pv-productos { display: grid; gap: 8px; margin-top: 8px; }
-.pv-precios { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--color-border); }
-.pv-precio {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 12px 0; border-bottom: 1px solid var(--color-border);
+.pv-dice {
+  min-width: 0; padding: 16px; border-radius: var(--radius-xl); border: var(--border-width) solid var(--color-border);
+  background: var(--color-background);
 }
-.pv-precio-producto { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.pv-precio-mediana { font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; }
-.pv-precio-pie { grid-column: 1 / -1; font-size: 12px; }
+.pv-dice > p:not(.etiqueta) { margin: 8px 0 0; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.pv-dice-bando { background: var(--bando-miel-50); border-color: var(--bando-miel-600); }
+.bando-ui .pv-pagina .pv-dice-bando .etiqueta { color: var(--bando-miel-texto); }
+.pv-con-sii { display: flex; align-items: center; gap: 6px; }
+.pv-giros { margin: 8px 0 0; padding-left: 18px; font-size: var(--text-sm); line-height: var(--leading-sm); color: var(--color-muted-foreground); }
+.pv-giros li::first-letter { text-transform: uppercase; }
+
+.pv-cifras { display: grid; gap: 20px; margin-top: 8px; }
+.pv-cifra { min-width: 0; padding-top: 12px; border-top: 3px solid var(--color-border); }
+.pv-cifra-volt { border-top-color: var(--bando-miel); }
+.pv-cifra-sii { border-top-color: var(--color-sii); }
+.pv-cifra-magenta { border-top-color: var(--bando-oliva); }
+.pv-cifra-valor {
+  margin: 6px 0 0; font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.pv-cifra-pie { margin: 6px 0 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+
+.pv-productos { display: grid; gap: 8px; margin-top: 8px; }
+.pv-precios { list-style: none; margin: 0; padding: 0; border-top: var(--border-width) solid var(--color-border); }
+.pv-precio {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 12px 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+.pv-precio-producto { font-size: var(--text-sm); font-weight: 600; overflow-wrap: anywhere; }
+.pv-precio-mediana { font-size: var(--text-sm); font-weight: 600; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pv-precio-pie { grid-column: 1 / -1; font-size: var(--text-xs); line-height: var(--leading-xs); }
 
 @media (min-width: 768px) {
-  
   .pv-dicen, .pv-cifras { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* Contacto: lo primero que se busca en una ficha. */
-.pv-contacto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+/* Contacto: lo primero que se busca en una ficha. El primero (WhatsApp o teléfono) es la acción principal, en negro. */
+.pv-contacto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pv-contacto-boton {
-  display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 10px;
-  font-family: var(--font-mono); font-size: 14px; color: var(--color-text); text-decoration: none; overflow-wrap: anywhere;
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: var(--radius-xl);
+  border: var(--border-width) solid var(--color-border); background: var(--color-background); color: var(--color-foreground);
+  font-size: var(--text-sm); font-weight: 500; text-decoration: none; overflow-wrap: anywhere;
 }
-.pv-contacto-boton:first-child { background: var(--color-primary); color: var(--color-primary-foreground); border-color: transparent; font-weight: 700; }
-.pv-contacto-fuente { flex-basis: 100%; margin: 0; font-size: 12px; }
+.pv-contacto-boton:hover { background: var(--color-secondary); }
+.pv-contacto-boton:first-child { background: var(--color-primary); color: var(--color-primary-foreground); border-color: transparent; font-weight: 600; }
+.pv-contacto-fuente { flex-basis: 100%; margin: 0; font-size: var(--text-xs); line-height: var(--leading-xs); }
 .pv-contacto-fuente a { color: inherit; }
