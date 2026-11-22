@@ -1,7 +1,7 @@
 // /proveedor: panel web del proveedor con la marca Bando (DESIGN.md, Paper "2 · Proveedor"). Las mismas acciones
 // que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
 // mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Productos
-// están rediseñados; Reparto y Facturas van por el puente.
+// están rediseñados; Reparto y SII van por el puente.
 import { useCallback, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { BotonSii } from './ConectarSii.tsx';
@@ -18,7 +18,7 @@ import { Pedidos } from '../proveedor/Pedidos.tsx';
 import { Precios } from '../proveedor/Precios.tsx';
 import { Productos } from '../proveedor/Productos.tsx';
 import { Compras } from '../proveedor/Compras.tsx';
-import { Facturas } from '../comprador/Facturas.tsx';
+import { Sii } from '../comprador/Sii.tsx';
 import { puedeComprar } from '../../../shared/red.ts';
 import { contarPorGrupo } from '../proveedor/pedidos.ts';
 import '../proveedor/proveedor.css';
@@ -30,7 +30,7 @@ const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'compras', titulo: 'Pedidos en grupo', corto: 'En grupo', icono: 'grupo' },
   { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
   { id: 'productos', titulo: 'Productos', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
-  { id: 'facturas', titulo: 'Facturas', icono: 'documento' },
+  { id: 'facturas', titulo: 'SII', icono: 'documento' },
 ];
 
 /** `#compras/L-3/cafe` → la sección y lo que viene después (el detalle de una compra). */
@@ -74,7 +74,7 @@ export function Proveedor() {
         </>
       )}
       {seccion === 'facturas' && (
-        <Facturas api={api} token={token} cambio={cambio} negocios={foto.negocios} vende compra={puedeComprar(yo.proveedor)} vencer={vencer}
+        <Sii api={api} token={token} cambio={cambio} negocios={foto.negocios} panel="proveedor" vende compra={puedeComprar(yo.proveedor)} vencer={vencer}
           acciones={<>
             <BotonSii api={api} token={token} />
             <BotonPagos api={api} token={token} documentos={yo.documentos} cambio={cambio} />

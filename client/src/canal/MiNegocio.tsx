@@ -1,5 +1,5 @@
 // /app: "Mi negocio", el canal web del comprador: iniciar o sumarse a compras en grupo, ver los proveedores de la red,
-// sus facturas del SII y su crédito Bando. Se compra en grupo: no hay pedidos directos a un proveedor.
+// la recepción de sus pedidos, sus documentos del SII y su crédito Bando. Se compra en grupo: no hay pedidos directos a un proveedor.
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { licitacionVigente } from './logica.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
@@ -12,15 +12,16 @@ import { Marco, useRutaDelHash, type SeccionMarco } from '../comprador/Marco.tsx
 import { Inicio } from '../comprador/Inicio.tsx';
 import { ComprasEnGrupo, rutaDeCompra, type RutaCompra } from '../comprador/ComprasEnGrupo.tsx';
 import { Proveedores } from '../comprador/Proveedores.tsx';
-import { Facturas } from '../comprador/Facturas.tsx';
+import { Sii } from '../comprador/Sii.tsx';
+import { Recepcion } from '../comprador/Recepcion.tsx';
 import { puedeVender } from '../../../shared/red.ts';
 import './canal.css';
 
-type Seccion = 'inicio' | 'compra' | 'proveedores' | 'facturas' | 'credito';
+type Seccion = 'inicio' | 'compra' | 'proveedores' | 'recepcion' | 'facturas' | 'credito';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'compra', titulo: 'Compras en grupo', corto: 'Compras', icono: 'grupo' },
-  { id: 'proveedores', titulo: 'Proveedores', icono: 'camion' },
-  { id: 'facturas', titulo: 'Facturas', icono: 'documento' }, { id: 'credito', titulo: 'Crédito', icono: 'tarjeta' },
+  { id: 'proveedores', titulo: 'Proveedores', icono: 'camion' }, { id: 'recepcion', titulo: 'Recepción', icono: 'caja' },
+  { id: 'facturas', titulo: 'SII', icono: 'documento' }, { id: 'credito', titulo: 'Crédito', icono: 'tarjeta' },
 ];
 
 /** `#compra/...` → la lista, iniciar una o un producto (ver `rutaDeCompra`). Sin hash, la portada. */
@@ -59,8 +60,9 @@ export function MiNegocio() {
         <div className="puente-legado"><Invitar token={token} modo={api.modo} nombre={yo.negocio.nombre} /></div>
       )}
       {seccion === 'proveedores' && <Proveedores foto={foto} yo={yo} />}
+      {seccion === 'recepcion' && <Recepcion api={api} token={token} ordenes={yo.ordenes} negocios={foto.negocios} />}
       {seccion === 'facturas' && (
-        <Facturas api={api} token={token} cambio={cambio} negocios={foto.negocios} vende={puedeVender(yo.negocio)} compra vencer={vencer} />
+        <Sii api={api} token={token} cambio={cambio} negocios={foto.negocios} panel="comprador" vende={puedeVender(yo.negocio)} compra vencer={vencer} />
       )}
       {seccion === 'credito' && (
         // Secciones aún sin rediseñar: el puente les da la paleta y la tipografía de la marca (DESIGN.md).

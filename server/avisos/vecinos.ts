@@ -146,10 +146,7 @@ export function crearVecinos(o: OpcionesVecinos) {
         o.emitir('invitacion.sumada', { licitacionId: l.id, invita: quien.nombre, invitado: n.nombre, invitadoId: n.id, ...(invitaId ? { invitaId } : {}) });
         o.log.info(`[vecinos] ${lineaInvitacion(quien.nombre, n.nombre)}`);
       }
-      const estaRonda = ronda(l);
-      if (!c.registrado || !c.telefono || c.sinAvisos || c.ofrecidas?.includes(estaRonda)) return;
-      const conSuCodigo = await o.actualizar(id, x => ({ ...x, codigo: x.codigo ?? nuevoCodigo(), ofrecidas: [...(x.ofrecidas ?? []), estaRonda].slice(-20) }));
-      await o.envios.enviar(c.telefono, mensajeDeInvitacion(conSuCodigo), 'invitación');
+      // Ya no se ofrece invitar por WhatsApp al sumarse (era spam): se invita desde la web o escribiendo "invitar".
     },
 
     /** Quién invitó a quién (las que ya sumaron a alguien), con los ids de negocio de la red actual si existen. */

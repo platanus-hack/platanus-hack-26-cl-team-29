@@ -135,6 +135,7 @@ export function ListaDocumentos({ documentos, contraparte }: { documentos: reado
           <div className="cn-doc-der">
             <strong className="mono">{d.monto !== undefined ? (d.tipo === 61 ? `-${dinero(d.monto)}` : dinero(d.monto)) : ''}</strong>
             <EstadoSii estado={d.estadoSii} />
+            {d.pdfUrl && <a className="cn-doc-pdf" href={d.pdfUrl} target="_blank" rel="noopener noreferrer">Ver PDF</a>}
           </div>
         </li>
       ))}
