@@ -166,3 +166,13 @@ test('el objetivo de la operación deja exactamente esos folios libres como mín
   assert.equal(minimoDeFolios(61, demandaParaTener(61, 50)), 50);
   assert.equal(minimoDeFolios(33, demandaParaTener(33, 3)), 10, 'nunca bajo el piso');
 });
+
+test('rangos viejos ya gastados se descartan con una consulta cada uno y la corrida llega a pedir', async () => {
+  const viejos = Array.from({ length: 15 }, (_, i) => rango(1000 + i * 100, 1099 + i * 100, '2026-11-01'));
+  const usados = new Set(viejos.flatMap(r => Array.from({ length: 100 }, (_, k) => r.desde + k)));
+  const { reposicion, llamadas, consultados } = montar({ rangos: viejos, tope: null }, usados);
+  await reposicion.reponer(33, { demanda: 195, conexion: true });
+  assert.equal(consultados.length, 15, 'solo el último folio de cada rango');
+  assert.ok(!llamadas.some(x => x.startsWith('reobtener')), 'nada que reobtener');
+  assert.equal(llamadas.at(-1), 'pedir 200', 'pide lo que falta para el objetivo');
+});
