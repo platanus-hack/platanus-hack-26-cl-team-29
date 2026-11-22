@@ -13,6 +13,7 @@ import { mensajeDeError } from './logica.ts';
 import { useEnvio } from './piezas.tsx';
 import { useDatoEnVivo } from './useCanal.ts';
 import { Modal } from '../marca/Modal.tsx';
+import { Boton, Estado } from '../marca/componentes.tsx';
 import type { CafSii, EstadoConexionSii, DatosEmpresaSii, FoliosSii, PasoSii } from './tipos.ts';
 
 const POLEO_MS = 1500;
@@ -57,12 +58,12 @@ export function BotonSii({ api, token }: Props) {
   if (!estado) return error ? <p className="bm-error">{error}</p> : null;
   return (
     <>
-      <button type="button" className={`bm-boton ${estado.conectado ? 'secundario' : 'bm-boton-sii'}`} onClick={() => setAbierto(true)}>
-        <LogoSii tam={16} /> {etiquetaSii(estado)}
-      </button>
+      <Boton variante={estado.conectado ? 'secundario' : 'sii'} onClick={() => setAbierto(true)}>
+        {estado.conectado && <LogoSii tam={16} />}{etiquetaSii(estado)}
+      </Boton>
       {abierto && (
         <Modal titulo="Conexión con el SII" onCerrar={cerrar}>
-          <div className="puente-legado"><ConectarSii api={api} token={token} estado={estado} setEstado={setEstado} /></div>
+          <ConectarSii api={api} token={token} estado={estado} setEstado={setEstado} />
         </Modal>
       )}
     </>
@@ -76,36 +77,36 @@ function ConectarSii({ api, token, estado, setEstado }: Props & { estado: Estado
   const factura = estado.folios.find(f => f.tipo === 33);
   const usandoDemo = !!estado.demo?.usando;
   return (
-    <section className="cn-sii-conexion">
-      <div className="cn-fila-meta">
-        <span className={`cn-chip cn-con-sii ${estado.conectado ? 'conectado' : ''}`}>
-          <LogoSii tam={14} />{usandoDemo ? `Usando ${estado.demo!.empresa} (Demo)` : estado.conectado ? 'SII conectado' : 'SII sin conectar'}
-        </span>
-        <span className="mono tenue">Certificación (maullin)</span>
+    <section className="bp-sii">
+      <div className="bp-sii-meta">
+        <Estado tono={estado.conectado ? 'sii' : 'neutro'}>
+          {usandoDemo ? `Usando ${estado.demo!.empresa} (Demo)` : estado.conectado ? 'SII conectado' : 'SII sin conectar'}
+        </Estado>
+        <span>Certificación (maullin)</span>
       </div>
       {estado.conectado && estado.empresa ? (
         <>
-          <p className="cn-texto-grande cn-sub">{estado.empresa.razonSocial}</p>
+          <p className="bm-titulo">{estado.empresa.razonSocial}</p>
           {factura && <FoliosFactura api={api} token={token} folios={factura} alCambiar={setEstado} />}
         </>
       ) : (
         <>
-          <h2 className="cn-producto cn-con-icono"><LogoSii tam={28} /><span>Conectar mi SII</span></h2>
-          <p className="mono tenue cn-texto">
+          <h2 className="bm-titulo bp-con-sii"><LogoSii tam={28} /><span>Conectar mi SII</span></h2>
+          <p className="bm-bajada">
             Sube tu certificado digital y el RUT de tu empresa. Traemos del SII tus datos y tus folios (CAF), sin anular nada. Así tus facturas, guías y notas de crédito salen a tu nombre.
           </p>
         </>
       )}
       {!abierta && !usandoDemo && (
-        <button type="button" className={`boton cn-ancho ${estado.conectado ? 'secundario cn-secundario' : 'cn-boton-sii'}`} onClick={() => setAbierta(true)}>
-          <LogoSii /> {estado.conectado ? 'Ver conexión' : 'Conectar mi SII'}
-        </button>
+        <Boton ancho variante={estado.conectado ? 'secundario' : 'sii'} onClick={() => setAbierta(true)}>
+          {estado.conectado && <LogoSii />}{estado.conectado ? 'Ver conexión' : 'Conectar mi SII'}
+        </Boton>
       )}
       {estado.demo && (!estado.conectado || usandoDemo) && <UsarDemo api={api} token={token} demo={estado.demo} alCambiar={setEstado} />}
       {abierta && !usandoDemo && (
         <Pasos api={api} token={token} estado={estado} alCambiar={setEstado} onCerrar={() => setAbierta(false)} />
       )}
-      <p className="nota-demo cn-sub">En uso real, cada proveedor conecta su propio certificado y sus folios.</p>
+      <p className="bp-tenue">En uso real, cada proveedor conecta su propio certificado y sus folios.</p>
     </section>
   );
 }
@@ -117,12 +118,12 @@ function UsarDemo({ api, token, demo, alCambiar }: Props & { demo: NonNullable<E
   return (
     <>
       {demo.usando
-        ? <p className="mono tenue cn-texto">Tus facturas salen emitidas por {demo.empresa} en el SII de certificación. Es solo para la demo.</p>
+        ? <p className="bm-bajada">Tus facturas salen emitidas por {demo.empresa} en el SII de certificación. Es solo para la demo.</p>
         : null}
-      <button type="button" className="cn-boton-texto" disabled={enviando} onClick={() => cambiar(!demo.usando)}>
+      <button type="button" className="bm-boton-texto" disabled={enviando} onClick={() => cambiar(!demo.usando)}>
         {enviando ? 'Cambiando...' : demo.usando ? 'Dejar de usar la conexión de la demo' : `o usar ${demo.empresa} (Demo)`}
       </button>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="bm-error">{error}</p>}
     </>
   );
 }
@@ -143,13 +144,13 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
   });
 
   return (
-    <div className="cn-pasos">
+    <div className="bp-pasos">
       {!estado.puedeGuardar && (
-        <p className="error">El servidor no tiene configurada la llave para guardar tus datos del SII (SII_LLAVE_CIFRADO). Avísale a quien administra la red.</p>
+        <p className="bm-error">El servidor no tiene configurada la llave para guardar tus datos del SII (SII_LLAVE_CIFRADO). Avísale a quien administra la red.</p>
       )}
 
-      <article className="cn-paso">
-        <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 1 · Certificado digital</p>
+      <article className="bp-paso">
+        <p className="bm-etiqueta bp-con-sii"><LogoSii tam={14} /> Paso 1 · Certificado digital</p>
         {pasoCert ? <PasoCertificado api={api} token={token} alListo={hecho} onCancelar={estado.titular ? () => setEditar(null) : undefined} /> : (
           <Resumen texto={`Titular ${estado.titular} · vence el ${fechaCorta(estado.venceEl ?? '')}`} onCambiar={() => setEditar('certificado')} />
         )}
@@ -158,8 +159,8 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
       {!pasoCert && estado.automatico && <Automatico api={api} token={token} estado={estado} alCambiar={alCambiar} />}
 
       {!pasoCert && !enCurso && (
-        <article className="cn-paso">
-          <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 2 · Tu empresa</p>
+        <article className="bp-paso">
+          <p className="bm-etiqueta bp-con-sii"><LogoSii tam={14} /> Paso 2 · Tu empresa</p>
           {pasoEmpresa ? <PasoEmpresa api={api} token={token} estado={estado} alListo={hecho} onCancelar={estado.empresa ? () => setEditar(null) : undefined} /> : (
             <Resumen
               texto={`${estado.empresa!.razonSocial} · ${estado.rutEmisor} · resolución del ${fechaCorta(estado.resolucion!.fecha)} n.º ${estado.resolucion!.numero}`}
@@ -170,9 +171,9 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
       )}
 
       {!pasoCert && !pasoEmpresa && !enCurso && (
-        <article className="cn-paso">
-          <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> Paso 3 · Folios (CAF)</p>
-          <p className="mono tenue cn-texto">
+        <article className="bp-paso">
+          <p className="bm-etiqueta bp-con-sii"><LogoSii tam={14} /> Paso 3 · Folios (CAF)</p>
+          <p className="bm-bajada">
             Los traemos solos del SII. Si falta alguno, sube el XML del CAF. Buscamos en el SII el primer folio libre, uno por segundo, para no repetir uno ya usado.
           </p>
           {TIPOS_DOCUMENTO.map(tipo => (
@@ -181,20 +182,20 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
         </article>
       )}
 
-      {error && <p className="error">{error}</p>}
-      <div className="cn-acciones">
-        <button type="button" className="cn-boton-texto" onClick={onCerrar}>Cerrar</button>
+      {error && <p className="bm-error">{error}</p>}
+      <div className="bp-acciones-texto">
+        <button type="button" className="bm-boton-texto" onClick={onCerrar}>Cerrar</button>
         {estado.titular && !desconectando && (
-          <button type="button" className="cn-boton-texto" onClick={() => setDesconectando(true)}>Desconectar mi SII</button>
+          <button type="button" className="bm-boton-texto" onClick={() => setDesconectando(true)}>Desconectar mi SII</button>
         )}
       </div>
       {desconectando && (
-        <div className="cn-confirmar" role="alertdialog" aria-label="Desconectar mi SII">
+        <div className="bp-aviso" role="alertdialog" aria-label="Desconectar mi SII">
           <h3>¿Desconectas tu SII?</h3>
-          <p className="cn-confirmar-texto">Borramos tu certificado, su clave y tus CAF de la red. Los documentos ya emitidos no cambian.</p>
-          <div className="cn-acciones">
-            <button type="button" className="boton" onClick={() => { void desconectar(); }} disabled={enviando}>{enviando ? 'Desconectando...' : 'Sí, desconectar'}</button>
-            <button type="button" className="cn-boton-texto" onClick={() => setDesconectando(false)} disabled={enviando}>No, volver</button>
+          <p className="bm-bajada">Borramos tu certificado, su clave y tus CAF de la red. Los documentos ya emitidos no cambian.</p>
+          <div className="bp-acciones-texto">
+            <button type="button" className="bm-boton" onClick={() => { void desconectar(); }} disabled={enviando}>{enviando ? 'Desconectando...' : 'Sí, desconectar'}</button>
+            <button type="button" className="bm-boton-texto" onClick={() => setDesconectando(false)} disabled={enviando}>No, volver</button>
           </div>
         </div>
       )}
@@ -204,9 +205,9 @@ function Pasos({ api, token, estado, alCambiar, onCerrar }: Props & { estado: Es
 
 function Resumen({ texto, onCambiar }: { texto: string; onCambiar: () => void }) {
   return (
-    <div className="cn-resumen">
-      <p className="mono">{texto}</p>
-      <button type="button" className="cn-boton-texto" onClick={onCambiar}>Cambiar</button>
+    <div className="bp-resumen">
+      <p className="bp-texto">{texto}</p>
+      <button type="button" className="bm-boton-texto" onClick={onCambiar}>Cambiar</button>
     </div>
   );
 }
@@ -227,24 +228,24 @@ function PasoCertificado({ api, token, alListo, onCancelar }: Props & { alListo:
     });
   };
   return (
-    <form className="formulario" onSubmit={enviar}>
-      <label className="campo">
-        <span className="etiqueta">Archivo .pfx o .p12</span>
+    <form className="bm-formulario" onSubmit={enviar}>
+      <label className="bm-campo">
+        <span className="bm-campo-etiqueta">Archivo .pfx o .p12</span>
         <input type="file" accept=".pfx,.p12,application/x-pkcs12" onChange={(e: ChangeEvent<HTMLInputElement>) => setArchivo(e.target.files?.[0] ?? null)} />
       </label>
-      <label className="campo">
-        <span className="etiqueta">Clave del certificado</span>
+      <label className="bm-campo">
+        <span className="bm-campo-etiqueta">Clave del certificado</span>
         <input type="password" value={clave} onChange={e => setClave(e.target.value)} autoComplete="off" />
       </label>
-      <label className="campo">
-        <span className="etiqueta">RUT de tu empresa</span>
+      <label className="bm-campo">
+        <span className="bm-campo-etiqueta">RUT de tu empresa</span>
         <input value={rut} onChange={e => setRut(e.target.value)} placeholder="76123456-7" autoCapitalize="characters" maxLength={12} />
       </label>
-      <p className="mono tenue cn-nota-pie">Si lo dejas vacío, usamos el RUT del titular del certificado.</p>
-      <p className="mono tenue cn-nota-pie">Lo guardamos cifrado y solo lo usamos para hablar con el SII. Nunca se muestra de vuelta.</p>
-      {error && <p className="error">{error}</p>}
-      <button className="boton" disabled={enviando}>{enviando ? 'Revisando certificado...' : 'Conectar con el SII'}</button>
-      {onCancelar && <button type="button" className="cn-boton-texto" onClick={onCancelar}>Volver</button>}
+      <p className="bp-tenue">Si lo dejas vacío, usamos el RUT del titular del certificado.</p>
+      <p className="bp-tenue">Lo guardamos cifrado y solo lo usamos para hablar con el SII. Nunca se muestra de vuelta.</p>
+      {error && <p className="bm-error">{error}</p>}
+      <button className="bm-boton" disabled={enviando}>{enviando ? 'Revisando certificado...' : 'Conectar con el SII'}</button>
+      {onCancelar && <button type="button" className="bm-boton-texto" onClick={onCancelar}>Volver</button>}
     </form>
   );
 }
@@ -293,51 +294,51 @@ function PasoEmpresa({ api, token, estado, alListo, onCancelar }: Props & { esta
   };
 
   const campo = (nombre: keyof typeof SIN_EMPRESA, etiqueta: string, max: number, extra: Record<string, string> = {}) => (
-    <label className="campo">
-      <span className="etiqueta">{etiqueta}</span>
+    <label className="bm-campo">
+      <span className="bm-campo-etiqueta">{etiqueta}</span>
       <input value={datos[nombre]} onChange={cambiar(nombre)} maxLength={max} {...extra} />
     </label>
   );
 
   return (
-    <form className="formulario" onSubmit={guardar}>
-      <div className="cn-fila-campo">
-        <label className="campo">
-          <span className="etiqueta">RUT de la empresa</span>
+    <form className="bm-formulario" onSubmit={guardar}>
+      <div className="bp-fila-campo">
+        <label className="bm-campo">
+          <span className="bm-campo-etiqueta">RUT de la empresa</span>
           <input value={rut} onChange={e => setRut(e.target.value)} placeholder="76123456-7" autoCapitalize="characters" maxLength={12} />
         </label>
-        <button type="button" className="boton secundario cn-boton-leer" onClick={() => { void leerDelSii(); }} disabled={leyendo || !rut.trim()}>
+        <button type="button" className="bm-boton secundario" onClick={() => { void leerDelSii(); }} disabled={leyendo || !rut.trim()}>
           {leyendo ? 'Leyendo...' : 'Leer del SII'}
         </button>
       </div>
-      {aviso && <p className="cn-ok">{aviso}</p>}
+      {aviso && <p className="bp-ok">{aviso}</p>}
       {campo('razonSocial', 'Razón social', 100)}
       {campo('giro', 'Giro', 80)}
       {campo('acteco', 'Código de actividad económica', 6, { inputMode: 'numeric', placeholder: '6 dígitos' })}
       {campo('direccion', 'Dirección', 70)}
-      <div className="cn-dos-campos">
+      <div className="bp-dos-campos">
         {campo('comuna', 'Comuna', 20)}
         {campo('ciudad', 'Ciudad (opcional)', 20)}
       </div>
-      <div className="cn-dos-campos">
-        <label className="campo">
-          <span className="etiqueta">Fecha de resolución</span>
+      <div className="bp-dos-campos">
+        <label className="bm-campo">
+          <span className="bm-campo-etiqueta">Fecha de resolución</span>
           <input type="date" value={fchResol} onChange={e => setFchResol(e.target.value)} />
         </label>
-        <label className="campo">
-          <span className="etiqueta">N.º de resolución</span>
+        <label className="bm-campo">
+          <span className="bm-campo-etiqueta">N.º de resolución</span>
           <input inputMode="numeric" value={nroResol} onChange={e => setNroResol(e.target.value.replace(/\D/g, ''))} maxLength={6} />
         </label>
       </div>
-      <p className="mono tenue cn-nota-pie">
+      <p className="bp-tenue">
         Si no la trajimos del SII: en el menú de certificación del SII, "Actualizar datos de empresa y usuarios (Nuevo)", campo Fecha de resolución. En certificación el número es 0.
       </p>
       {estado.resolucion?.rechazada && (
-        <p className="error">El SII rechazó la carátula de un envío (RCT) con esta resolución. Revisa la fecha y guárdala: hasta entonces no emitimos con ella.</p>
+        <p className="bm-error">El SII rechazó la carátula de un envío (RCT) con esta resolución. Revisa la fecha y guárdala: hasta entonces no emitimos con ella.</p>
       )}
-      {error && <p className="error">{error}</p>}
-      <button className="boton" disabled={enviando}>{enviando ? 'Guardando...' : 'Guardar mi empresa'}</button>
-      {onCancelar && <button type="button" className="cn-boton-texto" onClick={onCancelar}>Volver</button>}
+      {error && <p className="bm-error">{error}</p>}
+      <button className="bm-boton" disabled={enviando}>{enviando ? 'Guardando...' : 'Guardar mi empresa'}</button>
+      {onCancelar && <button type="button" className="bm-boton-texto" onClick={onCancelar}>Volver</button>}
     </form>
   );
 }
@@ -374,41 +375,41 @@ function FilaCaf({ api, token, tipo, cafs, alCambiar }: Props & { tipo: TipoDocu
   const p = enBusqueda?.progreso;
   const libres = cafs.reduce((n, c) => n + (c.libres ?? 0), 0);
   return (
-    <div className="cn-caf">
-      <div className="cn-caf-cabecera">
+    <div className="bp-caf">
+      <div className="bp-caf-cabecera">
         <div>
           <strong>{nombreDocumento(tipo)} ({tipo})</strong>
-          {cafs.length === 0 && <p className="mono tenue">Sin CAF</p>}
-          {cafs.slice(-3).map(c => <p key={c.desde} className="mono tenue">Folios {c.desde} a {c.hasta} · autorizado el {fechaCorta(c.fa)}</p>)}
-          {cafs.length > 3 && <p className="mono tenue">y {contar(cafs.length - 3, 'rango anterior', 'rangos anteriores')}</p>}
+          {cafs.length === 0 && <p className="bp-tenue">Sin CAF</p>}
+          {cafs.slice(-3).map(c => <p key={c.desde} className="bp-tenue">Folios {c.desde} a {c.hasta} · autorizado el {fechaCorta(c.fa)}</p>)}
+          {cafs.length > 3 && <p className="bp-tenue">y {contar(cafs.length - 3, 'rango anterior', 'rangos anteriores')}</p>}
         </div>
-        <label className={`boton secundario cn-boton-archivo${enviando ? ' deshabilitado' : ''}`}>
+        <label className={`bm-boton secundario${enviando ? ' deshabilitado' : ''}`}>
           {enviando ? 'Subiendo...' : caf ? 'Subir otro' : 'Subir CAF'}
           <input type="file" accept=".xml,text/xml,application/xml" onChange={e => { void subir(e); }} disabled={enviando} hidden />
         </label>
       </div>
       {enBusqueda && p && (
-        <div className="cn-progreso" role="status">
-          <p className="mono">Buscando el primer folio libre en el SII: folio {p.folio}, {contar(p.revisados, 'revisado')}</p>
-          <div className="cn-barra" aria-hidden="true"><span /></div>
+        <div className="bp-progreso" role="status">
+          <p className="bp-texto">Buscando el primer folio libre en el SII: folio {p.folio}, {contar(p.revisados, 'revisado')}</p>
+          <div className="bp-carga" aria-hidden="true"><span /></div>
         </div>
       )}
       {caf && !enBusqueda && cafs.some(c => c.primerLibre !== null) && (
-        <p className="cn-ok cn-con-sii"><LogoSii />{cafs.length === 1 && caf.primerLibre !== null ? `Primer folio libre: ${caf.primerLibre} · ` : ''}{contar(libres, 'folio libre', 'folios libres')}</p>
+        <p className="bp-ok"><LogoSii />{cafs.length === 1 && caf.primerLibre !== null ? `Primer folio libre: ${caf.primerLibre} · ` : ''}{contar(libres, 'folio libre', 'folios libres')}</p>
       )}
-      {cafs.filter(c => c.error).map(c => <p key={c.desde} className="error">{c.error}</p>)}
-      {avisos.map(a => <p key={a} className="mono tenue cn-nota-pie">{a}</p>)}
-      {error && <p className="error">{error}</p>}
+      {cafs.filter(c => c.error).map(c => <p key={c.desde} className="bm-error">{c.error}</p>)}
+      {avisos.map(a => <p key={a} className="bp-tenue">{a}</p>)}
+      {error && <p className="bm-error">{error}</p>}
       {caf && (aMano ? (
-        <form className="cn-fila-campo" onSubmit={fijar}>
-          <label className="campo">
-            <span className="etiqueta">Primer folio a usar</span>
+        <form className="bp-fila-campo" onSubmit={fijar}>
+          <label className="bm-campo">
+            <span className="bm-campo-etiqueta">Primer folio a usar</span>
             <input inputMode="numeric" value={manual} onChange={e => setManual(e.target.value.replace(/\D/g, ''))} />
           </label>
-          <button className="boton secundario cn-boton-leer" disabled={enviando}>{enviando ? 'Guardando...' : 'Usar este folio'}</button>
+          <button className="bm-boton secundario" disabled={enviando}>{enviando ? 'Guardando...' : 'Usar este folio'}</button>
         </form>
       ) : (
-        <button type="button" className="cn-boton-texto" onClick={() => setAMano(true)}>Indicar el primer folio a mano</button>
+        <button type="button" className="bm-boton-texto" onClick={() => setAMano(true)}>Indicar el primer folio a mano</button>
       ))}
     </div>
   );
@@ -427,16 +428,16 @@ function FoliosFactura({ api, token, folios, alCambiar }: Props & { folios: Foli
   const ocupado = enviando || folios.estado === 'reponiendo' || folios.estado === 'en_espera';
   const traer = () => enviar(async () => { alCambiar(await api.siiTraerFolios(token, 33)); });
   return (
-    <div className="cn-folios" aria-live="polite">
-      <p className="mono cn-texto cn-con-sii">
+    <div className="bp-folios" aria-live="polite">
+      <p className="bp-texto bp-con-sii">
         <LogoSii tam={14} />
-        <span>Folios de factura: {contar(folios.libres, 'libre')} · <span className={`cn-folios-estado ${folios.estado}`}>{ESTADO_FOLIOS[folios.estado]}</span></span>
+        <span>Folios de factura: {contar(folios.libres, 'libre')} · <span className={`bp-folios-estado ${folios.estado}`}>{ESTADO_FOLIOS[folios.estado]}</span></span>
       </p>
-      {folios.estado === 'bajo' && <p className="mono tenue cn-nota-pie">Se mantienen al menos {contar(folios.minimo, 'folio')}: se repondrán al emitir.</p>}
-      {folios.esperaHasta && <p className="mono tenue cn-nota-pie">Se vuelve a intentar a las {horaEnChile(Date.parse(folios.esperaHasta))}.</p>}
-      {folios.mensajeSii && <p className="mono tenue cn-nota-pie">El SII dice: «{folios.mensajeSii}»</p>}
-      {error && <p className="error">{error}</p>}
-      <button type="button" className="boton secundario cn-secundario cn-ancho" onClick={() => { void traer(); }} disabled={ocupado}>
+      {folios.estado === 'bajo' && <p className="bp-tenue">Se mantienen al menos {contar(folios.minimo, 'folio')}: se repondrán al emitir.</p>}
+      {folios.esperaHasta && <p className="bp-tenue">Se vuelve a intentar a las {horaEnChile(Date.parse(folios.esperaHasta))}.</p>}
+      {folios.mensajeSii && <p className="bp-tenue">El SII dice: «{folios.mensajeSii}»</p>}
+      {error && <p className="bm-error">{error}</p>}
+      <button type="button" className="bm-boton secundario bm-ancho" onClick={() => { void traer(); }} disabled={ocupado}>
         <LogoSii /> {folios.estado === 'reponiendo' || enviando ? 'Trayendo folios...' : 'Traer más folios'}
       </button>
     </div>
@@ -449,20 +450,20 @@ function Automatico({ api, token, estado, alCambiar }: Props & { estado: EstadoC
   const auto = estado.automatico!;
   const reintentar = () => enviar(async () => { alCambiar(await api.siiAutomatico(token, estado.rutEmisor ?? '')); });
   return (
-    <article className="cn-paso" aria-live="polite">
-      <p className="etiqueta cn-con-sii"><LogoSii tam={14} /> {auto.activo ? 'Conectando con el SII...' : 'Traído del SII'}</p>
+    <article className="bp-paso" aria-live="polite">
+      <p className="bm-etiqueta bp-con-sii"><LogoSii tam={14} /> {auto.activo ? 'Conectando con el SII...' : 'Traído del SII'}</p>
       {auto.pasos.map(p => (
-        <div key={p.id} className="cn-resumen">
+        <div key={p.id} className="bp-resumen">
           <div>
-            <p className="mono">{NOMBRE_PASO[p.id]} · {ESTADO_PASO[p.estado]}</p>
-            {p.detalle && <p className={p.estado === 'error' ? 'error' : 'mono tenue cn-nota-pie'}>{p.detalle}</p>}
-            {p.mensajeSii && <p className="mono tenue cn-nota-pie">El SII dice: «{p.mensajeSii}»</p>}
+            <p className="bp-texto">{NOMBRE_PASO[p.id]} · {ESTADO_PASO[p.estado]}</p>
+            {p.detalle && <p className={p.estado === 'error' ? 'bm-error' : 'bp-tenue'}>{p.detalle}</p>}
+            {p.mensajeSii && <p className="bp-tenue">El SII dice: «{p.mensajeSii}»</p>}
           </div>
         </div>
       ))}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="bm-error">{error}</p>}
       {!auto.activo && auto.pasos.some(p => p.estado === 'error') && (
-        <button type="button" className="boton secundario cn-ancho" onClick={() => { void reintentar(); }} disabled={enviando}>
+        <button type="button" className="bm-boton secundario bm-ancho" onClick={() => { void reintentar(); }} disabled={enviando}>
           <LogoSii /> {enviando ? 'Trayendo del SII...' : 'Volver a traer del SII'}
         </button>
       )}

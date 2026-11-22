@@ -8,9 +8,12 @@ import { kilometros } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import { POR_ENTREGAR, type ParadaReparto, type RutaReparto as Ruta } from '../../../shared/ruta.ts';
 import type { CanalApi } from './api.ts';
-import { Icono, LogoSii } from './iconos.tsx';
+import { LogoSii } from './iconos.tsx';
+import { ILUSTRACION } from '../marca/recursos.ts';
+import { Boton, BotonEnlace, Estado, EstadoVacio, type TonoEstado } from '../marca/componentes.tsx';
+import { textoEstadoSii } from '../red/formato.ts';
 import { mensajeDeError, unidadPara } from './logica.ts';
-import { Confirmar, EstadoSii, useConfirmacion } from './piezas.tsx';
+import { Confirmar, useConfirmacion } from './piezas.tsx';
 import type { ConfigRed, YoProveedor } from './tipos.ts';
 
 const MapaRuta = lazy(() => import('./MapaRuta.tsx'));
@@ -50,55 +53,77 @@ export function RutaReparto({ api, token, yo, config, alCambiar }: Props) {
   }, [api, token, alCambiar]);
   const c = useConfirmacion<'guias'>(emitir);
 
-  if (!porEntregar.length) return null;
+  if (!porEntregar.length) {
+    return (
+      <div className="bp-pagina">
+        <Cabecera />
+        <EstadoVacio ilustracion={ILUSTRACION.camion} titulo="No tienes pedidos por entregar" texto="Cuando confirmes pedidos, aquí aparece la ruta más corta para repartirlos." />
+      </div>
+    );
+  }
 
+  const enCurso = c.estado.fase !== 'nada';
   return (
-    <section className="cn-seccion">
-      <h2 className="cn-titulo cn-con-icono"><Icono nombre="camion" tam={24} /><span>Ruta de reparto</span></h2>
-      <div className="tarjeta cn-ruta">
-        {error && <p className="error">{error}</p>}
-        {!ruta ? <p className="mono tenue">Calculando la ruta más corta...</p> : (
-          <>
-            <dl className="cn-cifras cn-cifras-3">
+    <div className="bp-pagina">
+      <Cabecera />
+      {error && <p className="bm-error">{error}</p>}
+      {!ruta ? <p className="bp-nada">Calculando la ruta más corta...</p> : (
+        <div className="bp-columnas">
+          <section className="bm-tarjeta bp-ruta">
+            <dl className="bp-ruta-cifras">
               <div><dt>Paradas</dt><dd>{ruta.paradas.length}</dd></div>
               <div><dt>Recorrido</dt><dd>{kilometros(ruta.distanciaKm)}</dd></div>
               <div><dt>Manejando</dt><dd>{minutos(ruta.duracionMin)}</dd></div>
             </dl>
-            <Suspense fallback={<div className="cn-ruta-mapa" />}><MapaRuta ruta={ruta} /></Suspense>
-            <p className="mono tenue cn-texto">
+            <Suspense fallback={<div className="bp-ruta-mapa" />}><MapaRuta ruta={ruta} /></Suspense>
+            <p className="bp-tenue">
               {ruta.porCalles ? 'Por calles, saliendo de tu bodega y volviendo a ella.' : 'Distancia aproximada en línea recta, saliendo de tu bodega y volviendo a ella.'}
               {ruta.paradas.some(p => p.aproximado) && ' Los negocios sin dirección ubicada aparecen en su comuna.'}
             </p>
-
-            {sinGuia > 0 && c.estado.fase === 'nada' && (
-              <button type="button" className="boton cn-ancho cn-boton-sii" onClick={() => c.pedir('guias')}>
-                <LogoSii /> Emitir {contar(sinGuia, 'guía de despacho', 'guías de despacho')}
-              </button>
-            )}
-            {c.estado.fase !== 'nada' && (
-              <Confirmar sii titulo={`¿Emites ${contar(sinGuia, 'guía de despacho', 'guías de despacho')} en el SII?`} si="Sí, emitir" {...c.panel}>
-                <p>Una guía por pedido, con lo que llevas a cada negocio. Acompaña la mercadería en el reparto.</p>
-              </Confirmar>
-            )}
-            {ruta.googleMaps && (
-              <a className="boton secundario cn-ancho" href={ruta.googleMaps.url} target="_blank" rel="noopener noreferrer">
-                Abrir en Google Maps
-              </a>
+            <div className="bp-ruta-acciones">
+              {sinGuia > 0 && !enCurso && (
+                <Boton variante="sii" onClick={() => c.pedir('guias')}>Emitir {contar(sinGuia, 'guía de despacho', 'guías de despacho')}</Boton>
+              )}
+              {ruta.googleMaps && (
+                <BotonEnlace variante="secundario" href={ruta.googleMaps.url} target="_blank" rel="noopener noreferrer">Abrir en Google Maps</BotonEnlace>
+              )}
+            </div>
+            {enCurso && (
+              <div className="puente-legado">
+                <Confirmar sii titulo={`¿Emites ${contar(sinGuia, 'guía de despacho', 'guías de despacho')} en el SII?`} si="Sí, emitir" {...c.panel}>
+                  <p>Una guía por pedido, con lo que llevas a cada negocio. Acompaña la mercadería en el reparto.</p>
+                </Confirmar>
+              </div>
             )}
             {ruta.googleMaps && ruta.googleMaps.paradas < ruta.paradas.length && (
-              <p className="mono tenue cn-texto">Google Maps abre las primeras {ruta.googleMaps.paradas} paradas.</p>
+              <p className="bp-tenue">Google Maps abre las primeras {ruta.googleMaps.paradas} paradas.</p>
             )}
+          </section>
 
-            <h3 className="etiqueta cn-sub">Hoja de ruta</h3>
-            <ol className="cn-hoja">
+          <section className="bm-tarjeta bp-bloque">
+            <header className="bp-bloque-cabecera"><h2>Hoja de ruta</h2><span>{contar(ruta.paradas.length, 'parada')}</span></header>
+            <ol className="bp-filas">
               {ruta.paradas.map(p => <Parada key={p.negocioId} parada={p} config={config} />)}
             </ol>
-          </>
-        )}
-      </div>
-    </section>
+          </section>
+        </div>
+      )}
+    </div>
   );
 }
+
+function Cabecera() {
+  return (
+    <header className="bm-cabecera">
+      <div>
+        <h1 className="bm-titulo">Reparto</h1>
+        <p className="bm-bajada">La ruta más corta para entregar tus pedidos, con la guía de despacho de cada parada.</p>
+      </div>
+    </header>
+  );
+}
+
+const TONO_SII: Record<string, TonoEstado> = { aceptado: 'exito', recibido: 'info', reparo: 'aviso', rechazado: 'error', fallido: 'error' };
 
 function Parada({ parada: p, config }: { parada: ParadaReparto; config: ConfigRed | null }) {
   const lleva = p.items.map(i => {
@@ -106,18 +131,19 @@ function Parada({ parada: p, config }: { parada: ParadaReparto; config: ConfigRe
     return `${i.producto}, ${contar(i.cantidad, u.singular, u.plural)}`;
   }).join('; ');
   return (
-    <li>
-      <span className="cn-hoja-numero" aria-label={`Parada ${p.orden}`}>{p.orden}</span>
-      <div className="cn-hoja-detalle">
-        <strong className="nombre">{p.nombre}</strong>
-        <span className="mono tenue">{p.direccion ? `${p.direccion}, ${p.comuna}` : p.comuna}</span>
-        <span className="cn-hoja-lleva">{lleva}</span>
+    <li className="bp-fila bp-parada">
+      <span className="bp-parada-numero" aria-label={`Parada ${p.orden}`}>{p.orden}</span>
+      <div className="bp-fila-texto">
+        <strong>{p.nombre}</strong>
+        <span>{p.direccion ? `${p.direccion}, ${p.comuna}` : p.comuna}</span>
+        <span>{lleva}</span>
         {p.guias.length ? p.guias.map(g => (
-          <span key={g.folio} className="cn-hoja-guia">
-            <LogoSii tam={16} /> Guía folio {g.folio} <EstadoSii estado={g.estadoSii} />
+          <span key={g.folio} className="bp-parada-guia">
+            <LogoSii tam={14} /> Guía folio {g.folio}
+            {textoEstadoSii(g.estadoSii) && <Estado tono={TONO_SII[g.estadoSii] ?? 'neutro'}>{textoEstadoSii(g.estadoSii)}</Estado>}
             {g.pdfUrl && <a href={g.pdfUrl} target="_blank" rel="noopener noreferrer">PDF</a>}
           </span>
-        )) : <span className="mono tenue">Sin guía de despacho todavía</span>}
+        )) : <span>Sin guía de despacho todavía</span>}
       </div>
     </li>
   );

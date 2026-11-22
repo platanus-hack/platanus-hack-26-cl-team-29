@@ -13,6 +13,7 @@ import { Icono } from './iconos.tsx';
 import { Vacio } from './piezas.tsx';
 import type { FotoRed } from './tipos.ts';
 import type { Documento } from '../red/tipos.ts';
+import { Boton, Estado } from '../marca/componentes.tsx';
 
 interface CreditoComprador {
   id: string;
@@ -206,29 +207,28 @@ export function BandoTePago({ api, token, documentos, cambio }: { api: CanalApi;
   const folio = (documentoId: string) => documentos.find(d => d.id === documentoId)?.folio;
   const porRecibir = pagos.filter(p => !p.transferido).reduce((s, p) => s + p.monto, 0);
   return (
-    <section className="cn-seccion">
-      <h2 className="cn-titulo"><Icono nombre="tarjeta" /> Pagos de Bando</h2>
+    <div className="bp-pagos">
       {cuenta && !editando
-        ? <p className="mono cn-texto">Recibes en tu {cuenta}. <button type="button" className="cn-boton-texto" onClick={() => setEditando(true)}>Cambiar</button></p>
+        ? <p className="bp-texto">Recibes en tu {cuenta}. <Boton variante="texto" onClick={() => setEditando(true)}>Cambiar</Boton></p>
         : <CuentaParaRecibir token={token} alGuardar={c => { setDatos({ ...datos, cuenta: c }); setEditando(false); }} />}
       {pagos.length > 0 && (
-        <ul className="tarjeta cn-documentos">
+        <ul className="bm-tarjeta bp-filas">
           {pagos.slice(0, PAGOS_A_LA_VISTA).map(p => (
-            <li key={p.documentoId}>
-              <Icono nombre="documento" />
-              <div className="cn-doc-izq">
+            <li key={p.documentoId} className="bp-fila">
+              <span className="bp-fila-icono"><Icono nombre="documento" /></span>
+              <div className="bp-fila-texto">
                 <strong>{p.transferido ? `Bando te transfirió ${dinero(p.monto)}` : `Por recibir ${dinero(p.monto)}`}</strong>
-                <span className="mono tenue nombre">{folio(p.documentoId) ? `Factura ${folio(p.documentoId)} · ` : ''}{fechaCorta(p.en)}</span>
+                <span>{folio(p.documentoId) ? `Factura ${folio(p.documentoId)} · ` : ''}{fechaCorta(p.en)}</span>
               </div>
-              <div className="cn-doc-der"><span className={`cn-chip ${p.transferido ? 'recibida' : ''}`}>{p.transferido ? 'transferido' : 'por transferir'}</span></div>
+              <Estado tono={p.transferido ? 'exito' : 'aviso'}>{p.transferido ? 'Transferido' : 'Por transferir'}</Estado>
             </li>
           ))}
         </ul>
       )}
       {pagos.length > 0 && (
-        <p className="mono tenue cn-texto">{porRecibir ? `${dinero(porRecibir)} por recibir. ` : ''}El negocio le paga a Bando a plazo; tú no esperas sus 30 días.</p>
+        <p className="bp-tenue">{porRecibir ? `${dinero(porRecibir)} por recibir. ` : ''}El negocio le paga a Bando a plazo; tú no esperas sus 30 días.</p>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -252,19 +252,19 @@ function CuentaParaRecibir({ token, alGuardar }: { token: string; alGuardar: (cu
     }
   };
   return (
-    <form className="tarjeta formulario cn-cuenta" onSubmit={guardar}>
-      <p className="mono cn-texto">¿Dónde te transferimos? Bando te paga cada factura sin esperar el plazo del comprador.</p>
-      <label className="campo"><span>Banco</span>
+    <form className="bm-formulario" onSubmit={guardar}>
+      <p className="bm-bajada">¿Dónde te transferimos? Bando te paga cada factura sin esperar el plazo del comprador.</p>
+      <label className="bm-campo"><span className="bm-campo-etiqueta">Banco</span>
         <select value={c.banco} onChange={campo('banco')}><option value="">Elige tu banco</option>{BANCOS.map(b => <option key={b}>{b}</option>)}</select>
       </label>
-      <label className="campo"><span>Tipo de cuenta</span>
+      <label className="bm-campo"><span className="bm-campo-etiqueta">Tipo de cuenta</span>
         <select value={c.tipo} onChange={campo('tipo')}><option value="">Elige el tipo</option>{Object.entries(TIPOS_CUENTA).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select>
       </label>
-      <label className="campo"><span>Número de cuenta</span><input inputMode="numeric" autoComplete="off" value={c.numero} onChange={campo('numero')} /></label>
-      <label className="campo"><span>RUT del titular</span><input autoComplete="off" value={c.rutTitular} onChange={campo('rutTitular')} placeholder="12.345.678-5" /></label>
-      <label className="campo"><span>Nombre del titular</span><input autoComplete="off" value={c.titular} onChange={campo('titular')} /></label>
-      {error && <p className="error">{error}</p>}
-      <button type="submit" className="boton" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar cuenta'}</button>
+      <label className="bm-campo"><span className="bm-campo-etiqueta">Número de cuenta</span><input inputMode="numeric" autoComplete="off" value={c.numero} onChange={campo('numero')} /></label>
+      <label className="bm-campo"><span className="bm-campo-etiqueta">RUT del titular</span><input autoComplete="off" value={c.rutTitular} onChange={campo('rutTitular')} placeholder="12.345.678-5" /></label>
+      <label className="bm-campo"><span className="bm-campo-etiqueta">Nombre del titular</span><input autoComplete="off" value={c.titular} onChange={campo('titular')} /></label>
+      {error && <p className="bm-error">{error}</p>}
+      <Boton type="submit" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar cuenta'}</Boton>
     </form>
   );
 }
