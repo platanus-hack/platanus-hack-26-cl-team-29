@@ -6,8 +6,9 @@ import { crearRed, crearRepositorioMemoria, crearSiiFalso, LICITACION_SALA } fro
 import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { leerStock, stockEnTexto, interpretarConReglas } from '../server/agente/intencion.ts';
 import { errorDeProductoEscrito } from '../shared/catalogo.ts';
+import { neto } from '../shared/precios.ts';
 
-const TEL = { ana: '+56 9 1111 1111', beto: '+56 9 2222 2222', caro: '+56 9 3333 3333' };
+const TEL = { ana: '+56 9 1111 1111', beto: '+56 9 2222 2222', caro: '+56 9 3333 3333', dora: '+56 9 4444 4444' };
 
 async function red() {
   const repo = crearRepositorioMemoria();
@@ -15,7 +16,7 @@ async function red() {
   return crearRed({ repo, sii: crearSiiFalso(), env: {} });
 }
 
-test('al cerrar, a quien tiene poco stock no se le asigna más: el resto va a la siguiente mejor oferta', async () => {
+test('al cerrar, a quien tiene poco stock no se le asigna más: el resto va a la siguiente mejor oferta, y todos pagan el precio del grupo', async () => {
   const r = await red();
   const ana = await r.registrarProveedor({ telefono: TEL.ana, rut: '11111111-1', nombre: 'Ana' });
   const beto = await r.registrarProveedor({ telefono: TEL.beto, rut: '22222222-2', nombre: 'Beto' });
@@ -25,7 +26,27 @@ test('al cerrar, a quien tiene poco stock no se le asigna más: el resto va a la
   assert.equal(r.licitacionAbierta()!.productos.find(p => p.id === 'guantes')!.quedan, 8, 'quedan 14 - 6');
   const ordenes = await r.cerrarLicitacion(LICITACION_SALA);
   const porProveedor = Object.fromEntries(ordenes.map(o => [o.proveedorId, o.items.map(i => [i.cantidad, i.precioUnitario])]));
-  assert.deepEqual(porProveedor, { [ana.id]: [[4, 5_000]], [beto.id]: [[2, 8_000]] });
+  assert.deepEqual(porProveedor, { [ana.id]: [[4, 8_000]], [beto.id]: [[2, 8_000]] });
+});
+
+test('el precio que ve el grupo con stock repartido es exactamente el que se factura', async () => {
+  const r = await red();
+  const ana = await r.registrarProveedor({ telefono: TEL.ana, rut: '11111111-1', nombre: 'Ana' });
+  const beto = await r.registrarProveedor({ telefono: TEL.beto, rut: '22222222-2', nombre: 'Beto' });
+  await r.ofertar(LICITACION_SALA, { proveedorId: ana.id, productoId: 'guantes', precioUnitario: 5_000, plazoDias: 1, stock: 5 });
+  await r.ofertar(LICITACION_SALA, { proveedorId: beto.id, productoId: 'guantes', precioUnitario: 7_000, plazoDias: 1 });
+  const guantes = () => r.licitacionAbierta()!.productos.find(p => p.id === 'guantes')!;
+  await r.agregarAlCarrito(LICITACION_SALA, { telefono: TEL.caro, nombre: 'Kiosco Caro', rut: '33333333-3', productoId: 'guantes', cantidad: 4 });
+  assert.equal(guantes().precioActual, 5_000, 'el stock de Ana alcanza');
+  await r.agregarAlCarrito(LICITACION_SALA, { telefono: TEL.dora, nombre: 'Almacén Dora', rut: '44444444-4', productoId: 'guantes', cantidad: 8 });
+  const visto = guantes().precioActual;
+  assert.equal(visto, 7_000, 'con 12 el stock de Ana no alcanza: el grupo paga lo de Beto');
+  assert.equal(guantes().cubreElMejor, 5, 'la pantalla avisa cuántas cubre el mejor');
+  const ordenes = await r.cerrarLicitacion(LICITACION_SALA);
+  const lineas = ordenes.flatMap(o => o.items);
+  assert.equal(lineas.reduce((s, i) => s + i.cantidad, 0), 12);
+  assert.ok(lineas.every(i => i.precioUnitario === visto), 'cada línea al precio que vio el grupo');
+  assert.equal(neto(lineas), 12 * visto);
 });
 
 test('sin stock declarado no hay tope ni "quedan"', async () => {

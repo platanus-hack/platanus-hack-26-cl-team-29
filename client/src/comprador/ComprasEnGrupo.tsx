@@ -333,6 +333,11 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
                     {siLlegan(vista.siguiente, cantidad, p)} Todos pagan el precio final.
                   </p>
                 )}
+                {p.cubreElMejor !== undefined && (
+                  <p className="bm-nota bm-aviso-minimo">
+                    El proveedor que gana tiene solo {contar(p.cubreElMejor, p.unidad, p.unidadPlural)}: el resto lo cubre el siguiente y todos pagan {dinero(p.precioActual)}.
+                  </p>
+                )}
                 {p.quedan !== undefined && (
                   <p className="bm-nota bm-aviso-minimo">
                     {p.quedan > 0 ? `Quedan ${contar(p.quedan, p.unidad, p.unidadPlural)}: es todo el stock de los proveedores.` : 'Se acabó el stock de los proveedores.'}

@@ -167,6 +167,8 @@ export interface ProductoCompraVista extends ProductoCompra {
   precioActual: number;
   /** Si todos los que lo venden declararon stock: cuántas unidades quedan para sumarse (`unidadesDisponibles`). */
   quedan?: number;
+  /** El stock del mejor no alcanza para el grupo: cuántas cubre él; el resto lo cubre el siguiente y todos pagan `precioActual`. */
+  cubreElMejor?: number;
   siguienteTramo: SiguienteTramo | null;
 }
 
