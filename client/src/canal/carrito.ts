@@ -12,8 +12,6 @@ import type { LicitacionCanal, Tramo } from './tipos.ts';
 import { CANTIDAD_MAXIMA } from '../../../shared/red.ts';
 
 export { CANTIDAD_MAXIMA };
-/** Espera tras el último toque antes de enviar el carrito. */
-export const ESPERA_ENVIO_MS = 400;
 
 /** productoId → cantidad. Solo cantidades mayores que cero. */
 export type Carrito = Record<string, number>;
@@ -105,12 +103,6 @@ export function aItems(c: Carrito, orden: readonly string[] = []): ItemCarrito[]
   return ids.map(productoId => ({ productoId, cantidad: c[productoId] }));
 }
 
-export function mismoCarrito(a: Carrito, b: Carrito): boolean {
-  const ka = Object.keys(a).filter(k => a[k] > 0);
-  const kb = Object.keys(b).filter(k => b[k] > 0);
-  return ka.length === kb.length && ka.every(k => a[k] === b[k]);
-}
-
 // ---------- Precio con mis cambios ----------
 
 export interface VistaProducto {
@@ -133,25 +125,6 @@ export function proyectar(p: ProductoCanasta, delta: number): VistaProducto {
   return { precio, unidades, siguiente: siguienteTramo(p.tramos, unidades, precio) };
 }
 
-export interface ResumenCarrito {
-  /** Productos distintos en el carrito. */
-  productos: number;
-  unidades: number;
-  total: number;
-  /** Contra comprar solo cada producto. */
-  ahorro: number;
-}
-
-export function resumirCarrito(productos: readonly ProductoCanasta[], c: Carrito, guardado: Carrito = c): ResumenCarrito {
-  return productos.reduce<ResumenCarrito>((r, p) => {
-    const n = c[p.id] ?? 0;
-    if (!n) return r;
-    const { precio } = proyectar(p, n - (guardado[p.id] ?? 0));
-    return { productos: r.productos + 1, unidades: r.unidades + n, total: r.total + n * precio, ahorro: r.ahorro + n * Math.max(0, p.precioSolo - precio) };
-  }, { productos: 0, unidades: 0, total: 0, ahorro: 0 });
-}
-
-/** "Faltan 4 cajas" o "Falta 1 rollo". */
 export function faltan(siguiente: SiguienteTramo, p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string {
   return `${siguiente.faltan === 1 ? 'Falta' : 'Faltan'} ${contar(siguiente.faltan, p.unidad, p.unidadPlural)}`;
 }
@@ -166,113 +139,20 @@ export function una(p: Pick<ProductoCanasta, 'unidad' | 'unidadPlural'>): string
   return `${/(as|des)$/i.test(p.unidadPlural) ? 'Una' : 'Un'} ${p.unidad}`;
 }
 
-/** "2 productos, 7 unidades". */
-export function textoCantidades(r: ResumenCarrito): string {
-  return `${contar(r.productos, 'producto')}, ${contar(r.unidades, 'unidad')}`;
+// ---------- El grupo en vivo ----------
+
+export interface ResumenGrupo {
+  negocios: number;
+  unidades: number;
+  ahorro: number;
 }
 
-// ---------- Envío diferido ----------
-
-export interface OpcionesEnvio {
-  esperaMs?: number;
-  /** Carrito ya guardado en el servidor al empezar. */
-  inicial: Carrito;
-  enviar: (c: Carrito) => Promise<unknown>;
-  /** El servidor guardó `c`. */
-  alGuardar?: (c: Carrito) => void;
-  /** El envío falló: hay que volver a `guardado`. */
-  alFallar?: (guardado: Carrito, error: unknown) => void;
-  /** Cambia si hay algo sin guardar (esperando o enviando). */
-  alCambiarPendiente?: (pendiente: boolean) => void;
-}
-
-export interface Envio {
-  /** El carrito que quiere la persona; se envía tras `esperaMs` sin más cambios. Los toques seguidos se juntan en un solo envío. */
-  cambiar(c: Carrito): void;
-  /** El servidor dice que el carrito guardado es `c` (otra pestaña, salir, etc.). Solo aplica si no hay nada pendiente. */
-  sincronizar(c: Carrito): boolean;
-  pendiente(): boolean;
-  guardado(): Carrito;
-  /** Descarta lo pendiente y parte de `c` (por ejemplo, tras salir de la compra). Un envío en viaje se ignora. */
-  reiniciar(c: Carrito): void;
-  cancelar(): void;
-}
-
-/**
- * Envía el carrito completo como mucho una vez cada `esperaMs` y nunca dos envíos a la vez: si la persona sigue
- * tocando mientras viaja uno, al volver se manda solo el último estado. Si falla, vuelve a lo último guardado.
- */
-export function crearEnvio(o: OpcionesEnvio): Envio {
-  const espera = o.esperaMs ?? ESPERA_ENVIO_MS;
-  let guardado = o.inicial;
-  let deseado = o.inicial;
-  let reloj: ReturnType<typeof setTimeout> | undefined;
-  let enviando = false;
-  let cancelado = false;
-  let epoca = 0;
-  let pendienteAntes = false;
-
-  const pendiente = () => reloj !== undefined || enviando || !mismoCarrito(deseado, guardado);
-  const avisar = () => {
-    const p = pendiente();
-    if (p !== pendienteAntes) { pendienteAntes = p; o.alCambiarPendiente?.(p); }
-  };
-
-  const vaciar = async () => {
-    reloj = undefined;
-    if (cancelado || enviando) return avisar();
-    if (mismoCarrito(deseado, guardado)) return avisar();
-    const envio = deseado;
-    const miEpoca = epoca;
-    enviando = true;
-    avisar();
-    try {
-      await o.enviar(envio);
-      if (cancelado || miEpoca !== epoca) return;
-      guardado = envio;
-      enviando = false;
-      o.alGuardar?.(envio);
-    } catch (e) {
-      if (cancelado || miEpoca !== epoca) return;
-      enviando = false;
-      // Si después del fallo la persona ya tocó otra cosa, esa intención manda: se reintenta sola.
-      if (mismoCarrito(deseado, envio)) {
-        deseado = guardado;
-        o.alFallar?.(guardado, e);
-      }
-    }
-    if (!mismoCarrito(deseado, guardado) && reloj === undefined) return void vaciar();
-    avisar();
-  };
-
+/** Cuántos negocios con algo en el carrito, cuántas unidades y cuánto ahorra el grupo en una compra. */
+export function resumenGrupo(lic: LicitacionCanal): ResumenGrupo {
+  const productos = productosDe(lic);
   return {
-    cambiar(c) {
-      deseado = c;
-      clearTimeout(reloj);
-      reloj = setTimeout(() => void vaciar(), espera);
-      avisar();
-    },
-    sincronizar(c) {
-      if (pendiente()) return false;
-      guardado = c;
-      deseado = c;
-      return true;
-    },
-    pendiente,
-    guardado: () => guardado,
-    reiniciar(c) {
-      epoca += 1;
-      clearTimeout(reloj);
-      reloj = undefined;
-      enviando = false;
-      guardado = c;
-      deseado = c;
-      avisar();
-    },
-    cancelar() {
-      cancelado = true;
-      clearTimeout(reloj);
-      reloj = undefined;
-    },
+    negocios: lic.participantes.filter(p => p.cantidad > 0).length,
+    unidades: productos.reduce((s, p) => s + p.totalUnidades, 0),
+    ahorro: lic.ahorroTotal ?? productos.reduce((s, p) => s + p.totalUnidades * Math.max(0, p.precioSolo - p.precioActual), 0),
   };
 }

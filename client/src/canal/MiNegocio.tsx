@@ -4,7 +4,7 @@ import { AvisoFuente } from '../components/Cabecera.tsx';
 import { licitacionVigente } from './logica.ts';
 import { Acceso, CargandoCuenta } from './Acceso.tsx';
 import { AvisoCompraAbierta } from './AvisoCompra.tsx';
-import { Invitar } from './Invitar.tsx';
+import { Invitar, useInvitacionRecibida } from './Invitar.tsx';
 import { MiCredito } from './MiCredito.tsx';
 import { BotonWhatsapp } from './piezas.tsx';
 import { useCanal, useDatosConSesion, useSesion } from './useCanal.ts';
@@ -37,6 +37,7 @@ export function MiNegocio() {
   const { seccion, compra, ficha } = useRutaDelHash(rutaDelHash);
 
   const { datos: yo, error } = useDatosConSesion(api, token, cambio, (a, t) => a.yo(t), vencer);
+  useInvitacionRecibida(token, api?.modo); // llegó desde /unirse?ref=<código> de otro negocio ("Trae a tu vecino")
 
   if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
   if (!token) {

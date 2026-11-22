@@ -107,79 +107,6 @@
 /* En las listas de documentos el nombre del negocio se lee entero: baja de línea en vez de cortarse. */
 .cn-documentos .nombre { white-space: normal; overflow-wrap: anywhere; }
 
-/* ---------- Carrito de la canasta (/unirse y /app) ---------- */
-
-.cn-carrito { display: grid; gap: 12px; min-width: 0; }
-.cn-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.cn-item {
-  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 14px; border-radius: 14px;
-  background: var(--color-surface); border: 1px solid var(--color-border); transition: border-color 0.2s;
-}
-.cn-item.en-carrito { border-color: var(--color-primary); }
-.cn-item-icono { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--color-background); color: var(--color-foreground); }
-.cn-item-cuerpo { min-width: 0; display: grid; gap: 8px; }
-.cn-item-nombre { margin: 0; font-size: 16px; line-height: 1.25; font-weight: 700; overflow-wrap: anywhere; }
-.cn-item-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
-.cn-item-precio { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 2px; min-width: 0; }
-.cn-item-valor { font-family: var(--font-display); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-primary); border-radius: 6px; }
-.cn-item-valor.bajo { animation: cn-bajo 1.6s ease-out; }
-@keyframes cn-bajo {
-  0%, 45% { background: color-mix(in srgb, var(--bando-oliva) 22%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bando-oliva) 22%, transparent); }
-  100% { background: transparent; box-shadow: 0 0 0 4px transparent; }
-}
-.cn-item-por { font-family: var(--font-mono); font-size: 13px; color: var(--color-muted-foreground); }
-.cn-item-solo { font-family: var(--font-mono); font-size: 13px; }
-.cn-item-pista { margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.4; color: var(--bando-oliva-texto); }
-.cn-item-pista.bajo { justify-self: start; padding: 2px 8px; border-radius: 6px; background: color-mix(in srgb, var(--bando-oliva) 18%, transparent); color: var(--bando-oliva-texto); font-weight: 700; animation: aparecer 0.3s ease-out; }
-.cn-item-pista.tope { color: var(--color-muted-foreground); }
-
-.cn-agregar {
-  font: inherit; font-weight: 700; font-size: 15px; flex-shrink: 0; min-width: 120px; min-height: 44px; padding: 0 16px; border-radius: 22px;
-  border: 0; background: var(--color-primary); color: var(--color-primary-foreground); cursor: pointer;
-}
-.cn-selector {
-  display: grid; grid-template-columns: 44px 32px 44px; align-items: center; flex-shrink: 0; width: 120px; height: 44px;
-  border-radius: 22px; background: var(--color-primary); color: var(--color-primary-foreground);
-}
-.cn-selector button {
-  width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: inherit; cursor: pointer; border-radius: 22px; padding: 0;
-}
-.cn-selector button:disabled { opacity: 0.35; cursor: default; }
-.cn-selector svg { stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; fill: none; }
-.cn-selector output { text-align: center; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
-.cn-agregar:focus-visible, .cn-selector button:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 2px; }
-
-.cn-salir { justify-self: center; font-size: 13px; }
-
-/* Barra del carrito: fija abajo mientras se recorre la lista. En /app queda sobre las pestañas. */
-.cn-barra-carrito {
-  position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 2;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; min-height: 64px; box-sizing: border-box;
-  border-radius: var(--radius-2xl); background: var(--color-background); color: var(--color-foreground);
-  border: var(--border-width) solid var(--color-border); box-shadow: var(--sombra-flotante);
-}
-.cn-barra-izq, .cn-barra-der { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cn-barra-der { align-items: flex-end; flex-shrink: 0; text-align: right; }
-.cn-barra-estado { font-weight: 700; font-size: 15px; line-height: 1.25; display: inline-flex; align-items: center; gap: 6px; }
-.cn-barra-estado.ok { color: var(--bando-oliva-texto); }
-.cn-barra-estado.guardando { color: var(--color-faint-fg); }
-.cn-barra-estado.error { color: var(--color-destructive); font-size: 13px; }
-.cn-punto-vivo { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); flex-shrink: 0; }
-.cn-barra-detalle { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted-foreground); }
-.cn-barra-total { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cn-barra-ahorro { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--bando-oliva-texto); white-space: nowrap; }
-.cn-barra-neto { font-family: var(--font-mono); font-size: 12px; color: var(--color-muted-foreground); }
-
-/* En el teléfono y la tablet, fija abajo como en una app de delivery; la lista deja espacio para verse entera al final. */
-@media (max-width: 899px) {
-  .cn-barra-carrito {
-    position: fixed; left: 50%; transform: translateX(-50%); width: min(calc(100% - 24px), 496px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cn-item-valor.bajo, .cn-item-pista.bajo { animation: none; }
-}
-
 /* Pedir por WhatsApp: alternativa visible al carrito, en el verde de WhatsApp y más baja que la acción principal. */
 .cn-boton-whatsapp {
   display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 8px 16px; border-radius: 12px;
@@ -192,9 +119,6 @@
 
 /* RUT del comprador: ayuda bajo el campo y a quién sale su factura (solo vistas personales). */
 .campo input[aria-invalid="true"] { border-color: var(--color-destructive); }
-.cn-factura-a { margin: 0; gap: 6px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
-.cn-factura-a .logo-sii { margin-top: 1px; flex: none; }
-.cn-factura-a strong { color: var(--color-foreground); }
 
 /* Folios de factura en la tarjeta del SII: conteo, estado de la reposición y "Traer más folios". */
 

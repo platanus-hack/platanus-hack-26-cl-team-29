@@ -3,7 +3,7 @@
 
 import { resumenCompraAbierta, TITULO_COMPRA_CERCA } from '../../../shared/avisos.ts';
 import { estaAbierta, precioDelGrupo } from './logica.ts';
-import { resumenGrupo } from './Carrito.tsx';
+import { resumenGrupo } from './carrito.ts';
 import { Icono } from './iconos.tsx';
 import { useGuardado } from './useCanal.ts';
 import type { LicitacionCanal } from './tipos.ts';
