@@ -132,7 +132,7 @@ function FilaCompra({ api, token, alCambiar, lic, yo, config, ahora }: PropsAcci
       monto={f.total}
       accion={!enCurso && (lic.estado === 'abierta'
         ? <button type="button" className="bm-boton" onClick={() => c.pedir({ tipo: 'cerrar' })}>Cerrar</button>
-        : <button type="button" className="bm-boton bp-boton-sii" onClick={() => c.pedir({ tipo: 'facturar', ...f })}><LogoSii tam={16} /> Facturar</button>)}
+        : <button type="button" className="bm-boton bm-boton-sii" onClick={() => c.pedir({ tipo: 'facturar', ...f })}><LogoSii tam={16} /> Facturar</button>)}
       confirmacion={enCurso?.tipo === 'cerrar' ? (
         <Confirmar titulo="¿Cierras la compra en grupo?" si="Sí, cerrar" {...c.panel}>
           <p>Nadie más podrá sumarse. Queda una orden por local: {contar(lic.participantes.length, 'local', 'locales')}, {cantidadEn(g.unidades, u)} a {g.precio !== undefined ? dinero(g.precio) : '-'} por {u.singular}.</p>
@@ -194,7 +194,7 @@ function FilaReclamo({ api, token, alCambiar, orden, comprador, documentos, conf
       titulo={`${quien} reclamó${factura?.folio ? ` la factura ${factura.folio}` : ''}`}
       detalle={`${faltante === 1 ? 'Faltó' : 'Faltaron'} ${cantidadEn(faltante, u)}. Con la nota de crédito hoy, tu nota sube.`}
       monto={-monto}
-      accion={c.estado.fase === 'nada' && <button type="button" className="bm-boton bp-boton-sii" onClick={() => c.pedir(undefined)}><LogoSii tam={16} /> Nota de crédito</button>}
+      accion={c.estado.fase === 'nada' && <button type="button" className="bm-boton bm-boton-sii" onClick={() => c.pedir(undefined)}><LogoSii tam={16} /> Nota de crédito</button>}
       confirmacion={c.estado.fase !== 'nada' && (
         <Confirmar sii titulo="¿Emites la nota de crédito?" si="Sí, emítela" {...c.panel}>
           <p className="cn-cifra-confirmar">Nota de crédito · {dinero(monto)} neto</p>

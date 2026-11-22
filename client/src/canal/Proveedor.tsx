@@ -1,7 +1,6 @@
 // /proveedor: panel web del proveedor con la marca Bando (DESIGN.md, Paper "2 · Proveedor"). Las mismas acciones
 // que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
-// mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Productos
-// están rediseñados; Reparto y SII van por el puente.
+// mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender).
 import { useCallback, useState } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { BotonSii } from './ConectarSii.tsx';
@@ -45,12 +44,12 @@ export function Proveedor() {
   const { datos: yo, error, recargar } = useDatosConSesion(api, token, cambio, (a, t) => a.yoProveedor(t), vencer);
   const { seccion, resto } = useRutaDelHash(rutaDelHash);
 
-  if (!api || !foto) return <main className="cn-pagina"><p className="vacio">Conectando con la red...</p></main>;
+  if (!api || !foto) return <main className="bando-ui bm-acceso"><p className="bm-vacio-texto">Conectando con la red...</p></main>;
   if (!token) {
     return <Acceso api={api} config={config} fuente={fuente} titulo="Vende a muchos negocios a la vez" onEntrar={entrar}
       bajada="Confirma pedidos, pon tus precios por volumen y factura en el SII. Entra con el WhatsApp de tu empresa." />;
   }
-  if (!yo) return <main className="cn-pagina"><CargandoCuenta error={error} texto="Cargando tu panel..." onSalir={salir} /></main>;
+  if (!yo) return <main className="bando-ui bm-acceso"><CargandoCuenta error={error} texto="Cargando tu panel..." onSalir={salir} /></main>;
 
   const lic = licitacionVigente(yo.licitaciones ?? foto.licitaciones);
   const comprador = (id: string) => foto.negocios.find(n => n.id === id);
@@ -80,10 +79,7 @@ export function Proveedor() {
             <BotonPagos api={api} token={token} documentos={yo.documentos} cambio={cambio} />
           </>} />
       )}
-      {seccion === 'reparto' && (
-        // Sección aún sin rediseñar: el puente le da la paleta y la tipografía de la marca (DESIGN.md).
-        <div className="puente-legado cn-contenido"><RutaReparto {...props} yo={yo} config={config} /></div>
-      )}
+      {seccion === 'reparto' && <RutaReparto {...props} yo={yo} config={config} />}
     </Marco>
   );
 }
@@ -97,7 +93,7 @@ function BotonPagos(props: Parameters<typeof BandoTePago>[0]) {
       <button type="button" className="bm-boton secundario" onClick={() => setAbierto(true)}>Pagos de Bando</button>
       {abierto && (
         <Modal titulo="Pagos de Bando" onCerrar={cerrar}>
-          <div className="puente-legado"><BandoTePago {...props} /></div>
+          <BandoTePago {...props} />
         </Modal>
       )}
     </>

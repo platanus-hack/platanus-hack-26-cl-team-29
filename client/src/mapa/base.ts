@@ -14,10 +14,8 @@ import { useTema } from '../marca/tema.ts';
 setWorkerUrl(urlDelWorker);
 
 const ESTILO = 'https://tiles.openfreemap.org/styles/positron';
-/** Las vistas de la interfaz anterior (fuera de `.bando-ui`, como la ruta del proveedor) siguen con el estilo oscuro. */
+/** Un mapa fuera de `.bando-ui` (interfaz anterior) sigue con el estilo oscuro. */
 const ESTILO_ANTERIOR = 'https://tiles.openfreemap.org/styles/dark';
-/** Color de la ruta en la interfaz anterior (canal/MapaRuta.tsx). */
-export const AMARILLO = '#f2ff00';
 /** Sin internet no hay calles: queda un fondo liso (lo tiñe `teñirMapa`) y los negocios se dibujan igual. */
 const SIN_CALLES: StyleSpecification = {
   version: 8,

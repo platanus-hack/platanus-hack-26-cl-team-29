@@ -66,7 +66,6 @@
 .bp-contador span { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 500; }
 .bp-contador strong { font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; font-variant-numeric: tabular-nums; }
 .bp-contador.confirmar span { color: var(--bando-miel-texto); }
-.bp-contador.camino span { color: var(--color-chart-2, #3C83F6); }
 .bp-contador.recibidos span { color: var(--bando-oliva-texto); }
 .bp-contador.reclamos span { color: var(--color-destructive); }
 .bp-contador:hover, .bp-contador[aria-pressed='true'] { background: var(--color-secondary); }
@@ -124,4 +123,74 @@
 .bp-mejorar .bp-tramos { padding: 4px 0 8px; }
 .bp-mejorar .bp-acciones { padding: 12px 0 4px; border-top: 0; }
 
-@media (prefers-reduced-motion: reduce) { .bp-barra i { transition: none; } }
+
+/* ---------- Textos sueltos ---------- */
+.bp-texto { font-size: var(--text-sm); line-height: var(--leading-sm); overflow-wrap: anywhere; }
+.bp-tenue { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+.bp-ok {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bando-oliva) 14%, transparent); color: var(--bando-oliva-texto); font-size: var(--text-sm); font-weight: 500;
+}
+.bm-boton.deshabilitado { opacity: 0.45; pointer-events: none; }
+.bm-campo select {
+  width: 100%; height: 44px; padding: 0 12px; font: inherit; font-size: var(--text-base); color: var(--color-foreground);
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg);
+}
+
+/* ---------- Reparto ---------- */
+.bp-ruta { display: flex; flex-direction: column; gap: 12px; padding: 16px; min-width: 0; }
+.bp-ruta-cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.bp-ruta-cifras div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bp-ruta-cifras dt { font-size: var(--text-xs); line-height: var(--leading-xs); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-faint-fg); }
+.bp-ruta-cifras dd { margin: 0; font-size: var(--text-2xl); line-height: var(--leading-2xl); font-weight: 700; letter-spacing: var(--tracking-tight); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bp-ruta-mapa { height: 320px; border-radius: var(--radius-xl); overflow: hidden; background: var(--color-secondary); }
+@media (min-width: 1024px) { .bp-ruta-mapa { height: 420px; } }
+.bp-ruta-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.bp-ruta-bodega, .bp-ruta-parada {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-full);
+  font: 700 var(--text-xs)/1 var(--font-sans); border: 2px solid var(--color-background);
+}
+.bp-ruta-parada { background: var(--bando-miel); color: var(--bando-tinta); }
+.bp-ruta-bodega { background: var(--color-primary); color: var(--color-primary-foreground); }
+.bp-ruta-bodega svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+.bp-parada { grid-template-columns: 32px minmax(0, 1fr); align-items: start; }
+.bp-parada-numero {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-full);
+  background: var(--bando-miel); color: var(--bando-tinta); font-size: var(--text-xs); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.bp-parada-guia { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.bp-parada-guia a { color: var(--color-foreground); font-weight: 600; }
+
+/* ---------- Pagos de Bando (modal) ---------- */
+.bp-pagos { display: flex; flex-direction: column; gap: 16px; }
+
+/* ---------- Conexión con el SII (modal) ---------- */
+.bp-sii { display: flex; flex-direction: column; gap: 16px; }
+.bp-sii-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); }
+.bp-pasos { display: flex; flex-direction: column; gap: 16px; }
+.bp-paso { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: var(--border-width) solid var(--color-border); min-width: 0; }
+.bp-resumen { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.bp-resumen .bp-texto { margin: 0; }
+.bp-acciones-texto { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+.bp-aviso { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: var(--border-width) solid var(--color-destructive); border-radius: var(--radius-xl); }
+.bp-aviso h3 { font-size: var(--text-base); line-height: var(--leading-base); font-weight: 600; }
+.bp-fila-campo { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.bp-dos-campos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 480px) { .bp-dos-campos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bp-sii .bm-campo input[type='file'] { height: auto; padding: 10px 12px; font-size: var(--text-sm); }
+.bp-caf { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); }
+.bp-caf-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.bp-caf-cabecera strong { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; }
+.bp-caf-cabecera .bm-boton { flex-shrink: 0; }
+.bp-progreso { display: flex; flex-direction: column; gap: 6px; }
+.bp-carga { position: relative; height: 6px; border-radius: var(--radius-full); background: var(--color-secondary); overflow: hidden; }
+.bp-carga span { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: inherit; background: var(--bando-sii); animation: bp-carga 1.2s ease-in-out infinite; }
+@keyframes bp-carga { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.bp-folios { display: flex; flex-direction: column; gap: 8px; }
+.bp-folios-estado.bajo, .bp-folios-estado.en_espera { color: var(--bando-miel-texto); font-weight: 600; }
+.bp-folios-estado.suficiente { color: var(--bando-oliva-texto); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-barra i { transition: none; }
+  .bp-carga span { animation: none; }
+}

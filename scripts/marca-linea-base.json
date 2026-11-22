@@ -1,10 +1,7 @@
 {
-  "client/src/canal/MapaRuta.tsx": {
-    "color-escrito": 1
-  },
   "client/src/canal/canal.css": {
-    "color-escrito": 43,
-    "letra-chica": 3
+    "color-escrito": 31,
+    "letra-chica": 1
   },
   "client/src/canal/iconos.tsx": {
     "color-escrito": 2
@@ -24,12 +21,6 @@
   },
   "client/src/estilos.css": {
     "color-escrito": 32
-  },
-  "client/src/mapa/base.ts": {
-    "color-escrito": 1
-  },
-  "client/src/proveedor/proveedor.css": {
-    "color-escrito": 1
   },
   "client/src/vistas/mapa.css": {
     "letra-chica": 1
