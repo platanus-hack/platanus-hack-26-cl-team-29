@@ -6,7 +6,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { dinero, nota } from '../../../shared/formato.ts';
-import { errorDeTramos, precioDeOferta, type Tramo } from '../../../shared/precios.ts';
+import { errorDeTramos, ofertasQueCompiten, precioDeOferta, type Tramo } from '../../../shared/precios.ts';
 import { contar } from '../../../shared/texto.ts';
 import { itemsDe, productosDe } from '../canal/carrito.ts';
 import { Campo } from '../canal/Acceso.tsx';
@@ -39,8 +39,9 @@ function estadoDe({ lic, p, mia }: Fila, ahora: number): { texto: string; tono: 
   // Con proveedor fijo (solo llegan aquí las de este proveedor), la compra ya es suya: no compite, la abastece.
   if (lic.proveedorId) return { texto: 'Tú la abasteces', tono: 'listo' };
   if (!mia) return { texto: 'No compites', tono: 'neutro' };
+  if (mia.pendienteSii) return { texto: 'Se activa cuando conectes tu SII', tono: 'accion' };
   const suya = precioDeOferta(mia, unidades);
-  const mejor = Math.min(...(p.ofertas ?? []).map(o => precioDeOferta(o, unidades)));
+  const mejor = Math.min(...ofertasQueCompiten(p.ofertas).map(o => precioDeOferta(o, unidades)));
   return suya <= mejor ? { texto: 'Vas ganando', tono: 'listo' } : { texto: `Te ganan por ${dinero(suya - mejor)}`, tono: 'accion' };
 }
 

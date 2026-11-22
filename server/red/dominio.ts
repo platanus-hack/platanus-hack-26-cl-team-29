@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { duenoDeTramos, errorDeTramos, neto, ordenarTramos, precioAjustado, precioDeOferta, precioPorVolumen, puedeCerrarAntes, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, neto, ofertasQueCompiten, ordenarTramos, precioAjustado, precioDeOferta, precioPorVolumen, puedeCerrarAntes, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
@@ -203,6 +203,8 @@ export interface Red {
   registrarRecepcion(ordenId: string, recepcion: Recepcion): Promise<OrdenCompra>;
   emitirNotaCredito(ordenId: string): Promise<Documento>;
   notaDeProveedor(proveedorId: string): number;
+  /** Si el proveedor puede competir y ganar: los de la demo siempre; quien se registró a vender, con su SII conectado. */
+  puedeFacturar(proveedorId: string): Promise<boolean>;
   /**
    * Compatibilidad: suma o actualiza un producto del carrito (por defecto el primero de la canasta). Mismo negocio
    * o teléfono: cambia la cantidad de ese producto, no se duplica. Cantidad desde 1 (sin tope real, ver `CANTIDAD_MAXIMA`). El público anónimo suma uno nuevo.
@@ -369,6 +371,7 @@ export async function crearRed({
 }: OpcionesRed): Promise<Red> {
   const datos: DatosRed = await repo.cargar();
   const aSiMismo = env.DEMO_COMPRA_A_SI_MISMO === '1';
+  const sinCertificado = env.DEMO_PROVEEDOR_SIN_CERTIFICADO === '1';
   for (const l of datos.licitaciones) migrarLicitacion(l);
   const oyentes = new Set<(evento: EventoRed) => void>();
   const enCurso = new Set<string>();
@@ -892,6 +895,32 @@ export async function crearRed({
   }
 
   /** `licitacion.precio_bajo` si el precio vigente del producto quedó bajo `antes`. */
+  /**
+   * Si un proveedor puede competir: los de la semilla de la demo siempre (facturan con el SII de la demo o el falso);
+   * uno que se registró para vender (`vende`), solo si puede emitir facturas reales hoy. Nadie gana una compra que no
+   * puede facturar.
+   */
+  async function puedeFacturar(proveedorId: string): Promise<boolean> {
+    const n = datos.negocios.find(x => x.id === proveedorId);
+    // DEMO_PROVEEDOR_SIN_CERTIFICADO=1: prueba explícita de vender sin certificado (facturas simuladas).
+    if (!n?.vende || sinCertificado) return true;
+    return (await sii.puedeFacturar?.(n)) ?? true;
+  }
+
+  /** Marca en la canasta las ofertas y productos de quien todavía no puede facturar (`pendienteSii`). */
+  async function marcarFacturacion(l: Licitacion): Promise<void> {
+    const cache = new Map<string, Promise<boolean>>();
+    const puede = (id: string) => { if (!cache.has(id)) cache.set(id, puedeFacturar(id)); return cache.get(id)!; };
+    for (const p of l.productos) {
+      for (const o of p.ofertas) {
+        if (await puede(o.proveedorId)) delete o.pendienteSii;
+        else o.pendienteSii = true;
+      }
+      if (p.proveedorId && !(await puede(p.proveedorId))) p.creadorPendienteSii = true;
+      else delete p.creadorPendienteSii;
+    }
+  }
+
   function avisarSiBajo(l: Licitacion, productoId: string, antes: number, totalUnidades: number) {
     const precioNuevo = precioVigente(l, productoId);
     if (precioNuevo < antes) emitir('licitacion.precio_bajo', { licitacionId: l.id, productoId, precioAnterior: antes, precioNuevo, totalUnidades });
@@ -918,14 +947,15 @@ export async function crearRed({
         ...(o.minimo !== undefined ? { minimo } : {}), plazoDias, en: ahora(),
       };
       producto.ofertas = producto.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
+      await marcarFacturacion(l);
       await guardar('licitaciones', l);
       const vista = vistaLicitacion(l);
       const nota = notaDeProveedor(o.proveedorId);
       const unidades = unidadesDe(l, producto.id);
       // La mejor del momento en ese producto: más barata que las demás ofertas y que el precio del tramo alcanzado.
       const suya = precioDeOferta(oferta, unidades);
-      const mejor = (!producto.tramos.length || suya <= precioPorVolumen(producto, unidades))
-        && producto.ofertas.every(x => x === oferta || precioDeOferta(x, unidades) > suya);
+      const mejor = !oferta.pendienteSii && (!producto.tramos.length || suya <= precioPorVolumen(producto, unidades))
+        && ofertasQueCompiten(producto.ofertas).every(x => x === oferta || precioDeOferta(x, unidades) > suya);
       emitir('licitacion.oferta', {
         licitacionId: l.id, productoId: producto.id, licitacion: vista, oferta: { ...oferta, proveedorNombre: proveedor.nombre, nota }, nota, mejor,
       });
@@ -1017,6 +1047,7 @@ export async function crearRed({
         precioSolo: precio, tramos: tramosDelProducto(precio, n.tramos), ofertas: [], proveedorId: proveedor.id,
       };
       l.productos.push(producto);
+      await marcarFacturacion(l);
       await guardar('licitaciones', l);
       const licitacion = vistaLicitacion(l);
       const vista = vistaProducto(l, producto);
@@ -1052,12 +1083,12 @@ export async function crearRed({
    */
   function candidatasDe(l: Licitacion, p: ProductoCompra): Ganadora[] {
     const porProveedor = new Map<string, Oferta>();
-    const tramoDelCreador: Oferta[] = p.proveedorId
+    const tramoDelCreador: Oferta[] = p.proveedorId && !p.creadorPendienteSii
       ? [{ proveedorId: p.proveedorId, productoId: p.id, precioUnitario: precioPorVolumen(p, unidadesDe(l, p.id)), plazoDias: 1, en: ahora() }]
       : [];
     // Cada oferta al precio de su tramo para el volumen que juntó el grupo.
     const unidades = unidadesDe(l, p.id);
-    for (const o of [...p.ofertas.map(x => ({ ...x, precioUnitario: precioDeOferta(x, unidades) })), ...tramoDelCreador]) {
+    for (const o of [...ofertasQueCompiten(p.ofertas).map(x => ({ ...x, precioUnitario: precioDeOferta(x, unidades) })), ...tramoDelCreador]) {
       const actual = porProveedor.get(o.proveedorId);
       if (!actual || o.precioUnitario < actual.precioUnitario) porProveedor.set(o.proveedorId, o);
     }
@@ -1116,6 +1147,8 @@ export async function crearRed({
         const precios = preciosVigentes(l);
         for (const p of l.participantes) compras.push({ participante: p, proveedorId: l.proveedorId, items: p.items, precio: id => precios.get(id)! });
       } else {
+        // Se vuelve a revisar al cerrar: quien conectó su SII después de ofertar compite; quien lo perdió, no.
+        await marcarFacturacion(l);
         ({ compras, sinProveedor } = comprasPorProducto(l));
       }
       l.estado = 'cerrada';
@@ -1243,6 +1276,7 @@ export async function crearRed({
     impresoDeDocumento,
     enlacePdf: enlaceAlPdf,
     crearOrden, fijarDespacho, confirmarOrden, registrarRecepcion, emitirNotaCredito, notaDeProveedor,
+    puedeFacturar,
     unirseALicitacion, actualizarCarrito, agregarAlCarrito, salirDeLicitacion, licitacionAbierta, abrirSolicitud, cerrarAntes, cerrarVencidas, productoConPrecio: normalizarProducto, ofertar, crearProducto, fijarTramos, cerrarLicitacion, confirmarOrdenesDeLicitacion, emitirGuiasDeReparto, registrarComprador, fijarDireccionFactura, registrarProveedor, consultarRut, estadoDeLaRed, estadoPublico, negocioPorTelefono, actualizarEstadoDocumento, reiniciarDemo,
     escuchar(oyente) {
       oyentes.add(oyente);

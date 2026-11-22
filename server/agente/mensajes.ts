@@ -422,7 +422,7 @@ export const proveedorRegistrado = (nombre: string, conectandoSii: boolean) =>
   + 'Para ofertar por uno que ya está: "oferto $25.000 por rollos". También puedes seguir comprando.';
 export const SII_LISTO = 'Tu SII quedó conectado ✓ Tus facturas de la compra conjunta saldrán a tu nombre en el SII.';
 export const siiNoConectado = (detalle: string | null) =>
-  `No pude terminar de conectar tu SII${detalle ? `: ${detalle}` : '.'} Mientras, tus facturas saldrán simuladas. `
+  `No pude terminar de conectar tu SII${detalle ? `: ${detalle}` : '.'} Mientras, tus productos se ven pero no compiten en las compras. `
   + 'Puedes volver a intentarlo escribiendo "conectar certificado".';
 
 export const elegirProductoParaOfertar = (productos: readonly ProductoCompra[], ejemplo: (p: ProductoCompra) => string) =>
@@ -435,6 +435,9 @@ export const proponerOferta = (p: ProductoCompra, precio: number) =>
 export const ofertaHecha = (p: ProductoCompra, precio: number, ganando: boolean) =>
   `Listo, ofertaste ${dinero(precio)} por ${p.unidad} de ${cortoDe(p)}. `
   + (ganando ? 'Vas ganando ✓ Te aviso si alguien te supera.' : `El mejor precio sigue en ${dinero(p.precioActual)}.`);
+export const ofertaPendienteSii = (p: ProductoCompra, precio: number) =>
+  `Anoté tu oferta de ${dinero(precio)} por ${p.unidad} de ${cortoDe(p)}, pero todavía no compite: para ganar tienes que `
+  + 'poder emitir la factura en el SII. Escribe "conectar certificado" para conectarlo.';
 export const teSuperaron = (p: ProductoCompra, quien: string, precio: number) =>
   `${quien} ofertó ${dinero(precio)} por ${p.unidad} de ${cortoDe(p)} y ya no vas ganando. `
   + `Para responder, escribe por ejemplo "oferto ${dinero(Math.max(precio - 100, 1))} por ${cortoDe(p)}".`;

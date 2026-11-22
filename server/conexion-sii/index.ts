@@ -1,4 +1,5 @@
 // "Conectar mi SII": API pública del módulo. Fuera de server/conexion-sii/ se importa solo este archivo.
+import { explicarRechazoSii } from '../../shared/sii-rechazos.ts';
 import type express from 'express';
 import type { Response } from 'express';
 import type pg from 'pg';
@@ -168,10 +169,12 @@ export async function iniciarConexionSii(db: pg.Pool | null, env: NodeJS.Process
  * La conexión en una línea para WhatsApp: si ya emite, si la conexión automática sigue corriendo, y si no, por qué
  * (el primer paso con error, con el texto del SII si lo hay).
  */
-export function resumenDeConexion(e: EstadoConexionSii): { listo: boolean; enCurso: boolean; detalle: string | null } {
+export function resumenDeConexion(e: EstadoConexionSii): { listo: boolean; enCurso: boolean; detalle: string | null; detalleSii: string | null } {
   const error = e.automatico?.pasos.find(p => p.estado === 'error');
-  const detalle = error ? `${error.detalle ?? 'el SII no respondió'}${error.mensajeSii ? ` (el SII dice: «${error.mensajeSii}»)` : ''}` : null;
-  return { listo: e.conectado, enCurso: e.automatico?.activo ?? false, detalle };
+  // Para la persona, un rechazo conocido va explicado; el texto completo del SII sigue en `detalleSii` para el log.
+  const detalleSii = error ? `${error.detalle ?? 'el SII no respondió'}${error.mensajeSii ? ` (el SII dice: «${error.mensajeSii}»)` : ''}` : null;
+  const detalle = explicarRechazoSii(error?.mensajeSii) ?? detalleSii;
+  return { listo: e.conectado, enCurso: e.automatico?.activo ?? false, detalle, detalleSii };
 }
 
 /** Tope de la razón social y del giro en el DTE: se recortan aquí para no prellenar un valor que el SII rechace. */

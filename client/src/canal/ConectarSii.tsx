@@ -3,6 +3,7 @@
 // los pasos de abajo, cada uno resumido en una línea cuando ya está listo. El certificado y su clave solo viajan al subirlos: no quedan en
 // el navegador (ni en localStorage ni en el estado, la clave se borra al enviarla).
 
+import { explicarRechazoSii } from '../../../shared/sii-rechazos.ts';
 import { useCallback, useState, type ChangeEvent, type FormEvent } from 'react';
 import { fechaCorta, horaEnChile } from '../../../shared/fecha.ts';
 import { nombreDocumento, TIPOS_DOCUMENTO, type TipoDocumento } from '../../../shared/documentos.ts';
@@ -435,6 +436,7 @@ function FoliosFactura({ api, token, folios, alCambiar }: Props & { folios: Foli
       </p>
       {folios.estado === 'bajo' && <p className="bp-tenue">Se mantienen al menos {contar(folios.minimo, 'folio')}: se repondrán al emitir.</p>}
       {folios.esperaHasta && <p className="bp-tenue">Se vuelve a intentar a las {horaEnChile(Date.parse(folios.esperaHasta))}.</p>}
+      {explicarRechazoSii(folios.mensajeSii) && <p className="bm-error">{explicarRechazoSii(folios.mensajeSii)}</p>}
       {folios.mensajeSii && <p className="bp-tenue">El SII dice: «{folios.mensajeSii}»</p>}
       {error && <p className="bm-error">{error}</p>}
       <button type="button" className="bm-boton secundario bm-ancho" onClick={() => { void traer(); }} disabled={ocupado}>
@@ -456,7 +458,7 @@ function Automatico({ api, token, estado, alCambiar }: Props & { estado: EstadoC
         <div key={p.id} className="bp-resumen">
           <div>
             <p className="bp-texto">{NOMBRE_PASO[p.id]} · {ESTADO_PASO[p.estado]}</p>
-            {p.detalle && <p className={p.estado === 'error' ? 'bm-error' : 'bp-tenue'}>{p.detalle}</p>}
+            {(explicarRechazoSii(p.mensajeSii) ?? p.detalle) && <p className={p.estado === 'error' ? 'bm-error' : 'bp-tenue'}>{explicarRechazoSii(p.mensajeSii) ?? p.detalle}</p>}
             {p.mensajeSii && <p className="bp-tenue">El SII dice: «{p.mensajeSii}»</p>}
           </div>
         </div>

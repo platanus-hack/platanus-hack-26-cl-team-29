@@ -264,7 +264,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
 
   // ---- Proveedor ----
 
-  rutas.get('/proveedor/yo', exigir('proveedor'), (req: ConSesion, res) => {
+  rutas.get('/proveedor/yo', exigir('proveedor'), async (req: ConSesion, res) => {
     const negocio = yo(req);
     const estado = red.estadoPublico();
     const ordenes = estado.ordenes.filter(o => o.proveedorId === negocio.id);
@@ -272,6 +272,7 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     res.json({
       negocio: sinTelefonos(negocio),
       nota: red.notaDeProveedor(negocio.id),
+      puedeFacturar: await red.puedeFacturar(negocio.id),
       ordenes,
       documentos: documentosDe(ordenes),
       compraAbierta: licitaciones.find(l => l.estado === 'abierta') ?? null,
