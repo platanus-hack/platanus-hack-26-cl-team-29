@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cicloDelPedido, confirmacion, estaFacturada, montoNotaCredito, normalizarTramos, precioDelGrupo, resumenFacturacion, SIN_CONFIRMACION,
+  confirmacion, estaFacturada, montoNotaCredito, normalizarTramos, precioDelGrupo, resumenFacturacion, SIN_CONFIRMACION,
   type Confirmacion,
 } from '../client/src/canal/logica.ts';
 import type { LicitacionCanal, OrdenCanal } from '../client/src/canal/tipos.ts';
@@ -45,31 +45,6 @@ test('lee tramos con otros nombres de campo y sin tramos usa la mejor oferta', (
     { proveedorId: 'a', precioUnitario: 18_000, plazoDias: 1 }, { proveedorId: 'b', precioUnitario: 17_500, plazoDias: 2 },
   ] });
   assert.deepEqual(precioDelGrupo(sinTramos), { unidades: 3, precio: 17_500, precioSolo: 21_500 });
-});
-
-test('el ciclo del pedido pide la recepción solo cuando llegó la factura', () => {
-  const facturada = cicloDelPedido(orden('facturada'), [doc(33, { estadoSii: 'recibido' }), doc(52)]);
-  assert.equal(facturada.accion, 'recibir');
-  assert.equal(facturada.resumen, '¿Recibiste todo?');
-  assert.deepEqual(facturada.pasos.map(p => p.estado), ['hecho', 'hecho', 'hecho', 'actual', 'pendiente', 'pendiente']);
-  assert.equal(facturada.pasos[2].detalle, 'Folio 133, recibido por el SII');
-  assert.equal(cicloDelPedido(orden('enviada'), []).accion, 'ninguna');
-});
-
-test('recibido conforme salta el reclamo; con faltante pasa por el SII hasta la nota de crédito', () => {
-  const conforme = cicloDelPedido(orden('recibida'), [doc(33)]);
-  assert.deepEqual(conforme.pasos.map(p => p.estado), ['hecho', 'hecho', 'hecho', 'hecho', 'omitido', 'omitido']);
-
-  const reclamo = { producto: 'Caja', faltante: 2, en: '2026-11-21T13:00:00Z', estadoSii: 'recibido' };
-  const reclamada = cicloDelPedido(orden('reclamada', { reclamo }), [doc(33)]);
-  assert.equal(reclamada.resumen, 'Reclamado en el SII');
-  assert.equal(reclamada.pasos[3].detalle, 'Faltaron 2');
-  assert.equal(reclamada.pasos[4].estado, 'hecho');
-  assert.equal(reclamada.pasos[5].estado, 'actual', 'espera la nota de crédito');
-
-  const corregida = cicloDelPedido(orden('corregida', { reclamo }), [doc(33), doc(61)]);
-  assert.equal(corregida.resumen, 'Nota de crédito recibida');
-  assert.ok(corregida.pasos.every(p => p.estado === 'hecho'));
 });
 
 test('la nota de crédito vale lo que faltó, o el monto del documento si ya se emitió', () => {

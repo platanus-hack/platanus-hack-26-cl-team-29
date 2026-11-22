@@ -385,3 +385,6 @@
 .bm-elegido .bm-boton-texto { min-height: 36px; }
 .bm-aviso-minimo { background: color-mix(in srgb, var(--bando-miel) 16%, transparent); }
 .bm-falta-minimo { color: var(--bando-miel-texto); font-weight: 600; }
+.bm-fila-proveedor { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 0; }
+.bm-fila-proveedor + .bm-fila-proveedor { border-top: var(--border-width) solid var(--color-border); }
+.bm-nota-proveedor { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }

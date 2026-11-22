@@ -13,6 +13,7 @@ import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
+import { productosDe } from './canasta.ts';
 import { crearProveedores } from './proveedor.ts';
 import type { EstadoSiiProveedor, ListaDeProductos, PropuestaProveedor, Proveedores } from './proveedor.ts';
 import { crearInterpreteClaude } from './claude.ts';
@@ -38,6 +39,8 @@ const MAXIMO_OPCIONES = 5;
 type Pendiente = { readonly mensaje: string } & (
   | { readonly tipo: 'crear_orden'; readonly proveedor: Negocio; readonly producto: string; readonly cantidad: number }
   | { readonly tipo: 'abrir_solicitud'; readonly producto: string; readonly unidad: string; readonly cantidad: number }
+  // Ya hay una compra en grupo abierta de ese producto: se suma a ella con su cantidad (además de lo que ya lleva).
+  | { readonly tipo: 'sumarse'; readonly licitacionId: string; readonly productoId: string; readonly producto: string; readonly cantidad: number }
   // Lo escrito se parece a productos de la biblioteca: se pregunta cuál es (o si es uno nuevo) antes de seguir.
   | { readonly tipo: 'elegir_producto'; readonly escrito: string; readonly opciones: readonly ProductoConocido[]; readonly para: ParaProducto }
   | { readonly tipo: 'confirmar_ordenes'; readonly ordenIds: readonly string[] }
@@ -218,8 +221,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
   }
 
   async function proponerPedido(comprador: Negocio, producto: string, cantidad: number, elegido?: string): Promise<string> {
-    // Nadie lo vende a precio fijo: en vez de una orden que no se puede cumplir, se ofrece abrir una compra en grupo.
-    if (red.abrirSolicitud && red.productoConPrecio && !red.productoConPrecio(producto)) {
+    // Se compra en grupo: se suma a la compra abierta de ese producto o se ofrece abrir una (no hay pedidos directos).
+    if (red.abrirSolicitud) {
       const r = productoDeLaBiblioteca(comprador, producto, { tipo: 'comprar', cantidad });
       return typeof r === 'string' ? r : proponerSolicitud(comprador, r.nombre, r.unidad ?? 'unidad', cantidad);
     }
@@ -243,9 +246,18 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     return mensaje;
   }
 
-  function proponerSolicitud(comprador: Negocio, nombre: string, unidad: string, cantidad: number): string {
+  /** Si ya hay una compra en grupo abierta de ese producto, propone sumarse a ella; si no, abrir una. */
+  async function proponerSolicitud(comprador: Negocio, nombre: string, unidad: string, cantidad: number): Promise<string> {
+    const { licitaciones = [] } = await red.estadoDeLaRed();
+    const abierta = licitaciones.filter(l => l.estado === 'abierta' && Date.parse(l.cierraEn) > ahora().getTime())
+      .flatMap(l => productosDe(l).filter(p => mismoNombre(p.nombre, nombre)).map(p => ({ l, p })))[0];
+    if (['crear_orden', 'abrir_solicitud', 'sumarse'].includes(actual(comprador.id)?.tipo ?? '')) tomar(comprador.id);
+    if (abierta && red.agregarAlCarrito) {
+      const mensaje = m.proponerSumarse(abierta.p, cantidad, abierta.l.cierraEn);
+      alFrente(comprador.id, { tipo: 'sumarse', licitacionId: abierta.l.id, productoId: abierta.p.id, producto: abierta.p.nombre, cantidad, mensaje });
+      return mensaje;
+    }
     const mensaje = m.proponerSolicitud(nombre, cantidad);
-    if (actual(comprador.id)?.tipo === 'crear_orden' || actual(comprador.id)?.tipo === 'abrir_solicitud') tomar(comprador.id);
     alFrente(comprador.id, { tipo: 'abrir_solicitud', producto: nombre, unidad, cantidad, mensaje });
     return mensaje;
   }
@@ -276,7 +288,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
 
   /** Sigue lo que se estaba haciendo con el producto ya elegido. */
   async function seguirCon(negocio: Negocio, para: ParaProducto, producto: { nombre: string; unidad?: string }): Promise<string> {
-    if (para.tipo === 'comprar') return proponerSolicitud(negocio, producto.nombre, producto.unidad ?? 'unidad', para.cantidad);
+    if (para.tipo === 'comprar') return await proponerSolicitud(negocio, producto.nombre, producto.unidad ?? 'unidad', para.cantidad);
     return proponerAlProveedor(negocio, await proveedores!.proponerProducto(negocio, producto.nombre, producto.unidad ?? para.unidad, para.precio));
   }
 
@@ -295,6 +307,13 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     switch (p.tipo) {
       case 'elegir_producto':
         return m.noEntendi(p.mensaje);
+      case 'sumarse': {
+        const { licitaciones = [] } = await red.estadoDeLaRed();
+        const lleva = licitaciones.find(l => l.id === p.licitacionId)?.participantes.find(x => x.negocioId === negocio.id)
+          ?.items?.find(i => i.productoId === p.productoId)?.cantidad ?? 0;
+        await red.agregarAlCarrito!(p.licitacionId, { negocioId: negocio.id, productoId: p.productoId, cantidad: lleva + p.cantidad });
+        return m.sumadoAOtraCompra(p.producto, lleva + p.cantidad);
+      }
       case 'abrir_solicitud': {
         const l = await red.abrirSolicitud!({ compradorId: negocio.id, producto: p.producto, unidad: p.unidad, cantidad: p.cantidad });
         return m.solicitudAbierta(p.producto, p.cantidad, l.cierraEn);

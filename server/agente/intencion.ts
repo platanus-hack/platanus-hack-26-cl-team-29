@@ -113,8 +113,9 @@ export function interpretarConReglas(texto: string): Intencion {
   const faltante = t.match(new RegExp(`(?:faltaron|falto|faltan|falta|llegaron solo|solo llegaron) ${CANTIDAD}`));
   if (faltante) return { tipo: 'faltante', cantidad: aNumero(faltante[1]) };
 
-  const pedido = t.match(new RegExp(`(?:pide|pideme|pedir|quiero|necesito|encarga|compra|manda|envia)(?: me)?(?: (?:comprar|pedir|encargar))? ${CANTIDAD} (.+)`));
-  if (pedido) return { tipo: 'pedir', cantidad: aNumero(pedido[1]), producto: pedido[2].trim() };
+  const pedido = t.match(new RegExp(`(?:pide|pideme|pedir|quiero|necesito|encarga|compra|manda|envia|agrega|agregame|suma|sumame)(?: me)?(?: (?:comprar|pedir|encargar|agregar|sumar))? ${CANTIDAD} (.+)`));
+  // "... a mi pedido", "... a mi otro pedido": no es parte del producto.
+  if (pedido) return { tipo: 'pedir', cantidad: aNumero(pedido[1]), producto: pedido[2].replace(/ (a|al|en) (mi|el|la)( otro| otra)? (pedido|carrito|compra)$/, '').trim() };
 
   if (/\b(todo bien|todo ok|llego todo|recibi todo|todo conforme|conforme)\b/.test(t)) return { tipo: 'conforme' };
   if (/^(no|nop|cancela|cancelar|mejor no|no gracias|todavia no|aun no|despues)\b/.test(t)) return { tipo: 'no' };

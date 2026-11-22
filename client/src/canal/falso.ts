@@ -416,45 +416,6 @@ export function crearApiFalsa(): CanalApi {
       if (previo) cambiarCarrito(lic, { ...previo, items: [], cantidad: 0 }, 'sale');
     },
 
-    async pedir(token, proveedorId, items) {
-      await espera(400);
-      const negocio = quien(token);
-      exigir(red.negocios.some(n => n.id === proveedorId && n.rol === 'proveedor'), 'Elige un proveedor de la red.');
-      exigir(items.length > 0 && items.every(i => i.cantidad >= 1 && PRECIOS[i.producto] !== undefined), 'Elige un producto y la cantidad.');
-      const o: OrdenCanal = {
-        id: `o-${++contador}`, compradorId: negocio.id, proveedorId, estado: 'enviada', creadaEn: ahoraIso(),
-        items: items.map(i => ({ ...i, precioUnitario: PRECIOS[i.producto] })),
-      };
-      red.ordenes.push(o);
-      avisar('orden.creada', { orden: o });
-      // La contraparte: el proveedor dice "sí" y factura.
-      despues(2500, () => { o.estado = 'confirmada'; avisar('orden.confirmada', { orden: o }); });
-      despues(4500, () => { facturar(o); avisar('documento.emitido', { orden: o }); });
-      return structuredClone(o);
-    },
-
-    async recepcion(token, ordenId, r) {
-      await espera(400);
-      const negocio = quien(token);
-      const o = orden(ordenId);
-      exigir(r.confirmado === true, 'Esta acción queda registrada en el SII: falta tu confirmación.');
-      exigir(o.compradorId === negocio.id, 'Ese pedido no es tuyo.');
-      exigir(o.estado === 'facturada', 'Este pedido ya no espera tu recepción.');
-      if ('conforme' in r) {
-        o.estado = 'recibida';
-        avisar('recepcion.registrada', { orden: o, conforme: true });
-        cambiarNota(o.proveedorId, 0.1);
-        return;
-      }
-      const item = o.items[0];
-      exigir(r.confirmado && Number.isInteger(r.faltante) && r.faltante >= 1 && r.faltante <= item.cantidad, `Indica cuántas faltaron, entre 1 y ${item.cantidad}.`);
-      o.estado = 'reclamada';
-      o.reclamo = { producto: item.producto, faltante: r.faltante, en: ahoraIso(), estadoSii: 'recibido' };
-      avisar('reclamo.registrado', { orden: o, reclamo: o.reclamo, motivo: 'falta parcial' });
-      cambiarNota(o.proveedorId, -0.4);
-      despues(6000, () => notaCredito(o));
-    },
-
     async yoProveedor(token) {
       const proveedor = quien(token);
       const ordenes = red.ordenes.filter(o => o.proveedorId === proveedor.id);

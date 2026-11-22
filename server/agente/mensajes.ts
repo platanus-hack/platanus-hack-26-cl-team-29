@@ -79,6 +79,11 @@ export const fallo = (error: unknown) =>
 export const elegirProducto = (escrito: string, parecidos: readonly { nombre: string; unidad: string }[]) =>
   `En Bando ya hay productos parecidos a "${escrito}". ¿Cuál es?\n`
   + opciones(...parecidos.map(p => `${p.nombre} (por ${p.unidad})`), `Otro: crear "${escrito}"`);
+export const proponerSumarse = (p: ProductoCompra, cantidad: number, cierraEn: string) =>
+  `Hay una compra en grupo abierta de "${p.nombre}"${p.precioActual > 0 ? `, hoy a ${dinero(p.precioActual)} por ${p.unidad}` : ', esperando ofertas de proveedores'}. `
+  + `Cierra a las ${horaEnChile(Date.parse(cierraEn))}. ¿Te sumo con ${contar(cantidad, p.unidad, p.unidadPlural)}?\n` + opciones('Sí, súmame', 'No');
+export const sumadoAOtraCompra = (producto: string, total: number) =>
+  `Listo, vas con ${total} en la compra en grupo de "${producto}". Mientras más negocios se suman, más baja el precio.`;
 export const proponerSolicitud = (producto: string, cantidad: number) =>
   `Ningún proveedor de la red tiene precio fijo para "${producto}". ¿Abro una compra en grupo con tus ${cantidad}? `
   + 'Otros negocios se suman, los proveedores ofertan y gana el mejor precio para todo el grupo. Cierra en 24 horas.\n'
@@ -187,6 +192,8 @@ const listaItems = (items: readonly ItemCarrito[], l: LicitacionSala) =>
 /** "Total $133.400, ahorras $8.400." */
 function totalYAhorro(items: readonly ItemCarrito[], l: LicitacionSala): string {
   const lineas = lineasDe(items, l);
+  // Una compra sin ofertas todavía no tiene precio: no se muestra $0.
+  if (lineas.some(x => !(x.p.precioActual > 0))) return 'El precio lo ponen los proveedores al ofertar: al cerrar pagas el mejor para el grupo.';
   const total = lineas.reduce((s, x) => s + x.cantidad * x.p.precioActual, 0);
   const ahorro = lineas.reduce((s, x) => s + x.cantidad * Math.max(0, x.p.precioSolo - x.p.precioActual), 0);
   return `Total ${dinero(total)}${ahorro > 0 ? `, ahorras ${dinero(ahorro)}` : ''}.`;
@@ -197,6 +204,7 @@ function siguienteTramo(items: readonly ItemCarrito[], l: LicitacionSala): strin
   const mios = new Set(items.map(i => i.productoId));
   const conTramo = productosDe(l).filter(p => p.siguienteTramo && (mios.size === 0 || mios.has(p.id)));
   const [p] = conTramo.sort((a, b) => a.siguienteTramo!.faltan - b.siguienteTramo!.faltan);
+  if (!p && productosDe(l).some(x => !(x.precioActual > 0))) return 'Esperando ofertas de proveedores.';
   if (!p) return 'Ya está en el mejor precio.';
   const { faltan, precioUnitario } = p.siguienteTramo!;
   return `${segun(faltan, 'Falta', 'Faltan')} ${itemTexto(p, faltan)} para bajar a ${dinero(precioUnitario)}.`;
@@ -280,7 +288,9 @@ export const carritoActualizado = (nombre: string, items: readonly ItemCarrito[]
 
 /** "mi pedido": cada línea con su precio. */
 export function resumenCarrito(nombre: string, items: readonly ItemCarrito[], l: LicitacionSala): string {
-  const lineas = lineasDe(items, l).map(x => `${itemTexto(x.p, x.cantidad)} a ${dinero(x.p.precioActual)}: ${dinero(x.cantidad * x.p.precioActual)}`);
+  const lineas = lineasDe(items, l).map(x => (x.p.precioActual > 0
+    ? `${itemTexto(x.p, x.cantidad)} a ${dinero(x.p.precioActual)}: ${dinero(x.cantidad * x.p.precioActual)}`
+    : `${itemTexto(x.p, x.cantidad)}, esperando ofertas`));
   const ultimo = productosDe(l).at(-1)!;
   return `Tu pedido, ${nombre}:\n${lineas.join('\n')}\n${totalYAhorro(items, l)} ${siguienteTramo(items, l)}\n`
     + `Para cambiarlo, escribe por ejemplo "agrega 2 de ${cortoDe(ultimo)}" o "quita ${cortoDe(ultimo)}".`;

@@ -49,6 +49,8 @@ export interface Documento {
 export interface EstadoRed {
   readonly negocios: readonly Negocio[];
   readonly ordenes: readonly OrdenCompra[];
+  /** Las compras en grupo (puede haber varias abiertas). */
+  readonly licitaciones?: readonly LicitacionSala[];
 }
 
 export type Recepcion = { readonly conforme: true } | { readonly faltante: number };
@@ -71,7 +73,9 @@ export interface Red {
   emitirNotaCredito(ordenId: string): Talvez<Documento>;
   /** El producto del catálogo con precio que nombra el texto ("sacos de harina" → "Harina 25 kg"), o undefined. */
   productoConPrecio?(texto: string): string | undefined;
-  /** Un comprador abre una compra en grupo de un producto que nadie le vende a precio fijo. */
+  /** Fija la cantidad de un producto en el carrito de un negocio en una compra en grupo (0 lo quita). */
+  agregarAlCarrito?(licitacionId: string, item: { readonly negocioId: string; readonly productoId: string; readonly cantidad: number }): Talvez<unknown>;
+  /** Un comprador abre una compra en grupo de un producto. */
   abrirSolicitud?(s: { readonly compradorId: string; readonly producto: string; readonly unidad: string; readonly cantidad: number }): Talvez<{ readonly id: string; readonly cierraEn: string }>;
 }
 
