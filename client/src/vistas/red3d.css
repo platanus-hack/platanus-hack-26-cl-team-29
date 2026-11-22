@@ -1,32 +1,56 @@
-/* ---------- /red-3d: la red crece, en 3D sobre Santiago ---------- */
-/* Pantalla completa: el mapa ocupa todo y los textos flotan encima, en las esquinas (arriba a la derecha va el menú).
-   Cabecera, cifra, íconos y ficha reusan las piezas comunes (CabeceraRed, Contador, IconoEvento, Monograma, .tarjeta). */
-.r3d { position: fixed; inset: 0; overflow: hidden; background: #000; color: var(--color-text); }
+/* ---------- /red-3d: la red crece, en 3D sobre Santiago, con la marca de Bando (.bando-ui, claro y oscuro) ---------- */
+/* Pantalla completa: el mapa ocupa todo y las tarjetas flotan encima, en las esquinas (arriba a la derecha va el menú).
+   Colores del mapa y de deck.gl: mapa/base.ts los lee de los mismos tokens. Aquí solo tokens, nada escrito a mano. */
+.r3d {
+  position: fixed; inset: 0; overflow: hidden; background: var(--color-muted); color: var(--color-foreground);
+  --sombra-flotante: 0 4px 18px color-mix(in srgb, var(--bando-carbon) 16%, transparent);
+}
 .r3d-lienzo, .r3d-mapa { position: absolute; inset: 0; }
 .r3d-lienzo { z-index: 0; }
 
-.r3d-arriba { position: absolute; left: var(--relleno); top: var(--relleno); right: 140px; pointer-events: none; }
-.r3d-arriba .red-cabecera { gap: 14px; }
-.r3d-arriba .titulo-red { font-size: clamp(22px, 3.4vh, 40px); }
-.r3d-arriba .fuente-falsa, .r3d-arriba .en-vivo { pointer-events: auto; }
-.r3d-ayuda { margin: 8px 0 0; font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); }
+/* Todo lo que flota sobre el mapa: tarjeta de la marca con una sombra suave (DESIGN.md, "Tarjeta"). */
+.r3d-arriba, .r3d-cifra .tarjeta, .r3d-leyenda, .r3d-proveedor, .r3d-evento, .r3d-marca {
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); box-shadow: var(--sombra-flotante);
+}
 
-/* La cifra abajo a la izquierda: cuántos negocios hay y qué ganan con eso. */
-.r3d-cifra { position: absolute; left: var(--relleno); bottom: calc(var(--relleno) + 22px); max-width: min(42vw, 520px); pointer-events: none; }
-.r3d-cifra .tarjeta { background: rgb(10 10 10 / 0.72); border-color: transparent; }
-.r3d-cifra .etiqueta { text-transform: none; letter-spacing: 0; }
+.r3d-arriba {
+  position: absolute; left: var(--relleno); top: var(--relleno); max-width: calc(100vw - 2 * var(--relleno) - 140px);
+  padding: 12px 18px; border-radius: var(--radius-xl); pointer-events: none;
+}
+/* La cabecera de /red (vistas/red.css; con `.r3d` delante para ganarle), compacta dentro de la tarjeta: sin el hueco para el menú, que ya da la tarjeta. */
+.r3d .r3d-arriba .red-cabecera { gap: 12px; padding-right: 0; }
+.r3d .r3d-arriba .marca-horizontal { height: clamp(36px, 4.4vh, 48px); }
+.r3d .r3d-arriba .boton-tema { margin-left: 4px; pointer-events: auto; }
+.r3d-ayuda { margin: 6px 0 0; font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg); }
+
+/* El titular del video: el logo y el nombre de la escena. */
+.r3d-titular { display: flex; align-items: center; gap: 16px; }
+.r3d-logo-bando { height: 36px; width: auto; }
+.r3d-titular h1 {
+  margin: 0; padding-left: 16px; border-left: var(--border-width) solid var(--color-border);
+  font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -0.03em;
+}
+
+/* La cifra abajo a la izquierda: el único número grande de la pantalla. */
+.r3d-cifra { position: absolute; left: var(--relleno); bottom: calc(var(--relleno) + 22px); max-width: min(40vw, 460px); pointer-events: none; }
+.r3d .r3d-cifra .tarjeta { padding: clamp(14px, 2vh, 22px) clamp(16px, 2vh, 24px); border-radius: var(--radius-xl); }
+.r3d .r3d-cifra .contador .numero-grande { font-size: clamp(40px, 5.6vh, 60px); line-height: 1; font-weight: 600; letter-spacing: -1.5px; color: var(--color-foreground); }
+.r3d .r3d-cifra .contador .etiqueta {
+  margin-top: 8px; text-transform: none; letter-spacing: 0;
+  font-size: clamp(14px, 1.6vh, 16px); line-height: 1.4; font-weight: 500; color: var(--color-muted-foreground);
+}
 
 .r3d-leyenda {
-  position: absolute; right: var(--relleno); bottom: var(--relleno); margin: 0; padding: 0; list-style: none;
-  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; max-width: min(48vw, 520px);
-  font-family: var(--font-mono); font-size: var(--t-etiqueta); color: var(--color-tenue); text-shadow: 0 1px 4px #000;
+  position: absolute; right: var(--relleno); bottom: var(--relleno); margin: 0; padding: 8px 14px; list-style: none;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; max-width: min(48vw, 560px); border-radius: var(--radius-xl);
+  font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-muted-foreground);
 }
 .r3d-leyenda li { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-.r3d-leyenda .punto { width: 9px; height: 9px; border-radius: 50%; }
-.r3d-leyenda .punto.verde { background: var(--color-green); }
-.r3d-leyenda .punto.amarillo { background: var(--color-primary); }
-.r3d-leyenda .punto.local { width: 6px; height: 6px; background: #9adfff; }
-.r3d-leyenda .punto.mp { background: rgb(242 255 0 / 0.18); border: 1px solid var(--color-primary); }
+.r3d-leyenda .punto { width: 10px; height: 10px; border-radius: 50%; }
+.r3d-leyenda .punto.negocio { background: var(--bando-miel); }
+.r3d-leyenda .punto.proveedor { background: var(--bando-oliva); }
+.r3d-leyenda .punto.local { width: 6px; height: 6px; background: var(--color-faint-fg); }
+.r3d-leyenda .punto.mp { background: color-mix(in srgb, var(--bando-oliva) 20%, transparent); border: 1px solid var(--bando-oliva); }
 
 /* Lo que va pegado a un punto del mapa: el JS pone el translate de cada ancla en cada cuadro. */
 .r3d-sobre { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
@@ -35,34 +59,33 @@
 /* Etiqueta de los proveedores principales, a la derecha de su punto: monograma, nombre y nota. */
 .r3d-proveedor {
   position: absolute; left: 12px; top: 0; translate: 0 -50%; pointer-events: auto; cursor: pointer;
-  display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; white-space: nowrap;
-  background: rgb(10 10 10 / 0.75); border: 0; border-radius: 999px;
-  font-family: var(--font-display); font-weight: 700; font-size: clamp(11px, 1.35vh, 14px); color: var(--color-text);
+  display: flex; align-items: center; gap: 6px; padding: 2px 10px 2px 2px; white-space: nowrap; border-radius: var(--radius-full);
+  font: inherit; font-weight: 600; font-size: clamp(12px, 1.35vh, 14px); color: var(--color-foreground);
 }
-.r3d-proveedor .monograma { width: 1.7em; height: 1.7em; font-size: 0.8em; }
-.r3d-proveedor b { font-family: var(--font-mono); color: var(--color-primary); }
-.r3d-proveedor.baja b { color: var(--color-magenta); }
-.r3d-proveedor.sube b { color: var(--color-green); }
+.r3d-proveedor .monograma { width: 1.9em; height: 1.9em; font-size: 0.8em; }
+.r3d-proveedor b, .r3d-marca b { font-variant-numeric: tabular-nums; color: var(--bando-oliva-texto); }
+.r3d-proveedor.baja b { color: var(--color-destructive); }
 
-/* Tarjeta de un evento sobre su punto: chica, con el color de su tipo; entra, se queda y se apaga sola. */
+/* Tarjeta de un evento sobre su punto: chica, con una franja del color de lo que pasó; entra, se queda y se apaga sola. */
 .r3d-evento {
-  position: absolute; left: 0; bottom: 14px; translate: -50% 0; display: flex; align-items: center; gap: 4px;
-  padding: 4px 10px 4px 2px; white-space: nowrap; border-radius: 8px;
-  background: rgb(10 10 10 / 0.88); border: 1px solid var(--color-green);
-  font-family: var(--font-mono); font-size: clamp(11px, 1.4vh, 15px); color: var(--color-text);
+  --franja: var(--bando-oliva);
+  position: absolute; left: 0; bottom: 14px; translate: -50% 0; display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px 4px 4px; white-space: nowrap; border-radius: var(--radius-xl);
+  box-shadow: inset 3px 0 0 var(--franja), var(--sombra-flotante);
+  font-size: clamp(12px, 1.4vh, 15px); font-weight: 500; color: var(--color-foreground);
   animation: r3d-evento 3.2s ease-out both;
 }
-.r3d-evento.pedido { border-color: var(--color-primary); }
-.r3d-evento.venta { border-color: #fff; }
-.r3d-evento.reclamo, .r3d-evento.baja { border-color: var(--color-magenta); }
+.r3d-evento.pedido { --franja: var(--bando-miel); }
+.r3d-evento.venta { --franja: var(--color-sii); }
+.r3d-evento.reclamo, .r3d-evento.baja { --franja: var(--color-destructive); }
+.r3d-evento .feed-icono > .icono { color: var(--color-muted-foreground); }
 @keyframes r3d-evento {
   from { opacity: 0; transform: translateY(8px); }
   10%, 85% { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateY(-6px); }
 }
 
-/* Ficha del proveedor elegido con un clic (sobre .tarjeta). */
-.r3d .maplibregl-ctrl-attrib { background: rgb(0 0 0 / 0.6); color: var(--color-tenue); font-size: 10px; }
+.r3d .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--color-background) 80%, transparent); color: var(--color-faint-fg); font-size: 10px; }
 .r3d .maplibregl-ctrl-attrib a { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -70,22 +93,23 @@
 }
 
 /* ---------- /red-3d#video: marcas ilustrativas para el video del pitch ---------- */
-/* Etiqueta del proveedor: logo en una placa blanca de tamaño fijo (legible sobre el mapa oscuro) y su nota. */
+/* Etiqueta del proveedor: logo en una placa blanca de tamaño fijo (legible también en modo oscuro) y su nota. */
 .r3d-marca {
   position: absolute; left: 14px; top: 0; translate: 0 -50%; display: flex; align-items: center; gap: 8px;
-  padding: 3px 10px 3px 3px; white-space: nowrap; border-radius: 10px; background: rgb(10 10 10 / 0.8);
-  font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--color-text);
+  padding: 3px 10px 3px 3px; white-space: nowrap; border-radius: var(--radius-lg);
+  font-size: 16px; font-weight: 600; color: var(--color-foreground);
 }
 .r3d-marca .monograma { width: 32px; height: 32px; font-size: 13px; }
-.r3d-marca b { font-family: var(--font-mono); font-size: 16px; color: var(--color-primary); }
 .r3d-marca.izquierda { left: auto; right: 14px; }
-.r3d-logo { width: 84px; height: 32px; flex-shrink: 0; display: grid; place-items: center; background: #fff; border-radius: 7px; }
+.r3d-logo { width: 84px; height: 32px; flex-shrink: 0; display: grid; place-items: center; background: #fff; border-radius: var(--radius-md); }
 .r3d-logo img { max-width: 72px; max-height: 24px; object-fit: contain; }
 .r3d-video .r3d-evento { font-size: 16px; }
 .r3d-video .r3d-evento .monograma { width: 1.9em; height: 1.9em; }
+/* En el video, "¿Llegó bien?" es una buena nota: va en oliva. */
+.r3d-video .r3d-evento.reclamo { --franja: var(--bando-oliva); }
 .r3d-aviso {
-  position: absolute; right: var(--relleno); bottom: calc(var(--relleno) + 30px); margin: 0;
-  font-family: var(--font-mono); font-size: 13px; color: var(--color-tenue); pointer-events: none;
+  position: absolute; right: var(--relleno); bottom: calc(var(--relleno) + 44px); margin: 0;
+  font-size: var(--text-xs); color: var(--color-faint-fg); pointer-events: none;
 }
 /* En el video no va el menú de vistas. */
 body:has(.r3d-video) .navegador { display: none; }

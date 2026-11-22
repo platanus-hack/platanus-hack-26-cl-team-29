@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Marker, type GeoJSONSource, type Map as MapaLibre } from 'maplibre-gl';
 import './mapa.css';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
-import { AMARILLO, AZUL_LOCAL, crear, crearMapa, MAGENTA, VERDE } from '../mapa/base.ts';
+import { crear, crearMapa, paleta, pintar, useMapaConTema } from '../mapa/base.ts';
 import { capas, circulo, MUT, pulsosNuevos, RADIO_KM, ubicar } from '../mapa/geo.ts';
 import { FichaMercadoPublico, radioProveedorMp, useProveedoresMapa, type ProveedorMapa } from '../mapa/ProveedoresMapa.tsx';
 import { contornoDeCelda, puntosDeLocales, useLocales, type Locales } from '../mapa/useLocales.ts';
@@ -25,39 +25,44 @@ function agregarCapas(m: MapaLibre) {
   m.addSource('locales', { type: 'geojson', data: vacio });
   m.addSource('buscando', { type: 'geojson', data: vacio });
   m.addSource('mercado-publico', { type: 'geojson', data: vacio });
-  m.addLayer({ id: 'radio', type: 'line', source: 'radio', paint: { 'line-color': AMARILLO, 'line-width': 1.5, 'line-opacity': 0.7, 'line-dasharray': [3, 3] } });
+  m.addLayer({ id: 'radio', type: 'line', source: 'radio', paint: { 'line-width': 1.5, 'line-opacity': 0.8, 'line-dasharray': [3, 3] } });
   // Locales que encontró el explorador: debajo de la red, tenues, para que la red mande.
-  m.addLayer({ id: 'locales', type: 'circle', source: 'locales', paint: { 'circle-radius': 2.5, 'circle-color': AZUL_LOCAL, 'circle-opacity': 0.55 } });
-  m.addLayer({ id: 'buscando', type: 'line', source: 'buscando', paint: { 'line-color': AZUL_LOCAL, 'line-width': 1.5, 'line-dasharray': [1, 1] } });
-  // Proveedores de Mercado Público que no están en Bando: volt atenuado con contorno, bajo la red.
+  m.addLayer({ id: 'locales', type: 'circle', source: 'locales', paint: { 'circle-radius': 2, 'circle-opacity': 0.3 } });
+  m.addLayer({ id: 'buscando', type: 'line', source: 'buscando', paint: { 'line-width': 1.5, 'line-dasharray': [1, 1] } });
+  // Proveedores de Mercado Público que no están en Bando: oliva atenuado con contorno, bajo la red.
   m.addLayer({
     id: 'mercado-publico', type: 'circle', source: 'mercado-publico',
-    paint: {
-      'circle-radius': ['get', 'radio'], 'circle-color': AMARILLO, 'circle-opacity': 0.18,
-      'circle-stroke-color': AMARILLO, 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.75,
-    },
+    paint: { 'circle-radius': ['get', 'radio'], 'circle-opacity': 0.2, 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.8 },
   });
   m.addLayer({
     id: 'lineas', type: 'line', source: 'lineas', filter: ['!=', ['get', 'tipo'], 'reclamo'],
-    paint: {
-      'line-color': ['match', ['get', 'tipo'], 'actual', AMARILLO, '#ffffff'],
-      'line-width': ['match', ['get', 'tipo'], 'actual', 3, 1],
-      'line-opacity': ['match', ['get', 'tipo'], 'actual', 1, 0.25],
-    },
+    paint: { 'line-width': ['match', ['get', 'tipo'], 'actual', 3, 1], 'line-opacity': ['match', ['get', 'tipo'], 'actual', 1, 0.35] },
   });
-  m.addLayer({
-    id: 'lineas-reclamo', type: 'line', source: 'lineas', filter: ['==', ['get', 'tipo'], 'reclamo'],
-    paint: { 'line-color': MAGENTA, 'line-width': 3, 'line-dasharray': [2, 2] },
-  });
+  m.addLayer({ id: 'lineas-reclamo', type: 'line', source: 'lineas', filter: ['==', ['get', 'tipo'], 'reclamo'], paint: { 'line-width': 3, 'line-dasharray': [2, 2] } });
   m.addLayer({
     id: 'negocios', type: 'circle', source: 'negocios',
-    paint: {
-      'circle-radius': ['match', ['get', 'rol'], 'proveedor', 8, 5],
-      'circle-color': ['case', ['==', ['get', 'cambio'], 'baja'], MAGENTA, ['==', ['get', 'rol'], 'proveedor'], AMARILLO, VERDE],
-      'circle-stroke-color': '#0b0b0b',
-      'circle-stroke-width': ['match', ['get', 'rol'], 'proveedor', 2, 1],
-    },
+    paint: { 'circle-radius': ['match', ['get', 'rol'], 'proveedor', 8, 5], 'circle-stroke-width': ['match', ['get', 'rol'], 'proveedor', 2, 1] },
   });
+  colorearCapas(m);
+}
+
+/** Colores de la red con la paleta del modo actual: negocios en miel, proveedores y red en oliva, reclamos en rojo. */
+function colorearCapas(m: MapaLibre) {
+  if (!m.getLayer('negocios')) return;
+  const c = paleta(m.getContainer());
+  const colores: Record<string, Record<string, unknown>> = {
+    radio: { 'line-color': c.miel600 },
+    locales: { 'circle-color': c.rotulo },
+    buscando: { 'line-color': c.rotulo },
+    'mercado-publico': { 'circle-color': c.oliva, 'circle-stroke-color': c.oliva },
+    lineas: { 'line-color': ['match', ['get', 'tipo'], 'actual', c.miel, c.oliva] },
+    'lineas-reclamo': { 'line-color': c.error },
+    negocios: {
+      'circle-color': ['case', ['==', ['get', 'cambio'], 'baja'], c.error, ['==', ['get', 'rol'], 'proveedor'], c.oliva, c.miel],
+      'circle-stroke-color': c.fondo,
+    },
+  };
+  for (const [capa, pintura] of Object.entries(colores)) pintar(m, capa, pintura);
 }
 
 /** Un punto por proveedor de Mercado Público, con su radio según los organismos que le compran. */
@@ -88,6 +93,8 @@ function Lienzo({ estado, cambios, eventos, locales, mp, alElegirMp }: {
     (m.getSource('buscando') as GeoJSONSource).setData(contornoDeCelda(exploracion.current?.avance.buscando ?? null));
     (m.getSource('mercado-publico') as GeoJSONSource).setData(puntosMp(mercadoPublico.current));
   };
+
+  useMapaConTema(mapa, () => mapa.current && colorearCapas(mapa.current));
 
   useEffect(() => {
     const m = crearMapa(caja.current!, { center: MUT, zoom: 10 }, () => {
@@ -181,28 +188,33 @@ export function Mapa() {
   const ahora = useAhora();
   const mp = useProveedoresMapa(eventos[0]?.clave);
   const [elegido, setElegido] = useState<string | null>(null);
-  if (!estado) return <Cargando />;
+  if (!estado) return <Cargando bando />;
   const proveedorMp = mp.find(p => p.clave === elegido);
 
   return (
-    <main className="pagina proyeccion red">
-      <CabeceraRed titulo="La red en el mapa, en vivo" fuente={fuente} />
+    <main className="bando-ui pagina proyeccion red red-bando mapa-vista">
+      <CabeceraRed titulo="La red en el mapa" fuente={fuente} bando />
 
       <div className="red-cuerpo">
-        <section className="mapa-caja">
-          <Lienzo estado={estado} cambios={cambios} eventos={eventos} locales={locales} mp={mp} alElegirMp={setElegido} />
-          {proveedorMp && <FichaMercadoPublico proveedor={proveedorMp} alCerrar={() => setElegido(null)} />}
-          {locales && <AvisoExploracion locales={locales} />}
-          <ul className="mapa-leyenda" aria-label="Leyenda">
-            <li><i className="punto verde" /> negocio</li>
-            <li><i className="punto amarillo" /> proveedor en Bando</li>
-            {mp.length > 0 && <li><i className="punto mp" /> proveedor de Mercado Público</li>}
-            {locales && <li><i className="punto local" /> local cercano</li>}
-            <li><i className="raya amarillo" /> último pedido</li>
-            <li><i className="raya magenta" /> reclamo</li>
-            <li><i className="raya radio" /> {RADIO_KM} km desde el MUT</li>
-            <li className="credito">mapa © OpenStreetMap</li>
-          </ul>
+        <section className="mapa-zona">
+          <div className="mapa-caja">
+            <Lienzo estado={estado} cambios={cambios} eventos={eventos} locales={locales} mp={mp} alElegirMp={setElegido} />
+            {proveedorMp && <FichaMercadoPublico proveedor={proveedorMp} alCerrar={() => setElegido(null)} />}
+          </div>
+          {/* Leyenda y avance bajo el mapa: así no tapan etiquetas ni se tapan entre ellas en ningún tamaño. */}
+          <div className="mapa-pie">
+            {locales && <AvisoExploracion locales={locales} />}
+            <ul className="mapa-leyenda" aria-label="Leyenda">
+              <li><i className="punto negocio" /> negocio</li>
+              <li><i className="punto proveedor" /> proveedor en Bando</li>
+              {mp.length > 0 && <li><i className="punto mp" /> proveedor de Mercado Público</li>}
+              {locales && <li><i className="punto local" /> local cercano</li>}
+              <li><i className="raya pedido" /> último pedido</li>
+              <li><i className="raya reclamo" /> reclamo</li>
+              <li><i className="raya radio" /> {RADIO_KM} km desde el MUT</li>
+              <li className="credito">mapa © OpenStreetMap</li>
+            </ul>
+          </div>
         </section>
 
         <div className="columna">

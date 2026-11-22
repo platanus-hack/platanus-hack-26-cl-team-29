@@ -1,75 +1,86 @@
-/* ---------- /mapa: la red sobre un mapa real ---------- */
-/* La leyenda va arriba a la derecha: abajo tapaba las etiquetas de los proveedores del sur de la ciudad. */
+/* ---------- /mapa: la red sobre un mapa real, con la marca de Bando (.bando-ui, claro y oscuro) ---------- */
+/* Colores del mapa y de la red: mapa/base.ts los lee de los mismos tokens. Aquí solo tokens, nada escrito a mano. */
+.mapa-vista { --relleno: clamp(14px, 2vh, 24px); --t-fila: clamp(14px, 1.9vh, 20px); }
+
+.mapa-zona { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
 .mapa-caja {
-  position: relative;
-  min-height: 50vh;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  overflow: hidden;
-  background: #0b0b0b;
+  position: relative; flex: 1 1 auto; min-height: 50vh;
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-2xl);
+  overflow: hidden; background: var(--color-muted);
 }
 .mapa-lienzo { position: absolute; inset: 0; }
 
-.mapa-leyenda {
-  position: absolute; right: 12px; top: 12px; margin: 0; padding: 8px 12px; list-style: none;
-  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; max-width: min(60%, calc(100% - 24px));
-  background: rgb(0 0 0 / 0.85); border: 1px solid var(--color-border); border-radius: 10px;
-  font-family: var(--font-mono); font-size: clamp(11px, 1.5vh, 14px); color: var(--color-muted);
+/* Bajo el mapa: a la izquierda el avance del explorador, a la derecha la leyenda. */
+.mapa-pie {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px;
+  font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-faint-fg);
 }
-.mapa-leyenda li { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-.mapa-leyenda .punto { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
-.mapa-leyenda .raya { width: 20px; border-top: 3px solid currentColor; }
-.mapa-leyenda .credito { color: var(--color-tenue); }
-.mapa-leyenda .punto.local { width: 7px; height: 7px; color: #9adfff; opacity: 0.8; }
-.mapa-leyenda .raya.magenta { border-top-style: dashed; }
-.mapa-leyenda .raya.radio { border-top: 2px dashed var(--color-primary); }
+.mapa-leyenda { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.mapa-leyenda li { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.mapa-leyenda .punto { width: 10px; height: 10px; border-radius: 50%; }
+.mapa-leyenda .punto.negocio { background: var(--bando-miel); }
+.mapa-leyenda .punto.proveedor { background: var(--bando-oliva); }
+.mapa-leyenda .punto.mp { background: color-mix(in srgb, var(--bando-oliva) 20%, transparent); border: 1px solid var(--bando-oliva); }
+.mapa-leyenda .punto.local { width: 6px; height: 6px; background: var(--color-faint-fg); opacity: 0.6; }
+.mapa-leyenda .raya { width: 20px; border-top: 3px solid; }
+.mapa-leyenda .raya.pedido { border-color: var(--bando-miel); }
+.mapa-leyenda .raya.reclamo { border-top-style: dashed; border-color: var(--color-destructive); }
+.mapa-leyenda .raya.radio { border-top: 2px dashed var(--bando-miel-600); }
 
-/* Avance del explorador de locales, arriba a la izquierda del mapa. */
 .mapa-exploracion {
-  position: absolute; left: 12px; top: 12px; margin: 0; padding: 6px 12px; max-width: calc(40% - 24px);
-  display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: rgb(0 0 0 / 0.85); border: 1px solid var(--color-border); border-radius: 10px;
-  font-family: var(--font-mono); font-size: clamp(11px, 1.5vh, 14px); color: var(--color-muted);
+  margin: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  font-weight: 600; color: var(--color-muted-foreground); font-variant-numeric: tabular-nums;
 }
-.mapa-exploracion i { width: 8px; height: 8px; border-radius: 50%; background: #9adfff; flex-shrink: 0; }
+.mapa-exploracion i { width: 8px; height: 8px; border-radius: 50%; background: var(--bando-oliva); flex-shrink: 0; }
 .mapa-exploracion i.activo { animation: latido 1.2s ease-in-out infinite; }
 
-/* Etiqueta de cada proveedor: nombre y nota. Cambia de color unos segundos cuando su nota se mueve. */
+/* Etiqueta de cada proveedor sobre el mapa: tarjeta flotante con nombre y nota. Cambia de color si su nota se mueve. */
 .mapa-proveedor {
-  display: flex; align-items: center; gap: 8px; padding: 4px 9px; white-space: nowrap; pointer-events: none;
-  background: rgb(0 0 0 / 0.85); border: 1px solid var(--color-primary); border-radius: 8px;
-  font-family: var(--font-display); font-weight: 700; font-size: clamp(12px, 1.7vh, 16px); color: var(--color-text);
+  display: flex; align-items: center; gap: 8px; padding: 3px 8px; white-space: nowrap; pointer-events: none;
+  background: var(--color-background); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md);
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--bando-carbon) 18%, transparent);
+  font-size: clamp(12px, 1.5vh, 14px); font-weight: 600; color: var(--color-foreground);
 }
-.mapa-proveedor b { font-family: var(--font-mono); color: var(--color-primary); }
-.mapa-proveedor.baja { border-color: var(--color-magenta); }
-.mapa-proveedor.baja b { color: var(--color-magenta); }
-.mapa-proveedor.sube { border-color: var(--color-green); }
-.mapa-proveedor.sube b { color: var(--color-green); }
+.mapa-proveedor b { font-variant-numeric: tabular-nums; color: var(--bando-oliva-texto); }
+.mapa-proveedor.baja { border-color: var(--color-destructive); }
+.mapa-proveedor.baja b { color: var(--color-destructive); }
+.mapa-proveedor.sube { border-color: var(--bando-oliva); }
 
-.mapa-mut { display: flex; align-items: center; gap: 6px; pointer-events: none; font-family: var(--font-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.08em; color: #fff; }
-.mapa-mut i { width: 9px; height: 9px; background: #fff; border: 2px solid #0b0b0b; transform: rotate(45deg); }
+.mapa-mut {
+  display: flex; align-items: center; gap: 6px; pointer-events: none;
+  font-size: var(--text-xs); font-weight: 700; letter-spacing: var(--tracking-caps); color: var(--color-foreground);
+}
+.mapa-mut i { width: 9px; height: 9px; background: var(--color-foreground); border: 2px solid var(--color-background); transform: rotate(45deg); }
 
-/* Pulso: un anillo que se abre una vez donde pasó algo. El color dice qué pasó. */
-.mapa-pulso { width: 18px; height: 18px; border-radius: 50%; pointer-events: none; color: #fff; }
+/* Pulso: un anillo que se abre una vez donde pasó algo. El color dice qué pasó (lo del SII, en su azul). */
+.mapa-pulso { width: 18px; height: 18px; border-radius: 50%; pointer-events: none; color: var(--bando-oliva); }
 .mapa-pulso::before {
   content: ''; position: absolute; inset: 0; border-radius: 50%; border: 3px solid currentColor;
   animation: mapa-pulso 1.2s ease-out 2 both;
 }
-.mapa-pulso.pedido { color: var(--color-primary); }
-.mapa-pulso.reclamo, .mapa-pulso.baja { color: var(--color-magenta); }
-.mapa-pulso.sube, .mapa-pulso.nuevo { color: var(--color-green); }
+.mapa-pulso.pedido { color: var(--bando-miel); }
+.mapa-pulso.venta { color: var(--color-sii); }
+.mapa-pulso.reclamo, .mapa-pulso.baja { color: var(--color-destructive); }
 @keyframes mapa-pulso {
   from { transform: scale(0.6); opacity: 1; }
   to { transform: scale(4.5); opacity: 0; }
 }
 
-.mapa-caja .maplibregl-ctrl-attrib { background: rgb(0 0 0 / 0.6); color: var(--color-tenue); font-size: 10px; }
+.mapa-caja .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--color-background) 80%, transparent); color: var(--color-faint-fg); font-size: 10px; }
 .mapa-caja .maplibregl-ctrl-attrib a { color: inherit; }
+.mapa-caja .mapa-ficha { top: 12px; right: 12px; max-height: calc(100% - 24px); overflow-y: auto; }
+
+/* ---------- Panel de la derecha (piezas de /red, con su estilo de marca en vistas/red.css) ---------- */
+/* Columna más angosta que en /red: filas del ranking más bajas para que quepan más, y textos del feed en bloque para
+   que una línea larga termine en "…" en vez de cortarse. */
+.mapa-vista .fila-ranking { min-height: calc(var(--t-fila) * 2); padding-block: 0.4vh; }
+.mapa-vista .feed .texto, .mapa-vista .feed-detalle { display: block; }
+
+/* Pantalla proyectada: el mapa y su pie llenan el alto. */
+@media (min-width: 1024px) and (min-height: 600px) {
+  .mapa-caja { min-height: 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .mapa-pulso::before { animation: none; opacity: 0.8; transform: scale(2); }
 }
-
-/* Proveedor de Mercado Público: volt atenuado con contorno, como en el mapa. */
-.mapa-leyenda .punto.mp { color: var(--color-primary); background: rgb(242 255 0 / 0.18); border: 1px solid currentColor; }
-.mapa-caja .mapa-ficha { top: auto; bottom: 12px; right: 12px; }

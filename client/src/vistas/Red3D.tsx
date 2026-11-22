@@ -13,8 +13,8 @@ import { ArcLayer, ScatterplotLayer } from '@deck.gl/layers';
 import type { Layer } from '@deck.gl/core';
 import './red3d.css';
 import { CabeceraRed, Cargando } from '../components/Cabecera.tsx';
-import { Monograma } from '../components/Iconos.tsx';
-import { AMARILLO, AZUL_LOCAL, crearMapa, MAGENTA, ponerEdificios, VERDE } from '../mapa/base.ts';
+import { Icono, Monograma } from '../components/Iconos.tsx';
+import { crearMapa, ponerEdificios } from '../mapa/base.ts';
 import { Red3DVideo } from './Red3DVideo.tsx';
 import {
   camara, capitulo, DURACION_HISTORIA, guion, historia, INICIO_LOCALES, relaciones, sumarTarjeta, VIDA_TARJETA,
@@ -27,14 +27,14 @@ import { describirEventoCorto, notaDe } from '../red/derivar.ts';
 import type { EstadoRed, EventoRed } from '../red/tipos.ts';
 import { useRed, type EventoVisto } from '../red/useRed.ts';
 import { Contador, IconoEvento } from './RedEnVivo.tsx';
-import { anclarAlMapa, C_AMARILLO, C_BLANCO, C_LOCAL, C_MAGENTA, C_VERDE, conAlfa, LeyendaRed3D, type Color } from './red3dComun.tsx';
+import { anclarAlMapa, conAlfa, LeyendaRed3D, useColoresDeck, type Color, type ColoresDeck } from './red3dComun.tsx';
 import { miles, nota } from '../../../shared/formato.ts';
 
 const mezcla = (a: Color, b: Color, k: number): Color => a.map((x, i) => x + (b[i] - x) * k) as Color;
 
 /** Si los locales no llegan (sin backend), la secuencia parte igual con la red sola. */
 const ESPERA_LOCALES_MS = 2500;
-/** Después de la secuencia, los locales que ilustraron la red vuelven a ser locales (azules) en este tiempo. */
+/** Después de la secuencia, los locales que ilustraron la red vuelven a ser locales (grises) en este tiempo. */
 const DISOLVER_MS = 2500;
 const APARECER_MS = 1000;
 /** Duración de cada animación del guion: venta 1,5 s, opinión 2 s, pedido 0,8 s (más lo que tarda en apagarse). */
@@ -85,65 +85,65 @@ const mismo = (a: Punto, b: Punto) => a[0] === b[0] && a[1] === b[1];
 /** Si la nota de un proveedor se está moviendo ahora: 'baja', 'sube' o nada. */
 const notaMoviendose = (p: Punto, animaciones: Animacion[]) => animaciones.find(a => (a.tipo === 'baja' || a.tipo === 'sube') && mismo(a.desde, p))?.tipo;
 
-function capasDeck(escena: Escena, locales: LocalMapa[], mp: ProveedorMapa[], animaciones: Animacion[], t: number, ahora: number, alElegir: (id: string) => void, alElegirMp: (clave: string) => void): Layer[] {
+function capasDeck(c: ColoresDeck, escena: Escena, locales: LocalMapa[], mp: ProveedorMapa[], animaciones: Animacion[], t: number, ahora: number, alElegir: (id: string) => void, alElegirMp: (clave: string) => void): Layer[] {
   const edad = (a: Animacion) => (ahora - a.inicio) / DURACION[a.tipo];
   const viajan = (tipo: ClasePulso) => animaciones.filter(a => a.tipo === tipo && a.hasta);
   return [
     new ScatterplotLayer<LocalMapa>({
-      id: 'locales', data: locales, getPosition: l => [l.lng, l.lat], getFillColor: C_LOCAL,
-      radiusUnits: 'pixels', getRadius: 1.3, opacity: 0.12 + 0.3 * entre(t, INICIO_LOCALES - 1000, INICIO_LOCALES + 1500),
+      id: 'locales', data: locales, getPosition: l => [l.lng, l.lat], getFillColor: c.rotulo,
+      radiusUnits: 'pixels', getRadius: 1.5, opacity: 0.25 + 0.25 * entre(t, INICIO_LOCALES - 1000, INICIO_LOCALES + 1500),
     }),
-    // Proveedores de Mercado Público que no están en Bando: volt atenuado con contorno; aparecen junto con los locales.
+    // Proveedores de Mercado Público que no están en Bando: oliva atenuado con contorno; aparecen junto con los locales.
     new ScatterplotLayer<ProveedorMapa>({
       id: 'mercado-publico', data: mp, getPosition: p => p.punto, getRadius: p => radioProveedorMp(p.organismos), radiusUnits: 'pixels', billboard: true,
-      getFillColor: conAlfa(C_AMARILLO, 0.18), stroked: true, getLineColor: conAlfa(C_AMARILLO, 0.75), lineWidthUnits: 'pixels', getLineWidth: 1,
+      getFillColor: conAlfa(c.oliva, 0.2), stroked: true, getLineColor: conAlfa(c.oliva, 0.8), lineWidthUnits: 'pixels', getLineWidth: 1,
       opacity: entre(t, INICIO_LOCALES, INICIO_LOCALES + 1500),
       pickable: true, onClick: ({ object }) => { if (object) alElegirMp(object.clave); },
     }),
-    // La red de fondo: arcos finos y tenues. Solo el que tiene un evento se enciende (capas de abajo).
+    // La red de fondo: arcos finos y tenues, de miel (negocio) a oliva (proveedor). Solo el que tiene un evento se enciende.
     new ArcLayer<Arco>({
       id: 'arcos', data: escena.arcos, getSourcePosition: a => a.desde, getTargetPosition: a => a.hasta,
-      getSourceColor: a => conAlfa(C_VERDE, 0.18 * entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t)),
-      getTargetColor: a => conAlfa(C_AMARILLO, 0.28 * entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t)),
-      getWidth: 1, getHeight: 0.3, updateTriggers: { getSourceColor: t, getTargetColor: t },
+      getSourceColor: a => conAlfa(c.miel, 0.5 * entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t)),
+      getTargetColor: a => conAlfa(c.oliva, 0.6 * entre(t, a.aparece, a.aparece + APARECER_MS) * queda(a.ilustrativo, t)),
+      getWidth: 1.5, getHeight: 0.3, updateTriggers: { getSourceColor: t, getTargetColor: t },
     }),
     new ArcLayer<Animacion>({
       id: 'pedidos', data: viajan('pedido'), getSourcePosition: a => a.desde, getTargetPosition: a => a.hasta!,
-      getSourceColor: a => conAlfa(C_AMARILLO, 1 - entre(edad(a), 0.55, 1)), getTargetColor: a => conAlfa(C_AMARILLO, 1 - entre(edad(a), 0.55, 1)),
+      getSourceColor: a => conAlfa(c.oliva, 1 - entre(edad(a), 0.55, 1)), getTargetColor: a => conAlfa(c.miel, 1 - entre(edad(a), 0.55, 1)),
       getWidth: 3, getHeight: 0.3, updateTriggers: { getSourceColor: ahora, getTargetColor: ahora },
     }),
-    // La opinión viaja del negocio al proveedor como una fila de puntos magenta.
+    // La opinión viaja del negocio al proveedor como una fila de puntos miel.
     new ScatterplotLayer<{ p: Punto; a: number }>({
       id: 'opiniones',
       data: viajan('reclamo').flatMap(a => [0, 0.07, 0.14, 0.21, 0.28].map(atraso => {
         const k = entre(edad(a), atraso, atraso + 0.6);
         return { p: [a.desde[0] + (a.hasta![0] - a.desde[0]) * k, a.desde[1] + (a.hasta![1] - a.desde[1]) * k] as Punto, a: k > 0 && k < 1 ? 1 : 0 };
       })),
-      getPosition: d => d.p, getFillColor: d => conAlfa(C_MAGENTA, d.a), radiusUnits: 'pixels', getRadius: 3,
+      getPosition: d => d.p, getFillColor: d => conAlfa(c.miel600, d.a), radiusUnits: 'pixels', getRadius: 3,
     }),
     new ScatterplotLayer<Proveedor>({
       id: 'proveedores', data: escena.proveedores, getPosition: p => p.punto,
       getRadius: p => entre(t, p.aparece, p.aparece + APARECER_MS) * (6 + 1.2 * Math.sqrt(p.conectados.filter(x => x <= t).length)),
       getFillColor: p => {
         const moviendo = notaMoviendose(p.punto, animaciones);
-        return moviendo === 'baja' ? C_MAGENTA : moviendo === 'sube' ? C_VERDE : C_AMARILLO;
+        return moviendo === 'baja' ? c.error : moviendo === 'sube' ? c.olivaTexto : c.oliva;
       },
-      radiusUnits: 'pixels', stroked: true, getLineColor: [11, 11, 11, 255], lineWidthUnits: 'pixels', getLineWidth: 2,
+      radiusUnits: 'pixels', stroked: true, getLineColor: c.fondo, lineWidthUnits: 'pixels', getLineWidth: 2,
       pickable: true, onClick: ({ object }) => { if (object) alElegir(object.id); },
       updateTriggers: { getRadius: t, getFillColor: ahora },
     }),
     new ScatterplotLayer<Nodo>({
       id: 'negocios', data: escena.nodos, getPosition: n => n.punto,
-      getFillColor: n => mezcla(C_LOCAL, C_VERDE, queda(n.ilustrativo, t)),
-      getRadius: n => (n.ilustrativo ? 1.5 + 2.5 * queda(true, t) : 4) * rebote(t - n.aparece),
-      radiusUnits: 'pixels', stroked: true, getLineColor: [11, 11, 11, 255], lineWidthUnits: 'pixels', getLineWidth: 1,
+      getFillColor: n => mezcla(c.rotulo, c.miel, queda(n.ilustrativo, t)),
+      getRadius: n => (n.ilustrativo ? 1.5 + 3.5 * queda(true, t) : 5) * rebote(t - n.aparece),
+      radiusUnits: 'pixels', stroked: true, getLineColor: c.miel600, lineWidthUnits: 'pixels', getLineWidth: 1,
       updateTriggers: { getFillColor: t, getRadius: t },
     }),
     new ScatterplotLayer<Animacion>({
       id: 'pulsos', data: animaciones.filter(a => a.tipo !== 'pedido'), getPosition: a => a.desde,
       stroked: true, filled: false, radiusUnits: 'pixels', lineWidthUnits: 'pixels', getLineWidth: 2,
       getRadius: a => 6 + 30 * Math.sqrt(Math.min(1, edad(a))),
-      getLineColor: a => conAlfa(a.tipo === 'venta' ? C_BLANCO : a.tipo === 'reclamo' || a.tipo === 'baja' ? C_MAGENTA : C_VERDE, 1 - Math.min(1, edad(a))),
+      getLineColor: a => conAlfa(a.tipo === 'venta' ? c.sii : a.tipo === 'reclamo' || a.tipo === 'baja' ? c.error : c.oliva, 1 - Math.min(1, edad(a))),
       updateTriggers: { getRadius: ahora, getLineColor: ahora },
     }),
   ];
@@ -171,6 +171,7 @@ function Lienzo({ estado, eventos, locales, mp, recorrido, alElegir, alElegirMp,
   const caja = useRef<HTMLDivElement>(null);
   const sobre = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaLibre | null>(null);
+  const colores = useColoresDeck(mapa);
   const [listo, setListo] = useState(false);
   const [esperaVencida, setEsperaVencida] = useState(false);
   const [t, setT] = useState(0);
@@ -235,7 +236,8 @@ function Lienzo({ estado, eventos, locales, mp, recorrido, alElegir, alElegirMp,
       while (d.inicio !== null && d.pasos.length && d.pasos[0].t <= tt) pasoDelGuion(d.pasos.shift()!);
       if (tt >= DURACION_HISTORIA) d.notasGuion.clear();
       d.animaciones = d.animaciones.filter(a => ahora - a.inicio < DURACION[a.tipo]);
-      overlay.setProps({ layers: capasDeck(d.escena, d.locales, d.mp, d.animaciones, tt, ahora, id => elegir.current(id), clave => elegirMp.current(clave)) });
+      const c = colores();
+      if (c) overlay.setProps({ layers: capasDeck(c, d.escena, d.locales, d.mp, d.animaciones, tt, ahora, id => elegir.current(id), clave => elegirMp.current(clave)) });
       // Tarjetas y etiquetas siguen a su punto del mapa en cada cuadro.
       anclarAlMapa(m, sobre.current);
       if (ahora - ultimoAviso > 200) {
@@ -334,10 +336,10 @@ function FichaProveedor({ estado, id, alCerrar }: { estado: EstadoRed; id: strin
   const porComuna = [...cuenta].sort((a, b) => b[1] - a[1]);
   const valor = notaDe(estado, id);
   return (
-    <aside className="mapa-ficha tarjeta" aria-label={`Proveedor ${proveedor.nombre}`}>
-      <button type="button" className="mapa-ficha-cerrar" onClick={alCerrar} aria-label="Cerrar">×</button>
+    <aside className="mapa-ficha" aria-label={`Proveedor ${proveedor.nombre}`}>
+      <button type="button" className="mapa-ficha-cerrar" onClick={alCerrar} aria-label="Cerrar"><Icono nombre="cerrar" /></button>
       <h2><Monograma nombre={proveedor.nombre} logoUrl={proveedor.logoUrl} />{proveedor.nombre}</h2>
-      <p className="mapa-ficha-nota"><b>{valor === undefined ? 'sin nota' : nota(valor)}</b> nota de la red</p>
+      <p className="mapa-ficha-nota"><b>{valor === undefined ? 'Sin nota' : nota(valor)}</b> nota en la red</p>
       <p>{miles(compradores.length)} {compradores.length === 1 ? 'comprador' : 'compradores'} en la red</p>
       {porComuna.length > 0 && (
         <ul>{porComuna.slice(0, 5).map(([comuna, n]) => <li key={comuna}><span>{comuna}</span><b>{miles(n)}</b></li>)}</ul>
@@ -359,7 +361,7 @@ function Red3DRed() {
   const mp = useProveedoresMapa(eventos[0]?.clave);
   const [elegidoMp, setElegidoMp] = useState<string | null>(null);
   const [avance, setAvance] = useState({ t: 0, vistos: 0 });
-  if (!estado) return <Cargando />;
+  if (!estado) return <Cargando bando />;
   const proveedorMp = mp.find(p => p.clave === elegidoMp);
 
   const totalLocales = locales?.locales.length ?? 0;
@@ -367,16 +369,16 @@ function Red3DRed() {
   const cap = capitulo(avance.t, avance.vistos, totalLocales) ?? { cifra: enVivo, texto: enVivo === 1 ? 'negocio en la red, en vivo' : 'negocios en la red, en vivo' };
 
   return (
-    <main className="r3d">
+    <main className="bando-ui r3d">
       <Lienzo
         estado={estado} eventos={eventos} locales={locales?.locales ?? null} mp={mp} recorrido={recorrido}
         alElegir={id => { setElegido(id); setElegidoMp(null); }} alElegirMp={c => { setElegidoMp(c); setElegido(null); }} alAvanzar={(t, vistos) => setAvance(a => (a.vistos === vistos && Math.abs(a.t - t) < 150 ? a : { t, vistos }))}
       />
       <div className="r3d-arriba">
-        <CabeceraRed titulo="La red crece" fuente={fuente} />
+        <CabeceraRed titulo="La red crece" fuente={fuente} bando />
         {!recorrido && <p className="r3d-ayuda">Arrastra para mover · Ctrl + arrastrar para girar · clic en un proveedor</p>}
       </div>
-      <div className="r3d-cifra" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} color="verde" /></div>
+      <div className="r3d-cifra" aria-live="polite"><Contador valor={cap.cifra} texto={cap.texto} /></div>
       <LeyendaRed3D mercadoPublico={mp.length > 0} />
       {elegido && <FichaProveedor estado={estado} id={elegido} alCerrar={() => setElegido(null)} />}
       {proveedorMp && <FichaMercadoPublico proveedor={proveedorMp} alCerrar={() => setElegidoMp(null)} />}

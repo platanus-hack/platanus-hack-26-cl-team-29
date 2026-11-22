@@ -4,7 +4,7 @@
 
 import { miles } from '../../../shared/formato.ts';
 import type { ProveedorMapa } from '../../../shared/ubicacion.ts';
-import { Monograma } from '../components/Iconos.tsx';
+import { Icono, Monograma } from '../components/Iconos.tsx';
 import { useJson } from '../red/useJson.ts';
 import './ficha.css';
 
@@ -25,12 +25,12 @@ export const ficha = (clave: string) => `/proveedores?p=${encodeURIComponent(cla
 export function FichaMercadoPublico({ proveedor: p, alCerrar }: { proveedor: ProveedorMapa; alCerrar: () => void }) {
   const lugar = [p.comuna, p.region].filter(Boolean).join(', ');
   return (
-    <aside className="mapa-ficha tarjeta" aria-label={`Proveedor ${p.nombre}`}>
-      <button type="button" className="mapa-ficha-cerrar" onClick={alCerrar} aria-label="Cerrar">×</button>
+    <aside className="mapa-ficha" aria-label={`Proveedor ${p.nombre}`}>
+      <button type="button" className="mapa-ficha-cerrar" onClick={alCerrar} aria-label="Cerrar"><Icono nombre="cerrar" /></button>
       <h2><Monograma nombre={p.nombre} />{p.nombre}</h2>
       {p.categoria && <p>{p.categoria}</p>}
       <p className="mapa-ficha-nota"><b>{miles(p.organismos)}</b>{p.organismos === 1 ? 'organismo público le compra' : 'organismos públicos le compran'}</p>
-      <p>Proveedor de Mercado Público · aún no está en Bando</p>
+      <p>Le vende al Estado por Mercado Público. Aún no está en Bando.</p>
       {lugar && <p>{lugar}{p.ubicacion === 'region' && <span className="mapa-ficha-aprox"> · ubicación aproximada</span>}</p>}
       <a href={ficha(p.clave)}>Ver ficha del proveedor →</a>
     </aside>
