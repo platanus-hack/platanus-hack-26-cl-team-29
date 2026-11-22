@@ -166,6 +166,7 @@ export function crearRedSalaFalsa(
       base.llamadas.push(`confirmarOrdenesDeLicitacion ${id}`);
       if (estado !== 'cerrada') throw new Error('no hay compra cerrada por facturar');
       estado = 'facturada';
+      ordenesSala = ordenesSala.map(o => ({ ...o, estado: 'facturada' })); // como el dominio: facturada al emitir
       const emitidos = ordenesSala.map(o => {
         const doc: Documento = { id: `doc-${folio}`, ordenId: o.id, tipo: 33, folio: folio++, trackId: 'sobre-1', estadoSii: 'enviado' };
         documentos.push(doc);

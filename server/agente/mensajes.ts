@@ -5,6 +5,7 @@ import { fechaCorta, fechaEnChile, horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
 import { totalConIva, totalOrden } from '../../shared/precios.ts';
+import { unidadDelProducto } from '../../shared/unidades.ts';
 import { contar, cuantos, mayuscula, pluralDe, segun } from '../../shared/texto.ts';
 import { cortoDe, productosDe } from './canasta.ts';
 
@@ -14,7 +15,11 @@ export const detalle = (orden: OrdenCompra) =>
   orden.items.map(item => `${item.cantidad} ${item.producto}`).join(', ');
 
 /** "sacos" de "sacos de harina": para frases como "decía 4 sacos". */
-const unidad = (producto: string) => producto.split(' de ')[0];
+/** "cajas" para 10 del producto "Caja de rollos térmicos...": la misma regla de unidades que la web. */
+const unidad = (producto: string, cantidad = 2) => {
+  const u = unidadDelProducto(producto);
+  return cantidad === 1 ? u.singular : u.plural;
+};
 
 const opciones = (...lineas: string[]) => lineas.map((l, i) => `${i + 1}. ${l}`).join('\n');
 
@@ -172,7 +177,7 @@ export function llegoFactura(orden: OrdenCompra, proveedor: Negocio): string {
   const despachada = item.cantidadDespachada ?? item.cantidad;
   const guia = despachada === item.cantidad
     ? 'La guía de despacho coincide con tu orden de compra.'
-    : `Tu orden de compra decía ${item.cantidad} ${unidad(item.producto)}, pero la guía de despacho dice ${despachada}.`;
+    : `Tu orden de compra decía ${item.cantidad} ${unidad(item.producto, item.cantidad)}, pero la guía de despacho dice ${despachada}.`;
   return `Llegó la factura de ${proveedor.nombre}. ${detalle(orden)}, ${dinero(totalOrden(orden))}. ${guia} ¿Recibiste todo?\n`
     + opciones('Sí, todo bien', 'No, faltó algo');
 }
@@ -182,7 +187,7 @@ export const recepcionConforme = (proveedor: Negocio) =>
 
 export function proponerReclamo(orden: OrdenCompra, faltante: number): string {
   const [item] = orden.items;
-  return `Voy a reclamar la factura en el SII por falta parcial: faltaron ${faltante} de ${item.cantidad} ${unidad(item.producto)}. Es un trámite legal. ¿Lo hago?\n`
+  return `Voy a reclamar la factura en el SII por falta parcial: faltaron ${faltante} de ${item.cantidad} ${unidad(item.producto, item.cantidad)}. Es un trámite legal. ¿Lo hago?\n`
     + opciones('Sí, reclámala', 'No');
 }
 
