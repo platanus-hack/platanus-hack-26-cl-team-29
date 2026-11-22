@@ -21,7 +21,7 @@ import { ErrorPortal, ESPERA_LIMITE_MS, esErrorPortal, type CertificadoPortal, t
 import type { Log } from '../sii/index.ts';
 import { decidirReposicion, esperaTrasFallo, minimoDeFolios, POLITICA_FOLIOS } from '../../shared/folios.ts';
 import type { PortalConexion } from './portal.ts';
-import { buscarPrimerLibre, FolioIlegible, type RespuestaFolio } from './primer-libre.ts';
+import { buscarPrimerLibre, FolioIlegible, RACHA_LIBRES, type RespuestaFolio } from './primer-libre.ts';
 
 /** Lo que se recuerda por tipo entre corridas (va en la conexión guardada, sin secretos). */
 export interface GestionFolios {
@@ -37,6 +37,11 @@ export interface GestionFolios {
   barridos: string[];
   /** Folios conseguidos en la última corrida. */
   repuestos: number;
+  /**
+   * Por rango reobtenible a medio revisar (`desde-hasta`), el folio desde el que sigue la revisión: una corrida que
+   * agota sus consultas en un rango largo no pierde lo avanzado y la siguiente continúa ahí.
+   */
+  avance?: Record<string, number>;
 }
 
 export const GESTION_INICIAL: GestionFolios = { intentos: 0, esperaHasta: null, detalle: null, mensajeSii: null, barridos: [], repuestos: 0 };
@@ -91,6 +96,7 @@ export const PLAZO_ANTES_DE_FACTURAR_MS = 60_000;
 export const ESPERA_CAF_NUEVO_MS = 30_000;
 /** Presupuesto de una corrida: consultas QueryEstDte, rangos reobtenidos y pasos de decisión. */
 const MAX_CONSULTAS = 60;
+const MAX_CONSULTAS_MANUAL = 300;
 const MAX_REOBTENCIONES = 10;
 const MAX_PASOS = 20;
 const RANGOS_POR_LISTADO = 15;
@@ -184,21 +190,29 @@ export function crearReposicion({
       if (folios >= faltan) return { folios, quedan: true, agotado: false };
       if (presupuesto.reobtenciones <= 0) return { folios, quedan: true, agotado: true };
       let primer: number | null;
+      const clave = claveRango(rango);
+      let consultado = g.avance?.[clave] ?? rango.desde;
       try {
         primer = await buscarPrimerLibre({
-          desde: rango.desde, hasta: rango.hasta,
+          desde: consultado, hasta: rango.hasta,
           consultar: folio => {
             if (presupuesto.consultas-- <= 0) throw new SinPresupuesto();
+            consultado = folio;
             return fuente.consultarFolio(tipo, folio);
           },
         });
       } catch (error) {
-        if (error instanceof SinPresupuesto) return { folios, quedan: true, agotado: true };
+        if (error instanceof SinPresupuesto) {
+          // Se guarda dónde quedó (un par de folios antes, para no cortar una racha de libres a medio contar).
+          g.avance = { ...g.avance, [clave]: Math.max(rango.desde, consultado - (RACHA_LIBRES - 1)) };
+          return { folios, quedan: true, agotado: true };
+        }
         if (!(error instanceof FolioIlegible)) throw error;
         // Una respuesta que no dice ni libre ni usado: el rango se salta sin darlo por barrido.
         log.warn(`[folios] tipo ${tipo} rango ${claveRango(rango)}: ${error.message}`);
         continue;
       }
+      if (g.avance) delete g.avance[clave];
       if (primer === null) {
         g.barridos.push(claveRango(rango));
         log.info(`[folios] tipo ${tipo} rango ${claveRango(rango)} del ${rango.fecha}: sin folios libres en el SII, no se vuelve a revisar`);
@@ -228,7 +242,8 @@ export function crearReposicion({
     if (!cred) return false;
     const g = structuredClone(await fuente.gestion(tipo));
     const tieneCaf = conexion || (await fuente.rangos(tipo)).length > 0;
-    const presupuesto = { consultas: MAX_CONSULTAS, reobtenciones: MAX_REOBTENCIONES };
+    // "Traer más folios" (manual) puede revisar más: alguien lo pidió y espera; la automática no carga al SII de más.
+    const presupuesto = { consultas: conexion ? MAX_CONSULTAS_MANUAL : MAX_CONSULTAS, reobtenciones: MAX_REOBTENCIONES };
     let quedan: boolean | null = null;
     let tope: number | null = null;
     let topeLeido = false;
