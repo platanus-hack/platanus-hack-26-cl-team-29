@@ -225,7 +225,8 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
     }
     const { negocios } = await red.estadoDeLaRed();
     const candidatos = await Promise.all(
-      negocios.filter(n => puedeVender(n) && n.id !== comprador.id).map(async n => ({ n, nota: await red.notaDeProveedor(n.id) })),
+      // Nadie se compra a sí mismo, salvo en la demo con DEMO_COMPRA_A_SI_MISMO=1 (para probar todo con un teléfono).
+      negocios.filter(n => puedeVender(n) && (n.id !== comprador.id || env.DEMO_COMPRA_A_SI_MISMO === '1')).map(async n => ({ n, nota: await red.notaDeProveedor(n.id) })),
     );
     if (candidatos.length === 0) return m.SIN_PROVEEDOR;
     // El que eligió la persona; si no eligió, el mejor evaluado, prefiriendo los de la misma comuna.

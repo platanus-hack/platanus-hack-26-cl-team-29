@@ -17,7 +17,7 @@ test('mismo producto es mismo nombre normalizado y misma unidad; la búsqueda no
   ];
   assert.deepEqual(sugerirProductos('cafe', conocidos).map(p => p.nombre), ['Café molido 1 kg', 'Harina de café']);
   assert.deepEqual(sugerirProductos('molido kg', conocidos).map(p => p.nombre), ['Café molido 1 kg']);
-  assert.deepEqual(sugerirProductos(' ', conocidos), []);
+  assert.deepEqual(sugerirProductos(' ', conocidos).map(p => p.nombre), ['Café molido 1 kg', 'Harina de café', 'Té verde'], 'sin nada escrito, los primeros por nombre');
 });
 
 test('"cocacola" encuentra "Coca-Cola 3 lts" y "Coca Cola lata 330 ml", sin importar guiones ni espacios', () => {

@@ -8,11 +8,11 @@ import { sembrarSiVacio } from '../server/red/semilla.ts';
 import { iniciarCatalogos } from '../server/catalogo/index.ts';
 import { conectarOfertasDeListas } from '../server/catalogo/ofertas.ts';
 
-async function redDePrueba(precioDeReferencia?: (producto: string) => number | undefined) {
+async function redDePrueba(precioDeReferencia?: (producto: string) => number | undefined, env: NodeJS.ProcessEnv = {}) {
   let ahora = Date.parse('2026-11-21T12:00:00Z');
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(ahora), {});
-  const red = await crearRed({ repo, sii: crearSiiFalso(), env: {}, reloj: () => new Date(ahora), ...(precioDeReferencia ? { precioDeReferencia } : {}) });
+  const red = await crearRed({ repo, sii: crearSiiFalso(), env, reloj: () => new Date(ahora), ...(precioDeReferencia ? { precioDeReferencia } : {}) });
   const eventos: EventoRed[] = [];
   red.escuchar(e => eventos.push(e));
   const comprador = async (nombre: string) => (await red.registrarComprador({ nombre, comuna: 'Ñuñoa', telefono: `+56 9 ${nombre.length}000 000${nombre.length}` })).id;
@@ -83,3 +83,19 @@ test('las listas de precios compiten solas: gana el mejor precio para el volumen
   const ordenes = red.estadoDeLaRed().ordenes.filter(o => o.items.some(i => i.producto === 'cafe molido 1 KG'));
   assert.deepEqual(ordenes.map(o => [o.proveedorId, o.items[0].precioUnitario]).sort(), [[caro, 9500], [caro, 9500]]);
 });
+
+for (const aSiMismo of [true, false]) {
+  test(`un proveedor ${aSiMismo ? 'puede' : 'no puede'} comprarse a sí mismo ${aSiMismo ? 'con' : 'sin'} DEMO_COMPRA_A_SI_MISMO=1`, async () => {
+    const { red, avanzar } = await redDePrueba(undefined, aSiMismo ? { DEMO_COMPRA_A_SI_MISMO: '1' } : {});
+    const catalogos = await iniciarCatalogos({ emitir: () => {} });
+    conectarOfertasDeListas(red, catalogos, { warn: () => {} });
+    const yo = (await red.registrarProveedor({ telefono: '+56 9 7000 0003', rut: '33.333.333-3' })).id;
+    await catalogos.agregar({ id: yo }, { nombre: 'Café molido 1 kg', unidad: 'bolsa', tramos: [{ desde: 1, precioUnitario: 12000 }] });
+    await red.abrirSolicitud({ compradorId: yo, producto: 'Café molido 1 kg', unidad: 'bolsa', cantidad: 3, minutos: 10 });
+    await new Promise(r => setTimeout(r, 20));
+    avanzar(11);
+    await red.cerrarVencidas();
+    const ordenes = red.estadoDeLaRed().ordenes.filter(o => o.compradorId === yo);
+    assert.deepEqual(ordenes.map(o => o.proveedorId), aSiMismo ? [yo] : []);
+  });
+}
