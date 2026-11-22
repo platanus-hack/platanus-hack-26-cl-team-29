@@ -73,7 +73,7 @@ export function Sii({ api, token, cambio, negocios, panel, vende, compra, vencer
       </div>
       {compra && recibidas.facturaA && !recibidas.facturaA.direccion && <CompletarDireccion api={api} token={token} comuna={recibidas.facturaA.comuna} />}
       {docs.length ? (
-        <div className="puente-legado"><ListaDocumentos documentos={docs} contraparte={contraparte} /></div>
+        <ListaDocumentos documentos={docs} contraparte={contraparte} />
       ) : (
         <p className="bm-vacio-texto">
           {tipo !== 'todos' && delLado.length ? 'No hay documentos de este tipo.' : pestana === 'emitidas'

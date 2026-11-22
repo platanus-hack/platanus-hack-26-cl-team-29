@@ -10,6 +10,7 @@ import { Icono, LogoSii } from './iconos.tsx';
 import { enlaceWhatsapp, formatearTelefono } from '../../../shared/telefono.ts';
 import { confirmacion, mensajeDeError, type Confirmacion, type EventoConfirmacion, SIN_CONFIRMACION } from './logica.ts';
 import { Logo } from '../marca/Logo.tsx';
+import './marca.css';
 
 /**
  * Un envío a la API con su estado: `enviando` mientras corre y `error` con el mensaje si falla. Mientras hay uno

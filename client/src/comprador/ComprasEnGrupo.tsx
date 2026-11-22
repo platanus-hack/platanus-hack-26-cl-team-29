@@ -292,7 +292,7 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
           <section className="bm-tarjeta bm-sumarme">
             <h2>{abierta ? 'Súmate a la compra' : 'La compra cerró'}</h2>
             {pideTarjeta ? (
-              <div className="puente-legado"><PedirTarjeta token={token} /></div>
+              <PedirTarjeta token={token} />
             ) : abierta ? (
               <>
                 <div className="bm-fila-cantidad">
@@ -382,11 +382,9 @@ function CerrarAntes({ api, token, lic, p }: { api: CanalApi; token: string; lic
           <button type="button" className="bm-boton secundario bm-ancho" onClick={() => c.pedir(undefined)}>Cerrar la compra ahora</button>
         </>
       ) : (
-        <div className="puente-legado">
-          <Confirmar titulo="¿Cierras la compra en grupo ahora?" si="Sí, cerrarla" {...c.panel}>
-            <p>Nadie más podrá sumarse. Gana la mejor oferta, {dinero(p.precioActual)} por {p.unidad}, y queda una orden por local con su factura del SII.</p>
-          </Confirmar>
-        </div>
+        <Confirmar titulo="¿Cierras la compra en grupo ahora?" si="Sí, cerrarla" {...c.panel}>
+          <p>Nadie más podrá sumarse. Gana la mejor oferta, {dinero(p.precioActual)} por {p.unidad}, y queda una orden por local con su factura del SII.</p>
+        </Confirmar>
       )}
     </section>
   );

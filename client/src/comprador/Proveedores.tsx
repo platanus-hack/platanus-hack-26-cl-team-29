@@ -24,7 +24,7 @@ export function Proveedores({ foto, yo, cambio, ficha }: { foto: FotoRed; yo: Yo
   const mios = foto.negocios.filter(n => puedeVender(n) && compras.has(n.id)).sort((a, b) => compras.get(b.id)! - compras.get(a.id)!);
   const [pestana, setPestana] = useState<Pestana>(mios.length ? 'mios' : 'todos');
 
-  if (ficha) return <div className="puente-legado pv-pagina"><FichaProveedor clave={ficha} evento={cambio} volver={() => irA(null)} /></div>;
+  if (ficha) return <div className="pv-pagina"><FichaProveedor clave={ficha} evento={cambio} volver={() => irA(null)} /></div>;
 
   return (
     <>
