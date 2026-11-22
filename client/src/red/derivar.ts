@@ -304,12 +304,17 @@ export interface ProductoSala {
 /** Ids de la canasta; una licitación sin canasta es una canasta de un producto (`producto`, como el backend). */
 const idsDeCanasta = (lic: Licitacion) => (lic.productos?.length ? lic.productos.map(p => p.id) : ['producto']);
 
+/** Un precio que sirve para mostrar: positivo. */
+const conPrecio = (n: number | undefined) => (n !== undefined && n > 0 ? n : undefined);
+
 /** Cada producto de la canasta con su precio de hoy, su avance al siguiente tramo y quién va ganando. */
 export function productosDeCanasta(lic: Licitacion, estado: EstadoRed): ProductoSala[] {
   return idsDeCanasta(lic).map(id => {
     const vista = licitacionDeProducto(lic, id);
-    const tramos = estadoTramos(vista);
-    const precioSolo = vista.precioSolo;
+    // Un producto sin precio todavía (pedido sin tramos ni ofertas) no vale $0: queda sin precio, "esperando ofertas".
+    const calculados = estadoTramos(vista);
+    const tramos = { ...calculados, precioActual: conPrecio(calculados.precioActual) };
+    const precioSolo = conPrecio(vista.precioSolo);
     const ofertas = competencia(vista, estado);
     const unidad = unidadDeLicitacion(vista);
     return {
@@ -332,9 +337,9 @@ export interface TotalesCanasta {
   negocios: number;
   /** Unidades de todos los productos. */
   unidades: number;
-  /** Lo que paga la sala hoy, neto. */
+  /** Lo que paga el grupo hoy, neto. */
   monto: number;
-  /** Lo que ahorra la sala contra comprar cada uno por su cuenta, neto. */
+  /** Lo que ahorra el grupo contra comprar cada uno por su cuenta, neto. */
   ahorro: number;
 }
 

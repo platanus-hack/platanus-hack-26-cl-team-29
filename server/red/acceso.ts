@@ -1,4 +1,4 @@
-import { createHash, randomInt } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { mismoSecreto } from './sesiones.ts';
 
 // Códigos para entrar a la web: 6 dígitos que llegan por WhatsApp al teléfono del negocio. Viven en memoria y solo
@@ -43,6 +43,46 @@ export function crearCodigosAcceso(ahora: () => number = Date.now): CodigosAcces
   };
 }
 
-/** El mensaje de WhatsApp con el código. */
-export const mensajeDeCodigo = (codigo: string) =>
-  `Tu código para entrar a Bando es *${codigo}*. Vence en ${DURACION_CODIGO_MS / 60_000} minutos.\n\nSi no lo pediste, ignora este mensaje.`;
+/**
+ * Enlaces para entrar sin escribir el código: el mensaje lleva `?entrar=<token>` y tocarlo entra solo. El token es
+ * aleatorio y opaco (no lleva teléfono ni código), sirve una vez y vence con el código. Se guarda solo su hash.
+ */
+export interface EnlacesAcceso {
+  /** Un token nuevo para ese teléfono y su código vigente. */
+  crear(telefono: string, codigo: string): string;
+  /** El teléfono y el código del token, y lo borra: sirve una vez. Null si no existe o venció. */
+  canjear(token: string): { telefono: string; codigo: string } | null;
+}
+
+const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+
+export function crearEnlacesAcceso(ahora: () => number = Date.now): EnlacesAcceso {
+  const pendientes = new Map<string, { telefono: string; codigo: string; vence: number }>();
+  return {
+    crear(telefono, codigo) {
+      for (const [h, p] of pendientes) if (p.vence <= ahora() || p.telefono === telefono) pendientes.delete(h);
+      const token = randomBytes(24).toString('base64url');
+      pendientes.set(hashToken(token), { telefono, codigo, vence: ahora() + DURACION_CODIGO_MS });
+      return token;
+    },
+    canjear(token) {
+      const h = hashToken(token);
+      const p = pendientes.get(h);
+      pendientes.delete(h);
+      return p && p.vence > ahora() ? { telefono: p.telefono, codigo: p.codigo } : null;
+    },
+  };
+}
+
+/**
+ * El mensaje de WhatsApp con el código: el código solo en su línea y en monoespaciado (mantener apretado copia solo el
+ * número) y, si hay URL pública, el enlace para entrar directo. El botón nativo "Copiar código" de WhatsApp exige una
+ * plantilla de autenticación aprobada por Meta (docs/decisiones, entrada directa por enlace).
+ */
+export const mensajeDeCodigo = (codigo: string, enlace?: string) => [
+  'Tu código para entrar a Bando:',
+  `\`\`\`${codigo}\`\`\``,
+  ...(enlace ? ['', `O entra directo: ${enlace}`] : []),
+  '',
+  `Vence en ${DURACION_CODIGO_MS / 60_000} minutos. Si no lo pediste, ignora este mensaje.`,
+].join('\n');

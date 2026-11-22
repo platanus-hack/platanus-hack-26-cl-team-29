@@ -339,6 +339,10 @@ export function crearApiFalsa(): CanalApi {
       return { retenido: false };
     },
 
+    async entrarConEnlace() {
+      throw new ErrorCanal('Con datos de prueba no hay enlaces de entrada: escribe cualquier código de 6 dígitos.');
+    },
+
     async consultarRut(_telefono, codigo, rut) {
       await espera(500);
       if (!/^\d{6}$/.test(codigo)) throw new ErrorCanal('El código no coincide. Revisa el último que te llegó.');

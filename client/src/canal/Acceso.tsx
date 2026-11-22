@@ -2,7 +2,7 @@
 // y, solo si el número es nuevo en la red, el nombre y el RUT del negocio. Una sola pantalla para /unirse, /app y
 // /proveedor: una tarjeta blanca centrada sobre crema, como "Conecta tu SII" en Paper.
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react';
 import { AvisoFuente } from '../components/Cabecera.tsx';
 import { enlaceWhatsapp, formatearTelefono, telefonoParaWhatsapp } from '../../../shared/telefono.ts';
 import { formatearRutAlEscribir, RUT_INVALIDO, validarRut } from '../../../shared/rut.ts';
@@ -45,17 +45,47 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
 
   const consultarRut = useCallback((rut: string) => api.consultarRut(telefono, codigo, rut), [api, telefono, codigo]);
 
-  const entrarCon = async (datos?: DatosEntrada) => {
-    const r = await api.entrar(telefono, codigo, datos);
+  const entrarCon = async (datos?: DatosEntrada, conCodigo = codigo) => {
+    const r = await api.entrar(telefono, conCodigo, datos);
     if ('registro' in r) setPaso('registro');
     else onEntrar(r.token);
   };
 
+  const verificarCodigo = (c: string) => {
+    if (!/^\d{6}$/.test(c)) return setError('El código tiene 6 dígitos.');
+    void enviar(() => entrarCon(undefined, c), 'No pudimos entrar. Inténtalo de nuevo.');
+  };
   const verificar = (e: FormEvent) => {
     e.preventDefault();
-    if (!/^\d{6}$/.test(codigo)) return setError('El código tiene 6 dígitos.');
-    void enviar(() => entrarCon(), 'No pudimos entrar. Inténtalo de nuevo.');
+    verificarCodigo(codigo);
   };
+  // Pegar el mensaje entero (o solo el código) deja los 6 dígitos y entra sin apretar nada.
+  const alPegar = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pegado = /\d{6}/.exec(e.clipboardData.getData('text').replace(/[\s-]/g, ''))?.[0];
+    if (!pegado) return;
+    e.preventDefault();
+    setCodigo(pegado);
+    verificarCodigo(pegado);
+  };
+
+  // El enlace del mensaje de WhatsApp (`?entrar=<token>`): entra solo, o sigue al registro con el código ya validado.
+  // Se saca de la URL antes de usarlo, para que no quede en el historial ni se reenvíe al recargar.
+  const tokenDelEnlace = useRef(new URLSearchParams(location.search).get('entrar'));
+  useEffect(() => {
+    const token = tokenDelEnlace.current;
+    if (!token) return;
+    tokenDelEnlace.current = null;
+    const url = new URL(location.href);
+    url.searchParams.delete('entrar');
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+    void enviar(async () => {
+      const r = await api.entrarConEnlace(token);
+      if ('token' in r) return onEntrar(r.token);
+      setTelefono(r.telefono);
+      setCodigo(r.codigo);
+      setPaso('registro');
+    }, 'El enlace venció o ya se usó. Pide un código nuevo.');
+  }, [api, enviar, onEntrar]);
 
   const volver = () => {
     setError('');
@@ -97,7 +127,7 @@ export function Acceso({ api, config, fuente, titulo, bajada, onEntrar }: {
           <form className="bm-formulario" onSubmit={verificar}>
             {retenido && <VentanaCerrada enlace={whatsapp} />}
             <Campo etiqueta="Código">
-              <input className="bm-codigo" value={codigo} onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric"
+              <input className="bm-codigo" value={codigo} onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))} onPaste={alPegar} inputMode="numeric"
                 autoComplete="one-time-code" placeholder="123456" maxLength={6} required autoFocus />
             </Campo>
             {error && <p className="bm-error" role="alert">{error}</p>}

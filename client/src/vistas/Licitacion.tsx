@@ -112,7 +112,7 @@ function Ofertas({ r, cerrada, producto }: { r: ResumenLicitacion; cerrada: bool
   );
 }
 
-/** Toda la canasta: lo que paga y ahorra la sala, y una fila por producto con quien va ganando. */
+/** Toda la canasta: lo que paga y ahorra el grupo, y una fila por producto con quien va ganando. */
 function Canasta({ lic, estado, productos, destacado, canasta }: {
   lic: LicitacionRed; estado: EstadoRed; productos: ProductoSala[]; destacado?: string; canasta: TotalesCanasta;
 }) {
@@ -120,7 +120,7 @@ function Canasta({ lic, estado, productos, destacado, canasta }: {
     <section className="tarjeta apilada lic-canasta">
       <div className="mejor-oferta">
         <div>
-          <p className="etiqueta">La sala paga hoy (neto)</p>
+          <p className="etiqueta">El grupo paga hoy (neto)</p>
           <div className="numero-grande">{dinero(canasta.monto)}</div>
         </div>
         <div className="precio-solo">
@@ -176,7 +176,7 @@ function EnCurso({ lic, estado, r, ahora, fuente }: { lic: LicitacionRed; estado
           </div>
           <h1 className="lic-titulo">
             {r.curvaPorTramos
-              ? <>La sala compra junta. <span className="amarillo">El precio baja para todos.</span></>
+              ? <>El grupo compra junto. <span className="amarillo">El precio baja para todos.</span></>
               : <>Los agentes armaron el pedido. <span className="amarillo">Los proveedores compiten.</span></>}
           </h1>
         </div>

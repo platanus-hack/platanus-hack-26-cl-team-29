@@ -14,6 +14,8 @@ import type { RutaReparto } from '../../../shared/ruta.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FacturaA, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
 export type Entrada = { registro: true } | { token: string; negocio: Negocio };
+/** Al tocar el enlace del mensaje: entra, o sigue al registro con el teléfono y el código de ese mensaje. */
+export type EntradaPorEnlace = { registro: true; telefono: string; codigo: string } | { token: string; negocio: Negocio };
 
 /** Lo que pide el comprador al iniciar una compra en grupo. `precioHoy`: lo que paga hoy por unidad, si lo sabe. */
 export interface NuevaSolicitud {
@@ -35,6 +37,8 @@ export interface CanalApi {
    * se vuelve con el mismo código y los datos del negocio (el servidor consulta el RUT en el SII: tarda un par de segundos).
    */
   entrar(telefono: string, codigo: string, datos?: DatosEntrada): Promise<Entrada>;
+  /** Entra con el token del enlace del mensaje (`?entrar=`): sirve una vez y vence con el código. */
+  entrarConEnlace(token: string): Promise<EntradaPorEnlace>;
   /** Antes de registrarse, con el código vigente (sin gastarlo): los datos del SII de un RUT para prellenar el registro. */
   consultarRut(telefono: string, codigo: string, rut: string): Promise<FacturaA>;
   /** Revoca la sesión de este dispositivo. */
@@ -166,7 +170,9 @@ export function crearApiReal(): CanalApi {
     modo: 'real',
     config: () => llamar('/config'),
     estado: async () => normalizarEstado(await llamar('/estado')) as FotoRed,
-    pedirCodigo: telefono => llamar('/acceso/codigo', { cuerpo: { telefono } }),
+    // `destino`: a qué panel lleva el enlace de entrada directa del mensaje.
+    pedirCodigo: telefono => llamar('/acceso/codigo', { cuerpo: { telefono, destino: location.pathname.startsWith('/proveedor') ? 'proveedor' : 'app' } }),
+    entrarConEnlace: token => llamar('/acceso/enlace', { cuerpo: { token } }),
     entrar: (telefono, codigo, datos) => llamar('/acceso/entrar', { cuerpo: {
       telefono, codigo, ...(datos ? {
         nombre: datos.nombre, rut: datos.rut, ...(datos.comuna ? { comuna: datos.comuna } : {}),
