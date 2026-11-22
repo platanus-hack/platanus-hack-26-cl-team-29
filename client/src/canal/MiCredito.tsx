@@ -44,8 +44,25 @@ const pedir = async <T,>(url: string, token: string, metodo = 'GET', cuerpo?: un
   return datos as T;
 };
 
+/** Dónde estaba la persona al ir a inscribir la tarjeta, para volver ahí y no a la lista de compras. */
+const VOLVER_TRAS_TARJETA = 'bando:volver-tras-tarjeta';
+
+/**
+ * Al volver de Transbank con la tarjeta inscrita (`?tarjeta=ok`), lleva de vuelta al producto al que se estaba sumando
+ * (`#compra/<compra>/<producto>`). Sin almacenamiento del navegador queda en la lista, como antes.
+ */
+export function volverTrasTarjeta() {
+  let destino: string | null = null;
+  try {
+    destino = sessionStorage.getItem(VOLVER_TRAS_TARJETA);
+    sessionStorage.removeItem(VOLVER_TRAS_TARJETA);
+  } catch { /* sin almacenamiento: queda donde la dejó el servidor */ }
+  if (new URLSearchParams(location.search).get('tarjeta') === 'ok' && destino?.startsWith('#compra/') && destino !== location.hash) location.hash = destino;
+}
+
 /** Transbank espera un POST de formulario con el token: se arma y se envía (sale de la página). */
 export function irATransbank({ token, url }: { token: string; url: string }) {
+  try { sessionStorage.setItem(VOLVER_TRAS_TARJETA, location.hash); } catch { /* sin almacenamiento: vuelve a la lista */ }
   const form = Object.assign(document.createElement('form'), { method: 'POST', action: url });
   form.append(Object.assign(document.createElement('input'), { type: 'hidden', name: 'TBK_TOKEN', value: token }));
   document.body.append(form);
