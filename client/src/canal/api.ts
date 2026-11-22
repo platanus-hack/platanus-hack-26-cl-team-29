@@ -73,6 +73,8 @@ export interface CanalApi {
   /** "Traer más folios": la reposición automática del servidor, en segundo plano. */
   siiTraerFolios(token: string, tipo: TipoDocumento): Promise<EstadoConexionSii>;
   siiDesconectar(token: string): Promise<EstadoConexionSii>;
+  /** Solo demo: usar (o dejar de usar) la conexión de la empresa de la demo en vez de la suya. */
+  siiUsarDemo(token: string, usar: boolean): Promise<EstadoConexionSii>;
   /**
    * Su catálogo: su lista de productos (`manual`) y las sugerencias de sus facturas. La primera vez llega `armando` y
    * avisa con `catalogo.actualizado`.
@@ -194,6 +196,7 @@ export function crearApiReal(): CanalApi {
     siiFolio: (token, tipo, folio) => llamar(`/proveedor/sii/caf/${tipo}/folio`, { token, cuerpo: { folio } }),
     siiTraerFolios: (token, tipo) => llamar(`/proveedor/sii/folios/${tipo}`, { token, cuerpo: {} }),
     siiDesconectar: token => llamar('/proveedor/sii', { token, metodo: 'DELETE' }),
+    siiUsarDemo: (token, usar) => llamar('/proveedor/sii/demo', { token, cuerpo: { usar } }),
     catalogo: token => llamar('/proveedor/catalogo', { token }),
     agregarProducto: async (token, producto) => { await llamar('/proveedor/catalogo/productos', { token, cuerpo: producto }); },
     editarProducto: async (token, clave, producto) => {

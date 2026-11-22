@@ -92,4 +92,9 @@ export interface EstadoConexionSii {
   automatico: { activo: boolean; pasos: PasoSii[] } | null;
   /** La sesión del portal del SII sobrevive a reinicios (Postgres y llave de cifrado). */
   sesionPersistente: boolean;
+  /**
+   * Solo demo: la empresa de la demo, cuya conexión puede usar este proveedor si no subió su certificado, y si la está
+   * usando (entonces este estado es el de esa conexión).
+   */
+  demo?: { empresa: string; usando: boolean };
 }
