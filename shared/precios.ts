@@ -191,6 +191,18 @@ export function precioDelProducto(p: ConOfertas, unidades: number, proveedorFijo
   return Math.min(...ofertas, p.proveedorId && !p.creadorPendienteSii ? tramo : Infinity);
 }
 
+/**
+ * Cuántas unidades pueden vender entre todos los que compiten por un producto, si todos declararon stock (la suma);
+ * undefined si alguno no tiene tope. Con esto la pantalla avisa "quedan N" cuando el stock es el límite.
+ */
+export function unidadesDisponibles(p: Pick<ConOfertas, 'proveedorId' | 'creadorPendienteSii'> & {
+  ofertas?: readonly (OfertaConTramos & { stock?: number })[]; stock?: number;
+}): number | undefined {
+  const topes = [...ofertasQueCompiten(p.ofertas).map(o => o.stock), ...(p.proveedorId && !p.creadorPendienteSii ? [p.stock] : [])];
+  if (topes.length === 0 || topes.some(t => t === undefined)) return undefined;
+  return topes.reduce<number>((s, t) => s + t!, 0);
+}
+
 type Linea = { cantidad: number; precioUnitario: number };
 
 /** Monto neto de unas líneas: cantidad por precio unitario. */

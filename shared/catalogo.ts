@@ -43,6 +43,8 @@ export interface ProductoCatalogo {
   manual?: true;
   /** Pedido mínimo del grupo (MOQ) para este producto: si gana y el grupo no llega, puede cancelar el pedido. */
   minimo?: number;
+  /** Unidades que tiene para vender: en una compra en grupo nunca se le asigna más que esto. */
+  stock?: number;
 }
 
 /**
@@ -55,6 +57,8 @@ export interface ProductoEscrito {
   tramos: Tramo[];
   /** Pedido mínimo del grupo (MOQ), opcional. */
   minimo?: number;
+  /** Unidades que tiene para vender, opcional. */
+  stock?: number;
 }
 
 const limpio = (nombre: string) => nombre.replace(/\s+/g, ' ').trim();
@@ -67,6 +71,7 @@ export function errorDeProductoEscrito(p: ProductoEscrito, ya: readonly Pick<Pro
   const tramos = errorDeTramos(p.tramos);
   if (tramos) return tramos;
   if (p.minimo !== undefined && (!Number.isInteger(p.minimo) || p.minimo < 1)) return 'El pedido mínimo es una cantidad entera';
+  if (p.stock !== undefined && (!Number.isInteger(p.stock) || p.stock < 0)) return 'El stock es una cantidad entera, 0 o más';
   if (ya.some(x => sinTildes(x.nombre) === sinTildes(nombre))) return `"${nombre}" ya está en tu lista`;
   return null;
 }
@@ -79,6 +84,7 @@ export function productoManual(p: ProductoEscrito, hoy: string, clave = `m-${cla
     clave, nombre: limpio(p.nombre), unidad: p.unidad, ultimoPrecio: tramos[0].precioUnitario,
     precioMinimo: Math.min(...precios), precioMaximo: Math.max(...precios), unidadesVendidas: 0, ventas: 0, ultimaVenta: hoy,
     tramos, tramosDe: 'propios', manual: true, ...(p.minimo ? { minimo: p.minimo } : {}),
+    ...(p.stock !== undefined ? { stock: p.stock } : {}),
   };
 }
 

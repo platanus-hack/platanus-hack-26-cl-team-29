@@ -53,13 +53,15 @@ export interface OpcionesProveedores {
 /** Una acción con compromiso, lista para confirmar con un sí. */
 export type PropuestaProveedor = { readonly mensaje: string } & (
   | { readonly tipo: 'ofertar'; readonly licitacionId: string; readonly productoId: string; readonly precio: number }
-  | { readonly tipo: 'crear_producto'; readonly licitacionId: string; readonly nombre: string; readonly unidad: string; readonly precio: number }
-  | { readonly tipo: 'agregar_producto'; readonly nombre: string; readonly unidad: string; readonly precio: number }
+  | { readonly tipo: 'crear_producto'; readonly licitacionId: string; readonly nombre: string; readonly unidad: string; readonly precio: number; readonly stock?: number }
+  | { readonly tipo: 'agregar_producto'; readonly nombre: string; readonly unidad: string; readonly precio: number; readonly stock?: number }
 );
 
 /** Lo que el agente necesita de la lista de productos del proveedor (server/catalogo). */
 export interface ListaDeProductos {
   agregar(proveedor: { readonly id: string; readonly rut?: string }, producto: ProductoEscrito): Promise<unknown>;
+  /** Stock de un producto de su lista (por nombre, o el último que agregó); null si no calza ninguno. */
+  fijarStock?(proveedor: { readonly id: string; readonly rut?: string }, nombre: string | undefined, stock: number): Promise<{ readonly nombre: string } | null>;
 }
 
 export interface Proveedores {
@@ -73,7 +75,9 @@ export interface Proveedores {
   /** El certificado quedó conectado: si se estaba registrando, la pregunta que sigue; si no, null. */
   certificadoConectado(telefono: string, rutTitular: string): string | null;
   proponerOferta(proveedor: Negocio, precio: number, producto?: string): Promise<PropuestaProveedor | string>;
-  proponerProducto(proveedor: Negocio, nombre: string, unidad: string, precio: number): Promise<PropuestaProveedor | string>;
+  proponerProducto(proveedor: Negocio, nombre: string, unidad: string, precio: number, stock?: number): Promise<PropuestaProveedor | string>;
+  /** "tengo 200 impresoras": fija el stock de un producto de su lista. */
+  fijarStock(proveedor: Negocio, cantidad: number, producto?: string): Promise<string>;
   /** Ejecuta una propuesta ya confirmada. */
   ejecutar(proveedor: Negocio, p: PropuestaProveedor): Promise<string>;
   verOfertas(proveedor: Negocio): Promise<string>;
@@ -196,26 +200,27 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
     return { tipo: 'ofertar', licitacionId: l.id, productoId: producto.id, precio, mensaje: m.proponerOferta(producto, precio) };
   }
 
-  async function proponerProducto(_proveedor: Negocio, nombre: string, dicha: string, precio: number): Promise<PropuestaProveedor | string> {
+  async function proponerProducto(_proveedor: Negocio, nombre: string, dicha: string, precio: number, stock?: number): Promise<PropuestaProveedor | string> {
+    const conStock = stock !== undefined ? { stock } : {};
     // La unidad como la escribió ("kg", "la bolsa") pasa a una de la lista; si no es ninguna, por unidad.
     const unidad = unidadDeTexto(dicha) ?? 'unidad';
     // Lo que vende va siempre a su lista (con tramos sugeridos que cambia en su panel): desde ahí compite solo en las
     // compras en grupo que piden ese producto. Nunca se mete en una compra abierta de otra cosa.
-    if (o.productos) return { tipo: 'agregar_producto', nombre, unidad, precio, mensaje: m.proponerAgregarProducto(nombre, unidad, tramosAutomaticos(precio)) };
+    if (o.productos) return { tipo: 'agregar_producto', nombre, unidad, precio, ...conStock, mensaje: m.proponerAgregarProducto(nombre, unidad, tramosAutomaticos(precio), stock) };
     const l = await abierta();
     if (!l) return m.SIN_COMPRA_ABIERTA;
     if (productosDe(l).some(p => normalizar(p.nombre) === normalizar(nombre))) return m.productoYaExiste(nombre);
-    return { tipo: 'crear_producto', licitacionId: l.id, nombre, unidad, precio, mensaje: m.proponerProducto(nombre, unidad, tramosAutomaticos(precio)) };
+    return { tipo: 'crear_producto', licitacionId: l.id, nombre, unidad, precio, ...conStock, mensaje: m.proponerProducto(nombre, unidad, tramosAutomaticos(precio)) };
   }
 
   async function ejecutar(proveedor: Negocio, p: PropuestaProveedor): Promise<string> {
     if (p.tipo === 'agregar_producto') {
-      await o.productos!.agregar({ id: proveedor.id, ...(proveedor.rut ? { rut: proveedor.rut } : {}) }, { nombre: p.nombre, unidad: p.unidad, tramos: tramosAutomaticos(p.precio) });
+      await o.productos!.agregar({ id: proveedor.id, ...(proveedor.rut ? { rut: proveedor.rut } : {}) }, { nombre: p.nombre, unidad: p.unidad, tramos: tramosAutomaticos(p.precio), ...(p.stock !== undefined ? { stock: p.stock } : {}) });
       o.log.info(`[proveedor] ${proveedor.id} agregó un producto a su lista`);
       return m.productoAgregado(p.nombre);
     }
     if (p.tipo === 'crear_producto') {
-      const { producto } = await red.crearProducto(p.licitacionId, { proveedorId: proveedor.id, nombre: p.nombre, unidad: p.unidad, precio: p.precio });
+      const { producto } = await red.crearProducto(p.licitacionId, { proveedorId: proveedor.id, nombre: p.nombre, unidad: p.unidad, precio: p.precio, ...(p.stock !== undefined ? { stock: p.stock } : {}) });
       o.log.info(`[proveedor] ${proveedor.id} sumó ${producto.id} a ${p.licitacionId}`);
       return m.productoCreado(producto);
     }
@@ -276,6 +281,13 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
     certificadoConectado,
     proponerOferta,
     proponerProducto,
+    async fijarStock(proveedor, cantidad, producto) {
+      if (!o.productos?.fijarStock) return m.SIN_LISTA_DE_PRODUCTOS;
+      const p = await o.productos.fijarStock({ id: proveedor.id, ...(proveedor.rut ? { rut: proveedor.rut } : {}) }, producto, cantidad);
+      if (!p) return m.stockSinProducto(producto);
+      o.log.info(`[proveedor] ${proveedor.id} fijó el stock de un producto de su lista`);
+      return m.stockFijado(p.nombre, cantidad);
+    },
     ejecutar,
     verOfertas,
     detener() {

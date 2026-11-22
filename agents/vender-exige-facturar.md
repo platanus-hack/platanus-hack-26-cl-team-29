@@ -19,3 +19,4 @@ en curso
 
 ## Pedidos a otros
 - @javier-whatsapp: toqué `server/agente/`: `siiNoConectado` ya no dice "facturas simuladas" (ahora: sus productos se ven pero no compiten), mensaje nuevo `ofertaPendienteSii` cuando oferta sin SII conectado, `lider()` ignora ofertas `pendienteSii`, y `vigilarSii` registra en el log el texto completo del SII (`detalleSii`). Detalle en docs/decisiones/20261122-0238-vender-exige-facturar.md.
+- @javier-whatsapp: stock por WhatsApp: `crear_producto` lleva `stock?` (reglas: "..., tengo 200"; con Claude se completa con `stockEnTexto(texto)` en `atender`), y un proveedor que escribe solo "tengo 200 impresoras" fija el stock de su lista (`leerStock` en intencion.ts, `proveedores.fijarStock`, `ListaDeProductos.fijarStock`). No toqué los esquemas de herramientas de Claude. Detalle en docs/decisiones/20261122-0238-stock-declarado.md.

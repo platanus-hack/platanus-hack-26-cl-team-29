@@ -1,4 +1,4 @@
-import { precioDelProducto, siguienteTramo, totalesDeCanasta, unidadesDe } from '../../shared/precios.ts';
+import { precioDelProducto, siguienteTramo, totalesDeCanasta, unidadesDe, unidadesDisponibles } from '../../shared/precios.ts';
 import type { Licitacion, LicitacionVista, ProductoCompra, ProductoCompraVista } from './tipos.ts';
 
 // La compra conjunta vista producto por producto de la canasta. Los tramos y el precio de cada producto
@@ -26,7 +26,11 @@ export const preciosVigentes = (l: Licitacion) => new Map(l.productos.map(p => [
 
 export function vistaProducto(l: Licitacion, p: ProductoCompra): ProductoCompraVista {
   const total = unidadesDe(l, p.id);
-  return { ...structuredClone(p), totalUnidades: total, precioActual: precioVigente(l, p.id), siguienteTramo: siguienteTramo(p.tramos, total) };
+  const disponibles = l.proveedorId ? undefined : unidadesDisponibles(p);
+  return {
+    ...structuredClone(p), totalUnidades: total, precioActual: precioVigente(l, p.id), siguienteTramo: siguienteTramo(p.tramos, total),
+    ...(disponibles !== undefined ? { quedan: Math.max(0, disponibles - total) } : {}),
+  };
 }
 
 /** La licitación con sus datos derivados, como la ven pantallas y agente. Los campos de un solo producto reflejan `productos[0]`. */

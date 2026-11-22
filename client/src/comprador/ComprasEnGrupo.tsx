@@ -321,6 +321,11 @@ function DetalleCompra({ api, token, foto, lic, p, orden, guardado, abierta, cie
                     {siLlegan(vista.siguiente, cantidad, p)} Todos pagan el precio final.
                   </p>
                 )}
+                {p.quedan !== undefined && (
+                  <p className="bm-nota bm-aviso-minimo">
+                    {p.quedan > 0 ? `Quedan ${contar(p.quedan, p.unidad, p.unidadPlural)}: es todo el stock de los proveedores.` : 'Se acabó el stock de los proveedores.'}
+                  </p>
+                )}
                 {p.minimo && vista.unidades < p.minimo && (
                   <p className="bm-nota bm-aviso-minimo">
                     El proveedor que hoy gana pide un mínimo de {contar(p.minimo, p.unidad, p.unidadPlural)}: si entre todos no llegan,

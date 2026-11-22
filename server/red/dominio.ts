@@ -182,6 +182,8 @@ export interface NuevoProducto {
   precio: number;
   /** Tramos propios (los que sugiere su historial de facturas). Sin ellos, los automáticos desde `precio`. */
   tramos?: Tramo[];
+  /** Unidades que tiene para vender, opcional. */
+  stock?: number;
 }
 
 export interface NuevoProveedor {
@@ -942,9 +944,11 @@ export async function crearRed({
       }
       const minimo = Number(o.minimo);
       if (o.minimo !== undefined && (!Number.isInteger(minimo) || minimo < 1)) throw new ErrorRed('datos_invalidos', 'El pedido mínimo es una cantidad entera');
+      const stock = Number(o.stock);
+      if (o.stock !== undefined && (!Number.isInteger(stock) || stock < 0)) throw new ErrorRed('datos_invalidos', 'El stock es una cantidad entera, 0 o más');
       const oferta: Oferta = {
         proveedorId: o.proveedorId, productoId: producto.id, precioUnitario, ...(tramos ? { tramos } : {}), ...(o.automatica ? { automatica: true } : {}),
-        ...(o.minimo !== undefined ? { minimo } : {}), plazoDias, en: ahora(),
+        ...(o.minimo !== undefined ? { minimo } : {}), ...(o.stock !== undefined ? { stock } : {}), plazoDias, en: ahora(),
       };
       producto.ofertas = producto.ofertas.filter(x => x.proveedorId !== o.proveedorId).concat(oferta);
       await marcarFacturacion(l);
@@ -1045,6 +1049,7 @@ export async function crearRed({
       const producto: ProductoCompra = {
         id: idDeProducto(l, nombre), nombre, unidad, unidadPlural: String(n.unidadPlural ?? '').trim() || pluralDe(unidad),
         precioSolo: precio, tramos: tramosDelProducto(precio, n.tramos), ofertas: [], proveedorId: proveedor.id,
+        ...(Number.isInteger(n.stock) && n.stock! >= 0 ? { stock: n.stock } : {}),
       };
       l.productos.push(producto);
       await marcarFacturacion(l);
@@ -1084,7 +1089,7 @@ export async function crearRed({
   function candidatasDe(l: Licitacion, p: ProductoCompra): Ganadora[] {
     const porProveedor = new Map<string, Oferta>();
     const tramoDelCreador: Oferta[] = p.proveedorId && !p.creadorPendienteSii
-      ? [{ proveedorId: p.proveedorId, productoId: p.id, precioUnitario: precioPorVolumen(p, unidadesDe(l, p.id)), plazoDias: 1, en: ahora() }]
+      ? [{ proveedorId: p.proveedorId, productoId: p.id, precioUnitario: precioPorVolumen(p, unidadesDe(l, p.id)), plazoDias: 1, en: ahora(), ...(p.stock !== undefined ? { stock: p.stock } : {}) }]
       : [];
     // Cada oferta al precio de su tramo para el volumen que juntó el grupo.
     const unidades = unidadesDe(l, p.id);
@@ -1109,19 +1114,29 @@ export async function crearRed({
     }
     const compras: { participante: Participante; proveedorId: string; precio: (productoId: string) => number; items: ItemCarrito[] }[] = [];
     const sinProveedor: { productoId: string; cantidad: number }[] = [];
+    /** Unidades ya asignadas a cada proveedor por producto, para no pasar su stock. */
+    const asignado = new Map<string, number>();
     for (const participante of l.participantes) {
       const porProveedor = new Map<string, { items: ItemCarrito[]; precios: Map<string, number> }>();
       for (const i of participante.items) {
         // Nadie se compra a sí mismo, salvo en la demo con DEMO_COMPRA_A_SI_MISMO=1 (para probar todo con un teléfono).
-        const g = candidatas.get(i.productoId)?.find(c => aSiMismo || c.proveedorId !== participante.negocioId);
-        if (!g) {
-          sinProveedor.push({ productoId: i.productoId, cantidad: i.cantidad });
-          continue;
+        // Ni se le asigna a un proveedor más que su stock: lo que no cabe pasa a la siguiente mejor oferta.
+        let falta = i.cantidad;
+        for (const g of candidatas.get(i.productoId) ?? []) {
+          if (falta === 0) break;
+          if (!aSiMismo && g.proveedorId === participante.negocioId) continue;
+          const clave = `${g.proveedorId}|${i.productoId}`;
+          const libre = g.stock === undefined ? Infinity : g.stock - (asignado.get(clave) ?? 0);
+          const toma = Math.min(falta, libre);
+          if (toma <= 0) continue;
+          asignado.set(clave, (asignado.get(clave) ?? 0) + toma);
+          falta -= toma;
+          const grupo = porProveedor.get(g.proveedorId) ?? { items: [], precios: new Map<string, number>() };
+          grupo.items.push({ ...i, cantidad: toma });
+          grupo.precios.set(i.productoId, g.precioUnitario);
+          porProveedor.set(g.proveedorId, grupo);
         }
-        const grupo = porProveedor.get(g.proveedorId) ?? { items: [], precios: new Map<string, number>() };
-        grupo.items.push(i);
-        grupo.precios.set(i.productoId, g.precioUnitario);
-        porProveedor.set(g.proveedorId, grupo);
+        if (falta > 0) sinProveedor.push({ productoId: i.productoId, cantidad: falta });
       }
       for (const [proveedorId, { items, precios }] of porProveedor) {
         compras.push({ participante, proveedorId, items, precio: id => precios.get(id)! });

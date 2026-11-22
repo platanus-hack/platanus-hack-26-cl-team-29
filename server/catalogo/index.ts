@@ -10,6 +10,7 @@ import {
 } from '../../shared/catalogo.ts';
 import { ErrorRed } from '../red/dominio.ts';
 import { mismoProducto } from '../../shared/productos.ts';
+import { sinTildes } from '../../shared/texto.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import { origenEjemplo, type OrigenXml } from './origenes.ts';
 import { leerFacturas } from './xml.ts';
@@ -52,6 +53,11 @@ export interface Catalogos {
   agregar(proveedor: ProveedorCatalogo, producto: ProductoEscrito): Promise<ProductoCatalogo>;
   /** Cambia un producto de su lista (nombre, unidad, tramos), con la misma clave. */
   editar(proveedor: ProveedorCatalogo, clave: string, producto: ProductoEscrito): Promise<ProductoCatalogo>;
+  /**
+   * Fija el stock de un producto de su lista: el que se llama como `nombre` o, sin nombre, el último que agregó.
+   * Devuelve el producto, o null si no tiene ninguno que calce.
+   */
+  fijarStock(proveedor: ProveedorCatalogo, nombre: string | undefined, stock: number): Promise<ProductoCatalogo | null>;
   /** Quita un producto de su lista (las sugerencias de sus facturas no se quitan). */
   quitar(proveedorId: string, clave: string): Promise<void>;
   /** El precio base más bajo del mismo producto (nombre y unidad) en las listas de los proveedores, o undefined. */
@@ -182,6 +188,13 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
     if (!previo && !enCurso.has(p.id)) void armar(p).catch(() => {});
   }
 
+  async function editar(p: ProveedorCatalogo, clave: string, escrito: ProductoEscrito): Promise<ProductoCatalogo> {
+    const manuales = deSuLista(p.id, clave);
+    const producto = validado(escrito, manuales.filter(x => x.clave !== clave), clave);
+    await conManuales(p, ms => ms.map(x => (x.clave === clave ? producto : x)));
+    return producto;
+  }
+
   return {
     de: id => guardados.get(id)?.catalogo ?? null,
     asegurar(p) {
@@ -197,11 +210,17 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
       await conManuales(p, manuales => [producto, ...manuales]);
       return producto;
     },
-    async editar(p, clave, escrito) {
-      const manuales = deSuLista(p.id, clave);
-      const producto = validado(escrito, manuales.filter(x => x.clave !== clave), clave);
-      await conManuales(p, ms => ms.map(x => (x.clave === clave ? producto : x)));
-      return producto;
+    editar,
+    async fijarStock(p, nombre, stock) {
+      const manuales = guardados.get(p.id)?.manuales ?? [];
+      const buscado = nombre ? sinTildes(nombre) : '';
+      // Sin nombre, el último que agregó (va primero); con nombre, el que lo contiene o al revés ("impresoras").
+      const producto = buscado
+        ? manuales.find(x => sinTildes(x.nombre).includes(buscado) || buscado.includes(sinTildes(x.nombre).split(' ')[0]!.replace(/s$/, '')))
+        : manuales[0];
+      if (!producto) return null;
+      const { nombre: n, unidad, tramos, minimo } = producto;
+      return editar(p, producto.clave, { nombre: n, unidad, tramos, ...(minimo ? { minimo } : {}), stock });
     },
     listas: () => [...guardados].filter(([, g]) => g.manuales?.length).map(([proveedorId, g]) => ({ proveedorId, productos: g.manuales! })),
     alCambiarLista: oyente => { oyentesDeListas.add(oyente); },

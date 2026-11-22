@@ -28,11 +28,12 @@ export function conectarOfertasDeListas(red: RedConOfertas, catalogos: Pick<Cata
       for (const p of l.productos.filter(x => !x.proveedorId)) {
         const suyo = productos.find(x => mismoProducto(x, p));
         const actual = p.ofertas.find(o => o.proveedorId === proveedorId);
-        if (!suyo || (actual && !actual.automatica) || (actual && mismosTramos(actual.tramos, suyo.tramos) && actual.minimo === suyo.minimo)) continue;
+        const igual = actual && mismosTramos(actual.tramos, suyo?.tramos) && actual.minimo === suyo?.minimo && actual.stock === suyo?.stock;
+        if (!suyo || (actual && !actual.automatica) || igual) continue;
         try {
           await red.ofertar(l.id, {
             proveedorId, productoId: p.id, precioUnitario: suyo.tramos[0]!.precioUnitario, tramos: suyo.tramos, plazoDias: PLAZO_DIAS, automatica: true,
-            ...(suyo.minimo ? { minimo: suyo.minimo } : {}),
+            ...(suyo.minimo ? { minimo: suyo.minimo } : {}), ...(suyo.stock !== undefined ? { stock: suyo.stock } : {}),
           });
         } catch (error) {
           log.warn(`[ofertas] no pude ofertar la lista de ${proveedorId} en ${l.id}:`, error instanceof Error ? error.message : error);
