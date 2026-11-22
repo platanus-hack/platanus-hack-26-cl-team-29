@@ -19,6 +19,53 @@
   --bando-carbon: #343532;        /* trazo de ilustración, fondo oscuro de marca */
   --bando-tinta: #1D1D1F;         /* texto sobre miel */
   --bando-fondo-ilustracion: #FCF4DC; /* detrás de ilustraciones e íconos de flujo en modo oscuro: siempre claro */
+  --bando-sii: #0061A0;           /* azul del SII: solo lo que queda registrado en el SII */
+  --bando-sobre-sii: #FFFFFF;     /* texto y fondo del logo sobre el azul del SII */
+
+  /* Fundamentos (DESIGN.md, "Fundamentos"). Globales y neutros: valen en claro, oscuro y proyección. */
+
+  /* Espaciado: múltiplos de 4. El número es la cantidad de pasos de 4 px. Nada de márgenes sueltos fuera de la escala. */
+  --espacio-1: 4px;     /* entre ícono y texto */
+  --espacio-2: 8px;     /* dentro de un grupo */
+  --espacio-3: 12px;    /* entre filas de una lista */
+  --espacio-4: 16px;    /* relleno de tarjeta, borde de pantalla en teléfono */
+  --espacio-6: 24px;    /* entre bloques de una pantalla */
+  --espacio-8: 32px;    /* entre secciones */
+  --espacio-12: 48px;   /* aire alrededor del número héroe */
+  --espacio-16: 64px;   /* márgenes de pantallas que se proyectan */
+
+  /* Elevación: casi plana. Las tarjetas se separan con borde, no con sombra; solo lo que flota sobre el contenido la lleva. */
+  --sombra-ninguna: none;
+  --sombra-flotante: 0 8px 24px color-mix(in srgb, var(--bando-tinta) 12%, transparent);  /* menú, vista previa, barra fija */
+  --sombra-modal: 0 24px 64px color-mix(in srgb, var(--bando-tinta) 24%, transparent);    /* modal sobre fondo oscurecido */
+
+  /* Movimiento: corto y con propósito (algo cambió en vivo). Se sale rápido y se frena suave. */
+  --duracion-rapida: 120ms;       /* hover, foco, presionar */
+  --duracion-base: 200ms;         /* abrir, cerrar, aparecer */
+  --duracion-lenta: 400ms;        /* barras de progreso, cifras que cambian */
+  --duracion-celebracion: 800ms;  /* un cuadro del panal que se llena; un tramo alcanzado */
+  --curva-salida: cubic-bezier(0.2, 0, 0, 1);    /* lo que entra o se mueve */
+  --curva-entrada: cubic-bezier(0.4, 0, 1, 1);   /* lo que se va */
+
+  /* Capas: un solo orden para toda la app. */
+  --z-contenido: 0;
+  --z-fijo: 10;         /* barra de acción fija, cabecera pegada */
+  --z-navegador: 50;    /* menú de vistas */
+  --z-modal: 100;
+  --z-aviso: 200;       /* avisos a pantalla completa ("bajó el precio") */
+
+  /* Quiebres (en media queries no se pueden usar variables: estos son los únicos valores permitidos).
+     640 px teléfono grande · 768 px tableta · 1024 px escritorio (aparece el lateral) · 1440 px amplio. */
+}
+
+/* Sin animación para quien lo pide: todas las duraciones de la marca pasan a cero. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duracion-rapida: 0ms;
+    --duracion-base: 0ms;
+    --duracion-lenta: 0ms;
+    --duracion-celebracion: 0ms;
+  }
 }
 
 .bando-ui {
@@ -37,6 +84,7 @@
   --color-success: #21C45D;
   --color-warning: #FBBD23;
   --color-destructive: #EF4343;
+  --color-info: #2563EB;           /* "en camino": un estado que avanza solo, sin acción pendiente */
 
   /* Tipografía */
   --font-sans: "Inter", system-ui, sans-serif;
@@ -100,6 +148,7 @@
   --color-primary: #F3E9D0;
   --color-primary-foreground: #1D1D1F;
   --color-destructive: #F27171;
+  --color-info: #6EA8FA;
   --bando-miel-texto: #E8BE52;
   --bando-oliva-texto: #B9BE74;
   --bando-miel-50: #3A311C;
@@ -120,3 +169,52 @@
 
 /* Ilustraciones e íconos de flujo van sobre blanco o crema (DESIGN.md): en modo oscuro, sobre una baldosa crema. */
 [data-tema='oscuro'] .bando-ui .ilustracion { background: var(--bando-fondo-ilustracion); border-radius: var(--radius-xl); padding: 6px; }
+
+/* Modo proyección (DESIGN.md, "Modo proyección"): Bando en grande y a distancia, para `/red`, `/licitacion` y `/mapa`.
+   Siempre oscuro (un proyector lava los blancos y el negro de fondo no encandila la sala): carbón profundo, texto
+   crema, la miel para el número héroe y el progreso, la oliva para el ahorro. Las medidas van en unidades de pantalla
+   (vh) con un mínimo en px, para que la misma vista llene 1024x768 y 1920x1080 sin scroll. Se usa sola, no dentro de
+   `.bando-ui`: es otra superficie con los mismos nombres de tokens. */
+.bando-proyeccion {
+  color-scheme: dark;
+  --color-background: #121310;     /* lienzo: más profundo que el modo oscuro, para que la miel brille */
+  --color-foreground: #F7F1E1;     /* crema: texto principal (16,9:1) */
+  --color-muted: #1B1C18;
+  --color-secondary: #23241F;      /* tarjetas y riel de la barra */
+  --color-border: #34352E;
+  --color-muted-foreground: #D6CFBC;
+  --color-faint-fg: #A9A28F;       /* etiquetas: nunca más tenue que esto a distancia */
+  --color-primary: #E2B031;        /* en proyección la acción y el destacado son miel */
+  --color-primary-foreground: #1D1D1F;
+  --color-success: #4ADE80;
+  --color-warning: #FBBD23;
+  --color-destructive: #F87171;
+  --color-info: #6EA8FA;
+  --bando-miel-texto: #E8BE52;     /* cifras miel sobre carbón (10,3:1) */
+  --bando-oliva-texto: #C3C97E;    /* ahorro sobre carbón (10,6:1) */
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: var(--font-sans);
+  /* Escala en pantalla: se lee desde el fondo de la sala. Nada bajo 18 px, ni pesos 400 bajo 32 px (el trazo fino se pierde). */
+  --proy-heroe: clamp(72px, 14vh, 168px);    /* el número de la pantalla: precio de hoy, ahorro del grupo */
+  --proy-display: clamp(48px, 8vh, 96px);    /* el titular */
+  --proy-titulo: clamp(28px, 4.4vh, 52px);   /* nombre del producto, del proveedor */
+  --proy-cuerpo: clamp(18px, 2.6vh, 30px);   /* filas del muro, "faltan 13 cajas" */
+  --proy-etiqueta: clamp(14px, 1.7vh, 20px); /* MAYÚSCULAS con aire */
+  --proy-margen: clamp(24px, 4vh, 64px);     /* borde de la pantalla */
+  --proy-hueco: clamp(12px, 2vh, 32px);      /* entre bloques */
+
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+  --border-width: 1px;             /* a distancia, 0,8 px desaparece */
+
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--proy-cuerpo);
+  line-height: 1.3;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}

@@ -10,6 +10,7 @@ const ENLACES = [
   { ruta: '/proveedor', nombre: 'Proveedor', detalle: 'Panel del proveedor' },
   { ruta: '/pagos', nombre: 'Pagos a proveedores', detalle: 'Equipo: transferir y marcar' },
   { ruta: '/unirse', nombre: 'Sumarse', detalle: 'Página del QR en el celular' },
+  { ruta: '/marca', nombre: 'Sistema de diseño', detalle: 'Tokens, primitivas y reglas' },
 ] as const;
 
 const OCULTAR_TRAS_MS = 3000;

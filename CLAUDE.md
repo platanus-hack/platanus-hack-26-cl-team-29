@@ -32,6 +32,7 @@ Si el backend crece, dividir `server/` por responsabilidad (`routes.ts`, `socket
 - `npm run build` → typecheck (`tsc`) + build de Vite. Tiene que pasar antes de cada commit.
 - `npm test` → tests.
 - `npm run duplicados` → busca código copiado (jscpd, config en `.jscpd.json`). Tiene que pasar antes de cada commit.
+- `npm run marca` → revisa las reglas de la marca (`DESIGN.md`, "Reglas") con trinquete: ningún archivo puede sumar colores escritos a mano, letra bajo 12 px, emojis ni la tipografía anterior. Tiene que pasar antes de cada commit.
 
 ## Cómo escribir código
 Código prolijo, limpio y elegante, pensado para iterar rápido sin romper: que mañana otro agente lo entienda y lo cambie en un solo lugar.
@@ -55,7 +56,7 @@ Código prolijo, limpio y elegante, pensado para iterar rápido sin romper: que 
 - Antes de dar por terminada una pantalla, pruébala con dos ventanas abiertas: lo que haces en una tiene que verse en la otra sin tocar nada.
 
 ## Tests
-- `npm run duplicados` detecta código copiado (jscpd) y tiene que pasar antes de cada commit, igual que `build` y `test`.
+- `npm run duplicados` (código copiado) y `npm run marca` (reglas de la marca) tienen que pasar antes de cada commit, igual que `build` y `test`.
 - **Chicos y enfocados**: un test por comportamiento importante (lógica de negocio, sync en tiempo real, manejo de conflictos). Sin frameworks extra: `node:test` + `node:assert`.
 - No testear trivialidades ni mockear todo. Un test que se cae si la lógica se rompe vale más que diez de cobertura.
 - Ejemplo de referencia: `test/server.test.ts`.

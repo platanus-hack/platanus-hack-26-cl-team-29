@@ -48,3 +48,6 @@ export const ABEJA = {
   /** Llamar la atención: "faltan 13 cajas". */
   senala: `${BASE}/04-abejas/abeja-senala.png`,
 } as const;
+
+/** Logo del SII (tercero): en cada acción o estado que queda registrado en el SII, nunca como si fuera una pantalla del SII. */
+export const LOGO_SII = '/logos/sii.svg';

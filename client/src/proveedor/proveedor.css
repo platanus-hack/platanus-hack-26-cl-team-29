@@ -47,7 +47,6 @@
   .bp-fila { grid-template-columns: 32px minmax(0, 1fr) auto auto; }
   .bp-fila > .bm-boton { grid-column: auto; min-width: 112px; }
 }
-.bp-boton-sii { background: var(--color-sii, #0061A0); color: #fff; }
 
 .bp-dato { display: flex; flex-direction: column; gap: 8px; padding: 16px; text-decoration: none; }
 .bp-dato h2 { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: 600; }
@@ -73,16 +72,8 @@
 .bp-contador:hover, .bp-contador[aria-pressed='true'] { background: var(--color-secondary); }
 .bp-contador:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: -2px; }
 
-.bp-estado {
-  grid-column: 2 / -1; justify-self: start; padding: 2px 10px; border-radius: var(--radius-full);
-  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: 600; white-space: nowrap; background: var(--color-secondary);
-}
+.bp-estado { grid-column: 2 / -1; justify-self: start; }
 @media (min-width: 640px) { .bp-estado { grid-column: auto; justify-self: end; min-width: 128px; text-align: center; } }
-.bp-estado.accion { background: color-mix(in srgb, var(--bando-miel) 22%, transparent); color: var(--bando-miel-texto); }
-.bp-estado.camino { background: color-mix(in srgb, var(--color-chart-2, #3C83F6) 14%, transparent); color: var(--color-chart-2, #3C83F6); }
-.bp-estado.listo { background: color-mix(in srgb, var(--bando-oliva) 18%, transparent); color: var(--bando-oliva-texto); }
-.bp-estado.reclamo { background: color-mix(in srgb, var(--color-destructive) 12%, transparent); color: var(--color-destructive); }
-.bp-estado.neutro { color: var(--color-muted-foreground); }
 
 /* ---------- Precios ---------- */
 .bp-tramos { display: flex; flex-direction: column; padding: 4px 16px 8px; }

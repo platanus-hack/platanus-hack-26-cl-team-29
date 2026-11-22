@@ -5,7 +5,48 @@ agentes y personas por igual. El manual completo, con ejemplos visuales, está e
 [`client/public/marca/manual-de-marca.html`](client/public/marca/manual-de-marca.html) (en la app: `/marca/manual-de-marca.html`).
 
 La revisión de cada pantalla (tamaños, encimados, fricción) sigue en la skill `revision-ui`; este archivo dice *qué*
-tiene que verse, esa skill revisa *que se vea bien*.
+tiene que verse, esa skill revisa *que se vea bien*. La guía viva está en la app, en **`/marca`**: muestra los tokens
+leídos del CSS real, las primitivas en todos sus estados y el modo proyección. Es la referencia para comparar una captura.
+
+## Reglas (léelas antes de tocar una vista)
+
+El sistema tiene tres piezas, y cada una tiene un único lugar en el código:
+
+| Pieza | Dónde | Qué decide |
+|---|---|---|
+| Tokens | [`client/src/marca/tokens.css`](client/src/marca/tokens.css) | Color, tipografía, espaciado, radios, sombras, movimiento, capas |
+| Primitivas | [`client/src/marca/componentes.tsx`](client/src/marca/componentes.tsx) y `componentes.css` | Botón, tarjeta, etiqueta, cifra, estado, progreso, vacío, modal |
+| Recursos | [`client/src/marca/recursos.ts`](client/src/marca/recursos.ts) | Logo, íconos de flujo, ilustraciones, abejas, logo del SII |
+
+**Siempre:**
+
+1. Envolver la vista en `.bando-ui` (uso personal) o `.bando-proyeccion` (pantallas que se proyectan).
+2. Armar la pantalla con las primitivas: `Boton`, `Tarjeta`, `Etiqueta`, `Cifra`, `Estado`, `ProgresoGrupo`, `EstadoVacio`, `Modal`.
+3. Tomar todo valor de un token: color, espacio (`--espacio-*`), radio, sombra, duración, capa (`--z-*`).
+4. Separar bloques con `gap`, no con márgenes sueltos.
+5. Un número grande y una acción principal por pantalla.
+6. Montos con `dinero()` y cantidades con `contar()`, de `shared/`.
+7. El logo del SII en toda acción o estado que queda en el SII (`Boton variante="sii"`, `Estado tono="sii"`).
+8. Correr `npm run marca` antes de commitear, junto a `build`, `test` y `duplicados`.
+
+**Nunca:**
+
+1. Un color escrito a mano fuera de `tokens.css` (ni hex, ni `rgb()`).
+2. Miel como color de texto sobre blanco: para texto, `--bando-miel-texto`.
+3. Más de un botón miel por pantalla, ni un botón miel junto a uno primario.
+4. Sombra en una tarjeta: se separa con borde. La sombra es solo para lo que flota.
+5. Texto de menos de 12 px (18 px en proyección), emojis, Oxanium o JetBrains Mono en una vista con la marca.
+6. Un botón, una tarjeta o un estado dibujado de nuevo en el CSS de una vista: si falta una variante, se agrega a la primitiva.
+7. El nombre de otro comprador.
+8. Subir la línea base de `npm run marca` para que pase un cambio.
+
+### Cómo se hace cumplir
+
+`npm run marca` (`scripts/revisar-marca.ts`) lee `client/src` y cuenta, por archivo, los colores escritos a mano, la
+tipografía anterior en vistas migradas, `toLocaleString` sueltos, textos bajo 12 px y emojis. Funciona como trinquete:
+la deuda que ya existía está en `scripts/marca-linea-base.json` y no bloquea, pero ningún archivo puede empeorar. Al
+migrar una vista la deuda baja, y `npm run marca -- --actualizar` guarda la línea base nueva en el mismo PR.
+Lo que no se puede leer en el código (jerarquía, una acción por pantalla, voz) lo revisa la skill `revision-ui`.
 
 ## Esencia
 
@@ -25,14 +66,34 @@ El panal es la metáfora: cada celda es un local, la miel es el ahorro que se ac
 
 La interfaz actual (oscura, neón, Oxanium y JetBrains Mono) es la anterior. Se migra **vista por vista**:
 
-1. La vista rediseñada se envuelve en `.bando-ui`. Ahí los tokens de producto (`--color-primary`, `--color-border`,
+1. La vista rediseñada se envuelve en `.bando-ui` (o `.bando-proyeccion` si se proyecta) y se arma con las primitivas. Ahí los tokens de producto (`--color-primary`, `--color-border`,
    radios, tipografía) toman los valores de Bando; fuera de `.bando-ui` siguen los anteriores, así nada se rompe a medias.
 2. Los colores de marca (`--bando-*`) son globales y sirven en cualquier vista.
 3. No se mezclan los dos sistemas en una misma pantalla. Una sección anterior que tiene que vivir dentro de una vista
    migrada (mientras le llega su turno) va envuelta en `.puente-legado`, que les da a sus tokens viejos los valores de la marca.
 4. Cuando todas estén migradas, los tokens de `.bando-ui` pasan a `:root` y se borra la capa anterior de `estilos.css`.
 
-Tokens: [`client/src/marca/tokens.css`](client/src/marca/tokens.css) (ya importado en `estilos.css`).
+Tokens en [`client/src/marca/tokens.css`](client/src/marca/tokens.css) y primitivas en `client/src/marca/componentes.css`,
+los dos importados en `estilos.css`. Lo que falta migrar está en el [mapa de migración](#mapa-de-migración).
+
+## Modo proyección
+
+Para las pantallas que se ven en un proyector desde el fondo de una sala: `/red`, `/licitacion` y `/mapa`. Se usa
+`.bando-proyeccion` en lugar de `.bando-ui`: mismos nombres de tokens, otros valores.
+
+- **Siempre oscuro.** Un proyector lava los blancos y un fondo claro encandila la sala. Lienzo carbón profundo, texto
+  crema (16,9:1) y tarjetas un tono más claro. No sigue al botón sol/luna.
+- **La miel es la protagonista:** el número héroe (precio de hoy, ahorro del grupo), la barra del grupo y la acción.
+  La oliva clara es el ahorro. El azul del SII va lleno, con texto blanco.
+- **Escala en pantalla, no en píxeles fijos:** `--proy-heroe`, `--proy-display`, `--proy-titulo`, `--proy-cuerpo`,
+  `--proy-etiqueta`, `--proy-margen` y `--proy-hueco` usan `vh` con un mínimo en px. La misma vista llena 1024x768 y
+  1920x1080 sin scroll.
+- **Legible a distancia:** nada bajo 18 px, peso 500 o más bajo 32 px (el trazo fino se pierde en el proyector) y
+  bordes de 1 px.
+- **Una idea por pantalla:** el número héroe ocupa al menos un cuarto del alto. Sin párrafos: etiqueta, número y una
+  línea de contexto.
+- **Movimiento visible pero corto:** los cambios en vivo usan `--duracion-celebracion` para que se noten desde lejos;
+  un aviso a pantalla completa va en `--z-aviso` y se cierra solo.
 
 ## Logo
 
@@ -103,7 +164,71 @@ apretados; textos chicos con aire.
 - Montos en pesos, sin decimales y con separador de miles, siempre con `dinero()` de `shared/formato.ts` ($27.000).
 - Nada bajo 12 px.
 
-## Componentes de producto
+## Fundamentos
+
+Viven en `:root` (globales): valen igual en claro, oscuro y proyección.
+
+**Espaciado.** Múltiplos de 4 y nada fuera de la escala. El número del token es la cantidad de pasos de 4 px.
+
+| Token | Valor | Uso |
+|---|---|---|
+| `--espacio-1` | 4 px | Entre ícono y texto |
+| `--espacio-2` | 8 px | Dentro de un grupo |
+| `--espacio-3` | 12 px | Entre filas de una lista |
+| `--espacio-4` | 16 px | Relleno de tarjeta, borde de pantalla en el teléfono |
+| `--espacio-6` | 24 px | Entre bloques de una pantalla |
+| `--espacio-8` | 32 px | Entre secciones |
+| `--espacio-12` | 48 px | Aire alrededor del número héroe |
+| `--espacio-16` | 64 px | Márgenes de pantallas grandes |
+
+Regla de proximidad: apretado dentro de un grupo, generoso entre grupos. Si dos bloques tienen el mismo espacio
+alrededor, no se entiende qué va con qué.
+
+**Elevación.** La interfaz es casi plana. Las tarjetas se separan con borde (`--sombra-ninguna`). Solo lo que flota
+sobre el contenido lleva sombra: `--sombra-flotante` (menú, vista previa, barra de acción fija) y `--sombra-modal`.
+
+**Movimiento.** Corto y con propósito: algo cambió en vivo. Lo que entra usa `--curva-salida` (rápido al inicio, frena
+suave); lo que se va, `--curva-entrada`.
+
+| Token | Valor | Uso |
+|---|---|---|
+| `--duracion-rapida` | 120 ms | Hover, foco, presionar |
+| `--duracion-base` | 200 ms | Abrir, cerrar, aparecer |
+| `--duracion-lenta` | 400 ms | Barras de progreso, cifras que cambian |
+| `--duracion-celebracion` | 800 ms | Un cuadro del panal que se llena, un tramo alcanzado |
+
+Con `prefers-reduced-motion` todas las duraciones pasan a 0 en `tokens.css`: una animación que usa los tokens ya lo respeta.
+
+**Capas.** Un solo orden: `--z-contenido` (0), `--z-fijo` (10, barras y cabeceras pegadas), `--z-navegador` (50, menú
+de vistas), `--z-modal` (100) y `--z-aviso` (200, avisos a pantalla completa). Nada de `z-index: 9999`.
+
+**Quiebres.** En media queries no se pueden usar variables, así que estos son los únicos valores permitidos:
+640 px (teléfono grande), 768 px (tableta), 1024 px (escritorio, aparece el lateral) y 1440 px (amplio). Se diseña
+desde el teléfono hacia arriba (`min-width`).
+
+## Primitivas
+
+En [`client/src/marca/componentes.tsx`](client/src/marca/componentes.tsx), con sus estilos en `componentes.css`. Una
+vista nueva no escribe CSS para estas piezas: si le falta algo, se agrega a la primitiva para todos.
+
+| Primitiva | Cuándo | Reglas |
+|---|---|---|
+| `Boton` / `BotonEnlace` | Toda acción. `BotonEnlace` cuando lleva a otra pantalla | `primario` una vez por pantalla; `secundario` para el resto; `miel` como máximo una vez y solo en momentos de marca; `sii` (azul, con logo) para emitir o registrar en el SII; `texto` para cancelar o ver más. 44 px de alto en el teléfono, 36 en escritorio |
+| `Tarjeta` | Agrupar un tema | Borde fino, radio 12, sin sombra. `calida` (fondo miel 50) para un solo destacado por pantalla |
+| `Etiqueta` | El nombre corto de un número o bloque | 12 px, 600, MAYÚSCULAS con aire |
+| `Cifra` | Un número con su etiqueta | `heroe` una vez por pantalla; `grande` y `normal` para el resto. `tono="ahorro"` (oliva) para lo que bajó. Recibe el valor ya formateado |
+| `Estado` | En qué va algo; no se toca | `aviso` pide una acción, `info` avanza solo, `exito` terminó bien, `error` hay un problema, `sii` quedó en el SII |
+| `Barra` / `ProgresoGrupo` | El avance de una compra en grupo | Barra miel; debajo el resumen y, en oliva, lo que falta para el siguiente tramo |
+| `EstadoVacio` | Lista o pantalla sin datos | Una ilustración, qué pasa y qué hacer. Nunca una pantalla en blanco |
+| `Modal` | Confirmar algo con efecto legal o irreversible | Se cierra con Escape, la X o tocando afuera |
+| `Logo`, `BotonTema` | Cabeceras y marcos | Ver "Logo" y "Modo oscuro" |
+
+Los modificadores llevan el nombre de su pieza (`bm-estado-error`, `bm-cifra-heroe`): la interfaz anterior tiene
+clases globales con nombres comunes (`.error`, `.ahorro`) que se colarían.
+
+## Medidas de producto
+
+Las primitivas ya traen estas medidas; quedan aquí como referencia para diseñar.
 
 - **Botón**: 36 px de alto, radio 12, texto 14/600. El primario es negro. El **botón miel**, como máximo uno por
   pantalla y solo en momentos de marca (sumarse, destacado).
@@ -156,18 +281,42 @@ Dibujadas a mano con trazo negro. Le dan calidez a una herramienta de números. 
 
 ## Voz
 
-Corto, claro y en chileno amable. Tratamos de tú. Una idea por frase. **Primero el número y después la explicación.**
+Corto, claro y cercano, en español neutro (sin modismos de ningún país). Tratamos de tú. Una idea por frase. **Primero el número y después la explicación.**
 
 | Sí | No |
 |---|---|
 | Faltan 13 cajas para $27.000. | Aún no se ha alcanzado el umbral de volumen para acceder al siguiente tramo de precio. |
 | Te sumaste. Ya van 45 de 50. | Su solicitud de participación ha sido procesada exitosamente. |
-| El proveedor ya tiene la plata. | La transacción fue liquidada al beneficiario. |
+| El proveedor ya recibió el pago. | La transacción fue liquidada al beneficiario. |
 | Lo que no llegó no se paga. | Los ítems no recepcionados serán descontados conforme a la política vigente. |
 
 - Palabras nuestras: sumarse, juntos, bando, tramo, ruta, envío compartido, llega mañana.
 - Evitar: transacción, usuario, sinergia, plataforma, «estimado cliente».
 - **Privacidad**: nunca mostrar el nombre de otro comprador. «11 locales de Providencia», no «Café Kant y otros».
+
+## Mapa de migración
+
+Qué vista ya usa la marca y qué falta, en el orden recomendado. «Parcial» quiere decir que el marco es nuevo pero
+quedan secciones anteriores dentro de `.puente-legado`. El dueño sale de `agents/*.md`: quien migra una vista lo
+coordina con su dueño en `Pedidos a otros`.
+
+| Orden | Ruta | Archivo principal | Estado | Dueño | Qué falta |
+|---|---|---|---|---|---|
+| | `/marca` | `vistas/GuiaMarca.tsx` | Migrada | marca-sistema | |
+| | entrada de `/app` y `/proveedor` | `canal/Acceso.tsx` | Migrada | javier-acceso | |
+| | `/red` | `vistas/RedEnVivo.tsx` | Migrada a `.bando-ui` | jorge-red3d | Pasar a `.bando-proyeccion` |
+| | `/mapa` | `vistas/Mapa.tsx` | Migrada a `.bando-ui` | jorge-mapa | Pasar a `.bando-proyeccion` |
+| | `/red-3d` | `vistas/Red3D.tsx` | Migrada | jorge-red3d | |
+| 1 | `/app` | `canal/MiNegocio.tsx` y `comprador/` | Parcial | javier-comprador | Secciones en `.puente-legado` (pedir, carrito, crédito) y `canal.css` |
+| 2 | `/proveedor` | `canal/Proveedor.tsx` y `proveedor/` | Parcial | javier-proveedor-ui | `ConectarSii`, ruta de reparto, catálogo; pasar `bp-estado` y `bp-boton-sii` a `Estado` y `Boton` |
+| 3 | `/licitacion` | `vistas/Licitacion.tsx` | Anterior | ui-proyeccion | `.bando-proyeccion` |
+| 4 | `/unirse` | `vistas/Unirse.tsx` | Anterior | carrito-movil | `.bando-ui` |
+| 5 | `/pagos` | `vistas/Pagos.tsx` | Anterior | credito-pantallas | `.bando-ui` |
+
+`/proveedores` ya no existe como vista: redirige a la sección Proveedores de `/app`.
+
+Cuando no quede ninguna vista anterior: los tokens de `.bando-ui` pasan a `:root`, se borra la capa anterior de
+`estilos.css` y `.puente-legado`, y `npm run marca` deja de aceptar deuda (línea base vacía).
 
 ## Archivos
 
@@ -182,5 +331,5 @@ manual-de-marca.html   el manual completo
 06-aplicaciones/       ícono de app 1024, perfil de WhatsApp 640, imagen para compartir 1200×630
 ```
 
-Las vistas nunca escriben estas rutas a mano: las importan de `client/src/marca/recursos.ts`. Si hace falta un vector o
+Las vistas nunca escriben estas rutas a mano: las importan de `client/src/marca/recursos.ts` (también el logo del SII, `LOGO_SII`). Si hace falta un vector o
 una pieza nueva, se pide al equipo de diseño; no se dibuja una propia.
