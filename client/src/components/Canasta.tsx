@@ -13,6 +13,7 @@ import '../vistas/canasta.css';
 export function textoAvance(p: ProductoSala): { unidades: string; resto: string } {
   const t = p.tramos;
   const unidades = contar(t.totalUnidades, p.unidad.singular, p.unidad.plural);
+  if (t.precioActual === undefined) return { unidades, resto: 'esperando ofertas' };
   if (t.totalUnidades === 0) return { unidades: '', resto: 'Sé el primero en pedir' };
   if (!t.siguiente) return { unidades, resto: 'mejor precio alcanzado' };
   if (t.precioActual !== undefined && t.siguiente.precioUnitario >= t.precioActual) return { unidades, resto: 'ya bajó por oferta' };
@@ -55,11 +56,11 @@ function FilaProducto({ p, destacado, destello, logoEnSala }: { p: ProductoSala;
       </span>
       <span className="prod-precio">
         <strong key={precio} className={destello ? 'por-oferta' : ''}>{precio !== undefined ? dinero(precio) : '-'}</strong>
-        <span className="prod-por">por {p.unidad.singular}</span>
+        <span className="prod-por">{precio !== undefined ? `por ${p.unidad.singular}` : 'sin precio aún'}</span>
       </span>
       <span className="prod-solo">
         {p.precioSolo !== undefined && <span className="tachado">{dinero(p.precioSolo)}</span>}
-        <span className={p.porcentaje > 0 ? 'verde' : 'tenue'}>{p.porcentaje > 0 ? `-${p.porcentaje}%` : 'precio solo'}</span>
+        {p.precioSolo !== undefined && <span className={p.porcentaje > 0 ? 'verde' : 'tenue'}>{p.porcentaje > 0 ? `-${p.porcentaje}%` : 'precio solo'}</span>}
       </span>
       <span className={`prod-lider ${p.lider ? '' : 'vacio'}`} key={p.lider?.clave ?? 'sin'}>
         {p.lider ? (
