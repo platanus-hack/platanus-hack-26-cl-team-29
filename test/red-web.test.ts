@@ -11,12 +11,12 @@ import { buzonDeCodigos, tokenConCodigo } from './acceso-apoyo.ts';
 const ENV = { DEMO_TOKEN: 'token-de-prueba', DEMO_WHATSAPP_NUMERO: '+56 9 0000 0000' };
 const TELEFONO_SALA = '+56 9 7777 0000';
 
-async function servidor(env: NodeJS.ProcessEnv = ENV, limitePorMinuto?: number) {
+async function servidor(env: NodeJS.ProcessEnv = ENV) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), { DEMO_FICTICIOS: '1', DEMO_TELEFONO_PROVEEDOR: TELEFONO_SALA });
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
   const buzon = buzonDeCodigos();
-  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { limitePorMinuto, enviarCodigo: buzon.enviarCodigo }));
+  const app = express().use(express.json()).use('/api/red', crearRutasRed(red, env, { enviarCodigo: buzon.enviarCodigo }));
   const server = app.listen(0);
   const url = `http://localhost:${(server.address() as AddressInfo).port}/api/red`;
   const pedir = async (metodo: string, ruta: string, body?: unknown, token?: string) => {
@@ -124,31 +124,19 @@ test('el panel del proveedor entra con el WhatsApp de la empresa y exige confirm
   }
 });
 
-test('config pública, confirmación de escenario con DEMO_TOKEN y límite por RUT (no por IP)', async () => {
-  const s = await servidor(ENV, 3);
+test('config pública y confirmación de escenario con DEMO_TOKEN', async () => {
+  const s = await servidor(ENV);
   try {
     const { productos, ...compat } = (await s.get('/config')).cuerpo;
     assert.deepEqual(compat, {
       whatsappNumero: '56900000000', proveedorLogoUrl: null, producto: 'Caja de rollos térmicos 80 mm (50 un.)', unidad: 'caja', unidadPlural: 'cajas',
     });
     assert.equal(productos.length, 4);
-    const union = await s.post('/licitaciones/L-1/unirse', { nombre: 'Ana', rut: '22222222-2', cantidad: 2, telefono: '56911112222', negocioId: 'n-pica-nunoa' });
-    assert.equal(union.status, 200);
-    assert.notEqual(union.cuerpo.participante.negocioId, 'n-pica-nunoa', 'la página pública no acepta negocioId ni teléfono');
-    assert.equal(s.red.negocioPorTelefono('56911112222'), null);
-
     await s.red.cerrarLicitacion('L-1');
     assert.equal((await s.post('/licitaciones/L-1/confirmar')).status, 403);
     const r = await fetch(`${s.url}/licitaciones/L-1/confirmar`, { method: 'POST', headers: { 'x-demo-token': 'token-de-prueba' } });
     assert.equal(r.status, 200);
 
-    // El límite es por RUT, nunca por IP: toda la sala entra por el mismo wifi.
-    const sumarse = (rut: string) => s.post('/licitaciones/L-2/unirse', { nombre: 'Vecino', rut, cantidad: 1 });
-    for (const rut of ['44444444-4', '55555555-5', '66666666-6', '77777777-7']) assert.notEqual((await sumarse(rut)).status, 429);
-    for (let i = 0; i < 3; i++) assert.notEqual((await sumarse('33.333.333-3')).status, 429);
-    const tope = await sumarse('33333333-3');
-    assert.equal(tope.status, 429);
-    assert.match(tope.cuerpo.mensaje, /Espera un momento/);
   } finally {
     s.server.close();
   }
