@@ -66,7 +66,7 @@ export function Proveedor() {
       )}
       {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
       {seccion === 'compras' && <Compras {...props} foto={foto} yo={yo} ruta={resto} />}
-      {seccion === 'pedidos' && <Pedidos yo={yo} config={config} comprador={comprador} />}
+      {seccion === 'pedidos' && <Pedidos {...props} yo={yo} config={config} comprador={comprador} />}
       {seccion === 'productos' && (
         <>
           <Productos {...props} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />

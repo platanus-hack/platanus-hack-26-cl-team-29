@@ -146,7 +146,8 @@ function FilaCompra({ api, token, alCambiar, lic, yo, config, ahora }: PropsAcci
   );
 }
 
-function FilaPedido({ api, token, alCambiar, orden, comprador, config }: PropsAccion & { orden: OrdenCanal; comprador?: Negocio; config: ConfigRed | null }) {
+/** Un pedido por confirmar: Confirmar abre el paso del SII (emite la factura y la guía). Lo usan Ventas y Pedidos. */
+export function FilaPedido({ api, token, alCambiar, orden, comprador, config }: PropsAccion & { orden: OrdenCanal; comprador?: Negocio; config: ConfigRed | null }) {
   const ejecutar = useCallback(async () => {
     await api.confirmarOrden(token, orden.id);
     alCambiar();
