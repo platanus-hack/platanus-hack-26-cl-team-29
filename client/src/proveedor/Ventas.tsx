@@ -51,7 +51,7 @@ export function Ventas({ yo, lic, config, comprador, ...props }: PropsAccion & {
             {porConfirmar > 0 && <> · <span className="bp-miel">{porConfirmar} por confirmar</span></>}
           </p>
         </div>
-        <a className="bm-boton secundario" href="#precios">{lic && estaAbierta(lic, ahora) ? 'Sumar un producto' : 'Abrir una compra en grupo'}</a>
+        <a className="bm-boton secundario" href="#productos">Tus productos</a>
       </header>
 
       <div className="bp-columnas">

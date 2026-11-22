@@ -1,6 +1,6 @@
 // /proveedor: panel web del proveedor con la marca Bando (DESIGN.md, Paper "2 · Proveedor"). Las mismas acciones
 // que por WhatsApp: cerrar y facturar la compra en grupo, confirmar y facturar pedidos, emitir notas de crédito y
-// cambiar sus precios por volumen. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Precios
+// mantener su lista de productos con precios por cantidad. Parte en la misma portada que /app (comprar o vender). Ventas, Pedidos y Productos
 // están rediseñados; Reparto y Facturas van por el puente.
 
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +8,6 @@ import { AvisoFuente } from '../components/Cabecera.tsx';
 import { nota } from '../../../shared/formato.ts';
 import type { Documento, Negocio } from '../red/tipos.ts';
 import { ConectarSii } from './ConectarSii.tsx';
-import { MiCatalogo } from './MiCatalogo.tsx';
 import { BandoTePago } from './MiCredito.tsx';
 import { RutaReparto } from './RutaReparto.tsx';
 import { estaAbierta, licitacionVigente } from './logica.ts';
@@ -22,15 +21,16 @@ import { Inicio } from '../comprador/Inicio.tsx';
 import { Ventas } from '../proveedor/Ventas.tsx';
 import { Pedidos } from '../proveedor/Pedidos.tsx';
 import { Precios } from '../proveedor/Precios.tsx';
+import { Productos } from '../proveedor/Productos.tsx';
 import { contarPorGrupo } from '../proveedor/pedidos.ts';
 import '../proveedor/proveedor.css';
 import './canal.css';
 
-type Seccion = 'inicio' | 'ventas' | 'pedidos' | 'precios' | 'reparto' | 'facturas';
+type Seccion = 'inicio' | 'ventas' | 'pedidos' | 'productos' | 'reparto' | 'facturas';
 const SECCIONES: ReadonlyArray<SeccionMarco<Seccion>> = [
   { id: 'inicio', titulo: 'Inicio', icono: 'tienda' }, { id: 'ventas', titulo: 'Ventas', icono: 'caja' },
   { id: 'pedidos', titulo: 'Pedidos', icono: 'paquete' },
-  { id: 'precios', titulo: 'Precios', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
+  { id: 'productos', titulo: 'Productos', icono: 'etiqueta' }, { id: 'reparto', titulo: 'Reparto', icono: 'camion' },
   { id: 'facturas', titulo: 'Facturas', icono: 'documento' },
 ];
 
@@ -69,10 +69,10 @@ export function Proveedor() {
       )}
       {seccion === 'ventas' && <Ventas {...props} yo={yo} lic={lic} config={config} comprador={comprador} />}
       {seccion === 'pedidos' && <Pedidos yo={yo} config={config} comprador={comprador} />}
-      {seccion === 'precios' && (
+      {seccion === 'productos' && (
         <>
-          <Precios {...props} lic={lic} yo={yo} />
-          <div className="puente-legado"><MiCatalogo api={api} token={token} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} /></div>
+          <Productos {...props} abierta={lic && estaAbierta(lic, Date.now()) ? lic : undefined} />
+          {lic && <Precios {...props} lic={lic} yo={yo} />}
         </>
       )}
       {(seccion === 'reparto' || seccion === 'facturas') && (

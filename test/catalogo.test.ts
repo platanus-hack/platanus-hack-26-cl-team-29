@@ -124,3 +124,25 @@ test('el proveedor ve su catálogo armado solo y suma un producto a la compra co
     server.close();
   }
 });
+
+test('el proveedor arma su lista a mano con sus tramos, la edita y la quita; sobrevive a una nueva carga de facturas', async () => {
+  const catalogos = await iniciarCatalogos({ emitir: () => {} });
+  const yo = { id: 'n-proveedor' };
+  const cafe = { nombre: 'Café molido 1 kg', unidad: 'Bolsa', tramos: [{ desde: 10, precioUnitario: 11000 }, { desde: 1, precioUnitario: 12000 }] };
+  const creado = await catalogos.agregar(yo, cafe);
+  assert.deepEqual([creado.unidad, creado.tramosDe, creado.tramos.map(t => t.desde)], ['bolsa', 'propios', [1, 10]]);
+  await assert.rejects(catalogos.agregar(yo, { ...cafe, nombre: 'cafe molido 1 KG' }), /ya está en tu lista/);
+  await assert.rejects(catalogos.agregar(yo, { ...cafe, nombre: 'Té', tramos: [{ desde: 1, precioUnitario: 100 }, { desde: 5, precioUnitario: 200 }] }), /nombre de 3 a 60/);
+  await assert.rejects(catalogos.agregar(yo, { ...cafe, nombre: 'Té verde', tramos: [{ desde: 1, precioUnitario: 100 }, { desde: 5, precioUnitario: 200 }] }), /no puede costar más/);
+
+  await catalogos.armar(yo);
+  const tras = catalogos.de(yo.id)!;
+  assert.equal(tras.productos[0].clave, creado.clave, 'su lista va primero y no se pierde al cargar facturas');
+  assert.ok(tras.productos.some(p => !p.manual), 'las sugerencias de sus facturas siguen ahí');
+
+  const editado = await catalogos.editar(yo, creado.clave, { ...cafe, tramos: [{ desde: 1, precioUnitario: 11500 }] });
+  assert.deepEqual([editado.clave, editado.tramos], [creado.clave, [{ desde: 1, precioUnitario: 11500 }]]);
+  await catalogos.quitar(yo.id, creado.clave);
+  assert.ok(!catalogos.de(yo.id)!.productos.some(p => p.manual));
+  await assert.rejects(catalogos.quitar(yo.id, tras.productos.find(p => !p.manual)!.clave), /no está en tu lista/);
+});

@@ -35,8 +35,6 @@ export type TipoEventoRed =
   | 'licitacion.cerrada'
   | 'licitacion.precio_bajo'
   | 'licitacion.facturada'
-  // Un proveedor abrió una compra en grupo nueva con su primer producto.
-  | 'licitacion.abierta'
   // Un proveedor sumó un producto a la canasta de la compra conjunta.
   | 'licitacion.producto'
   // Un negocio nuevo, o uno que ahora también vende (registro de proveedor por WhatsApp).

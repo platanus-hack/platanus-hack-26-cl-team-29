@@ -46,9 +46,11 @@ const conexionDeProveedores = {
   },
   estado: async (rutEmpresa: string) => resumenDeConexion(await conexionSii.estadoDeProveedor(rutEmpresa)),
 };
+// Catálogo de cada proveedor (su lista y lo que sugieren sus facturas): se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
+const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
 export const agente = conectarAgente(whatsapp, red, {
   interprete: crearInterpreteDesdeEnv(process.env, red), certificados, conexionSii: conexionDeProveedores,
-  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos,
+  almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos,
 });
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));
 // Explorador de locales de Chile: corre en segundo plano y avisa cada celda recorrida desde el MUT.
@@ -57,8 +59,6 @@ const locales = await iniciarLocales(dbRed, hallazgo => io.emit('locales:evento'
 const mercadoPublico = await iniciarMercadoPublico(dbRed, evento => io.emit('red:evento', evento));
 // Buscador de proveedores: la red y Mercado Público en una sola lista, con giros del SII y categoría.
 const proveedores = await iniciarProveedores({ db: dbRed, red, mercadoPublico, emitir: evento => io.emit('red:evento', evento) });
-// Catálogo de cada proveedor desde sus facturas: se arma solo al registrarse o al entrar a su panel (docs/decisiones/20261121-1941-catalogo-desde-facturas.md).
-const catalogos = await iniciarCatalogos({ db: dbRed, emitir: evento => io.emit('red:evento', evento) });
 // Crédito Bando: Bando le paga al proveedor al facturar y cobra al comprador a plazo en su tarjeta inscrita (docs/decisiones/20261121-2018-credito-bando.md).
 const pagos = await iniciarPagos({
   db: dbRed, red, emitir: evento => io.emit('red:evento', evento),

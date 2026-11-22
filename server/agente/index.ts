@@ -13,7 +13,7 @@ import { tieneProveedores, tieneSala } from './puerto.ts';
 import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { crearProveedores } from './proveedor.ts';
-import type { EstadoSiiProveedor, PropuestaProveedor, Proveedores } from './proveedor.ts';
+import type { EstadoSiiProveedor, ListaDeProductos, PropuestaProveedor, Proveedores } from './proveedor.ts';
 import { crearInterpreteClaude } from './claude.ts';
 import { crearEnvios, enmascarar } from './envios.ts';
 import type { Log, WhatsAppDeEnvios } from './envios.ts';
@@ -44,6 +44,8 @@ const DE_PROVEEDOR = new Set<Intencion['tipo']>(['ofertar', 'crear_producto', 's
 
 export interface OpcionesAgente {
   readonly interprete?: Interprete;
+  /** La lista de productos de cada proveedor (server/catalogo): "vendo ..." la llena por WhatsApp. */
+  readonly productos?: ListaDeProductos;
   readonly ahora?: () => Date;
   readonly log?: Log;
   /** Tiempos y límites de la compra conjunta; por defecto los de la demo. */
@@ -158,6 +160,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       ...(opciones.almacenBorradores ? { almacenBorradores: opciones.almacenBorradores } : {}),
       ...(opciones.revisarSiiMs !== undefined ? { revisarSiiMs: opciones.revisarSiiMs } : {}),
       sinCertificado: env.DEMO_PROVEEDOR_SIN_CERTIFICADO === '1',
+      ...(opciones.productos ? { productos: opciones.productos } : {}),
     });
   }
 
