@@ -87,10 +87,15 @@ test('si Claude falla, contestan las reglas y el chat sigue', async () => {
   assert.deepEqual(await conversar(entrada('pide 4 sacos de harina')), { tipo: 'pedir', producto: 'sacos de harina', cantidad: 4 });
 });
 
+/** Un proveedor de la red con "Durazno" en su lista, a $3.000 el kilo (y $2.850 desde 10). */
+const listasConDurazno = (proveedorId: string) => ({
+  listas: () => [{ proveedorId, productos: [{ nombre: 'Durazno', unidad: 'kilo', tramos: [{ desde: 1, precioUnitario: 3000 }, { desde: 10, precioUnitario: 2850 }] }] }] as never,
+});
+
 test('las consultas sobre la red real nunca incluyen teléfonos', async () => {
   const red = await iniciarRed(null);
-  const consultas = crearConsultasRed(red);
   const { negocios } = red.estadoDeLaRed();
+  const consultas = crearConsultasRed(red, listasConDurazno(negocios.find(n => n.rol === 'proveedor')!.id));
   const comprador = negocios.find(n => n.rol === 'comprador')!;
   const salida = JSON.stringify([
     consultas.misPedidos(comprador.id), consultas.proveedores('harina'), consultas.catalogo(), consultas.compraConjunta(comprador.id),
@@ -99,6 +104,16 @@ test('las consultas sobre la red real nunca incluyen teléfonos', async () => {
   assert.doesNotMatch(salida, /telefono/i);
   for (const n of negocios) if (n.telefono) assert.ok(!salida.includes(n.telefono.replace(/\D/g, '').slice(-8)), `aparece el teléfono de ${n.nombre}`);
   assert.match(salida, /precioNeto/);
+});
+
+test('el catálogo y los proveedores que ve la IA salen de las listas de los proveedores, no de un catálogo fijo', async () => {
+  const red = await iniciarRed(null);
+  const proveedor = red.estadoDeLaRed().negocios.find(n => n.rol === 'proveedor')!;
+  const consultas = crearConsultasRed(red, listasConDurazno(proveedor.id));
+  assert.deepEqual(consultas.catalogo(), [{ producto: 'Durazno', unidad: 'kilo', precioNetoDesde: 3000, proveedores: 1 }]);
+  const conDuraznos = consultas.proveedores('duraznos') as { nombre: string; producto: string; precioNetoBase: number }[];
+  assert.deepEqual(conDuraznos.map(x => [x.nombre, x.producto, x.precioNetoBase]), [[proveedor.nombre, 'Durazno', 3000]]);
+  assert.deepEqual(consultas.proveedores("harina"), { aviso: "Ningún proveedor tiene \"harina\" en su lista todavía" });
 });
 
 test('el agente manda tal cual la respuesta de la IA, sin ejecutar nada', async () => {

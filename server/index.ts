@@ -59,7 +59,7 @@ const biblioteca = crearBiblioteca(catalogos);
 // Cada lista de precios compite sola en las compras en grupo que piden ese producto.
 conectarOfertasDeListas(red, catalogos);
 export const agente = conectarAgente(whatsapp, red, {
-  interprete: crearInterpreteDesdeEnv(process.env, red), certificados, conexionSii: conexionDeProveedores,
+  interprete: crearInterpreteDesdeEnv(process.env, red, catalogos), certificados, conexionSii: conexionDeProveedores,
   almacenBorradores: await crearAlmacenBorradores(dbRed), avisos, productos: catalogos, biblioteca,
 });
 certificados.alConectar((telefono, rut) => agente.certificadoConectado(telefono, rut));

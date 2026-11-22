@@ -4,7 +4,7 @@ import type { Interprete } from '../agente/intencion.ts';
 import { interpreteDeReglas } from '../agente/intencion.ts';
 import { crearInterpreteClaude } from '../agente/claude.ts';
 import { crearAsistente } from './asistente.ts';
-import { crearConsultasRed, type RedConsultable } from './consultas.ts';
+import { crearConsultasRed, type ListasDeProductos, type RedConsultable } from './consultas.ts';
 import { clasificarConReglas, crearClasificador, type EntradaProveedor, type ResultadoClasificacion } from './clasificar.ts';
 import { crearBuscadorContacto, type Contacto, type EntradaContacto } from './contacto.ts';
 
@@ -35,7 +35,7 @@ export function crearBuscadorContactoDesdeEnv(env: NodeJS.ProcessEnv): ((e: Entr
  * El intérprete del agente de WhatsApp. Con ANTHROPIC_API_KEY: Claude con contexto y consultas
  * a la red (`conversar`), más el intérprete de la sala de siempre. Sin clave: reglas fijas.
  */
-export function crearInterpreteDesdeEnv(env: NodeJS.ProcessEnv, red: RedConsultable): Interprete {
+export function crearInterpreteDesdeEnv(env: NodeJS.ProcessEnv, red: RedConsultable, catalogos: ListasDeProductos): Interprete {
   const claveApi = env.ANTHROPIC_API_KEY;
   if (!claveApi) {
     console.warn('[ia] sin ANTHROPIC_API_KEY: el agente interpreta con reglas fijas');
@@ -45,7 +45,7 @@ export function crearInterpreteDesdeEnv(env: NodeJS.ProcessEnv, red: RedConsulta
   const { conversar } = crearAsistente({
     cliente: new Anthropic({ apiKey: claveApi }).beta.messages,
     modelo,
-    consultas: crearConsultasRed(red),
+    consultas: crearConsultasRed(red, catalogos),
   });
   return { ...crearInterpreteClaude(claveApi, modelo), conversar };
 }

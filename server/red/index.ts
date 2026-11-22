@@ -22,7 +22,6 @@ export type {
   BajadaPrecio, CodigoError, ContribuyenteDeRut, DuenoCarrito, EstadoPublico, NuevaOferta, NuevaOrden, NuevoCarrito, NuevoItem, NuevoItemCarrito,
   NuevoParticipante, NuevoProducto, NuevoProveedor, Recepcion, Red, ResultadoCarrito, ResultadoUnion,
 } from './dominio.ts';
-export { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
 export { crearRutasRed } from './rutas.ts';
 export { crearSesiones, crearSesionesPostgres, mismoSecreto } from './sesiones.ts';
 export type { Sesiones } from './sesiones.ts';
