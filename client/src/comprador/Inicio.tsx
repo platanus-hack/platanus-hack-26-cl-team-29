@@ -4,6 +4,7 @@
 // Público); lo demás, en lo que ya está cargado.
 
 import { useState } from 'react';
+import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
 import { puedeVender } from '../../../shared/red.ts';
 import { enlaceWhatsapp } from '../../../shared/telefono.ts';
@@ -16,6 +17,7 @@ import { cuentaRegresiva } from '../red/formato.ts';
 import { useAhora } from '../red/useRed.ts';
 import { useJson } from '../red/useJson.ts';
 import { buscarEnApp, LARGO_MINIMO, type Resultado } from './busqueda.ts';
+import { ahorroDelMes } from './compra.ts';
 
 interface ProveedorEncontrado { clave: string; nombre: string; comuna: string; region: string }
 
@@ -52,10 +54,21 @@ export function Inicio({ foto, negocio, ordenes, documentos, config, secciones, 
   ];
 
   const vende = puedeVender(negocio);
+  // Paper "C2": lo que ahorró este mes comprando en grupo (solo en la portada del comprador).
+  const delMes = desde === 'comprar' ? ahorroDelMes(ordenes, foto.licitaciones, new Date(ahora)) : null;
   const quieroVender = enlaceWhatsapp(config?.whatsappNumero, 'Quiero vender en Bando');
 
   return (
     <div className="bm-inicio">
+      {delMes && (
+        <header className="bm-ahorro-mes">
+          <p>Este mes ahorraste</p>
+          <div>
+            <strong>{dinero(delMes.ahorro)}</strong>
+            {delMes.porcentaje > 0 && <span>−{delMes.porcentaje}% vs comprar solo</span>}
+          </div>
+        </header>
+      )}
       <div className="bm-busqueda">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
         <input type="search" value={q} onChange={e => setQ(e.target.value)} enterKeyHint="search" aria-label="Buscar en Bando"

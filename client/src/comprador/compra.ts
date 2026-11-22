@@ -3,6 +3,8 @@
 
 import { dinero } from '../../../shared/formato.ts';
 import { contar } from '../../../shared/texto.ts';
+import { fechaEnChile } from '../../../shared/fecha.ts';
+import type { OrdenCompra } from '../red/tipos.ts';
 import { ordenarTramos, tramoAlcanzado, type SiguienteTramo, type Tramo } from '../../../shared/precios.ts';
 
 /** `superado`: un tramo más caro que ya se pasó. `lejano`: más allá del siguiente. */
@@ -81,4 +83,37 @@ export function localesDelGrupo(
   const comunas = [...porComuna].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 2).map(([c]) => c);
   const cuantos = contar(van.length, 'local', 'locales');
   return comunas.length ? `${cuantos} de ${comunas.join(' y ')}` : cuantos;
+}
+
+/** Lo que ahorró en el mes: contra el precio de comprar solo (`precioSolo`) de cada producto, y en %. Netos. */
+export interface AhorroDelMes { ahorro: number; porcentaje: number }
+
+/**
+ * El ahorro de sus pedidos del mes (hora de Chile) que salieron de una compra en grupo: por cada línea,
+ * (precio de comprar solo − precio pagado) × cantidad. Las líneas sin precio de referencia no cuentan.
+ * Null si este mes no tiene pedidos de compras en grupo con referencia.
+ */
+/** De cada compra en grupo basta su id y el precio de comprar solo de cada producto. */
+interface CompraConReferencia {
+  id: string;
+  /** Los pedidos que salieron de su cierre (los pedidos no traen la compra). */
+  ordenIds?: readonly string[];
+  precioSolo?: number;
+  productos?: readonly { id: string; nombre: string; precioSolo: number }[];
+}
+
+export function ahorroDelMes(ordenes: readonly (OrdenCompra & { licitacionId?: string })[], licitaciones: readonly CompraConReferencia[], ahora: Date): AhorroDelMes | null {
+  const mes = fechaEnChile(ahora).slice(0, 7);
+  let ahorro = 0, solo = 0;
+  for (const o of ordenes) {
+    const l = licitaciones.find(x => x.id === o.licitacionId || x.ordenIds?.includes(o.id));
+    if (!l || fechaEnChile(o.creadaEn).slice(0, 7) !== mes) continue;
+    for (const i of o.items) {
+      const base = l.productos?.find(p => p.id === i.productoId || p.nombre === i.producto)?.precioSolo ?? (l.productos?.length ? 0 : l.precioSolo ?? 0);
+      if (!base) continue;
+      solo += base * i.cantidad;
+      ahorro += Math.max(0, base - i.precioUnitario) * i.cantidad;
+    }
+  }
+  return solo ? { ahorro, porcentaje: Math.round((ahorro / solo) * 100) } : null;
 }
