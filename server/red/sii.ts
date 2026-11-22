@@ -53,6 +53,8 @@ export interface CambioEstadoSii {
   ordenId?: string;
   /** Respuesta del SII que dio el veredicto, si la hay (por ejemplo, QueryEstUp con `ESTADO` RCT). */
   detalle?: string;
+  /** Track id del sobre, cuando el SII lo recibió después de emitir (la subida va en segundo plano). */
+  trackId?: string;
 }
 
 /** Largos del receptor en el XSD del DTE (server/sii/dte.ts rechaza uno más largo, no lo recorta). */

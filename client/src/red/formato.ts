@@ -35,6 +35,7 @@ export function pedidoDe(n: number, producto: string): string {
 }
 
 const ESTADO_SII: Record<string, string> = {
+  enviando: 'enviando al SII',
   aceptado: 'aceptado por el SII',
   reparo: 'aceptado con reparos',
   recibido: 'recibido por el SII',

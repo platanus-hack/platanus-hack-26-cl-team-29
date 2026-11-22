@@ -6,7 +6,7 @@ import { resultadoDe, validarReclamo } from './reclamo.ts';
 import { timbrarSimulado } from './timbre.ts';
 import { normalizarRut } from '../../shared/rut.ts';
 import { marcaEnChile } from '../../shared/fecha.ts';
-import type { AccionReceptor, DocumentoEmitido, Emisor, EventoReceptor, RespuestaReclamo } from './tipos.ts';
+import type { AccionReceptor, DocumentoEmitido, Emisor, EventoReceptor, LotePreparado, RespuestaReclamo } from './tipos.ts';
 
 /** RUT de ejemplo, sin dueño real, para cuando no se configura uno. */
 const RUT_DE_EJEMPLO = '11111111-1';
@@ -28,8 +28,8 @@ export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
     codigo, descripcion, resultado: resultadoDe(codigo),
   });
 
-  /** Un sobre con uno o más documentos: un track id para todos. */
-  async function emitirLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]) {
+  /** Un sobre con uno o más documentos: un track id para todos, que se asigna al subir. */
+  async function prepararLote(entradas: readonly Omit<EntradaDte, 'emisor'>[]): Promise<LotePreparado> {
     if (entradas.length === 0) throw new Error('El sobre necesita al menos un DTE.');
     const marca = marcaEnChile(new Date());
     const documentos = entradas.map((entrada): DocumentoEmitido => {
@@ -55,17 +55,20 @@ export function crearSiiFalso(rutEmisor: string = RUT_DE_EJEMPLO): Sii {
         impreso,
       };
     });
-    const trackId = String(++ultimoTrack);
-    porTrack.set(trackId, documentos);
-    for (const d of documentos) porFolio.set(clave(emisor, d.tipo, d.folio), d);
-    const texto = `<RECEPCIONDTE><STATUS>0</STATUS><TRACKID>${trackId}</TRACKID></RECEPCIONDTE>`;
-    return { documentos, envio: { estado: 'recibido' as const, trackId, respuesta: texto }, sobreXml: '' };
+    const subir = async () => {
+      const trackId = String(++ultimoTrack);
+      porTrack.set(trackId, documentos);
+      for (const d of documentos) porFolio.set(clave(emisor, d.tipo, d.folio), d);
+      const texto = `<RECEPCIONDTE><STATUS>0</STATUS><TRACKID>${trackId}</TRACKID></RECEPCIONDTE>`;
+      return { estado: 'recibido' as const, trackId, respuesta: texto };
+    };
+    return { documentos, sobreXml: '', subir };
   }
 
   return {
     modo: 'falso',
     rutEmisor: emisor,
-    ...emisiones(emitirLote),
+    ...emisiones(prepararLote),
 
     async estadoEnvio(trackId) {
       const lote = porTrack.get(trackId);

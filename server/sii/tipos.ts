@@ -155,6 +155,23 @@ export interface ResultadoLote {
   readonly sobreXml: string;
 }
 
+/**
+ * Un sobre ya armado, firmado y timbrado (con su PDF posible) que todavía no se sube. `subir` hace la única subida al
+ * SII: llamarla dos veces sería reenviar, y eso no se hace nunca.
+ */
+export interface LotePreparado {
+  readonly documentos: readonly DocumentoEmitido[];
+  readonly sobreXml: string;
+  subir(): Promise<ResultadoEnvio>;
+}
+
+/** Un documento armado y firmado en su propio sobre, sin subir todavía. */
+export interface DocumentoPreparado {
+  readonly documento: DocumentoEmitido;
+  readonly sobreXml: string;
+  subir(): Promise<ResultadoEnvio>;
+}
+
 export interface ConteoPorTipo {
   readonly tipo: number;
   readonly informados: number;

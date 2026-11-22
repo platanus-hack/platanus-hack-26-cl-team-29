@@ -182,10 +182,11 @@ test('en la compra conjunta cada factura 33 sale al RUT y a los datos del SII de
   const silencioso = { info() {}, warn() {}, error() {} };
   const base = crearSii({ env: { SII_RUT_EMISOR: RUT_EMPRESA }, log: silencioso });
   const sobres: EntradaFactura[][] = [];
-  const sii = { ...base, emitirFacturas: (e: readonly EntradaFactura[]) => { sobres.push([...e]); return base.emitirFacturas(e); } };
+  const sii = { ...base, prepararFacturas: (e: readonly EntradaFactura[]) => { sobres.push([...e]); return base.prepararFacturas(e); } };
   const giroLargo = 'Venta al por menor de pan, productos de panadería y pastelería';
   const { consultar } = consultaContada({ [RUT_A]: ficha('Comercial Prueba Limitada'), [RUT_B]: ficha('Panadería Prueba SpA', giroLargo) });
-  const { red } = await redDePrueba(consultar, crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), rangos: () => [{ desde: 40, hasta: 99 }], log: silencioso, seguirEnvios: false }));
+  const real = crearSiiReal({ sii, folios: crearAlmacenFoliosMemoria(), rangos: () => [{ desde: 40, hasta: 99 }], log: silencioso, seguirEnvios: false });
+  const { red } = await redDePrueba(consultar, real);
 
   await red.actualizarCarrito('L-1', { telefono: '+56 9 1111 2222', nombre: 'Ana', rut: '11.111.111-1', items: [{ productoId: 'rollos', cantidad: 2 }] });
   await red.actualizarCarrito('L-1', { telefono: '+56 9 3333 4444', nombre: 'Beto', rut: '22222222-2', items: [{ productoId: 'bolsas', cantidad: 1 }] });
@@ -197,7 +198,9 @@ test('en la compra conjunta cada factura 33 sale al RUT y a los datos del SII de
     [RUT_A, 'Comercial Prueba Limitada', 'Ñuñoa'], [RUT_B, 'Panadería Prueba SpA', 'Ñuñoa'],
   ]);
   assert.equal(sobres[0]![1]!.receptor.giro, giroLargo.slice(0, 40).trim());
-  assert.deepEqual(facturas.map(f => f.estadoSii), ['recibido', 'recibido'], 'el XML con el giro cortado pasa la validación');
+  assert.equal(facturas.length, 2);
+  await real.subidasTerminadas();
+  assert.deepEqual(red.estadoDeLaRed().documentos.filter(d => d.tipo === 33).map(d => d.estadoSii), ['recibido', 'recibido'], 'el XML con el giro cortado pasa la validación');
 });
 
 test('por WhatsApp, si el SII rechaza la consulta de un RUT válido, se suma con lo que declaró y su factura sale a ese RUT', async () => {

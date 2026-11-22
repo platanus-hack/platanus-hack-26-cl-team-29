@@ -2,7 +2,7 @@ import { nombreEnFrase } from '../../shared/documentos.ts';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { contar, segun } from '../../shared/texto.ts';
 import { ErrorSii } from '../sii/index.ts';
-import type { EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEmision, ResultadoLote, Sii } from '../sii/index.ts';
+import type { DocumentoEmitido, DocumentoPreparado, EntradaFactura, EstadoDocumento, EstadoEnvio, Log, Receptor, ResultadoEnvio, Sii } from '../sii/index.ts';
 import { foliosLibres } from './folios.ts';
 import type { AlmacenFolios, EstadoFolio, RangoFolios, RegistroFolio } from './folios.ts';
 import { ErrorRed } from './dominio.ts';
@@ -18,6 +18,10 @@ import type { Negocio, OrdenCompra } from './tipos.ts';
 // Folios: se toman de los rangos de los CAF de la conexión (varios por tipo) en el almacén ANTES de armar el
 // documento y nunca se reusan. Un envío `incierto` (corte de red) queda marcado así: no se reenvía ni se toma otro
 // folio; se revisa con `consultarDocumento` (QueryEstDte). Nada se anula.
+//
+// Emitir no espera al SII: el documento se arma, se firma y se timbra con el CAF, queda `enviando` y se devuelve al
+// instante (con su PDF); la única subida del sobre corre en segundo plano, en orden, y su resultado (recibido,
+// rechazado, incierto o fallido) se guarda en cada folio y se avisa a la red. Nada se reintenta solo.
 
 export interface SiiReal extends PuertoSii {
   /**
@@ -25,6 +29,8 @@ export interface SiiReal extends PuertoSii {
    * Nunca reenvía: si el SII dice FAU (no recibido), queda `no_recibido` para que una persona decida.
    */
   consultarDocumento(tipo: number, folio: number): Promise<{ registro: RegistroFolio; estado: EstadoDocumento }>;
+  /** Espera a que terminen las subidas en segundo plano ya encargadas (tests y scripts; la red no la necesita). */
+  subidasTerminadas(): Promise<void>;
 }
 
 export interface OpcionesSiiReal {
@@ -46,7 +52,7 @@ const EN_PROCESO = new Set(['REC', 'SOK', 'CRT', 'FOK', 'PDR', 'PRD', 'LSO']);
  */
 export const ESPERAS_SEGUIMIENTO_MS: readonly number[] = [2_000, 3_000, 3_000, 4_000, 5_000, 8_000, ...Array<number>(26).fill(10_000)];
 /** Con un folio en estos estados no se toma otro para la misma orden y tipo: el documento ya existe o pudo llegar. */
-const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'incierto', 'recibido', 'aceptado', 'reparo', 'no_recibido', 'no_coincide'];
+const SIN_NUEVO_FOLIO: readonly EstadoFolio[] = ['reservado', 'enviando', 'incierto', 'recibido', 'aceptado', 'reparo', 'no_recibido', 'no_coincide'];
 /** "factura 33", para los logs. */
 const nombreConTipo = (tipo: number) => `${nombreEnFrase(tipo)} ${tipo}`;
 
@@ -57,6 +63,13 @@ export const faltanFolios = (tipo: number, necesarios: number, libres: number) =
 const detalleDe = (error: unknown) =>
   error instanceof ErrorSii ? `${error.message}\n${error.respuesta}` : String(error instanceof Error ? error.message : error);
 const esperar = (ms: number) => new Promise(r => setTimeout(r, ms).unref());
+
+/**
+ * Sobres que este proceso está subiendo (por emisor, tipo y folio). Es del proceso, no de cada instancia: una
+ * conexión que cambia de versión a mitad de una subida no debe creer que ese folio quedó huérfano.
+ */
+const enVuelo = new Set<string>();
+const claveVuelo = (rutEmisor: string, tipo: number, folio: number) => `${rutEmisor}:${tipo}:${folio}`;
 
 /** Motivo para la persona cuando un comprador no tiene RUT verificado en el SII. */
 export const compradorSinRut = (nombre: string) =>
@@ -94,6 +107,9 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
     cola = r.catch(() => {});
     return r;
   };
+  // Las subidas van en su propia fila, una a la vez y en el orden en que se emitieron: la emisión siguiente no
+  // espera a que el SII responda la anterior.
+  let subidas: Promise<unknown> = Promise.resolve();
 
   const guardar = (r: RegistroFolio, cambios: Partial<RegistroFolio>) =>
     folios.guardar(Object.assign(r, cambios, { actualizadoEn: new Date().toISOString() }));
@@ -105,7 +121,8 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
   const avisar = (r: RegistroFolio) => {
     if (r.tipo !== 33 && r.tipo !== 52 && r.tipo !== 61) return;
     const cambio: CambioEstadoSii = {
-      tipo: r.tipo, folio: r.folio, ordenId: r.ordenId, estadoSii: resultado(r).estadoSii, ...(r.detalle ? { detalle: r.detalle } : {}),
+      tipo: r.tipo, folio: r.folio, ordenId: r.ordenId, estadoSii: resultado(r).estadoSii,
+      ...(r.trackId ? { trackId: r.trackId } : {}), ...(r.detalle ? { detalle: r.detalle } : {}),
     };
     for (const oyente of oyentes) {
       try { oyente(cambio); } catch (error) { log.error('[sii] oyente de cambio de estado falló', error); }
@@ -116,8 +133,11 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
   async function folioVivo(tipo: 33 | 52 | 61, ordenId: string) {
     const previo = (await folios.deOrden(ordenId, tipo)).find(r => SIN_NUEVO_FOLIO.includes(r.estado));
     if (!previo) return undefined;
-    // Quedó a medias (por ejemplo, un reinicio entre la subida y guardar el documento): no se reenvía.
+    // Quedó a medias (un reinicio entre armarlo y saber qué respondió el SII): no se reenvía, queda para revisar.
     if (previo.estado === 'reservado') await guardar(previo, { estado: 'incierto', detalle: 'Reservado sin resultado de subida (reinicio)' });
+    if (previo.estado === 'enviando' && !enVuelo.has(claveVuelo(sii.rutEmisor, tipo, previo.folio))) {
+      await guardar(previo, { estado: 'incierto', detalle: 'Firmado sin resultado de subida (reinicio)' });
+    }
     log.warn(`[sii] ${nombreConTipo(tipo)} de ${ordenId} ya tiene el folio ${previo.folio} (${previo.estado}): no se vuelve a enviar`);
     return previo;
   }
@@ -161,41 +181,68 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
       const nombre = `lote de ${nuevos.length} facturas 33 (folios ${rango})`;
       log.info(`[sii] ${nombre}: órdenes ${nuevos.map(n => n.orden.id).join(', ')}`);
 
-      let emision: ResultadoLote;
+      let preparado: { documentos: readonly DocumentoEmitido[]; subir: () => Promise<ResultadoEnvio> };
       try {
-        emision = await sii.emitirFacturas(nuevos.map(n => entradaFactura(n.datos, n.registro.folio, n.receptor)));
+        preparado = await sii.prepararFacturas(nuevos.map(n => entradaFactura(n.datos, n.registro.folio, n.receptor)));
       } catch (error) {
         await fallar(detalleDe(error));
         log.error(`[sii] ${nombre}: falló antes de subir, los folios quedan usados. ${detalleDe(error)}`);
         throw error;
       }
-      const { envio } = emision;
-      const estado: EstadoFolio = envio.estado;
-      const cambios = envio.estado === 'recibido'
-        ? { trackId: envio.trackId, detalle: envio.respuesta }
-        : { detalle: envio.estado === 'rechazado' ? envio.respuesta : envio.error };
       for (const [k, n] of nuevos.entries()) {
-        const d = emision.documentos[k]!;
-        await guardar(n.registro, {
-          fechaEmision: d.fechaEmision, montoTotal: d.montoTotal, rutReceptor: d.rutReceptor, estado, ...cambios,
-        });
+        const d = preparado.documentos[k]!;
+        await guardar(n.registro, { ...datosDeConsulta(d), estado: 'enviando' });
         resultados[n.posicion] = { ...resultado(n.registro), impreso: d.impreso };
       }
-      if (envio.estado === 'rechazado') {
-        log.error(`[sii] ${nombre}: sobre rechazado (STATUS ${envio.status}). Respuesta:\n${envio.respuesta}`);
-        throw new Error(`El SII rechazó el ${nombre} (STATUS ${envio.status})`);
-      }
-      if (envio.estado === 'incierto') {
-        log.warn(`[sii] ${nombre}: envío incierto, no se reenvía; revisar cada folio con consultarDocumento. ${envio.error}`);
-        return resultados;
-      }
-      log.info(`[sii] ${nombre}: recibido, track id ${envio.trackId}`);
-      if (seguirEnvios) seguir(nuevos.map(n => n.registro)).catch(error => log.error(`[sii] seguimiento del ${nombre} falló`, error));
+      log.info(`[sii] ${nombre}: firmado, se sube en segundo plano`);
+      subirEnFondo(nombre, nuevos.map(n => n.registro), preparado.subir);
       return resultados;
     });
   }
 
-  function emitir(tipo: 33 | 52 | 61, datos: DatosEmision, armar: (folio: number, receptor: Receptor) => Promise<ResultadoEmision>) {
+  const datosDeConsulta = (d: DocumentoEmitido) => ({ fechaEmision: d.fechaEmision, montoTotal: d.montoTotal, rutReceptor: d.rutReceptor });
+
+  /**
+   * La única subida de un sobre ya firmado, en la fila de subidas. El resultado queda en cada folio y se avisa a la
+   * red: `recibido` (con su track id, y luego el veredicto), `rechazado`, `incierto` (corte de red: se revisa con
+   * `consultarDocumento`, nunca se reenvía) o `fallido` (no llegó a subir, por ejemplo sin token). Nada se reintenta.
+   */
+  function subirEnFondo(nombre: string, registros: RegistroFolio[], subir: () => Promise<ResultadoEnvio>) {
+    const claves = registros.map(r => claveVuelo(sii.rutEmisor, r.tipo, r.folio));
+    for (const c of claves) enVuelo.add(c);
+    const inicio = Date.now();
+    const tarea = subidas.then(async () => {
+      let envio: ResultadoEnvio | undefined;
+      let error: unknown;
+      try {
+        envio = await subir();
+      } catch (e) {
+        error = e;
+      }
+      const cambios: Partial<RegistroFolio> = !envio
+        ? { estado: 'fallido', detalle: detalleDe(error) }
+        : envio.estado === 'recibido'
+          ? { estado: 'recibido', trackId: envio.trackId, detalle: envio.respuesta }
+          : envio.estado === 'rechazado'
+            ? { estado: 'rechazado', detalle: envio.respuesta }
+            : { estado: 'incierto', detalle: envio.error };
+      for (const r of registros) {
+        await guardar(r, cambios);
+        avisar(r);
+      }
+      const ms = Date.now() - inicio;
+      if (!envio) log.error(`[sii] ${nombre}: falló al subir, nada llegó al SII y los folios quedan usados (${ms} ms). ${detalleDe(error)}`);
+      else if (envio.estado === 'rechazado') log.error(`[sii] ${nombre}: sobre rechazado (STATUS ${envio.status}, ${ms} ms). Respuesta:\n${envio.respuesta}`);
+      else if (envio.estado === 'incierto') log.warn(`[sii] ${nombre}: envío incierto (${ms} ms), no se reenvía; revisar cada folio con consultarDocumento. ${envio.error}`);
+      else {
+        log.info(`[sii] ${nombre}: recibido en ${ms} ms, track id ${envio.trackId}`);
+        if (seguirEnvios) seguir(registros).catch(e => log.error(`[sii] seguimiento del ${nombre} falló`, e));
+      }
+    }).finally(() => { for (const c of claves) enVuelo.delete(c); });
+    subidas = tarea.catch(e => log.error(`[sii] ${nombre}: la subida en segundo plano falló`, e));
+  }
+
+  function emitir(tipo: 33 | 52 | 61, datos: DatosEmision, preparar: (folio: number, receptor: Receptor) => Promise<DocumentoPreparado>) {
     const ordenId = datos.orden.id;
     return enCola(async () => {
       const nombre = `${nombreConTipo(tipo)} de ${ordenId}`;
@@ -205,31 +252,19 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
       const [paraQuien] = receptoresDe([datos]);
       const registro = await folios.reservar(tipo, rangosDe(tipo), ordenId);
       log.info(`[sii] ${nombre}: folio ${registro.folio} reservado`);
-      let emision: ResultadoEmision;
+      let preparado: DocumentoPreparado;
       try {
-        emision = await armar(registro.folio, paraQuien!);
+        preparado = await preparar(registro.folio, paraQuien!);
       } catch (error) {
         const detalle = detalleDe(error);
         await guardar(registro, { estado: 'fallido', detalle });
         log.error(`[sii] ${nombre} folio ${registro.folio}: falló antes de subir, el folio queda usado. ${detalle}`);
         throw error;
       }
-      const { documento, envio } = emision;
-      const consulta = { fechaEmision: documento.fechaEmision, montoTotal: documento.montoTotal, rutReceptor: documento.rutReceptor };
-      if (envio.estado === 'rechazado') {
-        await guardar(registro, { ...consulta, estado: 'rechazado', detalle: envio.respuesta });
-        log.error(`[sii] ${nombre} folio ${registro.folio}: sobre rechazado (STATUS ${envio.status}). Respuesta:\n${envio.respuesta}`);
-        throw new Error(`El SII rechazó la ${nombre} (folio ${registro.folio}, STATUS ${envio.status})`);
-      }
-      if (envio.estado === 'incierto') {
-        await guardar(registro, { ...consulta, estado: 'incierto', detalle: envio.error });
-        log.warn(`[sii] ${nombre} folio ${registro.folio}: envío incierto, no se reenvía; revisar con consultarDocumento. ${envio.error}`);
-        return { ...resultado(registro), impreso: documento.impreso };
-      }
-      await guardar(registro, { ...consulta, estado: 'recibido', trackId: envio.trackId, detalle: envio.respuesta });
-      log.info(`[sii] ${nombre} folio ${registro.folio}: recibido, track id ${envio.trackId}`);
-      if (seguirEnvios) seguir([registro]).catch(error => log.error(`[sii] seguimiento de ${nombre} falló`, error));
-      return { ...resultado(registro), impreso: documento.impreso };
+      await guardar(registro, { ...datosDeConsulta(preparado.documento), estado: 'enviando' });
+      log.info(`[sii] ${nombre} folio ${registro.folio}: firmado, se sube en segundo plano`);
+      subirEnFondo(`${nombre} folio ${registro.folio}`, [registro], preparado.subir);
+      return { ...resultado(registro), impreso: preparado.documento.impreso };
     });
   }
 
@@ -262,15 +297,17 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
   }
 
   return {
+    subidasTerminadas: async () => { await subidas; },
+
     alCambiarEstado(oyente) {
       oyentes.add(oyente);
     },
 
-    emitirFactura: datos => emitir(33, datos, (folio, receptor) => sii.emitirFactura(entradaFactura(datos, folio, receptor))),
+    emitirFactura: datos => emitir(33, datos, (folio, receptor) => sii.prepararFactura(entradaFactura(datos, folio, receptor))),
 
     emitirFacturas,
 
-    emitirGuia: datos => emitir(52, datos, (folio, receptor) => sii.emitirGuia({
+    emitirGuia: datos => emitir(52, datos, (folio, receptor) => sii.prepararGuia({
       folio, receptor, ...guiaDeOrden(datos.orden),
     })),
 
@@ -279,7 +316,7 @@ export function crearSiiReal({ sii, folios, rangos: rangosDe, log = console, seg
       const { factura, items } = datos;
       const registro33 = await folios.buscar(33, factura.folio);
       const fecha = registro33?.fechaEmision ?? fechaEnChile(factura.emitidoEn);
-      return sii.emitirNotaCredito({
+      return sii.prepararNotaCredito({
         folio, receptor, items: itemsSii(items, i => i.cantidad), factura: { folio: factura.folio, fecha },
       });
     }),

@@ -148,7 +148,7 @@ test('con la conexión completa la red emite con el SII de la app; sin ella, con
     emitirFactura: async () => { usados.push(nombre); return { folio: 1, trackId: '', estadoSii: nombre }; },
   });
   const sii = crearSiiConmutable({
-    falso: marcar('falso'), conexionDe: async () => conexion, crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
+    falso: marcar('falso'), conexionDe: async () => conexion, crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); }, subidasTerminadas: async () => {} }) as SiiReal,
   });
   const datos = {} as Parameters<PuertoSii['emitirFactura']>[0];
   await sii.emitirFactura(datos);
@@ -179,7 +179,7 @@ test('cada proveedor emite con la conexión de su empresa, un sobre lleva un sol
   const sii = crearSiiConmutable({
     falso: marcar('falso'),
     conexionDe: async emisor => (emisor?.vende ? (emisor.rut === RUT_EMPRESA ? deAna : conexionDePrueba()) : panel),
-    crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); } }) as SiiReal,
+    crearReal: config => ({ ...marcar(`real ${config.sii.emisor.rut}`), consultarDocumento: async () => { throw new Error(); }, subidasTerminadas: async () => {} }) as SiiReal,
   });
   const de = (emisor: Partial<Negocio>) => ({ emisor: { id: emisor.rut ?? 'p', ...emisor } }) as Parameters<PuertoSii['emitirFactura']>[0];
   await sii.emitirFactura(de({ vende: true, rut: RUT_EMPRESA }));
