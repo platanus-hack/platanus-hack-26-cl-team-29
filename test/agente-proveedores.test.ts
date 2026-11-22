@@ -4,16 +4,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { conectarAgente } from '../server/agente/index.ts';
+import type { ListaDeProductos } from '../server/agente/proveedor.ts';
 import { interpretarConReglas, interpreteDeReglas } from '../server/agente/intencion.ts';
 import { crearRed, crearRepositorioMemoria, crearSiiFalso, LICITACION_SALA } from '../server/red/index.ts';
 import { sembrarSiVacio } from '../server/red/semilla.ts';
+import { iniciarCatalogos } from '../server/catalogo/index.ts';
 import type { MessageHandler } from '../server/whatsapp/index.ts';
 
 const ANA = '56911110001';
 const BETO = '56911110002';
 const CARO = '56911110003';
 
-async function montar(env: NodeJS.ProcessEnv = {}) {
+async function montar(env: NodeJS.ProcessEnv = {}, productos?: ListaDeProductos) {
   const repo = crearRepositorioMemoria();
   await sembrarSiVacio(repo, new Date(), {});
   const red = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
@@ -36,6 +38,7 @@ async function montar(env: NodeJS.ProcessEnv = {}) {
     log: { info: silencio, warn: silencio, error: silencio },
     env,
     sala: { ventanaCascadaMs: 10, minimoDifusionMs: 0, vigilarCierreMs: 0 },
+    ...(productos ? { productos } : {}),
   });
   let n = 0;
   const escribir = async (from: string, text: string) => {
@@ -138,21 +141,19 @@ test('con DEMO_PROVEEDOR_SIN_CERTIFICADO=1 se puede vender sin certificado escri
   assert.match(ultimo(ANA), /ofertaste \$25\.000/);
 });
 
-test('por WhatsApp: sin compra abierta, "vendo ..." abre una compra en grupo nueva con ese producto', async t => {
-  const { red, agente, escribir, ultimo } = await montar();
+test('por WhatsApp: sin compra abierta, "vendo ..." agrega el producto a su lista con tramos sugeridos', async t => {
+  const catalogos = await iniciarCatalogos({ emitir: () => {} });
+  const { red, agente, escribir, ultimo } = await montar({}, catalogos);
   t.after(() => agente.desconectar());
   await escribir(ANA, 'quiero vender');
   await agente.certificadoConectado(ANA, '11111111-1');
   await escribir(ANA, '1');
   await red.cerrarLicitacion(LICITACION_SALA);
-  assert.equal(red.licitacionAbierta(), null);
 
   await escribir(ANA, 'vendo etiquetas adhesivas a $2.000 el rollo');
-  assert.match(ultimo(ANA), /No hay una compra en grupo abierta\. ¿Abro una con "Etiquetas adhesivas" a \$2\.000 por rollo\?/);
+  assert.match(ultimo(ANA), /¿Agrego "Etiquetas adhesivas" a tus productos a \$2\.000 por rollo\?/);
   await escribir(ANA, 'si');
-  assert.match(ultimo(ANA), /abriste una compra en grupo con "Etiquetas adhesivas"/);
-  const abierta = red.licitacionAbierta()!;
-  assert.notEqual(abierta.id, LICITACION_SALA);
-  assert.deepEqual([abierta.productos.map(p => p.nombre), abierta.proveedorId], [['Etiquetas adhesivas'], red.negocioPorTelefono(ANA)!.id]);
-  await assert.rejects(red.abrirCompra({ proveedorId: abierta.proveedorId!, nombre: 'Té verde', unidad: 'caja', precio: 5000 }), /Ya hay una compra en grupo abierta/);
+  assert.match(ultimo(ANA), /"Etiquetas adhesivas" quedó en tus productos/);
+  const lista = catalogos.de(red.negocioPorTelefono(ANA)!.id)!.productos.filter(p => p.manual);
+  assert.deepEqual(lista.map(p => [p.nombre, p.unidad, p.tramos[0].precioUnitario]), [['Etiquetas adhesivas', 'rollo', 2000]]);
 });

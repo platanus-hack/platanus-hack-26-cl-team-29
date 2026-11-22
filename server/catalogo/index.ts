@@ -1,10 +1,14 @@
-// Catálogo de cada proveedor, armado solo desde sus facturas de venta. Conseguir los XML es tarea del equipo, no del
+// Catálogo de cada proveedor, armado solo desde sus facturas de venta, más lo que el proveedor agrega a mano. Conseguir los XML es tarea del equipo, no del
 // proveedor: los trae un origen (el historial de ejemplo en la demo; los XML que entrega su facturador o su casilla de
 // intercambio, cargados por la ruta de operación). Se arma la primera vez que el proveedor entra a su panel o se
 // registra, y avisa por `red:evento` (`catalogo.actualizado`, solo el id del proveedor y el estado).
 // Decisión: docs/decisiones/20261121-1941-catalogo-desde-facturas.md
 import type pg from 'pg';
-import { armarCatalogo, resumenDeFacturas, type CatalogoProveedor, type LineaVendida, type ProductoCatalogo } from '../../shared/catalogo.ts';
+import {
+  armarCatalogo, errorDeProductoEscrito, juntarCatalogo, productoManual, resumenDeFacturas,
+  type CatalogoProveedor, type LineaVendida, type ProductoCatalogo, type ProductoEscrito,
+} from '../../shared/catalogo.ts';
+import { ErrorRed } from '../red/dominio.ts';
 import type { EventoRed } from '../red/tipos.ts';
 import { origenEjemplo, type OrigenXml } from './origenes.ts';
 import { leerFacturas } from './xml.ts';
@@ -31,6 +35,8 @@ export interface ResultadoCarga {
 interface Guardado {
   catalogo: CatalogoProveedor;
   facturas: { clave: string; fecha: string; lineas: LineaVendida[] }[];
+  /** Los que agregó a mano; sobreviven a cada nueva carga de facturas. */
+  manuales?: ProductoCatalogo[];
 }
 
 export interface Catalogos {
@@ -41,6 +47,12 @@ export interface Catalogos {
   /** Arma (o suma, si son archivos) desde un origen. */
   armar(proveedor: ProveedorCatalogo, origen?: OrigenXml): Promise<ResultadoCarga>;
   producto(proveedorId: string, clave: string): ProductoCatalogo | undefined;
+  /** Agrega un producto a su lista. Si el catálogo nunca se armó, lo empieza a armar desde las facturas. */
+  agregar(proveedor: ProveedorCatalogo, producto: ProductoEscrito): Promise<ProductoCatalogo>;
+  /** Cambia un producto de su lista (nombre, unidad, tramos), con la misma clave. */
+  editar(proveedor: ProveedorCatalogo, clave: string, producto: ProductoEscrito): Promise<ProductoCatalogo>;
+  /** Quita un producto de su lista (las sugerencias de sus facturas no se quitan). */
+  quitar(proveedorId: string, clave: string): Promise<void>;
 }
 
 export interface OpcionesCatalogos {
@@ -79,8 +91,9 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
     const base = origen.origen === 'archivos' && previo?.catalogo.origen === 'archivos' ? previo.facturas : [];
     const porClave = new Map(base.map(f => [f.clave, f]));
     const cuenta = { omitidos: 0, deOtraEmpresa: 0, ilegibles: 0 };
+    const manuales = previo?.manuales ?? [];
     if (previo?.catalogo.estado !== 'listo') {
-      cambiar(p.id, { catalogo: { estado: 'armando', origen: origen.origen, facturas: 0, productos: [], actualizado: ahora().toISOString() }, facturas: [] });
+      cambiar(p.id, { catalogo: { estado: 'armando', origen: origen.origen, facturas: 0, productos: manuales, actualizado: ahora().toISOString() }, facturas: [], manuales });
     }
     try {
       for (const xml of await origen.xmls()) {
@@ -104,7 +117,7 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
       // Si ya había un catálogo listo, se queda; si no, queda en error y se reintenta la próxima vez que entre.
       if (previo?.catalogo.estado !== 'listo') {
         const mensaje = 'No pudimos traer tus facturas. Lo intentamos de nuevo la próxima vez que entres.';
-        cambiar(p.id, { catalogo: { estado: 'error', origen: origen.origen, facturas: 0, productos: [], actualizado: ahora().toISOString(), mensaje }, facturas: [] });
+        cambiar(p.id, { catalogo: { estado: 'error', origen: origen.origen, facturas: 0, productos: manuales, actualizado: ahora().toISOString(), mensaje }, facturas: [], manuales });
       }
       throw error;
     }
@@ -112,9 +125,10 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
     const g: Guardado = {
       catalogo: {
         estado: 'listo', origen: origen.origen, ...resumenDeFacturas(facturas.map(f => f.fecha)),
-        productos: armarCatalogo(facturas.flatMap(f => f.lineas)), actualizado: ahora().toISOString(),
+        productos: juntarCatalogo(manuales, armarCatalogo(facturas.flatMap(f => f.lineas))), actualizado: ahora().toISOString(),
       },
       facturas,
+      manuales,
     };
     await persistir(p.id, g);
     cambiar(p.id, g);
@@ -131,6 +145,33 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
     return siguiente;
   }
 
+  function validado(escrito: ProductoEscrito, otros: readonly ProductoCatalogo[], clave?: string): ProductoCatalogo {
+    const problema = errorDeProductoEscrito(escrito, otros);
+    if (problema) throw new ErrorRed('datos_invalidos', problema);
+    return productoManual(escrito, ahora().toISOString().slice(0, 10), clave);
+  }
+
+  /** Su lista, si el producto está en ella. */
+  function deSuLista(id: string, clave: string): ProductoCatalogo[] {
+    const manuales = guardados.get(id)?.manuales ?? [];
+    if (!manuales.some(x => x.clave === clave)) throw new ErrorRed('no_encontrado', 'Ese producto no está en tu lista');
+    return manuales;
+  }
+
+  /** Cambia los productos a mano y vuelve a juntar el catálogo con lo de las facturas. */
+  async function conManuales(p: ProveedorCatalogo, cambio: (manuales: ProductoCatalogo[]) => ProductoCatalogo[]) {
+    const previo = guardados.get(p.id);
+    const manuales = cambio(previo?.manuales ?? []);
+    const deFacturas = (previo?.catalogo.productos ?? []).filter(x => !x.manual);
+    const catalogo: CatalogoProveedor = previo
+      ? { ...previo.catalogo, productos: juntarCatalogo(manuales, deFacturas), actualizado: ahora().toISOString() }
+      : { estado: 'armando', origen: 'ejemplo', facturas: 0, productos: manuales, actualizado: ahora().toISOString() };
+    const g: Guardado = { catalogo, facturas: previo?.facturas ?? [], manuales };
+    await persistir(p.id, g);
+    cambiar(p.id, g);
+    if (!previo && !enCurso.has(p.id)) void armar(p).catch(() => {});
+  }
+
   return {
     de: id => guardados.get(id)?.catalogo ?? null,
     asegurar(p) {
@@ -141,5 +182,20 @@ export async function iniciarCatalogos({ db, emitir, origenPorDefecto = p => ori
     },
     armar,
     producto: (id, clave) => guardados.get(id)?.catalogo.productos.find(x => x.clave === clave),
+    async agregar(p, escrito) {
+      const producto = validado(escrito, guardados.get(p.id)?.manuales ?? []);
+      await conManuales(p, manuales => [producto, ...manuales]);
+      return producto;
+    },
+    async editar(p, clave, escrito) {
+      const manuales = deSuLista(p.id, clave);
+      const producto = validado(escrito, manuales.filter(x => x.clave !== clave), clave);
+      await conManuales(p, ms => ms.map(x => (x.clave === clave ? producto : x)));
+      return producto;
+    },
+    async quitar(id, clave) {
+      deSuLista(id, clave);
+      await conManuales({ id }, manuales => manuales.filter(x => x.clave !== clave));
+    },
   };
 }

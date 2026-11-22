@@ -120,4 +120,17 @@
 }
 .bp-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px 16px; border-top: var(--border-width) solid var(--color-border); }
 
+/* ---------- Tus productos ---------- */
+.bp-mas { width: 44px; padding: 0; font-size: 24px; font-weight: 400; line-height: 1; }
+.bp-base { font-size: var(--text-sm); font-weight: 600; }
+.bp-producto { align-items: start; }
+.bp-tramos-chicos { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 6px 0 0; padding: 0; }
+.bp-tramos-chicos li {
+  padding: 2px 8px; border-radius: var(--radius-full); background: var(--color-secondary);
+  font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-muted-foreground); white-space: nowrap;
+}
+.bp-tramos-chicos strong { color: var(--color-foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bp-producto-acciones { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+@media (min-width: 640px) { .bp-producto { grid-template-columns: 32px minmax(0, 1fr) auto; } .bp-producto-acciones { grid-column: auto; justify-content: flex-end; } }
+
 @media (prefers-reduced-motion: reduce) { .bp-barra i { transition: none; } }

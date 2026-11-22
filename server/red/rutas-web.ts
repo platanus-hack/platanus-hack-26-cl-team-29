@@ -262,24 +262,6 @@ export function crearRutasWeb(red: Red, env: NodeJS.ProcessEnv, { sesiones, codi
     res.json(await red.confirmarOrdenesDeLicitacion(licitacionId));
   });
 
-  // Abre una compra en grupo nueva con su primer producto, si no hay otra abierta. `minutos`: cuánto dura (opcional).
-  rutas.post('/proveedor/compras', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
-    const { nombre, unidad, precio, minutos } = cuerpo(req);
-    const l = await red.abrirCompra({
-      proveedorId: yo(req).id, nombre: String(nombre ?? ''), unidad: String(unidad ?? ''), precio: Number(precio),
-      ...(minutos === undefined ? {} : { minutos: Number(minutos) }),
-    });
-    res.status(201).json(sinTelefonos(l));
-  });
-
-  // Suma un producto suyo a la compra en grupo abierta (lo mismo que "vendo ..." por WhatsApp): nombre, unidad y precio
-  // de comprar solo. Sus tramos salen automáticos del precio y luego los cambia con la ruta de abajo.
-  rutas.post('/proveedor/licitacion/:id/productos', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
-    const { nombre, unidad, precio } = cuerpo(req);
-    const r = await red.crearProducto(id(req), { proveedorId: yo(req).id, nombre: String(nombre ?? ''), unidad: String(unidad ?? ''), precio: Number(precio) });
-    res.status(201).json(sinTelefonos(r));
-  });
-
   // Sus tramos por volumen, mientras la compra está abierta. El dominio exige que el producto sea suyo.
   rutas.put('/proveedor/licitacion/:id/productos/:productoId/tramos', exigir('proveedor'), limitarProveedor, async (req: ConSesion, res) => {
     const r = await red.fijarTramos(id(req), String(req.params.productoId), yo(req).id, cuerpo(req).tramos as Tramo[]);

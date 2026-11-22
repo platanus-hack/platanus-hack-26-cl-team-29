@@ -6,6 +6,7 @@
 // factura (el del titular u otra empresa) → negocio que vende y también compra, y su conexión al SII en segundo plano.
 import { validarRut } from '../../shared/rut.ts';
 import { dinero } from '../../shared/formato.ts';
+import type { ProductoEscrito } from '../../shared/catalogo.ts';
 import { precioDelProducto, tramosAutomaticos } from '../../shared/precios.ts';
 import { normalizar } from './intencion.ts';
 import { productoNombrado, productosDe } from './canasta.ts';
@@ -38,6 +39,8 @@ export interface OpcionesProveedores {
    * registrado como proveedor sin certificado ni conexión al SII. Sus facturas salen simuladas.
    */
   readonly sinCertificado?: boolean;
+  /** Su lista de productos (server/catalogo): "vendo ..." sin compra abierta lo agrega ahí. */
+  readonly productos?: ListaDeProductos;
   /** Cada cuánto revisar si la conexión al SII terminó, y hasta cuántas veces. */
   readonly revisarSiiMs?: number;
   readonly revisionesSii?: number;
@@ -47,8 +50,13 @@ export interface OpcionesProveedores {
 export type PropuestaProveedor = { readonly mensaje: string } & (
   | { readonly tipo: 'ofertar'; readonly licitacionId: string; readonly productoId: string; readonly precio: number }
   | { readonly tipo: 'crear_producto'; readonly licitacionId: string; readonly nombre: string; readonly unidad: string; readonly precio: number }
-  | { readonly tipo: 'abrir_compra'; readonly nombre: string; readonly unidad: string; readonly precio: number }
+  | { readonly tipo: 'agregar_producto'; readonly nombre: string; readonly unidad: string; readonly precio: number }
 );
+
+/** Lo que el agente necesita de la lista de productos del proveedor (server/catalogo). */
+export interface ListaDeProductos {
+  agregar(proveedor: { readonly id: string; readonly rut?: string }, producto: ProductoEscrito): Promise<unknown>;
+}
 
 export interface Proveedores {
   cargar(): Promise<void>;
@@ -185,17 +193,17 @@ export function crearProveedores(red: RedSala & RedProveedores, o: OpcionesProve
 
   async function proponerProducto(_proveedor: Negocio, nombre: string, unidad: string, precio: number): Promise<PropuestaProveedor | string> {
     const l = await abierta();
-    // Sin compra abierta, el producto abre una nueva (si la red sabe abrirla).
-    if (!l) return red.abrirCompra ? { tipo: 'abrir_compra', nombre, unidad, precio, mensaje: m.proponerAbrirCompra(nombre, unidad, tramosAutomaticos(precio)) } : m.SIN_COMPRA_ABIERTA;
+    // Sin compra abierta, el producto va a su lista con tramos sugeridos, que después cambia en su panel.
+    if (!l) return o.productos ? { tipo: 'agregar_producto', nombre, unidad, precio, mensaje: m.proponerAgregarProducto(nombre, unidad, tramosAutomaticos(precio)) } : m.SIN_COMPRA_ABIERTA;
     if (productosDe(l).some(p => normalizar(p.nombre) === normalizar(nombre))) return m.productoYaExiste(nombre);
     return { tipo: 'crear_producto', licitacionId: l.id, nombre, unidad, precio, mensaje: m.proponerProducto(nombre, unidad, tramosAutomaticos(precio)) };
   }
 
   async function ejecutar(proveedor: Negocio, p: PropuestaProveedor): Promise<string> {
-    if (p.tipo === 'abrir_compra') {
-      const l = await red.abrirCompra!({ proveedorId: proveedor.id, nombre: p.nombre, unidad: p.unidad, precio: p.precio });
-      o.log.info(`[proveedor] ${proveedor.id} abrió la compra ${l.id}`);
-      return m.compraAbierta(productosDe(l)[0]!, l.cierraEn);
+    if (p.tipo === 'agregar_producto') {
+      await o.productos!.agregar({ id: proveedor.id, ...(proveedor.rut ? { rut: proveedor.rut } : {}) }, { nombre: p.nombre, unidad: p.unidad, tramos: tramosAutomaticos(p.precio) });
+      o.log.info(`[proveedor] ${proveedor.id} agregó un producto a su lista`);
+      return m.productoAgregado(p.nombre);
     }
     if (p.tipo === 'crear_producto') {
       const { producto } = await red.crearProducto(p.licitacionId, { proveedorId: proveedor.id, nombre: p.nombre, unidad: p.unidad, precio: p.precio });

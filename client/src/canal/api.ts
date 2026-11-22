@@ -8,7 +8,7 @@ import type { EventoRed } from '../red/tipos.ts';
 import type { ItemCarrito } from './carrito.ts';
 import type { TipoDocumento } from '../../../shared/documentos.ts';
 import { MENSAJE_LIMITE } from '../../../shared/texto.ts';
-import type { CatalogoProveedor } from '../../../shared/catalogo.ts';
+import type { CatalogoProveedor, ProductoEscrito } from '../../../shared/catalogo.ts';
 import type { RutaReparto } from '../../../shared/ruta.ts';
 import type { EstadoConexionSii, ConfigRed, DatosEmpresaSii, DatosEntrada, FichaSii, FotoRed, Modo, Recepcion, Tramo, YoComprador, YoProveedor } from './tipos.ts';
 
@@ -17,13 +17,6 @@ export type Entrada = { registro: true } | { token: string; negocio: Negocio };
 export interface ItemPedido {
   producto: string;
   cantidad: number;
-}
-
-/** Un producto que el proveedor suma a la compra en grupo: el precio es el de comprar solo (primer tramo). */
-export interface ProductoNuevo {
-  nombre: string;
-  unidad: string;
-  precio: number;
 }
 
 export interface CanalApi {
@@ -50,10 +43,6 @@ export interface CanalApi {
   yoProveedor(token: string): Promise<YoProveedor>;
   cerrar(token: string, licitacionId: string): Promise<void>;
   facturar(token: string, licitacionId: string): Promise<void>;
-  /** Abre una compra en grupo nueva con su primer producto, si no hay otra abierta; cierra en `minutos`. */
-  abrirCompra(token: string, producto: ProductoNuevo & { minutos: number }): Promise<void>;
-  /** Suma un producto suyo a la compra en grupo abierta; sus tramos salen automáticos del precio. */
-  sumarProducto(token: string, licitacionId: string, producto: ProductoNuevo): Promise<void>;
   /** Sus tramos por volumen de un producto de la compra abierta (solo el dueño del producto). */
   fijarTramos(token: string, licitacionId: string, productoId: string, tramos: Tramo[]): Promise<void>;
   confirmarOrden(token: string, ordenId: string): Promise<void>;
@@ -75,8 +64,15 @@ export interface CanalApi {
   /** "Traer más folios": la reposición automática del servidor, en segundo plano. */
   siiTraerFolios(token: string, tipo: TipoDocumento): Promise<EstadoConexionSii>;
   siiDesconectar(token: string): Promise<EstadoConexionSii>;
-  /** "Mi catálogo": armado solo desde sus facturas. La primera vez llega `armando` y avisa con `catalogo.actualizado`. */
+  /**
+   * Su catálogo: su lista de productos (`manual`) y las sugerencias de sus facturas. La primera vez llega `armando` y
+   * avisa con `catalogo.actualizado`.
+   */
   catalogo(token: string): Promise<CatalogoProveedor>;
+  /** Agrega un producto a su lista, con sus tramos por cantidad. */
+  agregarProducto(token: string, producto: ProductoEscrito): Promise<void>;
+  editarProducto(token: string, clave: string, producto: ProductoEscrito): Promise<void>;
+  quitarProducto(token: string, clave: string): Promise<void>;
   /** Suma un producto del catálogo a la compra conjunta abierta, con los tramos de su historial. */
   sumarDelCatalogo(token: string, clave: string): Promise<void>;
   /** Avisa cada vez que algo cambia en la red. Devuelve cómo dejar de escuchar. */
@@ -167,10 +163,6 @@ export function crearApiReal(): CanalApi {
     yoProveedor: async token => normalizarYoProveedor(await llamar('/proveedor/yo', { token })),
     cerrar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/cerrar`, { token, cuerpo: {} }); },
     facturar: async (token, id) => { await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/facturar`, { token, cuerpo: { confirmado: true } }); },
-    abrirCompra: async (token, producto) => { await llamar('/proveedor/compras', { token, cuerpo: producto }); },
-    sumarProducto: async (token, id, producto) => {
-      await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos`, { token, cuerpo: producto });
-    },
     fijarTramos: async (token, id, productoId, tramos) => {
       await llamar(`/proveedor/licitacion/${encodeURIComponent(id)}/productos/${encodeURIComponent(productoId)}/tramos`, { token, cuerpo: { tramos }, metodo: 'PUT' });
     },
@@ -188,6 +180,11 @@ export function crearApiReal(): CanalApi {
     siiTraerFolios: (token, tipo) => llamar(`/proveedor/sii/folios/${tipo}`, { token, cuerpo: {} }),
     siiDesconectar: token => llamar('/proveedor/sii', { token, metodo: 'DELETE' }),
     catalogo: token => llamar('/proveedor/catalogo', { token }),
+    agregarProducto: async (token, producto) => { await llamar('/proveedor/catalogo/productos', { token, cuerpo: producto }); },
+    editarProducto: async (token, clave, producto) => {
+      await llamar(`/proveedor/catalogo/productos/${encodeURIComponent(clave)}`, { token, cuerpo: producto, metodo: 'PUT' });
+    },
+    quitarProducto: async (token, clave) => { await llamar(`/proveedor/catalogo/productos/${encodeURIComponent(clave)}`, { token, metodo: 'DELETE' }); },
     sumarDelCatalogo: async (token, clave) => { await llamar(`/proveedor/catalogo/productos/${encodeURIComponent(clave)}/sumar`, { token, cuerpo: {} }); },
     escuchar(alCambiar) {
       const socket = io();

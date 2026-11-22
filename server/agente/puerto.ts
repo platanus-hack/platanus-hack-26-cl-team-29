@@ -205,10 +205,6 @@ export interface RedProveedores {
   crearProducto(licitacionId: string, producto: {
     readonly proveedorId: string; readonly nombre: string; readonly unidad: string; readonly precio: number;
   }): Talvez<{ readonly producto: ProductoCompra }>;
-  /** Abre una compra en grupo nueva con su primer producto, si no hay otra abierta. Opcional: sin ella, no se abren. */
-  abrirCompra?(producto: {
-    readonly proveedorId: string; readonly nombre: string; readonly unidad: string; readonly precio: number;
-  }): Talvez<LicitacionSala>;
 }
 
 export function tieneProveedores(red: object): red is RedProveedores {

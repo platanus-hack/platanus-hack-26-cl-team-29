@@ -2,7 +2,7 @@
 // que sugiere su propio historial. Del XML solo se guarda esto; nunca a quién le vendió.
 // Decisión: docs/decisiones/20261121-1941-catalogo-desde-facturas.md
 import { CANASTA_DEMO } from './canasta-demo.ts';
-import { aCentena, tramosAutomaticos, tramosSugeridos, type Tramo } from './precios.ts';
+import { aCentena, errorDeTramos, ordenarTramos, tramosAutomaticos, tramosSugeridos, type Tramo } from './precios.ts';
 import { sinTildes } from './texto.ts';
 
 /** Una línea de detalle de una factura de venta, sin datos del receptor. */
@@ -33,9 +33,52 @@ export interface ProductoCatalogo {
   ventas: number;
   ultimaVenta: string;
   tramos: Tramo[];
-  /** `historial` si el historial muestra bajas por volumen; si no, `automaticos` (5, 10 y 15 % desde el último precio). */
-  tramosDe: 'historial' | 'automaticos';
+  /**
+   * `historial` si el historial muestra bajas por volumen; si no, `automaticos` (5, 10 y 15 % desde el último precio).
+   * `propios`: los puso el proveedor en su lista.
+   */
+  tramosDe: 'historial' | 'automaticos' | 'propios';
+  /** Está en su lista de productos (lo agregó o lo editó él), no es una sugerencia sacada de sus facturas. */
+  manual?: true;
 }
+
+/**
+ * Un producto de la lista del proveedor escrito por él: nombre, unidad de venta y sus tramos por cantidad. El primer
+ * tramo (desde 1) es el precio base por unidad; los demás, lo que cobra desde cierta cantidad.
+ */
+export interface ProductoEscrito {
+  nombre: string;
+  unidad: string;
+  tramos: Tramo[];
+}
+
+const limpio = (nombre: string) => nombre.replace(/\s+/g, ' ').trim();
+
+/** Por qué no se puede guardar, o null si está bien. `ya`: los otros productos de su lista (sin repetir el nombre). */
+export function errorDeProductoEscrito(p: ProductoEscrito, ya: readonly Pick<ProductoCatalogo, 'nombre'>[]): string | null {
+  const nombre = limpio(p.nombre);
+  if (nombre.length < 3 || nombre.length > 60) return 'El producto necesita un nombre de 3 a 60 letras';
+  if (!p.unidad.trim() || p.unidad.trim().length > 20) return 'Falta la unidad de venta (caja, bolsa, kilo)';
+  const tramos = errorDeTramos(p.tramos);
+  if (tramos) return tramos;
+  if (ya.some(x => sinTildes(x.nombre) === sinTildes(nombre))) return `"${nombre}" ya está en tu lista`;
+  return null;
+}
+
+/** Un producto de su lista, escrito por él. `clave` se conserva al editarlo. */
+export function productoManual(p: ProductoEscrito, hoy: string, clave = `m-${claveDe({ nombre: limpio(p.nombre) })}`): ProductoCatalogo {
+  const tramos = ordenarTramos(p.tramos);
+  const precios = tramos.map(t => t.precioUnitario);
+  return {
+    clave, nombre: limpio(p.nombre), unidad: p.unidad.trim().toLowerCase(), ultimoPrecio: tramos[0].precioUnitario,
+    precioMinimo: Math.min(...precios), precioMaximo: Math.max(...precios), unidadesVendidas: 0, ventas: 0, ultimaVenta: hoy,
+    tramos, tramosDe: 'propios', manual: true,
+  };
+}
+
+/** El catálogo que se muestra: primero su lista y después las sugerencias de sus facturas que no están en ella. */
+export const juntarCatalogo = (manuales: readonly ProductoCatalogo[], deFacturas: readonly ProductoCatalogo[]): ProductoCatalogo[] =>
+  [...manuales, ...deFacturas.filter(f => !manuales.some(m => sinTildes(m.nombre) === sinTildes(f.nombre)))];
 
 /**
  * De dónde salieron las facturas. `ejemplo`: el historial simulado de la demo. `archivos`: XML que el equipo recibió

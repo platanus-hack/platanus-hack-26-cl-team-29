@@ -1,7 +1,6 @@
 // Textos del agente: cortos, estilo WhatsApp, español neutro. Sin lógica de negocio.
 import type { ItemCarrito, LicitacionSala, Negocio, OrdenCompra, ProductoCompra } from './puerto.ts';
 import { dinero, nota } from '../../shared/formato.ts';
-import { horaEnChile } from '../../shared/fecha.ts';
 import { formatearRut } from '../../shared/rut.ts';
 import type { Tramo } from '../../shared/precios.ts';
 import { totalOrden } from '../../shared/precios.ts';
@@ -375,13 +374,12 @@ export const proponerProducto = (nombre: string, unidad: string, tramos: readonl
   `¿Sumo "${nombre}" a la compra conjunta a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}? `
   + `Baja solo con el volumen del grupo: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
   + 'Otros proveedores pueden ofertar por él.\n' + opciones('Sí, súmalo', 'No');
-export const proponerAbrirCompra = (nombre: string, unidad: string, tramos: readonly Tramo[]) =>
-  `No hay una compra en grupo abierta. ¿Abro una con "${nombre}" a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}? `
-  + `Baja solo con el volumen del grupo: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
-  + 'Les aviso a los negocios de la red.\n' + opciones('Sí, ábrela', 'No');
-export const compraAbierta = (p: ProductoCompra, cierraEn: string) =>
-  `Listo, abriste una compra en grupo con "${p.nombre}" a ${dinero(p.precioActual)} por ${p.unidad}. `
-  + `Cierra a las ${horaEnChile(Date.parse(cierraEn))}. Los negocios de la red ya la pueden ver.`;
+export const proponerAgregarProducto = (nombre: string, unidad: string, tramos: readonly Tramo[]) =>
+  `¿Agrego "${nombre}" a tus productos a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}? `
+  + `Precio por cantidad sugerido: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
+  + 'Lo cambias cuando quieras en tu panel web, en Productos.\n' + opciones('Sí, agrégalo', 'No');
+export const productoAgregado = (nombre: string) =>
+  `Listo, "${nombre}" quedó en tus productos. Con él compites en las compras en grupo que lo pidan.`;
 export const productoCreado = (p: ProductoCompra) =>
   `Listo, "${p.nombre}" ya está en la compra conjunta a ${dinero(p.precioActual)} por ${p.unidad}. La sala lo ve en vivo.`;
 export function estadoDeOfertas(mias: readonly { producto: ProductoCompra; propia: number; ganando: boolean }[], productos: readonly ProductoCompra[]): string {
