@@ -203,6 +203,40 @@ export function unidadesDisponibles(p: Pick<ConOfertas, 'proveedorId' | 'creador
   return topes.reduce<number>((s, t) => s + t!, 0);
 }
 
+/** Una parte del pedido del grupo que cubre un proveedor, dentro de su stock. */
+export interface ParteDeReparto<C> { candidata: C; cantidad: number }
+
+/**
+ * Reparte `cantidad` unidades entre las candidatas, en el orden dado (la mejor primero), sin pasar el stock libre de
+ * cada una. `asignado` lleva lo ya tomado por proveedor y se actualiza, así el cierre reparte carrito por carrito con
+ * el mismo tope. `saltar` deja fuera una candidata (nadie se compra a sí mismo). Lo que no cabe queda en `falta`.
+ * Es la única regla de reparto: la usan el precio que ve el grupo y el cierre que crea las órdenes.
+ */
+export function repartirPorStock<C extends { proveedorId: string; stock?: number }>(
+  candidatas: readonly C[], cantidad: number, asignado: Map<string, number> = new Map(), saltar?: (c: C) => boolean,
+): { partes: ParteDeReparto<C>[]; falta: number } {
+  const partes: ParteDeReparto<C>[] = [];
+  let falta = cantidad;
+  for (const c of candidatas) {
+    if (falta <= 0) break;
+    if (saltar?.(c)) continue;
+    const libre = c.stock === undefined ? Infinity : c.stock - (asignado.get(c.proveedorId) ?? 0);
+    const toma = Math.min(falta, libre);
+    if (toma <= 0) continue;
+    asignado.set(c.proveedorId, (asignado.get(c.proveedorId) ?? 0) + toma);
+    partes.push({ candidata: c, cantidad: toma });
+    falta -= toma;
+  }
+  return { partes, falta };
+}
+
+/**
+ * Precio único del grupo cuando el pedido se reparte por stock: el de la parte más cara que hace falta para cubrirlo.
+ * Todos pagan lo mismo y es lo que se factura; si el más barato no alcanza, el precio sube hasta el siguiente que cubre.
+ */
+export const precioDelReparto = (partes: readonly ParteDeReparto<{ precioUnitario: number }>[]): number | undefined =>
+  partes.length ? Math.max(...partes.map(x => x.candidata.precioUnitario)) : undefined;
+
 type Linea = { cantidad: number; precioUnitario: number };
 
 /** Monto neto de unas líneas: cantidad por precio unitario. */

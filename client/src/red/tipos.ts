@@ -90,6 +90,8 @@ export interface ProductoCompra {
   siguienteTramo?: SiguienteTramo | null;
   /** Si todos los que lo venden declararon stock: cuántas unidades quedan para sumarse. */
   quedan?: number;
+  /** El stock del mejor no alcanza para el grupo: cuántas cubre él; el resto lo cubre el siguiente y todos pagan el precio actual. */
+  cubreElMejor?: number;
 }
 
 export interface Oferta {

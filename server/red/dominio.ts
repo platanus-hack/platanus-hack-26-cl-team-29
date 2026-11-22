@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { fechaEnChile } from '../../shared/fecha.ts';
 import { sinTildes } from '../../shared/texto.ts';
 import { normalizarProducto, precioDe, PRODUCTOS_DISPONIBLES } from './catalogo.ts';
-import { duenoDeTramos, errorDeTramos, neto, ofertasQueCompiten, ordenarTramos, precioAjustado, precioDeOferta, precioPorVolumen, puedeCerrarAntes, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
+import { duenoDeTramos, errorDeTramos, neto, ofertasQueCompiten, ordenarTramos, precioDeOferta, precioPorVolumen, puedeCerrarAntes, repartirPorStock, tramosAutomaticos, unidadesDe } from '../../shared/precios.ts';
 import { puedeComprar, puedeVender } from '../../shared/red.ts';
 import { POR_ENTREGAR } from '../../shared/ruta.ts';
 import { pluralDe } from '../../shared/texto.ts';
 import { pluralUnidad, unidadDeTexto, type IdUnidad } from '../../shared/unidades.ts';
 import { mismoProducto } from '../../shared/productos.ts';
-import { precioVigente, preciosVigentes, productoDe, vistaLicitacion, vistaProducto } from './compra.ts';
+import { candidatasDe, precioVigente as precioVigenteCon, preciosVigentes as preciosVigentesCon, productoDe, repartoDelGrupo, vistaLicitacion as vistaLicitacionCon, vistaProducto as vistaProductoCon } from './compra.ts';
+import type { ContextoPrecio } from './compra.ts';
 import { CANTIDAD_MAXIMA } from '../../shared/red.ts';
 
 /** Cuánto dura una solicitud de compra en grupo si no se dice: un día. Lo máximo: una semana. */
@@ -440,6 +441,12 @@ export async function crearRed({
   }
 
   const notaDeProveedor = (proveedorId: string) => calcularNota(datos.eventosReputacion, proveedorId);
+  // El precio que ve el grupo y el del cierre salen de las mismas funciones (compra.ts), con la nota de cada proveedor.
+  const ctxPrecio: ContextoPrecio = { notaDe: notaDeProveedor, ahora };
+  const precioVigente = (l: Licitacion, productoId?: string) => precioVigenteCon(l, productoId, ctxPrecio);
+  const preciosVigentes = (l: Licitacion) => preciosVigentesCon(l, ctxPrecio);
+  const vistaLicitacion = (l: Licitacion) => vistaLicitacionCon(l, ctxPrecio);
+  const vistaProducto = (l: Licitacion, p: ProductoCompra) => vistaProductoCon(l, p, ctxPrecio);
 
   async function registrarReputacion(proveedorId: string, ordenId: string, tipo: TipoEventoReputacion) {
     const anterior = notaDeProveedor(proveedorId);
@@ -1083,63 +1090,38 @@ export async function crearRed({
   }
 
   /**
-   * Ofertas de un producto al cerrar, de la mejor a la peor por precio ajustado: las ofertas explícitas y el tramo
-   * alcanzado de quien creó el producto (lo que pide por ese volumen). Una por proveedor, la más barata.
+   * Compra de cada participante sin proveedor fijo: por cada línea, las mejores ofertas que no sean suyas, dentro del
+   * stock de cada proveedor (`repartirPorStock`, la misma regla del precio que ve el grupo). Todos pagan el precio del
+   * grupo (`precioVigente`), que es lo que vieron en vivo; solo si alguien no puede comprarse a sí mismo y le toca un
+   * proveedor más caro que ese precio, esa línea va al precio de ese proveedor.
    */
-  function candidatasDe(l: Licitacion, p: ProductoCompra): Ganadora[] {
-    const porProveedor = new Map<string, Oferta>();
-    const tramoDelCreador: Oferta[] = p.proveedorId && !p.creadorPendienteSii
-      ? [{ proveedorId: p.proveedorId, productoId: p.id, precioUnitario: precioPorVolumen(p, unidadesDe(l, p.id)), plazoDias: 1, en: ahora(), ...(p.stock !== undefined ? { stock: p.stock } : {}) }]
-      : [];
-    // Cada oferta al precio de su tramo para el volumen que juntó el grupo.
-    const unidades = unidadesDe(l, p.id);
-    for (const o of [...ofertasQueCompiten(p.ofertas).map(x => ({ ...x, precioUnitario: precioDeOferta(x, unidades) })), ...tramoDelCreador]) {
-      const actual = porProveedor.get(o.proveedorId);
-      if (!actual || o.precioUnitario < actual.precioUnitario) porProveedor.set(o.proveedorId, o);
-    }
-    return [...porProveedor.values()]
-      .map(o => {
-        const nota = notaDeProveedor(o.proveedorId);
-        return { ...o, nota, precioAjustado: precioAjustado(o, nota) };
-      })
-      .sort((a, b) => a.precioAjustado - b.precioAjustado);
-  }
-
-  /** Compra de cada participante sin proveedor fijo: por cada línea, la mejor oferta que no sea suya. */
   function comprasPorProducto(l: Licitacion) {
-    const candidatas = new Map(l.productos.map(p => [p.id, candidatasDe(l, p)]));
+    const candidatas = new Map(l.productos.map(p => [p.id, candidatasDe(l, p, ctxPrecio)]));
+    const precios = preciosVigentes(l);
     for (const p of l.productos) {
-      const g = candidatas.get(p.id)![0];
+      const g = repartoDelGrupo(l, p, ctxPrecio).partes[0]?.candidata;
       if (g) p.ganadora = g;
     }
     const compras: { participante: Participante; proveedorId: string; precio: (productoId: string) => number; items: ItemCarrito[] }[] = [];
     const sinProveedor: { productoId: string; cantidad: number }[] = [];
-    /** Unidades ya asignadas a cada proveedor por producto, para no pasar su stock. */
-    const asignado = new Map<string, number>();
+    /** Unidades ya asignadas a cada proveedor, por producto, para no pasar su stock. */
+    const asignado = new Map(l.productos.map(p => [p.id, new Map<string, number>()]));
     for (const participante of l.participantes) {
       const porProveedor = new Map<string, { items: ItemCarrito[]; precios: Map<string, number> }>();
       for (const i of participante.items) {
         // Nadie se compra a sí mismo, salvo en la demo con DEMO_COMPRA_A_SI_MISMO=1 (para probar todo con un teléfono).
-        // Ni se le asigna a un proveedor más que su stock: lo que no cabe pasa a la siguiente mejor oferta.
-        let falta = i.cantidad;
-        for (const g of candidatas.get(i.productoId) ?? []) {
-          if (falta === 0) break;
-          if (!aSiMismo && g.proveedorId === participante.negocioId) continue;
-          const clave = `${g.proveedorId}|${i.productoId}`;
-          const libre = g.stock === undefined ? Infinity : g.stock - (asignado.get(clave) ?? 0);
-          const toma = Math.min(falta, libre);
-          if (toma <= 0) continue;
-          asignado.set(clave, (asignado.get(clave) ?? 0) + toma);
-          falta -= toma;
+        const saltar = (c: Ganadora) => !aSiMismo && c.proveedorId === participante.negocioId;
+        const { partes, falta } = repartirPorStock(candidatas.get(i.productoId) ?? [], i.cantidad, asignado.get(i.productoId), saltar);
+        for (const { candidata: g, cantidad } of partes) {
           const grupo = porProveedor.get(g.proveedorId) ?? { items: [], precios: new Map<string, number>() };
-          grupo.items.push({ ...i, cantidad: toma });
-          grupo.precios.set(i.productoId, g.precioUnitario);
+          grupo.items.push({ ...i, cantidad });
+          grupo.precios.set(i.productoId, Math.max(precios.get(i.productoId) ?? g.precioUnitario, g.precioUnitario));
           porProveedor.set(g.proveedorId, grupo);
         }
         if (falta > 0) sinProveedor.push({ productoId: i.productoId, cantidad: falta });
       }
-      for (const [proveedorId, { items, precios }] of porProveedor) {
-        compras.push({ participante, proveedorId, items, precio: id => precios.get(id)! });
+      for (const [proveedorId, { items, precios: suyos }] of porProveedor) {
+        compras.push({ participante, proveedorId, items, precio: id => suyos.get(id)! });
       }
     }
     return { compras, sinProveedor };
@@ -1254,7 +1236,7 @@ export async function crearRed({
     const fuera = new Set<string>([PROVEEDOR_SALA, ...COMPETIDORES_SALA.map(c => c.id)]);
     for (const n of datos.negocios) if (puedeVender(n) && !fuera.has(n.id)) notas[n.id] = notaDeProveedor(n.id);
     return structuredClone({
-      negocios: datos.negocios, ordenes: datos.ordenes, documentos: datos.documentos, notas, licitaciones: datos.licitaciones.map(vistaLicitacion),
+      negocios: datos.negocios, ordenes: datos.ordenes, documentos: datos.documentos, notas, licitaciones: datos.licitaciones.map(l => vistaLicitacion(l)),
     });
   }
 

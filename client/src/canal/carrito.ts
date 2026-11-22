@@ -35,6 +35,8 @@ export interface ProductoCanasta {
   siguienteTramo: SiguienteTramo | null;
   /** Unidades que quedan si el stock de los proveedores es el límite. */
   quedan?: number;
+  /** El stock del mejor no alcanza: cuántas cubre él (el resto, el siguiente; todos pagan `precioActual`). */
+  cubreElMejor?: number;
 }
 
 const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -70,6 +72,7 @@ export function productosDe(lic: LicitacionCanal): ProductoCanasta[] {
       id: p.id, nombre: p.nombre, unidad: p.unidad || 'unidad', unidadPlural: p.unidadPlural || 'unidades', precioSolo, tramos,
       totalUnidades: total, precioActual, ...(gana?.minimo ? { minimo: gana.minimo } : {}),
       ...('quedan' in p && numero(p.quedan) !== undefined ? { quedan: numero(p.quedan) } : {}),
+      ...('cubreElMejor' in p && numero(p.cubreElMejor) !== undefined ? { cubreElMejor: numero(p.cubreElMejor) } : {}),
       // Solo cuenta un tramo que de verdad baja el precio (con 0 unidades, el primero cuesta lo mismo que comprar solo).
       siguienteTramo: p.siguienteTramo && p.siguienteTramo.precioUnitario < precioActual ? p.siguienteTramo : siguienteTramo(tramos, total, precioActual),
     };
