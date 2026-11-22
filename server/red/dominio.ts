@@ -22,7 +22,7 @@ import { conCacheYFila, crearConsultaContribuyenteFalsa } from './contribuyente.
 import type { ConsultarContribuyente, DatosContribuyente } from './contribuyente.ts';
 import { RUT_INVALIDO, validarRut } from '../../shared/rut.ts';
 import { RUBROS } from './tipos.ts';
-import { COMPETIDORES_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
+import { COMPETIDORES_SALA, LICITACION_SALA, PROVEEDOR_SALA, sembrar } from './semilla.ts';
 import type { DocumentoImpreso } from '../sii/index.ts';
 import type { PuertoSii, ResultadoSii } from './sii.ts';
 import type { Repositorio } from './repositorio.ts';
@@ -340,6 +340,11 @@ const PRODUCTO_UNICO = 'producto';
 
 /** Licitaciones guardadas antes de los tramos o de la canasta: un producto con sus tramos y ofertas, y carritos de un ítem. */
 function migrarLicitacion(l: Licitacion) {
+  // Compras en grupo de un comprador abiertas antes de guardar quién la inició: la inició el primero que se sumó.
+  if (!l.iniciadaPor && !l.proveedorId && l.id !== LICITACION_SALA && l.participantes?.length) {
+    const primero = [...l.participantes].sort((a, b) => (a.en ?? '').localeCompare(b.en ?? ''))[0];
+    if (primero?.negocioId) l.iniciadaPor = primero.negocioId;
+  }
   l.tramos ??= [{ desde: 1, precioUnitario: l.precioSolo }];
   l.unidad ??= 'unidad';
   l.unidadPlural ??= 'unidades';

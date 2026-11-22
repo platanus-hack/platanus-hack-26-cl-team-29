@@ -142,3 +142,20 @@ test('quien inició la compra la cierra antes, solo con oferta y con el mínimo 
   assert.deepEqual(ordenes.map(o => [o.proveedorId, o.items[0].cantidad]).sort(), [[prov, 4], [prov, 6]]);
   assert.equal(red.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.estado, 'cerrada');
 });
+
+test('una compra abierta antes de guardar quién la inició: la inició el primero que se sumó', async () => {
+  const repo = crearRepositorioMemoria();
+  await sembrarSiVacio(repo, new Date(), {});
+  const antes = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
+  const ana = (await antes.registrarComprador({ nombre: 'Ana', comuna: 'Ñuñoa', telefono: '+56 9 3100 0001' })).id;
+  const beto = (await antes.registrarComprador({ nombre: 'Beto', comuna: 'Ñuñoa', telefono: '+56 9 3100 0002' })).id;
+  const l = await antes.abrirSolicitud({ compradorId: ana, producto: 'Café molido 1 kg', unidad: 'bolsa', cantidad: 3 });
+  await antes.agregarAlCarrito(l.id, { negocioId: beto, productoId: l.productos[0].id, cantidad: 2 });
+  // Como quedó guardada antes del cambio: sin `iniciadaPor`.
+  const datos = await repo.cargar();
+  const guardada = datos.licitaciones.find(x => x.id === l.id)!;
+  delete guardada.iniciadaPor;
+  await repo.guardar('licitaciones', guardada);
+  const despues = await crearRed({ repo, sii: crearSiiFalso(), env: {} });
+  assert.equal(despues.estadoDeLaRed().licitaciones.find(x => x.id === l.id)!.iniciadaPor, ana);
+});
