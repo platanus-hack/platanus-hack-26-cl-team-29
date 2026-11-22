@@ -119,6 +119,8 @@ export interface Oferta {
    * compite ni baja el precio hasta que conecte. La fija el dominio con `puedeFacturar`.
    */
   pendienteSii?: true;
+  /** Unidades que tiene para vender: al cerrar nunca se le asigna más; lo que sobra va a la siguiente mejor oferta. */
+  stock?: number;
   /**
    * Pedido mínimo del grupo (MOQ) que pide el proveedor. No impide la compra: si gana y el grupo no llega, puede
    * cancelar el pedido, y el comprador lo ve antes de sumarse.
@@ -153,6 +155,8 @@ export interface ProductoCompra {
   proveedorId?: string;
   /** Quien lo creó todavía no puede facturar en el SII: sus tramos quedan como referencia y no compiten. */
   creadorPendienteSii?: true;
+  /** Stock de quien lo creó: al cerrar nunca se le asigna más. */
+  stock?: number;
   /** Al cerrar, la mejor oferta por precio ajustado (sin la compra propia de cada participante, ver `cerrarLicitacion`). */
   ganadora?: Ganadora;
 }
@@ -161,6 +165,8 @@ export interface ProductoCompra {
 export interface ProductoCompraVista extends ProductoCompra {
   totalUnidades: number;
   precioActual: number;
+  /** Si todos los que lo venden declararon stock: cuántas unidades quedan para sumarse (`unidadesDisponibles`). */
+  quedan?: number;
   siguienteTramo: SiguienteTramo | null;
 }
 

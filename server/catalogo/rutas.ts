@@ -12,11 +12,12 @@ import type { ProductoEscrito } from '../../shared/catalogo.ts';
  */
 /** El cuerpo de agregar o editar un producto, con los tipos de cada campo. */
 function escrito(cuerpo: unknown): ProductoEscrito {
-  const { nombre, unidad, tramos, minimo } = (cuerpo ?? {}) as Record<string, unknown>;
+  const { nombre, unidad, tramos, minimo, stock } = (cuerpo ?? {}) as Record<string, unknown>;
   const lista = Array.isArray(tramos) ? tramos as { desde?: unknown; precioUnitario?: unknown }[] : [];
   return {
     nombre: String(nombre ?? ''), unidad: String(unidad ?? ''), tramos: lista.map(t => ({ desde: Number(t?.desde), precioUnitario: Number(t?.precioUnitario) })),
     ...(minimo ? { minimo: Number(minimo) } : {}),
+    ...(stock !== undefined && stock !== null && stock !== '' ? { stock: Number(stock) } : {}),
   };
 }
 

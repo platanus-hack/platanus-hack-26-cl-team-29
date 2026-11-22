@@ -88,6 +88,8 @@ export interface ProductoCompra {
   totalUnidades?: number;
   precioActual?: number;
   siguienteTramo?: SiguienteTramo | null;
+  /** Si todos los que lo venden declararon stock: cuántas unidades quedan para sumarse. */
+  quedan?: number;
 }
 
 export interface Oferta {

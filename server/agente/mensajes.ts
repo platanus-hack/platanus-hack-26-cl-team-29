@@ -447,10 +447,16 @@ export const proponerProducto = (nombre: string, unidad: string, tramos: readonl
   `¿Sumo "${nombre}" a la compra conjunta a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}? `
   + `Baja solo con el volumen del grupo: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
   + 'Otros proveedores pueden ofertar por él.\n' + opciones('Sí, súmalo', 'No');
-export const proponerAgregarProducto = (nombre: string, unidad: string, tramos: readonly Tramo[]) =>
-  `¿Agrego "${nombre}" a tus productos a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}? `
+export const proponerAgregarProducto = (nombre: string, unidad: string, tramos: readonly Tramo[], stock?: number) =>
+  `¿Agrego "${nombre}" a tus productos a ${dinero(tramos[0]!.precioUnitario)} por ${unidad}${stock !== undefined ? `, con ${stock} en stock` : ''}? `
   + `Precio por cantidad sugerido: ${tramos.slice(1).map(t => `${dinero(t.precioUnitario)} desde ${t.desde}`).join(', ')}. `
   + 'Lo cambias cuando quieras en tu panel web, en Productos.\n' + opciones('Sí, agrégalo', 'No');
+export const stockFijado = (nombre: string, stock: number) =>
+  `Listo, "${nombre}" queda con ${stock} en stock. En una compra en grupo nunca te asignamos más que eso.`;
+export const stockSinProducto = (producto?: string) =>
+  `${producto ? `No encontré "${producto}" en tus productos.` : 'Todavía no tienes productos en tu lista.'} `
+  + 'Agrega uno con "vendo [producto] a $[precio], tengo [cantidad]".';
+export const SIN_LISTA_DE_PRODUCTOS = 'El stock se fija en tu panel web, en Productos.';
 export const productoAgregado = (nombre: string) =>
   `Listo, "${nombre}" quedó en tus productos. Con él compites en los pedidos en grupo que lo pidan.`;
 export const productoCreado = (p: ProductoCompra) =>

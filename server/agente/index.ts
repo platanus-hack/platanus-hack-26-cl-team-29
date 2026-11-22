@@ -11,7 +11,7 @@ import type { Interprete, Intencion } from './intencion.ts';
 import type { LicitacionSala, Negocio, OrdenCompra, Red } from './puerto.ts';
 import { unidadDeTexto } from '../../shared/unidades.ts';
 import { tieneProveedores, tieneSala } from './puerto.ts';
-import { interpretarConReglas, interpreteDeReglas, normalizar } from './intencion.ts';
+import { interpretarConReglas, interpreteDeReglas, leerStock, normalizar, stockEnTexto } from './intencion.ts';
 import { CANTIDAD_MAXIMA, puedeComprar, puedeVender } from '../../shared/red.ts';
 import { mismoNombre, type ProductoConocido } from '../../shared/productos.ts';
 import { mejorOferta, puedeCerrarAntes } from '../../shared/precios.ts';
@@ -628,7 +628,7 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       case 'crear_producto': {
         const r = productoDeLaBiblioteca(negocio, intencion.nombre, { tipo: 'vender', unidad: intencion.unidad, precio: intencion.precio });
         if (typeof r === 'string') return r;
-        propuesta = await proveedores.proponerProducto(negocio, r.nombre, r.unidad ?? intencion.unidad, intencion.precio);
+        propuesta = await proveedores.proponerProducto(negocio, r.nombre, r.unidad ?? intencion.unidad, intencion.precio, intencion.stock);
         break;
       }
       case 'ver_ofertas': return proveedores.verOfertas(negocio);
@@ -734,7 +734,16 @@ export function conectarAgente(whatsapp: WhatsAppDelAgente, red: Red, opciones: 
       await ctx.reply(await seguirCon(negocio, antes.para, elegido));
       return;
     }
-    const intencion = await entender(negocio, telefono, texto, antes?.mensaje ?? null);
+    // "tengo 200 impresoras": un proveedor declara el stock de un producto de su lista.
+    const stock = proveedores && puedeVender(negocio) && !antes ? leerStock(texto) : null;
+    if (stock) {
+      await ctx.reply(await proveedores!.fijarStock(negocio, stock.cantidad, stock.producto));
+      return;
+    }
+    const entendida = await entender(negocio, telefono, texto, antes?.mensaje ?? null);
+    // "vendo ... a $15.000, tengo 200": el stock va con el producto aunque el intérprete no lo haya leído.
+    const stockDicho = entendida.tipo === 'crear_producto' && entendida.stock === undefined ? stockEnTexto(texto) : undefined;
+    const intencion: Intencion = stockDicho !== undefined && entendida.tipo === 'crear_producto' ? { ...entendida, stock: stockDicho } : entendida;
     // Un comprador registrado también arma su pedido en la compra conjunta, si no hay otra cosa en curso.
     // Quien se suma por WhatsApp queda registrado en la red: "sí", "no" o "2 del 3" también son de la sala.
     // Un pedido de un producto de la canasta ("quiero 3 cajas más") es de la sala aunque se lea como pedido.

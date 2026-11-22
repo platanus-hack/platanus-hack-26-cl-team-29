@@ -14,7 +14,7 @@ export type Intencion =
   /** Un proveedor ofrece un precio por un producto de la compra conjunta (si no dice cuál, se le pregunta). */
   | { readonly tipo: 'ofertar'; readonly precio: number; readonly producto?: string }
   /** Un proveedor suma un producto nuevo a la compra conjunta: nombre, unidad de venta y precio. */
-  | { readonly tipo: 'crear_producto'; readonly nombre: string; readonly unidad: string; readonly precio: number }
+  | { readonly tipo: 'crear_producto'; readonly nombre: string; readonly unidad: string; readonly precio: number; readonly stock?: number }
   /** Quiere vender en la red: registro de proveedor con su certificado digital. */
   | { readonly tipo: 'ser_proveedor' }
   /** Un proveedor pregunta cómo van sus ofertas. */
@@ -81,8 +81,29 @@ function leerOferta(texto: string): Intencion | null {
   return { tipo: 'ofertar', precio: precioDe(precio), ...(resto ? { producto: resto } : {}) };
 }
 
+/** "..., tengo 200" o "tengo 200 unidades" dentro de otra frase: el stock que declara, con su resto de la frase. */
+const TENGO = /[,;.]?\s*\b(?:tengo|me quedan|quedan|hay|stock(?: de)?:?)\s+(\d{1,3}(?:\.\d{3})+|\d+)\b\s*([\p{L}\s]*)$/iu;
+
+/** El stock que se dice al final de una frase ("vendo ... a $15.000, tengo 200"), o undefined. */
+export function stockEnTexto(texto: string): number | undefined {
+  const m = TENGO.exec(texto);
+  return m ? Number(m[1]!.replace(/\./g, '')) : undefined;
+}
+
+/** Un mensaje que solo declara stock: "tengo 200 impresoras", "me quedan 50 cajas de rollos". */
+export function leerStock(texto: string): { cantidad: number; producto?: string } | null {
+  if (/\$|\bvendo\b|\boferto\b/i.test(texto)) return null;
+  const m = /^\s*(?:tengo|me quedan|quedan|stock(?: de)?:?)\s+(\d{1,3}(?:\.\d{3})+|\d+)\s*(?:(?:unidades|u\.?)\s*)?(?:de\s+)?(.*?)\s*\.?$/iu.exec(texto);
+  if (!m) return null;
+  const producto = m[2]!.trim();
+  return { cantidad: Number(m[1]!.replace(/\./g, '')), ...(producto ? { producto } : {}) };
+}
+
 /** "vendo café molido 1 kg a $12.000 la bolsa", "nuevo producto: cajas de té a 4500". */
-function leerProductoNuevo(texto: string): Intencion | null {
+function leerProductoNuevo(textoCompleto: string): Intencion | null {
+  // "..., tengo 200": el stock no es parte del nombre ni del precio.
+  const stock = stockEnTexto(textoCompleto);
+  const texto = stock === undefined ? textoCompleto : textoCompleto.replace(TENGO, '');
   const verbo = /^\s*(vendo|agrega(?:r)? (?:el )?producto|nuevo producto|suma(?:r)? (?:el )?producto)\s*:?\s*/i.exec(texto);
   if (!verbo) return null;
   const sinVerbo = texto.slice(verbo[0].length);
@@ -99,7 +120,7 @@ function leerProductoNuevo(texto: string): Intencion | null {
   // "cajas de té": el nombre es "Té"; "café molido 1 kg": queda tal cual.
   const nombre = unidadDe(primera) ? antes.replace(/^\S+\s+(?:de\s+)?/i, '') : antes;
   if (nombre.length < 2) return null;
-  return { tipo: 'crear_producto', nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), unidad, precio: precioDe(precio) };
+  return { tipo: 'crear_producto', nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), unidad, precio: precioDe(precio), ...(stock !== undefined ? { stock } : {}) };
 }
 
 /** Intérprete sin red ni credenciales: cubre las frases de la demo. */

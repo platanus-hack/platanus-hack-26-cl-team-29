@@ -20,13 +20,13 @@ import { aFilas, aTramos, AccionesTramos, TablaTramos, useTramos, type FilaTramo
 const POLEO_MS = 2000;
 const armando = (c: CatalogoProveedor) => c.estado === 'armando';
 
-interface Borrador { clave?: string; nombre: string; unidad: string; filas: FilaTramo[]; minimo?: number }
+interface Borrador { clave?: string; nombre: string; unidad: string; filas: FilaTramo[]; minimo?: number; stock?: number }
 
 const NUEVO: Borrador = { nombre: '', unidad: '', filas: [{ desde: '1', precio: '' }] };
 // La unidad guardada pasa a una de la lista (los productos antiguos pueden traerla como "KG" o "CJ").
 const aBorrador = (p: ProductoCatalogo, clave?: string): Borrador => ({
   ...(clave ? { clave } : {}), nombre: p.nombre, unidad: unidadDeTexto(p.unidad) ?? '',
-  filas: aFilas(p.tramos), ...(p.minimo ? { minimo: p.minimo } : {}),
+  filas: aFilas(p.tramos), ...(p.minimo ? { minimo: p.minimo } : {}), ...(p.stock !== undefined ? { stock: p.stock } : {}),
 });
 
 export function Productos({ api, token, alCambiar, abierta }: PropsAccion & { abierta?: LicitacionCanal }) {
@@ -88,7 +88,10 @@ function ProductoDeLista({ api, token, producto: p, abierta, yaEsta, onEditar }:
       <button type="button" className="bm-boton-texto" onClick={onEditar}>Editar</button>
       <button type="button" className="bm-boton-texto" disabled={enviando} onClick={() => enviar(() => api.quitarProducto(token, p.clave))}>Quitar</button>
     </>}>
-      <span>{dinero(base.precioUnitario)} por {p.unidad}{p.minimo ? ` · pedido mínimo ${contar(p.minimo, p.unidad)}` : ''}</span>
+      <span>
+        {dinero(base.precioUnitario)} por {p.unidad}{p.minimo ? ` · pedido mínimo ${contar(p.minimo, p.unidad)}` : ''}
+        {p.stock !== undefined ? ` · stock ${p.stock}` : ''}
+      </span>
       {porCantidad.length > 0 && (
         <ul className="bp-tramos-chicos" aria-label="Precio por cantidad">
           {porCantidad.map(t => <li key={t.desde}>desde {t.desde}: <strong>{dinero(t.precioUnitario)}</strong></li>)}
@@ -107,9 +110,12 @@ function Editor({ api, token, inicial, otros, onListo, onCancelar }: {
   const [unidadElegida, setUnidad] = useState(inicial.unidad);
   const t = useTramos(inicial.filas);
   const [minimo, setMinimo] = useState(inicial.minimo ? String(inicial.minimo) : '');
+  const [stock, setStock] = useState(inicial.stock !== undefined ? String(inicial.stock) : '');
   const [tocado, setTocado] = useState(false);
   const { enviando, error, enviar } = useEnvio();
-  const escrito = { nombre, unidad: unidadElegida, tramos: aTramos(t.filas), ...(Number(minimo) ? { minimo: Number(minimo) } : {}) };
+  const escrito = {
+    nombre, unidad: unidadElegida, tramos: aTramos(t.filas), ...(Number(minimo) ? { minimo: Number(minimo) } : {}), ...(stock !== '' ? { stock: Number(stock) } : {}),
+  };
   const problema = errorDeProductoEscrito(escrito, otros);
   const guardar = (e: FormEvent) => {
     e.preventDefault();
@@ -135,6 +141,12 @@ function Editor({ api, token, inicial, otros, onListo, onCancelar }: {
           <input inputMode="numeric" value={minimo} onChange={e => setMinimo(e.target.value.replace(/\D/g, ''))} placeholder="Sin mínimo" />
         </Campo>
         <p className="bm-ayuda">No impide la compra en grupo: si ganas y no llegan a este mínimo, puedes cancelar el pedido. Se lo avisamos a los compradores.</p>
+      </div>
+      <div className="bp-sumar">
+        <Campo etiqueta="Stock (opcional)">
+          <input inputMode="numeric" value={stock} onChange={e => setStock(e.target.value.replace(/\D/g, ''))} placeholder="Sin tope" />
+        </Campo>
+        <p className="bm-ayuda">Nunca te asignamos más que esto en una compra en grupo: lo que sobre va al siguiente proveedor.</p>
       </div>
       {((tocado && problema) || error) && <p className="bm-error bp-margen" role="alert">{error || `${problema}.`}</p>}
       <div className="bp-acciones">
